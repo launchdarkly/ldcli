@@ -25,12 +25,11 @@ func (workspace syncWorkspace) sendSyncReports(errorOutput io.Writer, outcomes [
 
 	console := syncconsole.New(errorOutput)
 	for projectKey, projectIDs := range syncdomain.GroupByProject(ids) {
-		report := syncapi.SyncReport{Source: workspace.source}
+		report := make([]syncapi.SyncReportResource, 0, len(projectIDs))
 		for _, id := range projectIDs {
-			report.Resources = append(report.Resources, resources[id])
+			report = append(report, resources[id])
 		}
-		err := workspace.api.PostSyncReport(projectKey, report)
-		if err != nil {
+		if err := workspace.api.PostSyncReport(projectKey, workspace.source, report); err != nil {
 			_ = console.Printf(
 				"Warning: sync did not send its report to LaunchDarkly for project %s: %s\n",
 				projectKey, syncapi.ErrorText(err.Error()),
@@ -42,14 +41,8 @@ func (workspace syncWorkspace) sendSyncReports(errorOutput io.Writer, outcomes [
 // reportResource returns the report of one outcome. A resource that did not
 // sync, because it failed or sync skipped it, is a failure.
 func reportResource(outcome ResourceOutcome) syncapi.SyncReportResource {
-	resource := syncapi.SyncReportResource{
-		ResourceKind:      outcome.ID.Kind,
-		ResourceLookupKey: outcome.ID.LookupKey,
-		Status:            syncapi.ReportStatusSucceeded,
-		Version:           outcome.Version,
-	}
+	resource := syncapi.SyncReportResource{ID: outcome.ID}
 	if outcome.Status != OutcomeSucceeded {
-		resource.Status, resource.Version = syncapi.ReportStatusFailed, 0
 		resource.Error = truncate(syncapi.ErrorText(outcome.Error), maxReportErrorLength)
 		if resource.Error == "" {
 			resource.Error = "sync did not apply the change"

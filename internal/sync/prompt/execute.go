@@ -54,12 +54,10 @@ func executePlan(
 			if file, ok := localFiles[resource.ID]; ok {
 				localFile = &file.Variation
 			}
-			version, err := applyResourceChange(repositoryRoot, localStore, client, attachments, resource, localFile)
-			if err != nil {
+			if err := applyResourceChange(repositoryRoot, localStore, client, attachments, resource, localFile); err != nil {
 				fail(&outcome, err)
 				break
 			}
-			outcome.Version = version
 			recordSuccessfulChange(&next, resource)
 		default:
 			outcome.Status, outcome.Error = OutcomeSkipped, "resource is not executable"
@@ -117,9 +115,7 @@ func recordSuccessfulChange(manifest *syncmanifest.Manifest, resource PlannedRes
 }
 
 // applyResourceChange applies one action that writes to LaunchDarkly or to a
-// local file. localFile is the variation as its file stores it, or nil. It
-// returns the LaunchDarkly version that the action wrote, or 0 when the
-// action wrote no version or the version is not known.
+// local file. localFile is the variation as its file stores it, or nil.
 func applyResourceChange(
 	repositoryRoot string,
 	localStore synclocal.Store,
@@ -127,9 +123,17 @@ func applyResourceChange(
 	attachments *attachmentResolver,
 	resource PlannedResource,
 	localFile *syncdomain.Variation,
-) (int, error) {
+) error {
 	if resource.Action == ActionUpdateBoth {
-		return applyMergedChange(repositoryRoot, localStore, client, attachments, resource, localFile)
+		// Write LaunchDarkly first, so that a failed write leaves the local file as it is.
+		if err := applyServerChange(client, attachments, mergedServerChange(resource)); err != nil {
+			return err
+		}
+		local := mergedLocalChange(resource, localFile)
+		if err := applyLocalChange(localStore, local); err != nil {
+			return err
+		}
+		return verifyLocalResult(repositoryRoot, local)
 	}
 	if resource.Action.changesServer() {
 		return applyServerChange(client, attachments, resource)
@@ -144,10 +148,10 @@ func applyResourceChange(
 		resource.Server = &variation
 	}
 	if err := applyLocalChange(localStore, resource); err != nil {
-		return 0, err
+		return err
 	}
 	if err := verifyLocalResult(repositoryRoot, resource); err != nil {
-		return 0, err
+		return err
 	}
 
 	// The local file now matches LaunchDarkly. If LaunchDarkly pins an older
@@ -155,106 +159,82 @@ func applyResourceChange(
 	if resource.ServerHasStaleAttachmentPins && server != nil {
 		configKey, _, err := resource.ID.VariationKeys()
 		if err != nil {
-			return 0, err
+			return err
 		}
 		pinned, err := server.PinnedToLatest()
 		if err != nil {
-			return 0, err
+			return err
 		}
 		return client.UpdateVariation(resource.ID.ProjectKey, configKey, pinned)
 	}
-	return 0, nil
+	return nil
 }
 
-// applyMergedChange writes the merged variation of an ActionUpdateBoth to
-// LaunchDarkly first, and then to the local file. If the server write fails,
-// the local file does not change.
-func applyMergedChange(
-	repositoryRoot string,
-	localStore synclocal.Store,
-	client syncapi.Client,
-	attachments *attachmentResolver,
-	resource PlannedResource,
-	localFile *syncdomain.Variation,
-) (int, error) {
-	if resource.Merged == nil {
-		return 0, errors.New("the merged variation is missing")
-	}
-	toServer := resource
-	toServer.Action = ActionUpdateServer
-	toServer.Local, toServer.LocalFingerprint = resource.Merged, resource.MergedFingerprint
-	version, err := applyServerChange(client, attachments, toServer)
-	if err != nil {
-		return 0, err
-	}
+// mergedServerChange is the LaunchDarkly half of an ActionUpdateBoth.
+func mergedServerChange(resource PlannedResource) PlannedResource {
+	resource.Action = ActionUpdateServer
+	resource.Local, resource.LocalFingerprint = resource.Merged, resource.MergedFingerprint
+	return resource
+}
 
-	// The local write uses the form of the local file, as ActionUpdateLocal does.
-	toLocal := resource
-	toLocal.Action = ActionUpdateLocal
+// mergedLocalChange is the local half of an ActionUpdateBoth. It keeps the form of the local file.
+func mergedLocalChange(resource PlannedResource, localFile *syncdomain.Variation) PlannedResource {
 	variation := variationForLocalFile(*resource.Merged, localFile, resource.Local)
-	toLocal.Server = &variation
-	if err := applyLocalChange(localStore, toLocal); err != nil {
-		return version, err
-	}
-	return version, verifyLocalResult(repositoryRoot, toLocal)
+	resource.Action, resource.Server = ActionUpdateLocal, &variation
+	return resource
 }
 
-// applyServerChange writes one variation to LaunchDarkly, and returns the
-// version that the write gave it. If the write fails without a response, it
-// reads the variation to find whether the write succeeded. Then the version
-// is not known, and it returns 0.
-func applyServerChange(client syncapi.Client, attachments *attachmentResolver, resource PlannedResource) (int, error) {
+// applyServerChange writes one variation to LaunchDarkly. If the write fails
+// without a response, it reads the variation to find whether the write
+// succeeded.
+func applyServerChange(client syncapi.Client, attachments *attachmentResolver, resource PlannedResource) error {
 	configKey, variationKey, err := resource.ID.VariationKeys()
 	if err != nil {
-		return 0, err
+		return err
 	}
 	projectKey := resource.ID.ProjectKey
 
-	var version int
 	var writeErr error
 	switch resource.Action {
 	case ActionCreateServer:
 		variation, err := attachments.resolveVariation(projectKey, *resource.Local)
 		if err != nil {
-			return 0, err
+			return err
 		}
-		version, writeErr = client.CreateVariation(projectKey, configKey, variation)
+		writeErr = client.CreateVariation(projectKey, configKey, variation)
 	case ActionUpdateServer:
 		variation, err := attachments.resolveVariation(projectKey, withExplicitDetach(*resource.Local, resource.Server))
 		if err != nil {
-			return 0, err
+			return err
 		}
-		version, writeErr = client.UpdateVariation(projectKey, configKey, variation)
+		writeErr = client.UpdateVariation(projectKey, configKey, variation)
 	default:
-		return 0, fmt.Errorf("action %q does not change LaunchDarkly", resource.Action)
+		return fmt.Errorf("action %q does not change LaunchDarkly", resource.Action)
 	}
-	if writeErr == nil {
-		return version, nil
-	}
-	if !syncapi.MutationMayHaveSucceeded(writeErr) {
-		return 0, writeErr
+	if writeErr == nil || !syncapi.MutationMayHaveSucceeded(writeErr) {
+		return writeErr
 	}
 
 	state, err := client.ReadVariation(projectKey, configKey, variationKey)
 	if err != nil {
-		return 0, errors.Join(writeErr, fmt.Errorf("verify server variation: %w", err))
+		return errors.Join(writeErr, fmt.Errorf("verify server variation: %w", err))
 	}
 	actual := ""
 	if state.Exists {
 		if err := newAttachmentCache(client).hydrate(projectKey, &state.Variation); err != nil {
-			return 0, errors.Join(writeErr, err)
+			return errors.Join(writeErr, err)
 		}
 		if actual, err = syncdomain.FingerprintVariation(projectKey, resource.ID.LookupKey, state.Variation); err != nil {
-			return 0, errors.Join(writeErr, err)
+			return errors.Join(writeErr, err)
 		}
 	}
 	switch actual {
 	case resource.LocalFingerprint:
-		return 0, nil
+		return nil
 	case resource.ServerFingerprint:
-		return 0, writeErr
+		return writeErr
 	default:
-		return 0, fmt.Errorf("server variation changed concurrently after an uncertain write: %w", writeErr)
+		return fmt.Errorf("server variation changed concurrently after an uncertain write: %w", writeErr)
 	}
 }
 

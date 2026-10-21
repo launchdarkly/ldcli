@@ -7,41 +7,36 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 )
 
 func TestReportResource(t *testing.T) {
 	id := syncdomain.VariationID("production", "support", "default")
 	tests := map[string]struct {
-		outcome  ResourceOutcome
-		expected syncapi.SyncReportResource
+		outcome ResourceOutcome
+		err     string
 	}{
-		"succeeded with version": {
-			outcome:  ResourceOutcome{ID: id, Status: OutcomeSucceeded, Version: 7},
-			expected: syncapi.SyncReportResource{Status: syncapi.ReportStatusSucceeded, Version: 7},
-		},
+		"succeeded": {outcome: ResourceOutcome{ID: id, Status: OutcomeSucceeded}},
 		"failed API error sends only its message": {
 			outcome: ResourceOutcome{
-				ID: id, Status: OutcomeFailed, Version: 7,
+				ID: id, Status: OutcomeFailed,
 				Error: `{"code":"invalid_request","message":"update config variation \"default\": Invalid key ''","statusCode":400}`,
 			},
-			expected: syncapi.SyncReportResource{
-				Status: syncapi.ReportStatusFailed, Error: `update config variation "default": Invalid key ''`,
-			},
+			err: `update config variation "default": Invalid key ''`,
 		},
 		"skipped is a failure": {
-			outcome:  ResourceOutcome{ID: id, Status: OutcomeSkipped, Error: "resource is not executable"},
-			expected: syncapi.SyncReportResource{Status: syncapi.ReportStatusFailed, Error: "resource is not executable"},
+			outcome: ResourceOutcome{ID: id, Status: OutcomeSkipped, Error: "resource is not executable"},
+			err:     "resource is not executable",
 		},
 		"failure without text": {
-			outcome:  ResourceOutcome{ID: id, Status: OutcomeFailed},
-			expected: syncapi.SyncReportResource{Status: syncapi.ReportStatusFailed, Error: "sync did not apply the change"},
+			outcome: ResourceOutcome{ID: id, Status: OutcomeFailed},
+			err:     "sync did not apply the change",
 		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			test.expected.ResourceKind, test.expected.ResourceLookupKey = syncdomain.KindVariation, "support/default"
-			assert.Equal(t, test.expected, reportResource(test.outcome))
+			resource := reportResource(test.outcome)
+			assert.Equal(t, id, resource.ID)
+			assert.Equal(t, test.err, resource.Error)
 		})
 	}
 }

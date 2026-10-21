@@ -54,9 +54,6 @@ type directAPI struct {
 	reports []string
 	// reportErr is the error that the sync report API returns.
 	reportErr error
-	// version is the version of the variation. Each create and update adds
-	// one, and the response includes it.
-	version int
 }
 
 // handleSettingsRequest serves the sync settings API in request order.
@@ -201,8 +198,6 @@ func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
 		variation.Mode = syncdomain.VariationModeAgent
 		api.variation = &variation
 		api.variationState = "published"
-		api.version++
-		return json.Marshal(map[string]any{"key": variation.Key, "version": api.version})
 	case "PATCH":
 		var state struct {
 			State string `json:"state"`
@@ -249,8 +244,6 @@ func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
 			OutputFormat: update.OutputFormat, Tools: tools, Skills: skills,
 		}
 		api.variationState = "published"
-		api.version++
-		return json.Marshal(map[string]any{"key": key, "version": api.version})
 	}
 	return []byte(`{}`), nil
 }

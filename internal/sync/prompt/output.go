@@ -35,9 +35,6 @@ type ResourceOutcome struct {
 	SourceOfTruth syncdomain.SourceOfTruth `json:"sourceOfTruth,omitempty"`
 	Reverts       bool                     `json:"reverts,omitempty"`
 	Error         string                   `json:"error,omitempty"`
-	// Version is the LaunchDarkly version that the action wrote, or 0. The
-	// sync report sends it. The command output does not show it.
-	Version int `json:"-"`
 }
 
 // outputSourceOfTruth returns code-only for a code-only resource. Output

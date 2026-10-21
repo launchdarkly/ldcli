@@ -52,16 +52,14 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 	}
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "helpful")}
 
-	require.NoError(t, discardVersion(client.CreateVariation("project", "support", variation)))
-	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", variation)))
+	require.NoError(t, client.CreateVariation("project", "support", variation))
+	require.NoError(t, client.UpdateVariation("project", "support", variation))
 	require.NoError(t, client.CreateAttachment("project", tool))
 	require.NoError(t, client.UpdateAttachment("project", tool))
 	_, err := client.PatchSyncManifest("project", source, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, client.SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly))
-	require.NoError(t, client.PostSyncReport("project", SyncReport{Source: source, Resources: []SyncReportResource{
-		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/helpful", Status: ReportStatusSucceeded},
-	}}))
+	require.NoError(t, client.PostSyncReport("project", source, []SyncReportResource{{ID: ids[0]}}))
 	writes := []string{
 		"POST /api/v2/projects/project/ai-configs/support/variations",
 		"PATCH /api/v2/projects/project/ai-configs/support/variations/helpful",

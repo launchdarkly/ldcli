@@ -11,16 +11,24 @@ import (
 
 	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
-func decodeReports(t *testing.T, bodies []string) []syncapi.SyncReport {
+type sentReport struct {
+	Source    string `json:"source"`
+	Resources []struct {
+		ResourceLookupKey string `json:"resourceLookupKey"`
+		Status            string `json:"status"`
+		Error             string `json:"error"`
+	} `json:"resources"`
+}
+
+func decodeReports(t *testing.T, bodies []string) []sentReport {
 	t.Helper()
-	reports := make([]syncapi.SyncReport, 0, len(bodies))
+	reports := make([]sentReport, 0, len(bodies))
 	for _, body := range bodies {
-		var report syncapi.SyncReport
+		var report sentReport
 		require.NoError(t, json.Unmarshal([]byte(body), &report), body)
 		reports = append(reports, report)
 	}
@@ -314,59 +322,26 @@ func TestPromptDetachKeepsFilesWhenRuleDeleteFails(t *testing.T) {
 	assert.True(t, exists)
 }
 
-func TestPromptReportsWrittenVersion(t *testing.T) {
+func TestPromptReportsEachSync(t *testing.T) {
 	root := initRepository(t)
 	baseline, local := variation("Baseline"), variation("Local")
 	writeVariation(t, root, local, false)
 	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(baseline), version: 6}
+	api := &directAPI{variation: pointer(baseline)}
 
 	_, _, err := runPrompt(t, root, api, "--yes")
-
 	require.NoError(t, err)
-	reports := decodeReports(t, api.reports)
-	require.Len(t, reports, 1)
-	assert.Equal(t, syncapi.SyncReport{
-		Source: "git:example/repo",
-		Resources: []syncapi.SyncReportResource{{
-			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default",
-			Status: syncapi.ReportStatusSucceeded, Version: 7,
-		}},
-	}, reports[0])
-}
-
-func TestPromptReportsInSyncResourceWithoutVersion(t *testing.T) {
-	root := initRepository(t)
-	baseline := variation("Baseline")
-	writeVariation(t, root, baseline, false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(baseline), version: 6}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
+	_, _, err = runPrompt(t, root, api, "--yes")
 	require.NoError(t, err)
+
 	reports := decodeReports(t, api.reports)
-	require.Len(t, reports, 1)
-	assert.Equal(t, []syncapi.SyncReportResource{{
-		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Status: syncapi.ReportStatusSucceeded,
-	}}, reports[0].Resources)
-}
-
-func TestPromptReportsPulledResourceWithoutVersion(t *testing.T) {
-	root := initRepository(t)
-	baseline, server := variation("Baseline"), variation("Server")
-	writeVariation(t, root, baseline, false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(server)}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	reports := decodeReports(t, api.reports)
-	require.Len(t, reports, 1)
-	assert.Equal(t, []syncapi.SyncReportResource{{
-		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Status: syncapi.ReportStatusSucceeded,
-	}}, reports[0].Resources)
+	require.Len(t, reports, 2, "a sync without changes also sends a report")
+	for _, report := range reports {
+		assert.Equal(t, "git:example/repo", report.Source)
+		require.Len(t, report.Resources, 1)
+		assert.Equal(t, "support/default", report.Resources[0].ResourceLookupKey)
+		assert.Equal(t, "succeeded", report.Resources[0].Status)
+	}
 }
 
 func TestPromptReportsFailedWrites(t *testing.T) {
@@ -390,14 +365,12 @@ func TestPromptReportsFailedWrites(t *testing.T) {
 	reports := decodeReports(t, api.reports)
 	require.Len(t, reports, 1)
 	require.Len(t, reports[0].Resources, 2)
-	assert.Equal(t, syncapi.SyncReportResource{
-		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/first", Status: syncapi.ReportStatusSucceeded,
-	}, reports[0].Resources[0])
+	assert.Equal(t, "support/first", reports[0].Resources[0].ResourceLookupKey)
+	assert.Equal(t, "succeeded", reports[0].Resources[0].Status)
 	failed := reports[0].Resources[1]
 	assert.Equal(t, "support/second", failed.ResourceLookupKey)
-	assert.Equal(t, syncapi.ReportStatusFailed, failed.Status)
+	assert.Equal(t, "failed", failed.Status)
 	assert.Contains(t, failed.Error, `update config variation "second"`)
-	assert.Zero(t, failed.Version)
 }
 
 func TestPromptReportFailureKeepsExitCode(t *testing.T) {

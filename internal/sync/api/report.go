@@ -6,45 +6,41 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-// MaxReportResources is the largest number of resources that one sync report
-// request can send.
-const MaxReportResources = 1000
+const maxReportResources = 1000
 
-// The status values of a reported resource.
-const (
-	ReportStatusSucceeded = "succeeded"
-	ReportStatusFailed    = "failed"
-)
-
-// SyncReport is the result of one sync for one project and one repository
-// source.
-type SyncReport struct {
-	Source    string               `json:"source"`
-	Resources []SyncReportResource `json:"resources"`
+// SyncReportResource is the result of one resource in a sync report. An
+// empty Error means that the resource synced.
+type SyncReportResource struct {
+	ID    syncdomain.ResourceID
+	Error string
 }
 
-// SyncReportResource is the result of one resource in a sync report.
-type SyncReportResource struct {
+type reportResource struct {
 	ResourceKind      syncdomain.Kind `json:"resourceKind"`
 	ResourceLookupKey string          `json:"resourceLookupKey"`
 	Status            string          `json:"status"`
-	// Error is the reason of a failure. It is empty when the status is
-	// ReportStatusSucceeded.
-	Error string `json:"error,omitempty"`
-	// Version is the LaunchDarkly version that the sync wrote, or 0.
-	Version int `json:"version,omitempty"`
+	Error             string          `json:"error,omitempty"`
 }
 
-// PostSyncReport sends the report for one project. If the report has more
-// than MaxReportResources resources, it sends one request for each group of
-// MaxReportResources resources. It stops at the first request that fails. A
-// report without resources sends no request.
-func (client Client) PostSyncReport(projectKey string, report SyncReport) error {
-	for start := 0; start < len(report.Resources); start += MaxReportResources {
-		part := report
-		part.Resources = report.Resources[start:min(start+MaxReportResources, len(report.Resources))]
+// PostSyncReport sends the result of one sync of the repository source for
+// one project. A report without resources sends no request.
+func (client Client) PostSyncReport(projectKey, source string, resources []SyncReportResource) error {
+	for start := 0; start < len(resources); start += maxReportResources {
+		body := struct {
+			Source    string           `json:"source"`
+			Resources []reportResource `json:"resources"`
+		}{Source: source}
+		for _, resource := range resources[start:min(start+maxReportResources, len(resources))] {
+			status := "succeeded"
+			if resource.Error != "" {
+				status = "failed"
+			}
+			body.Resources = append(body.Resources, reportResource{
+				ResourceKind: resource.ID.Kind, ResourceLookupKey: resource.ID.LookupKey, Status: status, Error: resource.Error,
+			})
+		}
 		if _, err := client.mutate(mutation{
-			method: http.MethodPost, action: "send", resource: "sync report for project", key: projectKey, body: part,
+			method: http.MethodPost, action: "send", resource: "sync report for project", key: projectKey, body: body,
 		}, projectPath(projectKey, "configs/sync/reports")...); err != nil {
 			return err
 		}
