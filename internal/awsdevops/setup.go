@@ -861,8 +861,8 @@ func registrationFailed(err error, detached []string) error {
 
 	return fmt.Errorf(
 		"unable to register the LaunchDarkly MCP server: %w. The previous registration was already "+
-			"removed, so agent spaces %s have no LaunchDarkly MCP server: re-run setup with "+
-			"--access-token <token> to restore them",
+			"removed, so agent spaces %s have no LaunchDarkly MCP server. To connect each one again, "+
+			"run setup with --access-token <token> --agent-space-id <id>",
 		err,
 		strings.Join(detached, ", "),
 	)
@@ -891,10 +891,16 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 		Region:       clients.Region,
 		AgentSpaceID: plan.Space.ID,
 	}
+	// A connect run does not change the app, so report it as it is now. It
+	// can have changed since the plan.
+	app, err := appState(ctx, clients, plan.Space.ID)
+	if err != nil {
+		return result, err
+	}
 	// An app that is off has no URL.
-	result.OperatorAppEnabled = plan.App.Flow != ""
+	result.OperatorAppEnabled = app.Flow != ""
 	if result.OperatorAppEnabled {
-		result.OperatorAppURL = plan.App.URL
+		result.OperatorAppURL = app.URL
 		if result.OperatorAppURL == "" {
 			result.OperatorAppURL = OperatorAppURL(plan.Space.ID)
 		}
@@ -1039,7 +1045,7 @@ func registerMCPServer(
 	}
 	if step.Action == MCPReuse {
 		result.MCPServiceID = existing
-		logf("Reused MCP server %s (%s) with its current token", MCPServerName, existing)
+		logf("Reused MCP server %s (%s) with its current token", step.name(), existing)
 		logf("Pass --access-token and --replace-mcp-token to change the token")
 
 		return associateMCPServer(ctx, clients, result, logf)
@@ -1061,16 +1067,27 @@ func registerMCPServer(
 		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
 			ServiceId: aws.String(existing),
 		}); err != nil {
-			return fmt.Errorf("unable to deregister the existing LaunchDarkly MCP server %s: %w", existing, err)
+			err = fmt.Errorf("unable to deregister the existing LaunchDarkly MCP server %s: %w", existing, err)
+			if len(detached) > 0 {
+				// The server is still there with its old token.
+				err = fmt.Errorf(
+					"%w. Agent spaces %s are already disconnected from it. "+
+						"To connect each one again, run setup with --agent-space-id <id>",
+					err, strings.Join(detached, ", "),
+				)
+			}
+
+			return err
 		}
-		logf("Removed MCP server %s (%s) to replace its token", MCPServerName, existing)
+		logf("Removed MCP server %s (%s) to replace its token", step.name(), existing)
 	}
 
+	// A replaced server keeps its name, as the plan says.
 	input := &devopsagent.RegisterServiceInput{
 		Service: agenttypes.PostRegisterServiceSupportedServiceMcpServer,
 		ServiceDetails: &agenttypes.ServiceDetailsMemberMcpserver{
 			Value: agenttypes.MCPServerDetails{
-				Name:        aws.String(MCPServerName),
+				Name:        aws.String(step.name()),
 				Endpoint:    aws.String(endpoint),
 				Description: aws.String("LaunchDarkly feature flag management MCP server"),
 				AuthorizationConfig: &agenttypes.MCPServerAuthorizationConfigMemberBearerToken{
@@ -1086,12 +1103,12 @@ func registerMCPServer(
 	registration, err := registerWithRetry(ctx, clients, input, logf, endpoint)
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
-			return fmt.Errorf(
+			// Another server at another endpoint has the name. It is not a
+			// LaunchDarkly server at this endpoint, so setup cannot use it.
+			err = fmt.Errorf(
 				"an MCP server named %s is already registered on this account at another endpoint, "+
-					"so %s cannot be registered: pass --mcp-service-id <id> to use that registration, "+
-					"or rename it in the console",
-				MCPServerName,
-				endpoint,
+					"so %s cannot be registered. Rename that server in the AWS console: %w",
+				step.name(), endpoint, err,
 			)
 		}
 
@@ -1099,7 +1116,7 @@ func registerMCPServer(
 	}
 
 	result.MCPServiceID = aws.ToString(registration.ServiceId)
-	logf("Registered MCP server %s (%s)", MCPServerName, result.MCPServiceID)
+	logf("Registered MCP server %s (%s)", step.name(), result.MCPServiceID)
 
 	// Reconnect the other spaces even if this one fails, so that a failure
 	// disconnects as few spaces as possible.

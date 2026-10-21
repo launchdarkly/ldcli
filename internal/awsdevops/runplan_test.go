@@ -607,6 +607,23 @@ func TestConnectPlanReportsAnAppThatIsOff(t *testing.T) {
 	assert.Contains(t, string(encoded), `"operatorAppEnabled":false`)
 }
 
+// A connect run reports the app as it is at run time.
+func TestConnectPlanReadsTheAppAgain(t *testing.T) {
+	agent := reuseWithApp(&devopsagent.GetOperatorAppOutput{Iam: &agenttypes.IamAuthConfiguration{}})
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+	require.Equal(t, "iam", plan.App.Flow)
+	agent.operatorApps = nil
+
+	result, err := awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.False(t, result.OperatorAppEnabled)
+	assert.Empty(t, result.OperatorAppURL)
+}
+
 func TestConnectPlanUsesTheURLThatAWSReturns(t *testing.T) {
 	app := idcApp()
 	app.OperatorAppUrl = aws.String("https://custom.example")
@@ -946,6 +963,62 @@ func TestRunPlanStopsWhenReusedMCPServerGoesDuringRoleWrites(t *testing.T) {
 	for _, in := range agent.associationInputs {
 		assert.NotEqual(t, "mcp-1", aws.ToString(in.ServiceId))
 	}
+}
+
+// replaceRun plans and runs a token replacement across space-1 and space-3.
+func replaceRun(t *testing.T, agent *fakeAgent) (awsdevops.SetupResult, error) {
+	t.Helper()
+	clients := newTestClients(agent, newFakeIAM())
+	opts := rejectingOptions(t, http.StatusOK)
+	opts.ReplaceMCPToken = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReplace, plan.MCP.Action)
+
+	return awsdevops.RunPlan(context.Background(), clients, opts, plan)
+}
+
+// The old server is gone when the name clash happens, so the error names
+// each space that lost it.
+func TestRunPlanReplaceNameClashNamesTheDisconnectedSpaces(t *testing.T) {
+	agent := replaceAcrossSpaces()
+	agent.registerErr = errors.New("ConflictException: a service named LaunchDarkly already exists")
+
+	_, err := replaceRun(t, agent)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "Rename that server in the AWS console")
+	assert.ErrorContains(t, err, "agent spaces space-1, space-3 have no LaunchDarkly MCP server")
+	assert.ErrorContains(t, err, "--agent-space-id <id>")
+	assert.NotContains(t, err.Error(), "--mcp-service-id")
+}
+
+func TestRunPlanReplaceFailedDeregisterNamesTheDisconnectedSpaces(t *testing.T) {
+	agent := replaceAcrossSpaces()
+	agent.deregisterErr = errors.New("InternalServerException")
+
+	_, err := replaceRun(t, agent)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "unable to deregister the existing LaunchDarkly MCP server mcp-old")
+	assert.ErrorContains(t, err, "Agent spaces space-1, space-3 are already disconnected from it")
+	assert.ErrorContains(t, err, "--agent-space-id <id>")
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+// The plan names the server by its name in AWS, so the new registration
+// keeps that name.
+func TestRunPlanReplaceKeepsTheServerName(t *testing.T) {
+	agent := replaceAcrossSpaces()
+	agent.services = []agenttypes.RegisteredService{mcpService("mcp-old", "Prod LD", awsdevops.MCPServerEndpoint)}
+
+	_, err := replaceRun(t, agent)
+
+	require.NoError(t, err)
+	require.Len(t, agent.registerInputs, 1)
+	details, ok := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver)
+	require.True(t, ok)
+	assert.Equal(t, "Prod LD", aws.ToString(details.Value.Name))
 }
 
 // A link added during writes stops replace.

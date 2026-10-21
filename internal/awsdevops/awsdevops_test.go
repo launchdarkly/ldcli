@@ -49,6 +49,7 @@ type fakeAgent struct {
 	associationInputs []*devopsagent.AssociateServiceInput
 	registerOutput    *devopsagent.RegisterServiceOutput
 	registerErr       error
+	deregisterErr     error
 	registerInputs    []*devopsagent.RegisterServiceInput
 	associations      []agenttypes.Association
 	agentSpaces       []agenttypes.AgentSpace
@@ -112,6 +113,9 @@ func (f *fakeAgent) CreateAgentSpace(_ context.Context, in *devopsagent.CreateAg
 
 func (f *fakeAgent) DeregisterService(_ context.Context, in *devopsagent.DeregisterServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error) {
 	f.calls = append(f.calls, "DeregisterService")
+	if f.deregisterErr != nil {
+		return nil, f.deregisterErr
+	}
 	f.deregisteredIDs = append(f.deregisteredIDs, aws.ToString(in.ServiceId))
 
 	return &devopsagent.DeregisterServiceOutput{}, nil
