@@ -459,6 +459,29 @@ func TestRunPlanStopsWhenKeptAssociationIsGone(t *testing.T) {
 	assert.NotContains(t, agent.calls, "AssociateService")
 }
 
+// A plan that skips the MCP server does not register or connect one.
+func TestRunPlanSkipsTheMCPServer(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.LDAccessToken = ""
+	logged := collectLogs(&opts)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPAsk, plan.MCP.Action)
+	plan.MCP.Action = awsdevops.MCPSkip
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.Empty(t, result.MCPServiceID)
+	assert.NotContains(t, agent.calls, "RegisterService")
+	for _, in := range agent.associationInputs {
+		assert.Equal(t, "aws", aws.ToString(in.ServiceId))
+	}
+	assert.Contains(t, strings.Join(*logged, "\n"), "Skipped MCP server")
+}
+
 // An association that appeared is already done.
 func TestRunPlanReportsAssociationAlreadyThere(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
@@ -488,7 +511,7 @@ func TestRunPlanKeepsAppSignIn(t *testing.T) {
 	result, err := awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
 
 	require.NoError(t, err)
-	assert.Contains(t, strings.ToLower(plan.OperatorApp), "keep")
+	assert.Contains(t, strings.ToLower(plan.Text().OperatorApp), "keep")
 	assert.NotContains(t, agent.calls, "EnableOperatorApp")
 	assert.Equal(t, "https://space-7.aidevops.global.app.aws", result.OperatorAppURL)
 }
@@ -520,7 +543,7 @@ func TestRunPlanChangesSignInWithAuthFlow(t *testing.T) {
 	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
 
 	require.NoError(t, err)
-	assert.Contains(t, strings.ToLower(plan.OperatorApp), "change")
+	assert.Contains(t, strings.ToLower(plan.Text().OperatorApp), "change")
 	assert.Contains(t, agent.calls, "EnableOperatorApp")
 }
 
@@ -535,7 +558,7 @@ func TestRunPlanEnablesAppWhenOff(t *testing.T) {
 			_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
 
 			require.NoError(t, err)
-			assert.Contains(t, strings.ToLower(plan.OperatorApp), "enable")
+			assert.Contains(t, strings.ToLower(plan.Text().OperatorApp), "enable")
 			assert.Contains(t, agent.calls, "EnableOperatorApp")
 		})
 	}
@@ -571,7 +594,7 @@ func TestConnectPlanReportsAnAppThatIsOff(t *testing.T) {
 
 	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
 	require.NoError(t, err)
-	assert.Equal(t, "No change. The operator app is off", plan.OperatorApp)
+	assert.Equal(t, "No change. The operator app is off", plan.Text().OperatorApp)
 
 	result, err := awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
 	require.NoError(t, err)

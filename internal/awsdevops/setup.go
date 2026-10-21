@@ -663,6 +663,9 @@ func checkSentToken(ctx context.Context, opts SetupOptions, step MCPStep) error 
 
 // checkMCP compares AWS with the MCP step.
 func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPStep) error {
+	if step.Action == MCPSkip {
+		return nil
+	}
 	if step.Action == MCPReuse || step.Action == MCPReplace {
 		services, err := listServices(ctx, clients)
 		if err != nil {
@@ -1011,8 +1014,13 @@ func registerMCPServer(
 ) error {
 	endpoint := opts.mcpEndpoint()
 	existing := step.ServiceID
-	if step.Action == MCPAsk {
+	switch step.Action {
+	case MCPAsk:
 		// The caller asks for a token.
+		return nil
+	case MCPSkip:
+		logf("Skipped MCP server %s, because no token was given", MCPServerName)
+
 		return nil
 	}
 	if step.Action == MCPReuse {

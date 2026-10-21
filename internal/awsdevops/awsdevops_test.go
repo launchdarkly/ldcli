@@ -667,6 +667,7 @@ func TestSetupUsesTheMCPServerItIsPointedAt(t *testing.T) {
 		AgentSpaceID: "space-1",
 		AuthFlow:     "iam",
 		MCPServiceID: "mcp-renamed",
+		MCPEndpoint:  "https://mcp.example.internal/mcp",
 	})
 	require.NoError(t, err)
 

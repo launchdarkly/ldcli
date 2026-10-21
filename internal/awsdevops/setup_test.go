@@ -144,8 +144,8 @@ func TestPlanSetupReusesTheSpaceWithTheSameName(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	assert.Contains(t, plan.AgentSpace, "launchdarkly (space-existing)")
-	assert.Contains(t, strings.ToLower(plan.AgentSpace), "reuse")
+	assert.Contains(t, plan.Text().AgentSpace, "launchdarkly (space-existing)")
+	assert.Contains(t, strings.ToLower(plan.Text().AgentSpace), "reuse")
 }
 
 // The name matches, but the user asked for a new one.
@@ -162,7 +162,7 @@ func TestPlanSetupRefusesANewSpaceWithAUsedName(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "an agent space named launchdarkly already exists (space-existing)")
-	assert.Empty(t, plan.AgentSpace)
+	assert.Equal(t, awsdevops.SpaceStep{}, plan.Space)
 }
 
 // A name that only starts the same is not a match.
@@ -177,9 +177,9 @@ func TestPlanSetupCreatesOnANearMissName(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	assert.Contains(t, strings.ToLower(plan.AgentSpace), "create")
-	assert.Contains(t, plan.AgentSpace, "launchdarkly")
-	assert.NotContains(t, plan.AgentSpace, "space-existing")
+	assert.Contains(t, strings.ToLower(plan.Text().AgentSpace), "create")
+	assert.Contains(t, plan.Text().AgentSpace, "launchdarkly")
+	assert.NotContains(t, plan.Text().AgentSpace, "space-existing")
 }
 
 func TestPlanSetupNamesTheSpaceItConnectsTo(t *testing.T) {
@@ -189,8 +189,8 @@ func TestPlanSetupNamesTheSpaceItConnectsTo(t *testing.T) {
 	require.NoError(t, err)
 
 	// Unlisted spaces are named launchdarkly.
-	assert.Contains(t, plan.AgentSpace, "launchdarkly (space-2)")
-	assert.Contains(t, strings.ToLower(plan.AgentSpace), "connect")
+	assert.Contains(t, plan.Text().AgentSpace, "launchdarkly (space-2)")
+	assert.Contains(t, strings.ToLower(plan.Text().AgentSpace), "connect")
 }
 
 func TestPlanSetupNamesTheMCPServerAction(t *testing.T) {
@@ -232,7 +232,7 @@ func TestPlanSetupNamesTheMCPServerAction(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, want := range c.want {
-				assert.Contains(t, strings.ToLower(plan.MCPServer), strings.ToLower(want))
+				assert.Contains(t, strings.ToLower(plan.Text().MCPServer), strings.ToLower(want))
 			}
 		})
 	}
