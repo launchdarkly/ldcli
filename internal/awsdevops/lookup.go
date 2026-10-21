@@ -128,6 +128,27 @@ func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, err
 	return summaries, nil
 }
 
+// AgentSpaceNames lists the agent spaces without their tags, for a caller
+// that needs only the names, such as a check that a new name is free. It
+// makes no tag lookups, so ManagedByLDCLI is always false. A caller must not
+// use these summaries to decide who made a space.
+func AgentSpaceNames(ctx context.Context, clients Clients) ([]AgentSpaceSummary, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+	summaries := make([]AgentSpaceSummary, 0, len(spaces))
+	for _, space := range spaces {
+		summaries = append(summaries, AgentSpaceSummary{
+			AgentSpaceID: aws.ToString(space.AgentSpaceId),
+			Name:         aws.ToString(space.Name),
+			Description:  aws.ToString(space.Description),
+		})
+	}
+
+	return summaries, nil
+}
+
 // AgentSpace reads one agent space, with the same ownership check as
 // AgentSpaces, for a caller that already has the space ID. If setup cannot
 // read the tags, the summary has TagErr.
