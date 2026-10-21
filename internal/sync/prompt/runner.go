@@ -261,7 +261,7 @@ func (runner Runner) api(options Options) syncapi.Client {
 		BaseURI:     options.BaseURI,
 		AccessToken: options.AccessToken,
 		CLIVersion:  runner.cliVersion,
-		Sync:        syncapi.SyncIdentity{Source: options.syncSource, Commit: options.revision.Commit},
+		SyncSource:  options.syncSource,
 	})
 }
 

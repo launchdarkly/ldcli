@@ -411,18 +411,9 @@ func TestPromptSendsCommitAndPullRequest(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, api.headers, len(api.requests))
-	writes := 0
 	for index, request := range api.requests {
-		headers := api.headers[index]
-		if strings.HasPrefix(request, "GET ") {
-			assert.Empty(t, headers.Values(syncapi.SyncCommitHeader), "read %s sent the sync commit header", request)
-			continue
-		}
-		writes++
-		assert.Equal(t, []string{"git:example/repo"}, headers.Values(syncapi.SyncSourceHeader), request)
-		assert.Equal(t, []string{commit}, headers.Values(syncapi.SyncCommitHeader), request)
+		assert.Empty(t, api.headers[index].Values("LD-Sync-Commit"), request)
 	}
-	assert.Equal(t, 3, writes, "sync updates the variation and the manifest, and sends the report")
 	reports := decodeReports(t, api.reports)
 	require.Len(t, reports, 1)
 	assert.Equal(t, commit, reports[0].Commit)

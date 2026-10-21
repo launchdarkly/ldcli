@@ -38,15 +38,14 @@ func newHeaderServer(t *testing.T) *headerServer {
 	return recorder
 }
 
-func (recorder *headerServer) client(sync SyncIdentity) Client {
-	return NewClient(Options{BaseURI: recorder.url, AccessToken: "token", CLIVersion: "1.2.3", Sync: sync})
+func (recorder *headerServer) client(syncSource string) Client {
+	return NewClient(Options{BaseURI: recorder.url, AccessToken: "token", CLIVersion: "1.2.3", SyncSource: syncSource})
 }
 
 func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 	recorder := newHeaderServer(t)
-	const commit = "3f9c2ae8d1b7c4e5f6a7b8c9d0e1f2a3b4c5d6e7"
 	source := "git:example.com/acme/app"
-	client := recorder.client(SyncIdentity{Source: source, Commit: commit})
+	client := recorder.client(source)
 	variation := testVariation(syncdomain.VariationModeAgent)
 	tool := syncdomain.Attachment{
 		Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{}},
@@ -77,7 +76,7 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 		headers := recorder.headers[write]
 		require.NotNil(t, headers, write)
 		assert.Equal(t, []string{source}, headers.Values(SyncSourceHeader), write)
-		assert.Equal(t, []string{commit}, headers.Values(SyncCommitHeader), write)
+		assert.Empty(t, headers.Values("LD-Sync-Commit"), write)
 		assert.Equal(t, "token", headers.Get("Authorization"), write)
 		assert.Equal(t, "launchdarkly-cli/v1.2.3", headers.Get("User-Agent"), write)
 		assert.Equal(t, "20240415", headers.Get("LD-API-Version"), write)
@@ -96,27 +95,17 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 	require.Len(t, recorder.headers, 4)
 	for read, headers := range recorder.headers {
 		assert.Empty(t, headers.Values(SyncSourceHeader), read)
-		assert.Empty(t, headers.Values(SyncCommitHeader), read)
 		assert.Equal(t, "token", headers.Get("Authorization"), read)
 		assert.Equal(t, "launchdarkly-cli/v1.2.3", headers.Get("User-Agent"), read)
 		assert.Equal(t, "20240415", headers.Get("LD-API-Version"), read)
 	}
 }
 
-func TestClientSendsSyncCommitOnlyWithSyncSource(t *testing.T) {
+func TestClientSendsNoSyncHeaderWithoutSyncSource(t *testing.T) {
 	recorder := newHeaderServer(t)
-	const commit = "3f9c2ae8d1b7c4e5f6a7b8c9d0e1f2a3b4c5d6e7"
-	source := "git:example.com/acme/app"
 	update := "PATCH /api/v2/projects/project/ai-configs/support/variations/helpful"
 	variation := testVariation(syncdomain.VariationModeAgent)
 
-	// Without a known commit, the write sends only the source.
-	require.NoError(t, discardVersion(recorder.client(SyncIdentity{Source: source}).UpdateVariation("project", "support", variation)))
-	assert.Equal(t, []string{source}, recorder.headers[update].Values(SyncSourceHeader))
-	assert.Empty(t, recorder.headers[update].Values(SyncCommitHeader))
-
-	// Without a source, the write sends neither header.
-	require.NoError(t, discardVersion(recorder.client(SyncIdentity{Commit: commit}).UpdateVariation("project", "support", variation)))
+	require.NoError(t, discardVersion(recorder.client("").UpdateVariation("project", "support", variation)))
 	assert.Empty(t, recorder.headers[update].Values(SyncSourceHeader))
-	assert.Empty(t, recorder.headers[update].Values(SyncCommitHeader))
 }

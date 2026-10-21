@@ -17,25 +17,9 @@ import (
 // "git:github.com/acme/app".
 const SyncSourceHeader = "LD-Sync-Source"
 
-// SyncCommitHeader is the request header that names the Git commit of a sync
-// write. A write sends it only with SyncSourceHeader.
-const SyncCommitHeader = "LD-Sync-Commit"
-
 // apiVersion is the LaunchDarkly REST API version that each request asks for.
 // It is the same version that the resources client sends.
 const apiVersion = "20240415"
-
-// SyncIdentity names the repository and the commit that sync runs at. Each
-// write sends them in the sync headers.
-type SyncIdentity struct {
-	// Source is the sync source of the repository, for example
-	// "git:github.com/acme/app". If Source is empty, a write sends no sync
-	// header.
-	Source string
-	// Commit is the full SHA of the commit. A write sends it only with
-	// Source. If Commit is empty, a write sends no commit header.
-	Commit string
-}
 
 // Options configure a Client.
 type Options struct {
@@ -44,7 +28,10 @@ type Options struct {
 	AccessToken string
 	// CLIVersion is the ldcli version in the User-Agent header.
 	CLIVersion string
-	Sync       SyncIdentity
+	// SyncSource is the sync source of the repository, for example
+	// "git:github.com/acme/app". Each write sends it in SyncSourceHeader. If
+	// SyncSource is empty, a write sends no sync header.
+	SyncSource string
 }
 
 // Client calls the LaunchDarkly REST API with one access token.
@@ -53,7 +40,7 @@ type Client struct {
 	baseURI     string
 	accessToken string
 	userAgent   string
-	sync        SyncIdentity
+	syncSource  string
 }
 
 // NewClient creates a client for the API at options.BaseURI. The HTTP client
@@ -64,7 +51,7 @@ func NewClient(options Options) Client {
 		baseURI:     options.BaseURI,
 		accessToken: options.AccessToken,
 		userAgent:   fmt.Sprintf("launchdarkly-cli/v%s", options.CLIVersion),
-		sync:        options.Sync,
+		syncSource:  options.SyncSource,
 	}
 }
 
@@ -118,7 +105,7 @@ func (client Client) mutate(request mutation, path ...string) ([]byte, error) {
 
 // do sends one request and returns the response body. A request with a body
 // sends it as JSON. A request that is not a GET is a write. A write sends the
-// sync headers when the client has a sync source. If LaunchDarkly sends a
+// sync source header when the client has a sync source. If LaunchDarkly sends a
 // status of 400 or more, the error text is the JSON API error.
 func (client Client) do(method, endpoint string, query url.Values, body []byte) ([]byte, error) {
 	var reader io.Reader
@@ -135,11 +122,8 @@ func (client Client) do(method, endpoint string, query url.Values, body []byte) 
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	if method != http.MethodGet && client.sync.Source != "" {
-		request.Header.Set(SyncSourceHeader, client.sync.Source)
-		if client.sync.Commit != "" {
-			request.Header.Set(SyncCommitHeader, client.sync.Commit)
-		}
+	if method != http.MethodGet && client.syncSource != "" {
+		request.Header.Set(SyncSourceHeader, client.syncSource)
 	}
 	request.URL.RawQuery = query.Encode()
 
