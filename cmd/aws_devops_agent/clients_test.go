@@ -71,13 +71,13 @@ func newLoginTest(t *testing.T, answer string, results ...error) (*loginFake, ss
 	f := &loginFake{results: results, prompted: &bytes.Buffer{}}
 
 	return f, ssoLogin{
-		newClients:  f.newClients,
-		configPath:  path,
-		in:          countingReader{f: f, r: strings.NewReader(answer)},
-		out:         f.prompted,
-		interactive: func() bool { return true },
-		lookPath:    func(string) (string, error) { return "/usr/local/bin/aws", nil },
-		run:         f.run,
+		newClients: f.newClients,
+		configPath: path,
+		in:         countingReader{f: f, r: strings.NewReader(answer)},
+		out:        f.prompted,
+		tty:        func() bool { return true },
+		lookPath:   func(string) (string, error) { return "/usr/local/bin/aws", nil },
+		run:        f.run,
 	}
 }
 
@@ -174,7 +174,7 @@ func TestLoginSkipsNearMissProfile(t *testing.T) {
 
 func TestLoginSkipsWithoutTerminal(t *testing.T) {
 	f, l := newLoginTest(t, "y\n", errCreds, nil)
-	l.interactive = func() bool { return false }
+	l.tty = func() bool { return false }
 
 	_, err := l.clients(context.Background(), "", "sso")
 
@@ -267,18 +267,45 @@ func TestLoginAsksInJSONModeInATerminal(t *testing.T) {
 
 	l := newSSOLogin(cmd, func() bool { return true })
 
-	assert.True(t, l.interactive())
+	assert.True(t, l.tty())
+	assert.False(t, l.yes)
 }
 
-// --yes means no questions, so a run with it does not offer the login.
-func TestLoginDoesNotAskWithYes(t *testing.T) {
+// --yes accepts the login, so a terminal run logs in without a question.
+func TestLoginRunsWithoutAskingWithYes(t *testing.T) {
+	f, l := newLoginTest(t, "", errCreds, nil)
+	l.yes = true
+
+	_, err := l.clients(context.Background(), "", "sso")
+
+	require.NoError(t, err)
+	assert.Zero(t, f.reads)
+	assert.Equal(t, [][]string{{"aws", "sso", "login", "--profile", "sso"}}, f.runs)
+	assert.Equal(t, "Running aws sso login --profile sso\n", f.prompted.String())
+}
+
+// Nobody can finish the browser sign-in without a terminal, so --yes does
+// not start it.
+func TestLoginSkipsWithYesWithoutTerminal(t *testing.T) {
+	f, l := newLoginTest(t, "", errCreds, nil)
+	l.yes = true
+	l.tty = func() bool { return false }
+
+	_, err := l.clients(context.Background(), "", "sso")
+
+	assert.Same(t, errCreds, err)
+	assert.Empty(t, f.runs)
+	assert.Empty(t, f.prompted.String())
+}
+
+func TestLoginReadsTheYesFlag(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().Bool(yesFlag, false, "")
 	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
 
 	l := newSSOLogin(cmd, func() bool { return true })
 
-	assert.False(t, l.interactive())
+	assert.True(t, l.yes)
 }
 
 // aws configure sso writes an sso_session profile. The real SDK error for a
@@ -296,13 +323,13 @@ func TestLoginAsksForARealSSOSessionProfile(t *testing.T) {
 	t.Setenv("AWS_CONFIG_FILE", path)
 	prompted := &bytes.Buffer{}
 	l := ssoLogin{
-		newClients:  awsdevops.NewClients,
-		configPath:  path,
-		in:          strings.NewReader("n\n"),
-		out:         prompted,
-		interactive: func() bool { return true },
-		lookPath:    func(string) (string, error) { return "/usr/local/bin/aws", nil },
-		run:         func(context.Context, string, ...string) error { return nil },
+		newClients: awsdevops.NewClients,
+		configPath: path,
+		in:         strings.NewReader("n\n"),
+		out:        prompted,
+		tty:        func() bool { return true },
+		lookPath:   func(string) (string, error) { return "/usr/local/bin/aws", nil },
+		run:        func(context.Context, string, ...string) error { return nil },
 	}
 
 	_, err := l.clients(context.Background(), "us-east-1", "dev")
@@ -318,7 +345,8 @@ func TestLoginAsksInPlaintextTerminal(t *testing.T) {
 
 	l := newSSOLogin(cmd, func() bool { return true })
 
-	assert.True(t, l.interactive())
+	assert.True(t, l.tty())
+	assert.False(t, l.yes)
 }
 
 // The SSO prompt shares stdin with later prompts.

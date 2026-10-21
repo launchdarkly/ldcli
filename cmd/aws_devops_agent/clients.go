@@ -16,13 +16,14 @@ import (
 
 // ssoLogin offers aws sso login on expired credentials.
 type ssoLogin struct {
-	newClients  func(ctx context.Context, region, profile string) (awsdevops.Clients, error)
-	configPath  string
-	in          io.Reader
-	out         io.Writer
-	interactive func() bool
-	lookPath    func(string) (string, error)
-	run         func(ctx context.Context, name string, args ...string) error
+	newClients func(ctx context.Context, region, profile string) (awsdevops.Clients, error)
+	configPath string
+	in         io.Reader
+	out        io.Writer
+	tty        func() bool
+	yes        bool
+	lookPath   func(string) (string, error)
+	run        func(ctx context.Context, name string, args ...string) error
 }
 
 // loadClients builds AWS clients from the command flags.
@@ -32,17 +33,19 @@ func loadClients(cmd *cobra.Command) (awsdevops.Clients, error) {
 	return l.clients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
 }
 
-// newSSOLogin asks in a terminal unless --yes is set. The prompt goes to
-// stderr, so a json run can ask too.
+// newSSOLogin logs in only in a terminal, because aws sso login needs a
+// person to finish the sign-in in a browser. It asks first unless --yes is
+// set. The prompt goes to stderr, so a json run can ask too.
 func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 	return ssoLogin{
-		newClients:  awsdevops.NewClients,
-		configPath:  awsdevops.ConfigFilePath(),
-		in:          sharedStdin(cmd),
-		out:         cmd.ErrOrStderr(),
-		interactive: func() bool { return !yesSet(cmd) && tty() },
-		lookPath:    exec.LookPath,
-		run:         runAttached,
+		newClients: awsdevops.NewClients,
+		configPath: awsdevops.ConfigFilePath(),
+		in:         sharedStdin(cmd),
+		out:        cmd.ErrOrStderr(),
+		tty:        tty,
+		yes:        yesSet(cmd),
+		lookPath:   exec.LookPath,
+		run:        runAttached,
 	}
 }
 
@@ -54,17 +57,21 @@ func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevop
 
 	// A login helps only if the SSO token is expired or missing.
 	name := awsdevops.SSOProfile(l.configPath, profile)
-	if name == "" || !awsdevops.SSOTokenInvalid(err) || !l.interactive() {
+	if name == "" || !awsdevops.SSOTokenInvalid(err) || !l.tty() {
 		return clients, err
 	}
 	if _, lookErr := l.lookPath("aws"); lookErr != nil {
 		return clients, err
 	}
 
-	_, _ = fmt.Fprintf(l.out, "Run aws sso login --profile %s now? [y/N] ", name)
-	answer := strings.ToLower(readLine(l.in))
-	if answer != "y" && answer != "yes" {
-		return clients, err
+	if l.yes {
+		_, _ = fmt.Fprintf(l.out, "Running aws sso login --profile %s\n", name)
+	} else {
+		_, _ = fmt.Fprintf(l.out, "Run aws sso login --profile %s now? [y/N] ", name)
+		answer := strings.ToLower(readLine(l.in))
+		if answer != "y" && answer != "yes" {
+			return clients, err
+		}
 	}
 
 	if runErr := l.run(ctx, "aws", "sso", "login", "--profile", name); runErr != nil {
