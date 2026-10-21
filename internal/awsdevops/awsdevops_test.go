@@ -30,6 +30,8 @@ type fakeAgent struct {
 	// tags holds tags by resource ARN.
 	tags    map[string]map[string]string
 	tagsErr error
+	// tagsErrFor fails the tag lookup of one resource ARN.
+	tagsErrFor map[string]error
 	// operatorApps holds enabled apps by space.
 	operatorApps map[string]*devopsagent.GetOperatorAppOutput
 	// operatorAppErr fails every GetOperatorApp call.
@@ -125,6 +127,9 @@ func (f *fakeAgent) ListTagsForResource(_ context.Context, in *devopsagent.ListT
 	f.calls = append(f.calls, "ListTagsForResource")
 	if f.tagsErr != nil {
 		return nil, f.tagsErr
+	}
+	if err := f.tagsErrFor[aws.ToString(in.ResourceArn)]; err != nil {
+		return nil, err
 	}
 
 	return &devopsagent.ListTagsForResourceOutput{Tags: f.tags[aws.ToString(in.ResourceArn)]}, nil

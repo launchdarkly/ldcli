@@ -78,15 +78,21 @@ type AgentSpaceSummary struct {
 	Description  string `json:"description,omitempty"`
 	// ManagedByLDCLI means that setup made the space.
 	ManagedByLDCLI bool `json:"managedByLdcli"`
+	// TagErr is set if setup could not read the tags of the space. The owner
+	// of the space is then unknown, and ManagedByLDCLI is false.
+	TagErr error `json:"-"`
 }
 
 // AgentSpaces lists the agent spaces in the account and region. A space that
 // setup made has the ldcli:managed tag. A user can change the description, so
 // only the tag counts. Each space costs one tag lookup.
 //
-// If one tag lookup fails, AgentSpaces fails. Setup uses the tag to decide if
-// it can change the roles and the operator app of a space, so it must not
-// guess the owner of a space. The status command does not call AgentSpaces.
+// If a tag lookup fails, the summary of that space has TagErr, and the other
+// spaces stay in the list. Setup uses the tag to decide if it can change the
+// roles and the operator app of a space, so a caller must not use a space with
+// TagErr as if its owner is known. If every lookup fails, for example without
+// aidevops:ListTagsForResource, AgentSpaces returns the first error. The
+// status command does not call AgentSpaces.
 func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, error) {
 	spaces, err := listAgentSpaces(ctx, clients)
 	if err != nil || len(spaces) == 0 {
@@ -98,16 +104,25 @@ func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, err
 	}
 
 	summaries := make([]AgentSpaceSummary, 0, len(spaces))
+	var firstErr error
+	failed := 0
 	for _, space := range spaces {
 		summary := AgentSpaceSummary{
 			AgentSpaceID: aws.ToString(space.AgentSpaceId),
 			Name:         aws.ToString(space.Name),
 			Description:  aws.ToString(space.Description),
 		}
-		if summary.ManagedByLDCLI, err = hasManagedTag(ctx, clients, accountID, summary.AgentSpaceID); err != nil {
-			return nil, err
+		summary.ManagedByLDCLI, summary.TagErr = hasManagedTag(ctx, clients, accountID, summary.AgentSpaceID)
+		if summary.TagErr != nil {
+			failed++
+			if firstErr == nil {
+				firstErr = summary.TagErr
+			}
 		}
 		summaries = append(summaries, summary)
+	}
+	if failed == len(summaries) {
+		return nil, firstErr
 	}
 
 	return summaries, nil

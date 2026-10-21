@@ -117,6 +117,7 @@ func TestAgentSpacesCountsOnlyTheTag(t *testing.T) {
 	assert.Equal(t, 2, countCalls(agent.calls, "ListTagsForResource"))
 }
 
+// If every lookup fails, AgentSpaces fails.
 func TestAgentSpacesReportsATagError(t *testing.T) {
 	agent := &fakeAgent{
 		agentSpaces: []agenttypes.AgentSpace{
@@ -130,6 +131,27 @@ func TestAgentSpacesReportsATagError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tags of agent space space-1")
 	assert.Contains(t, err.Error(), "aidevops:ListTagsForResource")
+}
+
+// One failed lookup does not hide the other spaces.
+func TestAgentSpacesKeepsTheSpacesWithATag(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly"), namedSpace("space-2", "sandbox")},
+		tags:        map[string]map[string]string{space1ARN: spaceTags},
+		tagsErrFor: map[string]error{
+			"arn:aws:aidevops:us-east-1:" + testAccountID + ":agentspace/space-2": apiError{code: "InternalServerException"},
+		},
+	}
+
+	spaces, err := awsdevops.AgentSpaces(context.Background(), newTestClients(agent, newFakeIAM()))
+
+	require.NoError(t, err)
+	require.Len(t, spaces, 2)
+	assert.True(t, spaces[0].ManagedByLDCLI)
+	assert.NoError(t, spaces[0].TagErr)
+	assert.Equal(t, "sandbox", spaces[1].Name)
+	assert.False(t, spaces[1].ManagedByLDCLI)
+	assert.ErrorContains(t, spaces[1].TagErr, "tags of agent space space-2")
 }
 
 // Another error does not blame a missing permission.
