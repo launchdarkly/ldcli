@@ -307,7 +307,7 @@ func TestSetupWithYesConnectsToANamedSpaceItDidNotMake(t *testing.T) {
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
 }
 
-// Enter and an unattended run do the same thing on the space setup made.
+// With a name, Enter picks the space with that name, which setup made.
 func TestSetupEnterGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {
 	cmd, out := setupTestCmd(t, "\ny\n")
 	clients, w := countingClients(
@@ -321,6 +321,24 @@ func TestSetupEnterGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {
 	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
+}
+
+// Without a name, Enter does what an unattended run does: it picks the one
+// space that setup made.
+func TestSetupEnterWithoutANamePicksTheSpaceSetupMade(t *testing.T) {
+	cmd, out := setupTestCmd(t, "\ny\n")
+	clients, w := countingClients(
+		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")},
+		ldcliSpace("space-2", "ld-devops-agent"),
+	)
+	opts := newSpaceOptions()
+	opts.AgentSpaceName = ""
+
+	require.NoError(t, setupWith(cmd, clients, opts, true, true))
+
+	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
+	assert.Contains(t, w.calls, "EnableOperatorApp")
 }
 
 func TestSetupAgentSpaceIDGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {

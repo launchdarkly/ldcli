@@ -22,6 +22,8 @@ type stubAgent struct {
 	services []agenttypes.RegisteredService
 	// unreadTags fails the tag lookup of these space IDs.
 	unreadTags map[string]bool
+	// missing makes GetAgentSpace report these space IDs as not found.
+	missing map[string]bool
 }
 
 func (s stubAgent) AssociateService(context.Context, *devopsagent.AssociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.AssociateServiceOutput, error) {
@@ -69,6 +71,9 @@ func (s stubAgent) EnableOperatorApp(context.Context, *devopsagent.EnableOperato
 }
 
 func (s stubAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetAgentSpaceOutput, error) {
+	if s.missing[aws.ToString(in.AgentSpaceId)] {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
 	for _, space := range s.spaces {
 		if aws.ToString(space.AgentSpaceId) == aws.ToString(in.AgentSpaceId) {
 			return &devopsagent.GetAgentSpaceOutput{AgentSpace: &space}, nil
@@ -546,4 +551,106 @@ func TestResolveAgentSpaceFailsIfNoTagCanBeRead(t *testing.T) {
 	_, err := resolveAgentSpace(cmd, clients, &opts, true)
 
 	assert.ErrorContains(t, err, "unable to read the tags of agent space space-2")
+}
+
+// Without a name, Enter picks the one space that setup made.
+func TestSelectAgentSpaceWithoutANameDefaultsToTheSpaceSetupMade(t *testing.T) {
+	cmd, out := testCmd("\n")
+	spaces := []awsdevops.AgentSpaceSummary{
+		{AgentSpaceID: "space-1", Name: "platform"},
+		{AgentSpaceID: "space-2", Name: "launchdarkly", ManagedByLDCLI: true},
+	}
+
+	chosen, err := selectAgentSpace(cmd, spaces, "us-east-1", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, spaceChoice{id: "space-2"}, chosen)
+	assert.Contains(t, out.String(), "connect to? [2] ")
+}
+
+// Two spaces that setup made, or a hidden space, leave no default.
+func TestSelectAgentSpaceWithoutANameHasNoDefaultWhenItIsNotClear(t *testing.T) {
+	cases := map[string][]awsdevops.AgentSpaceSummary{
+		"two spaces setup made": {
+			{AgentSpaceID: "space-1", Name: "a", ManagedByLDCLI: true},
+			{AgentSpaceID: "space-2", Name: "b", ManagedByLDCLI: true},
+		},
+		"a hidden space": {
+			{AgentSpaceID: "space-1", Name: "a", ManagedByLDCLI: true},
+			unreadSpace("space-3", "sandbox"),
+		},
+	}
+	for name, spaces := range cases {
+		t.Run(name, func(t *testing.T) {
+			cmd, out := testCmd("1\n")
+
+			_, err := selectAgentSpace(cmd, spaces, "us-east-1", "")
+			require.NoError(t, err)
+
+			assert.NotContains(t, out.String(), "[")
+		})
+	}
+}
+
+func TestResolveAgentSpaceIDNamesAMissingSpace(t *testing.T) {
+	cmd, _ := testCmd("")
+	opts := awsdevops.SetupOptions{AgentSpaceID: "space-typo"}
+	clients := awsdevops.Clients{Agent: stubAgent{missing: map[string]bool{"space-typo": true}}, STS: accountSTS{}, Region: "us-east-1"}
+
+	_, err := resolveAgentSpace(cmd, clients, &opts, false)
+
+	assert.EqualError(t, err, "no agent space space-typo in us-east-1. Check --region and --profile, "+
+		"or run setup without --agent-space-id to list the agent spaces")
+}
+
+// The list tells the user to pass --agent-space-id for a hidden space, so that
+// works: the owner is unknown, so setup only connects the MCP server.
+func TestResolveAgentSpaceIDWithUnreadTagsConnectsOnly(t *testing.T) {
+	cmd, out := testCmd("")
+	opts := awsdevops.SetupOptions{AgentSpaceID: "space-2"}
+	clients := awsdevops.Clients{
+		Agent: stubAgent{
+			spaces:     []agenttypes.AgentSpace{ldcliSpace("space-2", "launchdarkly")},
+			unreadTags: map[string]bool{"space-2": true},
+		},
+		STS:    accountSTS{},
+		Region: "us-east-1",
+	}
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, false)
+
+	require.NoError(t, err)
+	assert.False(t, provision)
+	assert.Contains(t, out.String(), "could not read the tags of agent space launchdarkly (space-2), so it only connects the MCP server")
+	assert.Contains(t, out.String(), "--auth-flow")
+}
+
+// --auth-flow forces the full setup on a space that setup did not make, and
+// setup warns about it before the plan.
+func TestResolveAgentSpaceWarnsAboutAuthFlowOnAnotherSpace(t *testing.T) {
+	for name, space := range map[string]agenttypes.AgentSpace{
+		"made by someone else": {AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+		"made by setup":        ldcliSpace("space-2", "platform"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			cmd, out := testCmd("")
+			opts := awsdevops.SetupOptions{AgentSpaceID: "space-2", AuthFlowSet: true}
+
+			provision, err := resolveAgentSpace(cmd, newStubClients(space), &opts, false)
+
+			require.NoError(t, err)
+			assert.True(t, provision)
+			warned := strings.Contains(out.String(), "Warning: setup did not make agent space platform (space-2)")
+			assert.Equal(t, name == "made by someone else", warned)
+		})
+	}
+}
+
+func TestNameNewSpaceGivesAnExampleName(t *testing.T) {
+	cmd, _ := testCmd("")
+	opts := awsdevops.SetupOptions{}
+
+	err := nameNewSpace(cmd, nil, &opts, false)
+
+	assert.EqualError(t, err, "a new agent space needs a name; pass --agent-space-name, for example --agent-space-name launchdarkly")
 }

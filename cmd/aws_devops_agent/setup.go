@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -199,8 +200,26 @@ func resolveAgentSpace(
 	if opts.AgentSpaceID != "" {
 		// Read only this space, so the other spaces cannot stop the run.
 		space, err := awsdevops.AgentSpace(cmd.Context(), clients, opts.AgentSpaceID)
+		var missing *agenttypes.ResourceNotFoundException
+		switch {
+		case errors.As(err, &missing):
+			return false, fmt.Errorf(
+				"no agent space %s in %s. Check --%s and --%s, or run setup without --%s to list the agent spaces",
+				opts.AgentSpaceID, clients.Region, regionFlag, profileFlag, agentSpaceIDFlag,
+			)
+		case err != nil:
+			return false, err
+		case space.TagErr != nil && !opts.AuthFlowSet:
+			// The owner is unknown, so do only what is safe on any space.
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+				"Setup could not read the tags of agent space %s (%s), so it only connects the MCP server. "+
+					"To run the full setup on it, pass --%s: %v\n",
+				space.Name, space.AgentSpaceID, authFlowFlag, space.TagErr)
 
-		return opts.AuthFlowSet || space.ManagedByLDCLI, err
+			return false, nil
+		}
+
+		return fullSetupOn(cmd, *opts, space), nil
 	}
 	spaces, err := awsdevops.AgentSpaces(cmd.Context(), clients)
 	if err != nil {
@@ -213,7 +232,12 @@ func resolveAgentSpace(
 	}
 
 	if !interactive {
-		return pickWithoutAsking(spaces, opts, clients.Region)
+		provision, err := pickWithoutAsking(spaces, opts, clients.Region)
+		if err == nil && opts.AgentSpaceID != "" {
+			warnAuthFlow(cmd, *opts, summaryOf(spaces, opts.AgentSpaceID))
+		}
+
+		return provision, err
 	}
 
 	choice, err := selectAgentSpace(cmd, spaces, clients.Region, opts.AgentSpaceName)
@@ -228,7 +252,39 @@ func resolveAgentSpace(
 	}
 	opts.AgentSpaceID = choice.id
 
-	return opts.AuthFlowSet || managedSpace(spaces, choice.id), nil
+	return fullSetupOn(cmd, *opts, summaryOf(spaces, choice.id)), nil
+}
+
+// fullSetupOn reports whether the chosen space gets the full setup. A space
+// that setup made gets it. --auth-flow forces it on another space, with a
+// warning.
+func fullSetupOn(cmd *cobra.Command, opts awsdevops.SetupOptions, space awsdevops.AgentSpaceSummary) bool {
+	warnAuthFlow(cmd, opts, space)
+
+	return opts.AuthFlowSet || space.ManagedByLDCLI
+}
+
+// warnAuthFlow warns that --auth-flow runs the full setup on a space that
+// setup did not make, so that a wrong --agent-space-id shows before the plan.
+func warnAuthFlow(cmd *cobra.Command, opts awsdevops.SetupOptions, space awsdevops.AgentSpaceSummary) {
+	if !opts.AuthFlowSet || space.ManagedByLDCLI {
+		return
+	}
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+		"Warning: setup did not make agent space %s (%s). --%s runs the full setup on it, "+
+			"so setup can change its IAM roles, account association, and operator app sign-in.\n",
+		space.Name, space.AgentSpaceID, authFlowFlag)
+}
+
+// summaryOf returns the summary of the space with this ID.
+func summaryOf(spaces []awsdevops.AgentSpaceSummary, id string) awsdevops.AgentSpaceSummary {
+	for _, space := range spaces {
+		if space.AgentSpaceID == id {
+			return space
+		}
+	}
+
+	return awsdevops.AgentSpaceSummary{AgentSpaceID: id}
 }
 
 // pickWithoutAsking picks a space for a run that cannot ask. With a name, it
@@ -335,7 +391,8 @@ func nameNewSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, opts
 		return nil
 	}
 	if !interactive {
-		return fmt.Errorf("a new agent space needs a name; pass --%s", agentSpaceNameFlag)
+		return fmt.Errorf("a new agent space needs a name; pass --%s, for example --%s launchdarkly",
+			agentSpaceNameFlag, agentSpaceNameFlag)
 	}
 
 	name, err := askSpaceName(cmd, spaces)
@@ -406,17 +463,6 @@ func hasSpaceNamed(spaces []awsdevops.AgentSpaceSummary, name string) bool {
 	for _, space := range spaces {
 		if strings.EqualFold(space.Name, name) {
 			return true
-		}
-	}
-
-	return false
-}
-
-// managedSpace reports whether setup made the space with this ID.
-func managedSpace(spaces []awsdevops.AgentSpaceSummary, id string) bool {
-	for _, space := range spaces {
-		if space.AgentSpaceID == id {
-			return space.ManagedByLDCLI
 		}
 	}
 
@@ -495,6 +541,11 @@ func selectAgentSpace(
 	}
 
 	defaultIndex := spaceNamed(spaces, name)
+	if name == "" && len(unread) == 0 {
+		// Enter does what a run that cannot ask does: it picks the one
+		// space that setup made.
+		defaultIndex = ownSpace(spaces)
+	}
 	if hasSpaceNamed(unread, name) {
 		defaultIndex = -1
 	}
