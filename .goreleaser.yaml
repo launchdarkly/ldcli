@@ -58,6 +58,12 @@ builds:
       # The real values are defined by the CC_<OS>_<ARCH> env vars defined at the top `env` attribute.
       - 'CC={{ index .Env (print "CC_" .Os "_" .Arch) }}'
       - 'CXX={{ index .Env (print "CXX_" .Os "_" .Arch) }}'
+    hooks:
+      post:
+        # Refuse to ship a binary built with an older Go than go.mod's toolchain
+        # directive (INC-289: Go 1.26.10 distrusts compromised eMudhra CAs).
+        - cmd: ./scripts/check-go-toolchain.sh "{{ .Path }}"
+          output: true
 
 dockers:
   # AMD64
