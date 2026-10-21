@@ -443,7 +443,7 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	}
 	plan.AuthFlow = opts.AuthFlow
 	if plan.Space.Action != SpaceCreate {
-		id, err := FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
+		id, err := FindAWSAssociation(ctx, clients, plan.Space.ID, accountID)
 		if err != nil {
 			return plan, err
 		}
@@ -727,7 +727,7 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		return result, err
 	}
 	if plan.Link.Exists {
-		found, err := FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
+		found, err := FindAWSAssociation(ctx, clients, plan.Space.ID, accountID)
 		if err != nil {
 			return result, err
 		}
@@ -787,7 +787,7 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		logf("Reused agent space %s (%s)", plan.Space.Name, plan.Space.ID)
 	}
 
-	result.AWSAssociationID, err = FindAssociation(ctx, clients, result.AgentSpaceID, awsServiceID)
+	result.AWSAssociationID, err = FindAWSAssociation(ctx, clients, result.AgentSpaceID, accountID)
 	if err != nil {
 		return result, err
 	}

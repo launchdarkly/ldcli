@@ -482,6 +482,30 @@ func TestRunPlanSkipsTheMCPServer(t *testing.T) {
 	assert.Contains(t, strings.Join(*logged, "\n"), "Skipped MCP server")
 }
 
+// A space that reads only another account still gets this account. Setup
+// must not keep the association of the other account as its own.
+func TestRunPlanAssociatesBesideAnotherAccount(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces:  []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")},
+		associations: []agenttypes.Association{sourceAssociation("assoc-source", "210987654321")},
+	}
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, "assoc-aws", result.AWSAssociationID)
+	var accounts []string
+	for _, in := range agent.associationInputs {
+		if config, ok := in.Configuration.(*agenttypes.ServiceConfigurationMemberAws); ok {
+			accounts = append(accounts, aws.ToString(config.Value.AccountId))
+		}
+	}
+	assert.Equal(t, []string{testAccountID}, accounts)
+}
+
 // An association that appeared is already done.
 func TestRunPlanReportsAssociationAlreadyThere(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}

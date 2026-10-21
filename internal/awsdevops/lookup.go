@@ -258,6 +258,28 @@ func FindAssociation(ctx context.Context, clients Clients, agentSpaceID, service
 	return "", nil
 }
 
+// FindAWSAssociation returns the ID of the association between an agent space
+// and its own AWS account. An agent space can also read other AWS accounts.
+// Those associations have the service ID "aws" too, so the match uses the
+// monitor configuration and the account ID.
+func FindAWSAssociation(ctx context.Context, clients Clients, agentSpaceID, accountID string) (string, error) {
+	associations, err := listAssociations(ctx, clients, agentSpaceID)
+	if err != nil {
+		return "", err
+	}
+	for _, association := range associations {
+		if aws.ToString(association.ServiceId) != awsServiceID {
+			continue
+		}
+		id, kind := associationAccount(association.Configuration)
+		if kind == string(agenttypes.MonitorAccountTypeMonitor) && id == accountID {
+			return aws.ToString(association.AssociationId), nil
+		}
+	}
+
+	return "", nil
+}
+
 // mcpEndpointOf returns the endpoint a registered MCP server serves, which is
 // what identifies a registration: the name is the customer's to choose, so a
 // self-hosted LaunchDarkly MCP server can carry ours.
