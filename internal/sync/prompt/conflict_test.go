@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
 	"os/exec"
 	"strings"
 	"testing"
@@ -517,36 +518,36 @@ type conflictAPI struct {
 	requests  []string
 }
 
-func (api *conflictAPI) serve(request apitest.Request) ([]byte, error) {
+func (api *conflictAPI) serve(request apitest.Request) (int, []byte) {
 	method, path, body := request.Method, request.Path, request.Body
 	api.requests = append(api.requests, method)
 	if strings.Contains(path, "/ai-tools/") {
 		if method == "PATCH" {
 			var tool syncdomain.Tool
 			if err := json.Unmarshal(body, &tool); err != nil {
-				return nil, err
+				return http.StatusBadRequest, nil
 			}
 			api.tool.Tool = &tool
 			api.tool.Version++
 		}
-		return json.Marshal(struct {
+		return apitest.JSON(struct {
 			syncdomain.Tool
 			Version int `json:"version"`
 		}{Tool: *api.tool.Tool, Version: api.tool.Version})
 	}
 	if method == "GET" {
-		return json.Marshal(map[string]any{
+		return apitest.JSON(map[string]any{
 			"key": "support", "name": "Support", "mode": "agent", "variations": []syncdomain.Variation{*api.variation},
 		})
 	}
 	if method == "PATCH" {
 		var update syncdomain.Variation
 		if err := json.Unmarshal(body, &update); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		update.Mode = syncdomain.VariationModeAgent
 		update.Key = api.variation.Key
 		api.variation = &update
 	}
-	return []byte(`{}`), nil
+	return http.StatusOK, []byte(`{}`)
 }

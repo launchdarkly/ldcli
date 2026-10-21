@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -539,6 +540,6 @@ func testFingerprint() string {
 
 // settingsAPI is a sync settings API that accepts each write.
 func settingsAPI(t *testing.T) syncapi.Client {
-	server := apitest.NewServer(t, func(apitest.Request) ([]byte, error) { return []byte(`{}`), nil })
+	server := apitest.NewServer(t, func(apitest.Request) (int, []byte) { return http.StatusOK, []byte(`{}`) })
 	return syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL})
 }

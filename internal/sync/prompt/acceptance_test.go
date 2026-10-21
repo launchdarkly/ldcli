@@ -18,7 +18,6 @@ import (
 
 	"github.com/launchdarkly/ldcli/cmd"
 	"github.com/launchdarkly/ldcli/internal/analytics"
-	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
@@ -35,61 +34,73 @@ type directAPI struct {
 	skills         map[string]versionedSkill
 	manifest       *syncapi.SyncManifest
 	requests       []string
-	// headers are the headers of each request, in the order of requests.
-	headers []http.Header
-	// directions maps a variation lookup key to its sync direction. A
-	// variation without an entry uses the direction "both".
-	directions map[string]string
-	// settingsErr is the error that the sync settings API returns.
-	settingsErr error
-	// settingsReads counts the sync settings requests. After the first
-	// request, directionsAfterFirstRead replaces directions when it is set.
-	settingsReads            int
+	headers        []http.Header
+	// directions maps a lookup key to its sync settings direction. The default is "both".
+	directions               map[string]string
 	directionsAfterFirstRead map[string]string
-	// settingsPatches are the bodies of the sync settings patches.
-	settingsPatches []string
-	// settingsPatchErr is the error that a sync settings patch returns.
-	settingsPatchErr error
-	// reports are the bodies of the sync reports.
-	reports []string
-	// reportErr is the error that the sync report API returns.
-	reportErr error
+	settingsReads            int
+	settingsErr              *apiError
+	settingsPatches          []string
+	settingsPatchErr         *apiError
+	reports                  []string
+	reportErr                *apiError
 }
 
-// handleSettingsRequest serves the sync settings API in request order.
-func (api *directAPI) handleSettingsRequest(query url.Values) ([]byte, error) {
+// apiError is an error response of the test API.
+type apiError struct {
+	status int
+	body   string
+}
+
+var (
+	notFoundError  = &apiError{http.StatusNotFound, `{"code":"not_found","message":"Not found"}`}
+	forbiddenError = &apiError{http.StatusForbidden, `{"code":"forbidden","message":"Access denied"}`}
+	boomError      = &apiError{http.StatusInternalServerError, `{"code":"internal","message":"boom"}`}
+)
+
+// respond returns the error response, or status 200 when err is nil.
+func (err *apiError) respond() (int, []byte) {
+	if err == nil {
+		return http.StatusOK, nil
+	}
+	return err.status, []byte(err.body)
+}
+
+func (api *directAPI) serveSettings(request apitest.Request) (int, []byte) {
+	if request.Method == http.MethodPatch {
+		api.settingsPatches = append(api.settingsPatches, string(request.Body))
+		return api.settingsPatchErr.respond()
+	}
 	api.settingsReads++
 	if api.settingsErr != nil {
-		return nil, api.settingsErr
+		return api.settingsErr.respond()
 	}
 	directions := api.directions
 	if api.settingsReads > 1 && api.directionsAfterFirstRead != nil {
 		directions = api.directionsAfterFirstRead
 	}
-	type setting struct {
-		ResourceKind      string `json:"resourceKind"`
-		ResourceLookupKey string `json:"resourceLookupKey"`
-		Direction         string `json:"direction"`
-	}
-	items := []setting{}
-	for _, resource := range query["resources"] {
+	items := []map[string]string{}
+	for _, resource := range request.Query["resources"] {
 		kind, lookupKey, _ := strings.Cut(resource, ":")
 		direction, ok := directions[lookupKey]
 		if !ok {
 			direction = "both"
 		}
-		items = append(items, setting{ResourceKind: kind, ResourceLookupKey: lookupKey, Direction: direction})
+		items = append(items, map[string]string{"resourceKind": kind, "resourceLookupKey": lookupKey, "direction": direction})
 	}
-	return json.Marshal(map[string]any{"items": items})
+	return apitest.JSON(map[string]any{"items": items})
+}
+
+func (api *directAPI) serveReport(request apitest.Request) (int, []byte) {
+	api.reports = append(api.reports, string(request.Body))
+	return api.reportErr.respond()
 }
 
 type notFoundAPI struct{}
 
-func (notFoundAPI) serve(apitest.Request) ([]byte, error) {
-	return nil, lderrors.NewError(
-		`{"code":"not_found","message":"AI config not found","statusCode":404,` +
-			`"suggestion":"Resource not found. Verify the selected project."}`,
-	)
+func (notFoundAPI) serve(apitest.Request) (int, []byte) {
+	return http.StatusNotFound, []byte(`{"code":"not_found","message":"AI config not found",` +
+		`"suggestion":"Resource not found. Verify the selected project."}`)
 }
 
 type versionedTool struct {
@@ -107,7 +118,7 @@ type directAPIVariation struct {
 	State string `json:"state,omitempty"`
 }
 
-func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
+func (api *directAPI) serve(request apitest.Request) (int, []byte) {
 	method, path, query, body := request.Method, request.Path, request.Query, request.Body
 	api.requests = append(api.requests, method+" "+path)
 	api.headers = append(api.headers, request.Header)
@@ -115,67 +126,62 @@ func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
 		return handleManifestRequest(api.manifest, method, query, body)
 	}
 	if strings.HasSuffix(path, "/configs/sync/settings") {
-		if method == http.MethodPatch {
-			api.settingsPatches = append(api.settingsPatches, string(body))
-			return nil, api.settingsPatchErr
-		}
-		return api.handleSettingsRequest(query)
+		return api.serveSettings(request)
 	}
 	if strings.HasSuffix(path, "/configs/sync/reports") {
-		api.reports = append(api.reports, string(body))
-		return nil, api.reportErr
+		return api.serveReport(request)
 	}
 	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodPost {
 		var tool versionedTool
 		if err := json.Unmarshal(body, &tool.Tool); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		tool.Version = 1
 		if api.tools == nil {
 			api.tools = make(map[string]versionedTool)
 		}
 		api.tools[tool.Key] = tool
-		return json.Marshal(tool)
+		return apitest.JSON(tool)
 	}
 	if strings.Contains(path, "/ai-tools/") {
 		key := path[strings.LastIndex(path, "/")+1:]
 		tool, ok := api.tools[key]
 		if !ok {
-			return nil, fmt.Errorf(`{"code":"not_found","message":"AI tool not found","statusCode":404}`)
+			return 404, []byte(`{"code":"not_found","message":"AI tool not found","statusCode":404}`)
 		}
 		if method == "PATCH" {
 			if err := json.Unmarshal(body, &tool.Tool); err != nil {
-				return nil, err
+				return http.StatusBadRequest, nil
 			}
 			tool.Key = key
 			tool.Version++
 			api.tools[key] = tool
 		}
-		return json.Marshal(tool)
+		return apitest.JSON(tool)
 	}
 	if strings.Contains(path, "/ai-configs/skills/") {
 		key := path[strings.LastIndex(path, "/")+1:]
 		skill, ok := api.skills[key]
 		if !ok {
-			return nil, fmt.Errorf("skill not found")
+			return apitest.CloseConnection, nil
 		}
 		if method == "PATCH" {
 			if err := json.Unmarshal(body, &skill.Skill); err != nil {
-				return nil, err
+				return http.StatusBadRequest, nil
 			}
 			skill.Key = key
 			skill.Version++
 			api.skills[key] = skill
 		}
-		return json.Marshal(skill)
+		return apitest.JSON(skill)
 	}
 	if method == "GET" && strings.Contains(path, "/model-configs/") {
 		for _, modelConfig := range api.modelConfigs {
 			if strings.HasSuffix(path, "/"+modelConfig.Key) {
-				return json.Marshal(modelConfig)
+				return apitest.JSON(modelConfig)
 			}
 		}
-		return nil, fmt.Errorf("model config not found")
+		return apitest.CloseConnection, nil
 	}
 
 	switch method {
@@ -187,13 +193,13 @@ func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
 				State:     api.variationState,
 			})
 		}
-		return json.Marshal(map[string]any{
+		return apitest.JSON(map[string]any{
 			"key": "support", "name": "Support", "mode": "agent", "variations": variations,
 		})
 	case "POST":
 		var variation syncdomain.Variation
 		if err := json.Unmarshal(body, &variation); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		variation.Mode = syncdomain.VariationModeAgent
 		api.variation = &variation
@@ -203,7 +209,7 @@ func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
 			State string `json:"state"`
 		}
 		if err := json.Unmarshal(body, &state); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		if state.State == "archived" {
 			api.variationState = "archived"
@@ -221,7 +227,7 @@ func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
 			Skills             *[]syncdomain.AttachmentRef `json:"skills"`
 		}
 		if err := json.Unmarshal(body, &update); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		key := "default"
 		if api.variation != nil {
@@ -245,7 +251,7 @@ func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
 		}
 		api.variationState = "published"
 	}
-	return []byte(`{}`), nil
+	return http.StatusOK, []byte(`{}`)
 }
 
 func TestPromptDryRunUsesOnlyExistingReadAPI(t *testing.T) {
@@ -1139,7 +1145,7 @@ func TestPromptUsesUIAndCodeWhenSyncSettingsAreUnavailable(t *testing.T) {
 	writeManifest(t, root, baseline)
 	api := &directAPI{
 		variation:   pointer(baseline),
-		settingsErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
+		settingsErr: notFoundError,
 	}
 
 	_, stderr, err := runPrompt(t, root, api, "--yes")
@@ -1157,7 +1163,7 @@ func TestPromptFailsWhenSyncSettingsAreForbidden(t *testing.T) {
 	writeManifest(t, root, baseline)
 	api := &directAPI{
 		variation:   pointer(baseline),
-		settingsErr: lderrors.NewError(`{"code":"forbidden","message":"Access denied","statusCode":403}`),
+		settingsErr: forbiddenError,
 	}
 
 	_, _, err := runPrompt(t, root, api, "--yes")
@@ -1214,12 +1220,12 @@ type ambiguousWriteAPI struct {
 	directAPI
 }
 
-func (api *ambiguousWriteAPI) serve(request apitest.Request) ([]byte, error) {
-	response, err := api.directAPI.serve(request)
-	if err == nil && (request.Method == "POST" || request.Method == "PATCH") {
-		return nil, fmt.Errorf("connection closed after write")
+func (api *ambiguousWriteAPI) serve(request apitest.Request) (int, []byte) {
+	status, response := api.directAPI.serve(request)
+	if status == http.StatusOK && (request.Method == "POST" || request.Method == "PATCH") {
+		return apitest.CloseConnection, nil
 	}
-	return response, err
+	return status, response
 }
 
 type changingReadAPI struct {
@@ -1227,7 +1233,7 @@ type changingReadAPI struct {
 	reads int
 }
 
-func (api *changingReadAPI) serve(request apitest.Request) ([]byte, error) {
+func (api *changingReadAPI) serve(request apitest.Request) (int, []byte) {
 	if request.Method == "GET" && !strings.Contains(request.Path, "/configs/sync/manifests") {
 		api.reads++
 		if api.reads == 2 {
@@ -1277,7 +1283,7 @@ type multiDirectAPI struct {
 	reports    []string
 }
 
-func (api *multiDirectAPI) serve(request apitest.Request) ([]byte, error) {
+func (api *multiDirectAPI) serve(request apitest.Request) (int, []byte) {
 	method, path, query, body := request.Method, request.Path, request.Query, request.Body
 	api.requests = append(api.requests, method+" "+path)
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
@@ -1285,21 +1291,21 @@ func (api *multiDirectAPI) serve(request apitest.Request) ([]byte, error) {
 	}
 	if strings.HasSuffix(path, "/configs/sync/reports") {
 		api.reports = append(api.reports, string(body))
-		return nil, nil
+		return http.StatusOK, nil
 	}
 	if method == "GET" {
 		variations := make([]syncdomain.Variation, 0, len(api.variations))
 		for _, variation := range api.variations {
 			variations = append(variations, variation)
 		}
-		return json.Marshal(map[string]any{
+		return apitest.JSON(map[string]any{
 			"key": "support", "name": "Support", "mode": "agent", "variations": variations,
 		})
 	}
 
 	key := path[strings.LastIndex(path, "/")+1:]
 	if key == api.failKey {
-		return nil, fmt.Errorf("write failed for %s", key) // The server closes the connection.
+		return apitest.CloseConnection, nil
 	}
 	switch method {
 	case "PATCH":
@@ -1311,7 +1317,7 @@ func (api *multiDirectAPI) serve(request apitest.Request) ([]byte, error) {
 			Model              map[string]any `json:"model"`
 		}
 		if err := json.Unmarshal(body, &update); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		api.variations[key] = syncdomain.Variation{
 			Mode: syncdomain.VariationModeAgent, Key: key, Name: update.Name,
@@ -1319,14 +1325,14 @@ func (api *multiDirectAPI) serve(request apitest.Request) ([]byte, error) {
 			ModelConfigVersion: update.ModelConfigVersion, Model: update.Model,
 		}
 	}
-	return []byte(`{}`), nil
+	return http.StatusOK, []byte(`{}`)
 }
 
 var manifestsByRoot = map[string]*syncapi.SyncManifest{}
 
 // fakeAPI is an in-memory LaunchDarkly API. A test serves it over HTTP.
 type fakeAPI interface {
-	serve(apitest.Request) ([]byte, error)
+	serve(apitest.Request) (int, []byte)
 }
 
 func runPrompt(t *testing.T, root string, client fakeAPI, arguments ...string) (string, string, error) {
@@ -1369,12 +1375,12 @@ func handleManifestRequest(
 	method string,
 	query url.Values,
 	body []byte,
-) ([]byte, error) {
+) (int, []byte) {
 	if method == http.MethodGet {
 		if manifest.Source == "" {
 			manifest.Source = query.Get("source")
 		}
-		return json.Marshal(manifest)
+		return apitest.JSON(manifest)
 	}
 
 	var request struct {
@@ -1383,7 +1389,7 @@ func handleManifestRequest(
 		Deletions []syncapi.SyncManifestDeletion `json:"deletions"`
 	}
 	if err := json.Unmarshal(body, &request); err != nil {
-		return nil, err
+		return http.StatusBadRequest, nil
 	}
 	items := make(map[syncdomain.ResourceID]syncapi.SyncManifestResource, len(manifest.Items))
 	for _, item := range manifest.Items {
@@ -1394,11 +1400,11 @@ func handleManifestRequest(
 		version := 1
 		if current, ok := items[id]; ok {
 			if current.Version != upsert.Version {
-				return nil, fmt.Errorf(`{"code":"conflict","statusCode":409}`)
+				return 409, []byte(`{"code":"conflict","statusCode":409}`)
 			}
 			version = current.Version + 1
 		} else if upsert.Version != 0 {
-			return nil, fmt.Errorf(`{"code":"conflict","statusCode":409}`)
+			return 409, []byte(`{"code":"conflict","statusCode":409}`)
 		}
 		items[id] = syncapi.SyncManifestResource{
 			ResourceKind:      upsert.ResourceKind,
@@ -1411,7 +1417,7 @@ func handleManifestRequest(
 		id := syncdomain.ResourceID{Kind: deletion.ResourceKind, LookupKey: deletion.ResourceLookupKey}
 		current, ok := items[id]
 		if !ok || current.Version != deletion.Version {
-			return nil, fmt.Errorf(`{"code":"conflict","statusCode":409}`)
+			return 409, []byte(`{"code":"conflict","statusCode":409}`)
 		}
 		delete(items, id)
 	}
@@ -1427,7 +1433,7 @@ func handleManifestRequest(
 			syncdomain.ResourceID{Kind: right.ResourceKind, LookupKey: right.ResourceLookupKey},
 		)
 	})
-	return json.Marshal(manifest)
+	return apitest.JSON(manifest)
 }
 
 func initRepository(t *testing.T) string {

@@ -1,5 +1,5 @@
-// Package apitest serves a test LaunchDarkly API over HTTP. Tests of sync
-// code use it to send real HTTP requests through the sync API client.
+// Package apitest serves a test LaunchDarkly API over HTTP, so that tests send
+// real requests through the sync API client.
 package apitest
 
 import (
@@ -11,28 +11,34 @@ import (
 	"testing"
 )
 
+// CloseConnection makes the server close the connection without a response.
+// The client then cannot know if a write succeeded.
+const CloseConnection = -1
+
 // Request is one request that the test server received.
 type Request struct {
 	Method string
-	// Path is the URL path, for example "/api/v2/projects/default/ai-tools".
 	Path   string
 	Query  url.Values
 	Header http.Header
 	Body   []byte
 }
 
-// Handler answers one request. The server sends the result as follows:
-//
-//   - If the error is nil, the server sends status 200 with the body.
-//   - If the error text is a JSON object with a "statusCode" number, the
-//     server sends that status with the error text as the body.
-//   - For other errors, the server closes the connection without a
-//     response. The client then cannot know if a write succeeded.
-type Handler func(Request) ([]byte, error)
+// Handler answers one request with a status and a body, or with CloseConnection.
+type Handler func(Request) (status int, body []byte)
+
+// JSON returns status 200 and the JSON form of value.
+func JSON(value any) (int, []byte) {
+	body, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return http.StatusOK, body
+}
 
 // NewServer starts a test server that sends each request to handler. The
-// server closes after the test. The server does not keep connections open,
-// so the client never sends a request again on a closed connection.
+// server closes after the test. It does not keep connections open, so the
+// client never sends a request again on a closed connection.
 func NewServer(t testing.TB, handler Handler) *httptest.Server {
 	t.Helper()
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -41,41 +47,25 @@ func NewServer(t testing.TB, handler Handler) *httptest.Server {
 			t.Errorf("read request body: %v", err)
 			return
 		}
-		response, err := handler(Request{
+		status, response := handler(Request{
 			Method: request.Method,
 			Path:   request.URL.Path,
 			Query:  request.URL.Query(),
 			Header: request.Header.Clone(),
 			Body:   body,
 		})
-		if err == nil {
-			_, _ = writer.Write(response)
+		if status == CloseConnection {
+			closeConnection(t, writer)
 			return
 		}
-		if status, ok := statusCode(err); ok {
-			writer.Header().Set("Content-Type", "application/json")
-			writer.WriteHeader(status)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
-		closeConnection(t, writer)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(status)
+		_, _ = writer.Write(response)
 	}))
 	server.Config.SetKeepAlivesEnabled(false)
 	server.Start()
 	t.Cleanup(server.Close)
 	return server
-}
-
-// statusCode returns the "statusCode" field of an error whose text is a JSON
-// object.
-func statusCode(err error) (int, bool) {
-	var response struct {
-		StatusCode int `json:"statusCode"`
-	}
-	if json.Unmarshal([]byte(err.Error()), &response) != nil || response.StatusCode == 0 {
-		return 0, false
-	}
-	return response.StatusCode, true
 }
 
 func closeConnection(t testing.TB, writer http.ResponseWriter) {

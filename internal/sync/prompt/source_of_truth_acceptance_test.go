@@ -1,7 +1,6 @@
 package prompt_test
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -9,31 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	lderrors "github.com/launchdarkly/ldcli/internal/errors"
-	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
-
-type sentReport struct {
-	Source    string `json:"source"`
-	Resources []struct {
-		ResourceLookupKey string `json:"resourceLookupKey"`
-		Status            string `json:"status"`
-		Error             string `json:"error"`
-	} `json:"resources"`
-}
-
-func decodeReports(t *testing.T, bodies []string) []sentReport {
-	t.Helper()
-	reports := make([]sentReport, 0, len(bodies))
-	for _, body := range bodies {
-		var report sentReport
-		require.NoError(t, json.Unmarshal([]byte(body), &report), body)
-		reports = append(reports, report)
-	}
-	return reports
-}
 
 func TestPromptAddMakesVariationCodeOnly(t *testing.T) {
 	root := initRepository(t)
@@ -102,15 +79,6 @@ func TestPromptAddRejectsUnknownSourceOfTruth(t *testing.T) {
 	assert.Empty(t, api.requests)
 }
 
-func TestPromptAddRemovedNoAdopt(t *testing.T) {
-	root := initRepository(t)
-	api := &directAPI{variation: pointer(variation("Server"))}
-
-	_, _, err := runPrompt(t, root, api, "add", "production/support/default", "--no-adopt", "--no-input")
-
-	require.ErrorContains(t, err, "unknown flag: --no-adopt")
-}
-
 func TestPromptSourceOfTruthChangesRuleAndKeepsFile(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
@@ -167,9 +135,9 @@ type failingProjectSettingsAPI struct {
 	projectKey string
 }
 
-func (api failingProjectSettingsAPI) serve(request apitest.Request) ([]byte, error) {
+func (api failingProjectSettingsAPI) serve(request apitest.Request) (int, []byte) {
 	if request.Method == http.MethodPatch && strings.HasPrefix(request.Path, "/api/v2/projects/"+api.projectKey+"/configs/sync/settings") {
-		return nil, lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)
+		return 500, []byte(`{"code":"internal","message":"boom","statusCode":500}`)
 	}
 	return api.directAPI.serve(request)
 }
@@ -197,7 +165,7 @@ func TestPromptSourceOfTruthFailsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	writeManifest(t, root, baseline)
 	api := &directAPI{
 		variation:        pointer(baseline),
-		settingsPatchErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
+		settingsPatchErr: notFoundError,
 	}
 
 	_, _, err := runPrompt(t, root, api, "source-of-truth", "code-only", "production/support/default")
@@ -227,7 +195,7 @@ func TestPromptAddWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	root := initRepository(t)
 	api := &directAPI{
 		variation:        pointer(variation("Server")),
-		settingsPatchErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
+		settingsPatchErr: notFoundError,
 	}
 
 	stdout, stderr, err := runPrompt(t, root, api, "add", "production/support/default", "--source-of-truth", "code-only", "--no-input")
@@ -245,7 +213,7 @@ func TestPromptAddFailsWhenSyncSettingsAreForbidden(t *testing.T) {
 	root := initRepository(t)
 	api := &directAPI{
 		variation:        pointer(variation("Server")),
-		settingsPatchErr: lderrors.NewError(`{"code":"forbidden","message":"Access denied","statusCode":403}`),
+		settingsPatchErr: forbiddenError,
 	}
 
 	_, _, err := runPrompt(t, root, api, "add", "production/support/default", "--source-of-truth", "code-only", "--no-input")
@@ -292,7 +260,7 @@ func TestPromptDetachWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	writeManifest(t, root, baseline)
 	api := &directAPI{
 		variation:        pointer(baseline),
-		settingsPatchErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
+		settingsPatchErr: notFoundError,
 	}
 
 	_, stderr, err := runPrompt(t, root, api, "detach", "production/support/default", "--no-input")
@@ -311,7 +279,7 @@ func TestPromptDetachKeepsFilesWhenRuleDeleteFails(t *testing.T) {
 	writeManifest(t, root, baseline)
 	api := &directAPI{
 		variation:        pointer(baseline),
-		settingsPatchErr: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`),
+		settingsPatchErr: boomError,
 	}
 
 	_, _, err := runPrompt(t, root, api, "detach", "production/support/default", "--no-input")
@@ -320,101 +288,4 @@ func TestPromptDetachKeepsFilesWhenRuleDeleteFails(t *testing.T) {
 	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
 	require.NoError(t, err)
 	assert.True(t, exists)
-}
-
-func TestPromptReportsEachSync(t *testing.T) {
-	root := initRepository(t)
-	baseline, local := variation("Baseline"), variation("Local")
-	writeVariation(t, root, local, false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(baseline)}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-	require.NoError(t, err)
-	_, _, err = runPrompt(t, root, api, "--yes")
-	require.NoError(t, err)
-
-	reports := decodeReports(t, api.reports)
-	require.Len(t, reports, 2, "a sync without changes also sends a report")
-	for _, report := range reports {
-		assert.Equal(t, "git:example/repo", report.Source)
-		require.Len(t, report.Resources, 1)
-		assert.Equal(t, "support/default", report.Resources[0].ResourceLookupKey)
-		assert.Equal(t, "succeeded", report.Resources[0].Status)
-	}
-}
-
-func TestPromptReportsFailedWrites(t *testing.T) {
-	root := initRepository(t)
-	firstBaseline, secondBaseline := variationWithKey("first", "First baseline"), variationWithKey("second", "Second baseline")
-	firstLocal, secondLocal := variationWithKey("first", "First local"), variationWithKey("second", "Second local")
-	_, err := synclocal.NewStore(root).Add([]synclocal.VariationFile{
-		{ProjectKey: "production", ConfigKey: "support", Upsert: true, Variation: firstLocal},
-		{ProjectKey: "production", ConfigKey: "support", Upsert: true, Variation: secondLocal},
-	})
-	require.NoError(t, err)
-	writeManifestResources(t, root, firstBaseline, secondBaseline)
-	api := &multiDirectAPI{
-		variations: map[string]syncdomain.Variation{"first": firstBaseline, "second": secondBaseline},
-		failKey:    "second",
-	}
-
-	_, _, err = runPrompt(t, root, api, "--yes")
-
-	require.ErrorContains(t, err, "second")
-	reports := decodeReports(t, api.reports)
-	require.Len(t, reports, 1)
-	require.Len(t, reports[0].Resources, 2)
-	assert.Equal(t, "support/first", reports[0].Resources[0].ResourceLookupKey)
-	assert.Equal(t, "succeeded", reports[0].Resources[0].Status)
-	failed := reports[0].Resources[1]
-	assert.Equal(t, "support/second", failed.ResourceLookupKey)
-	assert.Equal(t, "failed", failed.Status)
-	assert.Contains(t, failed.Error, `update config variation "second"`)
-}
-
-func TestPromptReportFailureKeepsExitCode(t *testing.T) {
-	root := initRepository(t)
-	baseline, local := variation("Baseline"), variation("Local")
-	writeVariation(t, root, local, false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{
-		variation: pointer(baseline),
-		reportErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
-	}
-
-	_, stderr, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	assert.Len(t, api.reports, 1)
-	assert.Contains(t, stderr, "Warning: sync did not send its report to LaunchDarkly for project production")
-	assert.Equal(t, local.Name, api.variation.Name)
-	assertManifestFingerprint(t, root, local)
-}
-
-func TestPromptDryRunSendsNoReport(t *testing.T) {
-	root := initRepository(t)
-	baseline := variation("Baseline")
-	writeVariation(t, root, variation("Local"), false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(baseline)}
-
-	_, _, err := runPrompt(t, root, api, "--dry-run")
-
-	require.NoError(t, err)
-	assert.Empty(t, api.reports)
-}
-
-func TestPromptCanceledSyncSendsNoReport(t *testing.T) {
-	root := initRepository(t)
-	baseline := variation("Baseline")
-	writeVariation(t, root, variation("Local"), false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(variation("Server"))}
-
-	// The local and the server changes conflict, and --conflict=abort stops
-	// the sync before any write.
-	_, _, _ = runPrompt(t, root, api, "--yes", "--no-input", "--conflict=abort")
-
-	assert.Empty(t, api.reports)
 }

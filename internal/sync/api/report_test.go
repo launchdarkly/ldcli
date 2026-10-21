@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
@@ -68,7 +67,7 @@ func TestClientPostSyncReportWithoutResourcesSendsNoRequest(t *testing.T) {
 }
 
 func TestClientPostSyncReportReturnsError(t *testing.T) {
-	transport := &recordingServer{Err: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`)}
+	transport := &recordingServer{Status: 404, ErrorBody: `{"code":"not_found","message":"Not found","statusCode":404}`}
 
 	err := transport.client(t).PostSyncReport("project", "git:x/y", []SyncReportResource{
 		{ID: syncdomain.VariationID("project", "support", "default")},

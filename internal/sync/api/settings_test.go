@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
@@ -86,7 +85,7 @@ func TestClientResolveSourceOfTruthSendsNoRequestWithoutResources(t *testing.T) 
 }
 
 func TestClientResolveSourceOfTruthReturnsSentinelWhenNotFound(t *testing.T) {
-	transport := &recordingServer{Err: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`)}
+	transport := &recordingServer{Status: 404, ErrorBody: `{"code":"not_found","message":"Not found","statusCode":404}`}
 
 	_, err := transport.client(t).ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
@@ -94,11 +93,11 @@ func TestClientResolveSourceOfTruthReturnsSentinelWhenNotFound(t *testing.T) {
 }
 
 func TestClientResolveSourceOfTruthReturnsOtherErrors(t *testing.T) {
-	for _, body := range []string{
-		`{"code":"forbidden","message":"Access denied","statusCode":403}`,
-		`{"code":"internal","message":"boom","statusCode":500}`,
+	for status, body := range map[int]string{
+		http.StatusForbidden:           `{"code":"forbidden","message":"Access denied"}`,
+		http.StatusInternalServerError: `{"code":"internal","message":"boom"}`,
 	} {
-		transport := &recordingServer{Err: lderrors.NewError(body)}
+		transport := &recordingServer{Status: status, ErrorBody: body}
 
 		_, err := transport.client(t).ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
@@ -171,7 +170,7 @@ func TestClientSetSourceOfTruthSendsAtMostOneHundredRules(t *testing.T) {
 }
 
 func TestClientSetSourceOfTruthReturnsSentinelWhenNotFound(t *testing.T) {
-	transport := &recordingServer{Err: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`)}
+	transport := &recordingServer{Status: 404, ErrorBody: `{"code":"not_found","message":"Not found","statusCode":404}`}
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
 	err := transport.client(t).SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly)
@@ -180,11 +179,11 @@ func TestClientSetSourceOfTruthReturnsSentinelWhenNotFound(t *testing.T) {
 }
 
 func TestClientDeleteSourceOfTruthReturnsOtherErrors(t *testing.T) {
-	for _, body := range []string{
-		`{"code":"forbidden","message":"Access denied","statusCode":403}`,
-		`{"code":"internal","message":"boom","statusCode":500}`,
+	for status, body := range map[int]string{
+		http.StatusForbidden:           `{"code":"forbidden","message":"Access denied"}`,
+		http.StatusInternalServerError: `{"code":"internal","message":"boom"}`,
 	} {
-		transport := &recordingServer{Err: lderrors.NewError(body)}
+		transport := &recordingServer{Status: status, ErrorBody: body}
 		ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
 		err := transport.client(t).DeleteSourceOfTruth("project", ids)

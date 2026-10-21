@@ -2,7 +2,7 @@ package prompt
 
 import (
 	"encoding/json"
-	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -87,9 +87,9 @@ func TestExecutePlanDoesNotMutateWhileConflictIsUnresolved(t *testing.T) {
 
 func TestExecutePlanSkipsEveryConsumerWhenSharedAttachmentFails(t *testing.T) {
 	transport := &attachmentMutationAPI{
-		current:   syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
-		version:   2,
-		updateErr: errors.New(`{"code":"invalid_request","statusCode":400}`),
+		current:      syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+		version:      2,
+		updateStatus: http.StatusBadRequest,
 	}
 	client := newTestClient(t, transport.serve)
 	description := "Search all documentation"
@@ -217,39 +217,39 @@ type variationUpdateAPI struct {
 	body []byte
 }
 
-func (api *variationUpdateAPI) serve(request apitest.Request) ([]byte, error) {
+func (api *variationUpdateAPI) serve(request apitest.Request) (int, []byte) {
 	method, body := request.Method, request.Body
 	if method == "PATCH" {
 		api.body = body
 	}
-	return []byte(`{}`), nil
+	return http.StatusOK, []byte(`{}`)
 }
 
 type attachmentMutationAPI struct {
-	current   syncdomain.Tool
-	version   int
-	reads     int
-	updates   int
-	updateErr error
+	current      syncdomain.Tool
+	version      int
+	reads        int
+	updates      int
+	updateStatus int
 }
 
-func (api *attachmentMutationAPI) serve(request apitest.Request) ([]byte, error) {
+func (api *attachmentMutationAPI) serve(request apitest.Request) (int, []byte) {
 	method, body := request.Method, request.Body
 	switch method {
 	case "GET":
 		api.reads++
 	case "PATCH":
 		api.updates++
-		if api.updateErr != nil {
-			return nil, api.updateErr
+		if api.updateStatus != 0 {
+			return api.updateStatus, []byte(`{"code":"invalid_request"}`)
 		}
 		if err := json.Unmarshal(body, &api.current); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		api.current.Key = "search"
 		api.version++
 	}
-	return json.Marshal(struct {
+	return apitest.JSON(struct {
 		syncdomain.Tool
 		Version int `json:"version"`
 	}{Tool: api.current, Version: api.version})
@@ -259,11 +259,11 @@ type definitiveMutationAPI struct {
 	reads int
 }
 
-func (api *definitiveMutationAPI) serve(request apitest.Request) ([]byte, error) {
+func (api *definitiveMutationAPI) serve(request apitest.Request) (int, []byte) {
 	method := request.Method
 	if method == "GET" {
 		api.reads++
-		return []byte(`{"key":"support","mode":"agent","variations":[]}`), nil
+		return http.StatusOK, []byte(`{"key":"support","mode":"agent","variations":[]}`)
 	}
-	return nil, errors.New(`{"code":"invalid_request","statusCode":400}`)
+	return 400, []byte(`{"code":"invalid_request","statusCode":400}`)
 }

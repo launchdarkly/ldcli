@@ -156,9 +156,7 @@ func TestStoreReadsBackAnUncertainPatchThatSucceeded(t *testing.T) {
 // patch fails before LaunchDarkly sends a response.
 func uncertainPatchError(t *testing.T) error {
 	t.Helper()
-	server := apitest.NewServer(t, func(apitest.Request) ([]byte, error) {
-		return nil, errors.New("connection reset")
-	})
+	server := apitest.NewServer(t, func(apitest.Request) (int, []byte) { return apitest.CloseConnection, nil })
 	client := syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL, AccessToken: "token"})
 	_, err := client.PatchSyncManifest("project", "source", nil, nil)
 	require.True(t, syncapi.MutationMayHaveSucceeded(err))

@@ -3,6 +3,7 @@ package prompt
 import (
 	"context"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -325,24 +326,24 @@ func newTestClient(t *testing.T, handler apitest.Handler) syncapi.Client {
 
 type emptyAttachmentClient struct{}
 
-func (emptyAttachmentClient) serve(apitest.Request) ([]byte, error) {
-	return []byte(`{"items":[],"totalCount":0}`), nil
+func (emptyAttachmentClient) serve(apitest.Request) (int, []byte) {
+	return http.StatusOK, []byte(`{"items":[],"totalCount":0}`)
 }
 
 type toolSearchClient struct {
 	requests int
 }
 
-func (client *toolSearchClient) serve(request apitest.Request) ([]byte, error) {
+func (client *toolSearchClient) serve(request apitest.Request) (int, []byte) {
 	path := request.Path
 	client.requests++
 	if strings.HasSuffix(path, "/ai-tools") {
-		return []byte(`{
+		return http.StatusOK, []byte(`{
 			"items":[{"key":"search","description":"old description","schema":{},"version":2}],
 			"totalCount":1
-		}`), nil
+		}`)
 	}
-	return []byte(`{"key":"search","description":"new description","schema":{},"version":3}`), nil
+	return http.StatusOK, []byte(`{"key":"search","description":"new description","schema":{},"version":3}`)
 }
 
 func initGitRepository(t *testing.T) string {

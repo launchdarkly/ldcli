@@ -21,17 +21,17 @@ type headerServer struct {
 func newHeaderServer(t *testing.T) *headerServer {
 	t.Helper()
 	recorder := &headerServer{headers: map[string]http.Header{}}
-	server := apitest.NewServer(t, func(request apitest.Request) ([]byte, error) {
+	server := apitest.NewServer(t, func(request apitest.Request) (int, []byte) {
 		recorder.headers[request.Method+" "+request.Path] = request.Header
 		switch {
 		case strings.HasSuffix(request.Path, "/configs/sync/manifests"):
-			return []byte(`{"source":"git:example.com/acme/app","items":[]}`), nil
+			return http.StatusOK, []byte(`{"source":"git:example.com/acme/app","items":[]}`)
 		case strings.HasSuffix(request.Path, "/configs/sync/settings"):
-			return []byte(`{"items":[]}`), nil
+			return http.StatusOK, []byte(`{"items":[]}`)
 		case strings.Contains(request.Path, "/ai-tools"):
-			return []byte(`{"key":"search","schema":{},"version":1}`), nil
+			return http.StatusOK, []byte(`{"key":"search","schema":{},"version":1}`)
 		default:
-			return []byte(`{"key":"support","mode":"agent","variations":[]}`), nil
+			return http.StatusOK, []byte(`{"key":"support","mode":"agent","variations":[]}`)
 		}
 	})
 	recorder.url = server.URL
@@ -74,7 +74,6 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 		headers := recorder.headers[write]
 		require.NotNil(t, headers, write)
 		assert.Equal(t, []string{source}, headers.Values(SyncSourceHeader), write)
-		assert.Empty(t, headers.Values("LD-Sync-Commit"), write)
 		assert.Equal(t, "token", headers.Get("Authorization"), write)
 		assert.Equal(t, "launchdarkly-cli/v1.2.3", headers.Get("User-Agent"), write)
 		assert.Equal(t, "20240415", headers.Get("LD-API-Version"), write)

@@ -14,33 +14,34 @@ import (
 )
 
 // recordingServer is a test LaunchDarkly API. It records each request and
-// sends the responses in order. If Err is set, each request gets Err, as
-// apitest.Handler describes.
+// sends the responses in order. If Status is set, each request gets Status
+// and ErrorBody.
 type recordingServer struct {
 	Requests  []apitest.Request
 	Responses [][]byte
-	Err       error
+	Status    int
+	ErrorBody string
 }
 
-// client starts the server and returns a client for it.
 func (recorder *recordingServer) client(t *testing.T) Client {
 	t.Helper()
-	server := apitest.NewServer(t, func(request apitest.Request) ([]byte, error) {
+	server := apitest.NewServer(t, func(request apitest.Request) (int, []byte) {
 		recorder.Requests = append(recorder.Requests, request)
-		if recorder.Err != nil {
-			return nil, recorder.Err
+		switch {
+		case recorder.Status != 0:
+			return recorder.Status, []byte(recorder.ErrorBody)
+		case len(recorder.Responses) < len(recorder.Requests):
+			return http.StatusOK, nil
+		default:
+			return http.StatusOK, recorder.Responses[len(recorder.Requests)-1]
 		}
-		if len(recorder.Responses) < len(recorder.Requests) {
-			return nil, nil
-		}
-		return recorder.Responses[len(recorder.Requests)-1], nil
 	})
 	return NewTransport("test").Client(Options{BaseURI: server.URL, AccessToken: "token"})
 }
 
 func TestZeroTransportSendsRequests(t *testing.T) {
-	server := apitest.NewServer(t, func(apitest.Request) ([]byte, error) {
-		return []byte(`{"key":"support","mode":"agent","variations":[]}`), nil
+	server := apitest.NewServer(t, func(apitest.Request) (int, []byte) {
+		return http.StatusOK, []byte(`{"key":"support","mode":"agent","variations":[]}`)
 	})
 
 	_, err := Transport{}.Client(Options{BaseURI: server.URL}).ReadVariation("project", "support", "default")
@@ -133,7 +134,7 @@ func TestClientVariationTreatsArchivedVariationAsMissing(t *testing.T) {
 }
 
 func TestClientVariationReturnsTransportError(t *testing.T) {
-	client := (&recordingServer{Err: errors.New("connection closed")}).client(t)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	_, err := client.ReadVariation("project", "support", "helpful")
 
@@ -239,7 +240,7 @@ func TestClientCreateAgentVariationOmitsCompletionFields(t *testing.T) {
 }
 
 func TestClientCreateVariationReturnsTransportError(t *testing.T) {
-	client := (&recordingServer{Err: errors.New("connection closed")}).client(t)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	err := client.CreateVariation(
 		"project",
@@ -252,7 +253,7 @@ func TestClientCreateVariationReturnsTransportError(t *testing.T) {
 }
 
 func TestClientMutationRecognizesDefinitiveAPIError(t *testing.T) {
-	client := (&recordingServer{Err: errors.New(`{"code":"invalid_request","statusCode":400}`)}).client(t)
+	client := (&recordingServer{Status: 400, ErrorBody: `{"code":"invalid_request","statusCode":400}`}).client(t)
 
 	err := client.CreateVariation(
 		"project",
@@ -368,7 +369,7 @@ func TestClientUpdateCompletionVariationSendsEmptyMessagesToClearThem(t *testing
 }
 
 func TestClientUpdateVariationReturnsTransportError(t *testing.T) {
-	client := (&recordingServer{Err: errors.New("connection closed")}).client(t)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	err := client.UpdateVariation(
 		"project",
@@ -414,7 +415,7 @@ func TestClientArchiveVariation(t *testing.T) {
 }
 
 func TestClientArchiveVariationReturnsTransportError(t *testing.T) {
-	client := (&recordingServer{Err: errors.New("connection closed")}).client(t)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	err := client.ArchiveVariation("project", "support", "helpful")
 

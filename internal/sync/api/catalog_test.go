@@ -2,13 +2,13 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 )
 
 func TestCatalogClientSearchProjectsFiltersAndReturnsOnePage(t *testing.T) {
@@ -214,7 +214,7 @@ func TestCatalogClientModelConfigsGetsBareArray(t *testing.T) {
 }
 
 func TestCatalogClientModelConfigsReturnsRequestError(t *testing.T) {
-	client := (&recordingServer{Err: errors.New("connection closed")}).client(t)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	_, err := client.ModelConfigs("project")
 
