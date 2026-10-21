@@ -25,6 +25,7 @@ const (
 	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	yesFlag             = "yes"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -73,7 +74,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	clients, err := awsdevops.NewClients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
+	clients, err := loadClients(cmd)
 	if err != nil {
 		return err
 	}
@@ -135,10 +136,12 @@ func connectMCPServer(
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
-	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Paste the token, or press Enter to skip: ")
+	// The prompt goes to stderr, like the SSO prompt. canPrompt needs a
+	// terminal on stderr, and stdout keeps only the result.
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
+	_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Paste the token, or press Enter to skip: ")
 	opts.LDAccessToken = readSecret(cmd.InOrStdin())
-	_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 	if opts.LDAccessToken == "" {
 		return nil
 	}

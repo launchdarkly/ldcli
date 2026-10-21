@@ -109,38 +109,41 @@ func TestCredentialErrorReadsAWSDefaultProfile(t *testing.T) {
 }
 
 // A login does not fix an SSO error with another cause.
-func TestCredentialErrorShowsOtherSSOCauses(t *testing.T) {
+func TestCredentialErrorPointsToTheCauseOfOtherSSOErrors(t *testing.T) {
 	writeConfig(t, "[profile dev]\nsso_session = corp\n")
 	cause := errors.New("ForbiddenException: No access")
 
 	err := noCredentialsError("dev", cause)
 
 	assert.Contains(t, err.Error(), `profile "dev"`)
-	assert.Contains(t, err.Error(), "No access")
+	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile dev")
+	assert.NotContains(t, err.Error(), "No access")
 	assert.NotContains(t, err.Error(), "sso login")
 }
 
 // The SDK uses the default profile without --profile or AWS_PROFILE.
-func TestCredentialErrorShowsTheCauseForTheDefaultProfile(t *testing.T) {
+func TestCredentialErrorPointsToTheCauseForTheDefaultProfile(t *testing.T) {
 	writeConfig(t, "[default]\ncredential_process = /usr/local/bin/get-creds\n")
 	cause := errors.New("process provider error: exit status 1")
 
 	err := noCredentialsError("", cause)
 
 	assert.Contains(t, err.Error(), `profile "default"`)
-	assert.Contains(t, err.Error(), "exit status 1")
+	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile default")
+	assert.NotContains(t, err.Error(), "exit status 1")
 	assert.NotContains(t, err.Error(), "no AWS profile selected")
 }
 
 // Only SSO profiles get the SSO advice.
-func TestCredentialErrorShowsTheCauseForOtherProfiles(t *testing.T) {
+func TestCredentialErrorPointsToTheCauseForOtherProfiles(t *testing.T) {
 	writeConfig(t, "[profile ci]\ncredential_process = /usr/local/bin/get-creds\n")
 	cause := errors.New("process provider error: exit status 1")
 
 	err := noCredentialsError("ci", cause)
 
 	assert.Contains(t, err.Error(), `profile "ci"`)
-	assert.Contains(t, err.Error(), "exit status 1")
+	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile ci")
+	assert.NotContains(t, err.Error(), "exit status 1")
 	assert.NotContains(t, err.Error(), "sso login")
 	assert.ErrorIs(t, err, ErrNoCredentials)
 }
@@ -282,4 +285,32 @@ func TestSSOTokenInvalidForEachSDKCase(t *testing.T) {
 func TestSSOTokenInvalidIgnoresOtherErrors(t *testing.T) {
 	assert.False(t, SSOTokenInvalid(nil))
 	assert.False(t, SSOTokenInvalid(errors.New("ForbiddenException: No access")))
+}
+
+// A credential_process that prints a line before the JSON makes the SDK copy
+// all of its output, with the secret key, into the cause.
+func TestCredentialErrorHidesTheProcessOutput(t *testing.T) {
+	dir := t.TempDir()
+	helper := filepath.Join(dir, "get-creds")
+	require.NoError(t, os.WriteFile(helper, []byte("#!/bin/sh\n"+
+		"echo 'warning: token cache refreshed'\n"+
+		`echo '{"Version":1,"AccessKeyId":"AKIAFAKEEXAMPLE","SecretAccessKey":"FAKE-SECRET-DO-NOT-USE"}'`+"\n"), 0o700))
+	writeConfig(t, "[profile leak]\nregion = us-east-1\ncredential_process = "+helper+"\n")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+	_, err := NewClients(context.Background(), "", "leak")
+
+	require.ErrorIs(t, err, ErrNoCredentials)
+	assert.NotContains(t, err.Error(), "FAKE-SECRET-DO-NOT-USE")
+	assert.NotContains(t, err.Error(), "AKIAFAKEEXAMPLE")
+	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile leak")
+}
+
+// Without a profile name, the hint uses the default credential chain.
+func TestCredentialErrorPointsToTheCauseWithoutAProfile(t *testing.T) {
+	writeProfiles(t)
+
+	err := noCredentialsError("", errors.New("process provider error: exit status 1"))
+
+	assert.Equal(t, "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause", err.Error())
 }
