@@ -425,4 +425,31 @@ func TestSetupFailureNamesTheNewSpace(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, w.calls, "CreateAgentSpace")
 	assert.Contains(t, err.Error(), "Setup created agent space ld-devops-agent (space-new)")
+	// The same flags stop on the name of the new space, so give the ID.
+	assert.Contains(t, err.Error(), "To use it, run setup again with --agent-space-id space-new")
+}
+
+// A server that appears between the two plans is reused, and setup says
+// that it does not use the pasted token.
+func TestSetupSaysWhenTheSecondPlanReusesAServer(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "api-token\n")
+	clients, _ := countingClients()
+	agent := clients.Agent.(countingAgent)
+	agent.services = []agenttypes.RegisteredService{{
+		ServiceId:   aws.String("mcp-7"),
+		ServiceType: agenttypes.ServiceMcpServer,
+		AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
+			Value: agenttypes.RegisteredMCPServerDetails{Name: aws.String("Prod LD"), Endpoint: aws.String(awsdevops.MCPServerEndpoint)},
+		},
+	}}
+	clients.Agent = agent
+	opts := noTokenOptions()
+	first := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPAsk}}
+
+	plan, err := planWithToken(cmd, clients, &opts, first, true)
+
+	require.NoError(t, err)
+	assert.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	assert.Contains(t, stderrOf(cmd), "MCP server Prod LD (mcp-7) was registered after the first plan")
+	assert.Contains(t, stderrOf(cmd), "--access-token and --replace-mcp-token")
 }

@@ -654,3 +654,36 @@ func TestNameNewSpaceGivesAnExampleName(t *testing.T) {
 
 	assert.EqualError(t, err, "a new agent space needs a name; pass --agent-space-name, for example --agent-space-name launchdarkly")
 }
+
+// A new space needs only a free name, so a failed tag lookup does not stop it.
+func TestResolveAgentSpaceNewSpaceDoesNotReadTags(t *testing.T) {
+	cmd, _ := testCmd("")
+	opts := awsdevops.SetupOptions{NewAgentSpace: true, AgentSpaceName: "fresh"}
+	clients := awsdevops.Clients{
+		Agent: stubAgent{
+			spaces:     []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")}},
+			unreadTags: map[string]bool{"space-2": true},
+		},
+		STS:    accountSTS{},
+		Region: "us-east-1",
+	}
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, false)
+
+	require.NoError(t, err)
+	assert.True(t, provision)
+	assert.Equal(t, "fresh", opts.AgentSpaceName)
+}
+
+// The name check still sees each space.
+func TestResolveAgentSpaceNewSpaceAsksAgainForAUsedName(t *testing.T) {
+	cmd, out := testCmd("platform\nfresh\n")
+	opts := awsdevops.SetupOptions{NewAgentSpace: true}
+	clients := newStubClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")})
+
+	_, err := resolveAgentSpace(cmd, clients, &opts, true)
+
+	require.NoError(t, err)
+	assert.Equal(t, "fresh", opts.AgentSpaceName)
+	assert.Contains(t, out.String(), "An agent space named platform already exists")
+}

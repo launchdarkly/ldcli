@@ -152,9 +152,10 @@ func setupWith(
 		result, err = awsdevops.ConnectPlan(cmd.Context(), clients, opts, plan)
 	}
 	if err != nil && plan.Space.Action == awsdevops.SpaceCreate && result.AgentSpaceID != "" {
-		// Name the new space, so a failed CI run says what it made.
-		return fmt.Errorf("%w. Setup created agent space %s (%s), and a new run reuses it",
-			err, plan.Space.Name, result.AgentSpaceID)
+		// Name the new space, so a failed CI run says what it made. A run
+		// with the same flags can stop on the name, so give the ID.
+		return fmt.Errorf("%w. Setup created agent space %s (%s). To use it, run setup again with --%s %s",
+			err, plan.Space.Name, result.AgentSpaceID, agentSpaceIDFlag, result.AgentSpaceID)
 	}
 	if err != nil {
 		return err
@@ -221,11 +222,21 @@ func resolveAgentSpace(
 
 		return fullSetupOn(cmd, *opts, space), nil
 	}
+	if opts.NewAgentSpace {
+		// A new space needs only a free name, so do not read the tags. A
+		// failed tag lookup must not stop a run that only creates a space.
+		spaces, err := awsdevops.AgentSpaceNames(cmd.Context(), clients)
+		if err != nil {
+			return false, err
+		}
+
+		return true, nameNewSpace(cmd, spaces, opts, interactive)
+	}
 	spaces, err := awsdevops.AgentSpaces(cmd.Context(), clients)
 	if err != nil {
 		return false, err
 	}
-	if opts.NewAgentSpace || len(spaces) == 0 {
+	if len(spaces) == 0 {
 		opts.NewAgentSpace = true
 
 		return true, nameNewSpace(cmd, spaces, opts, interactive)
@@ -623,8 +634,20 @@ func planWithToken(
 		return plan, err
 	case token != "":
 		opts.LDAccessToken = token
+		again, err := awsdevops.PlanSetup(cmd.Context(), clients, *opts, provision)
+		if err == nil && again.MCP.Action == awsdevops.MCPReuse {
+			// The first plan found no server, so one appeared since then.
+			name := again.MCP.Name
+			if name == "" {
+				name = awsdevops.MCPServerName
+			}
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+				"MCP server %s (%s) was registered after the first plan, so setup reuses it and does not "+
+					"use the token that you pasted. To replace its token, run setup with --%s and --%s.\n",
+				name, again.MCP.ServiceID, cliflags.AccessTokenFlag, replaceMCPTokenFlag)
+		}
 
-		return awsdevops.PlanSetup(cmd.Context(), clients, *opts, provision)
+		return again, err
 	case !provision:
 		return plan, fmt.Errorf(
 			"setup did not change AWS: without a token, there is nothing to do on agent space %s (%s). Pass --access-token",
