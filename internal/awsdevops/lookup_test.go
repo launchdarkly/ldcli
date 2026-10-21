@@ -161,6 +161,59 @@ func TestStatusReadsTheOperatorApp(t *testing.T) {
 	assert.Empty(t, status.AgentSpaces[1].OperatorAppURL)
 }
 
+// apiError acts like an AWS API error with a code.
+type apiError struct{ code string }
+
+func (e apiError) Error() string     { return "api error " + e.code + ": not allowed" }
+func (e apiError) ErrorCode() string { return e.code }
+
+// A policy without aidevops:GetOperatorApp must not hide the rest of status.
+func TestStatusReportsAnUnreadableAppAsUnknown(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces:    []agenttypes.AgentSpace{namedSpace("space-1", "on")},
+		operatorAppErr: apiError{code: "AccessDeniedException"},
+		associations:   []agenttypes.Association{{AssociationId: aws.String("assoc-1"), ServiceId: aws.String("mcp-1")}},
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	require.Len(t, status.AgentSpaces, 1)
+	space := status.AgentSpaces[0]
+	assert.Equal(t, "AccessDeniedException", space.OperatorAppError)
+	assert.False(t, space.OperatorAppEnabled)
+	assert.Empty(t, space.OperatorAppURL)
+	assert.Len(t, space.Associations, 1)
+	assert.Len(t, status.Roles, 2)
+}
+
+func TestStatusReportsTheErrorTextWithoutACode(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces:    []agenttypes.AgentSpace{namedSpace("space-1", "on")},
+		operatorAppErr: errors.New("connection reset"),
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	assert.Contains(t, status.AgentSpaces[0].OperatorAppError, "connection reset")
+}
+
+// status and setup show the URL that AWS sends.
+func TestStatusUsesTheOperatorAppURLFromAWS(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "on")},
+		operatorApps: map[string]*devopsagent.GetOperatorAppOutput{
+			"space-1": {Iam: &agenttypes.IamAuthConfiguration{}, OperatorAppUrl: aws.String("https://app.example.aws")},
+		},
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://app.example.aws", status.AgentSpaces[0].OperatorAppURL)
+}
+
 func TestAgentSpaceReadsTheTagOfOneSpace(t *testing.T) {
 	agent := &fakeAgent{
 		agentSpaces: []agenttypes.AgentSpace{

@@ -109,7 +109,9 @@ type AppStep struct {
 	Flow string
 }
 
-// appState reads the app. Flow "" means off.
+// appState reads the app. Flow "" means off. The space must exist. AWS sends
+// ResourceNotFoundException for an app that is off and for a space that does
+// not exist, so appState cannot tell the two apart.
 func appState(ctx context.Context, clients Clients, spaceID string) (AppStep, error) {
 	app, err := clients.Agent.GetOperatorApp(ctx, &devopsagent.GetOperatorAppInput{AgentSpaceId: aws.String(spaceID)})
 	var missing *agenttypes.ResourceNotFoundException

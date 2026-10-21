@@ -93,7 +93,10 @@ func printStatus(out io.Writer, status awsdevops.Status) {
 	for _, space := range status.AgentSpaces {
 		_, _ = fmt.Fprintf(out, "\nAgent space %s (%s)\n", space.Name, space.AgentSpaceID)
 		app := space.OperatorAppURL
-		if !space.OperatorAppEnabled {
+		switch {
+		case space.OperatorAppError != "":
+			app = "unknown (" + space.OperatorAppError + ")"
+		case !space.OperatorAppEnabled:
 			app = "off"
 		}
 		_, _ = fmt.Fprintf(out, "  Operator app: %s\n", app)

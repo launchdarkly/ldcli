@@ -253,6 +253,18 @@ func TestStatusFullSetupOmitsSetupHint(t *testing.T) {
 	assert.NotContains(t, renderStatus(realisticStatus()), "ldcli aws-devops-agent setup")
 }
 
+func TestStatusShowsAnUnknownOperatorApp(t *testing.T) {
+	status := realisticStatus()
+	space := &status.AgentSpaces[0]
+	space.OperatorAppEnabled = false
+	space.OperatorAppURL = ""
+	space.OperatorAppError = "AccessDeniedException"
+	section := spaceSection(t, renderStatus(status), "Production")
+
+	assert.Equal(t, "  Operator app: unknown (AccessDeniedException)", lineWith(t, section, "Operator app"))
+	assert.Contains(t, strings.Join(section, "\n"), "LaunchDarkly MCP server: ready")
+}
+
 func TestStatusJSONUnchanged(t *testing.T) {
 	cases := map[string]awsdevops.Status{
 		"testdata/status.json":         realisticStatus(),

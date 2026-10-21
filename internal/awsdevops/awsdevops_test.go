@@ -31,7 +31,9 @@ type fakeAgent struct {
 	tags    map[string]map[string]string
 	tagsErr error
 	// operatorApps holds enabled apps by space.
-	operatorApps      map[string]*devopsagent.GetOperatorAppOutput
+	operatorApps map[string]*devopsagent.GetOperatorAppOutput
+	// operatorAppErr fails every GetOperatorApp call.
+	operatorAppErr    error
 	calls             []string
 	services          []agenttypes.RegisteredService
 	associationInputs []*devopsagent.AssociateServiceInput
@@ -108,6 +110,9 @@ func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.Disas
 
 func (f *fakeAgent) GetOperatorApp(_ context.Context, in *devopsagent.GetOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
 	f.calls = append(f.calls, "GetOperatorApp")
+	if f.operatorAppErr != nil {
+		return nil, f.operatorAppErr
+	}
 	app, ok := f.operatorApps[aws.ToString(in.AgentSpaceId)]
 	if !ok {
 		return nil, &agenttypes.ResourceNotFoundException{}

@@ -83,6 +83,10 @@ type AgentSpaceSummary struct {
 // AgentSpaces lists the agent spaces in the account and region. A space that
 // setup made has the ldcli:managed tag. A user can change the description, so
 // only the tag counts. Each space costs one tag lookup.
+//
+// If one tag lookup fails, AgentSpaces fails. Setup uses the tag to decide if
+// it can change the roles and the operator app of a space, so it must not
+// guess the owner of a space. The status command does not call AgentSpaces.
 func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, error) {
 	spaces, err := listAgentSpaces(ctx, clients)
 	if err != nil || len(spaces) == 0 {

@@ -37,9 +37,9 @@ func partialStatus() awsdevops.Status {
 			{Name: awsdevops.OperatorAppRoleName},
 		},
 		AgentSpaces: []awsdevops.AgentSpaceStatus{{
-			AgentSpaceID:   "as-prod01",
-			Name:           "Production",
-			OperatorAppURL: awsdevops.OperatorAppURL("as-prod01"),
+			AgentSpaceID:     "as-prod01",
+			Name:             "Production",
+			OperatorAppError: "AccessDeniedException",
 		}},
 		MissingSetup: []string{"IAM role " + awsdevops.OperatorAppRoleName + " does not exist"},
 	}
