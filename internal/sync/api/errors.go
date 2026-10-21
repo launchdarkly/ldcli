@@ -81,8 +81,7 @@ func responseStatusCode(err error) (int, bool) {
 	return int(status), ok && status != 0
 }
 
-// statusError returns an error with the form of a resources client error, so
-// that the ldcli output can show it.
+// statusError returns an error in the form of a resources client error, so that ldcli can show it.
 func statusError(status int, body []byte, baseURI string) error {
 	var response map[string]any
 	if json.Unmarshal(body, &response) != nil || response == nil {
@@ -103,8 +102,7 @@ func statusError(status int, body []byte, baseURI string) error {
 	return lderrors.NewError(string(text))
 }
 
-// responseError finds the JSON response body in an error chain. The client
-// reports an API failure as an error whose text is the JSON response body.
+// responseError finds the JSON response body in an error chain.
 func responseError(err error) (map[string]any, bool) {
 	for current := err; current != nil; current = errors.Unwrap(current) {
 		var response map[string]any
@@ -115,8 +113,7 @@ func responseError(err error) (map[string]any, bool) {
 	return nil, false
 }
 
-// ErrorText returns the message of an API error, without the other fields of
-// the JSON response. If text is not a JSON API error, it returns text.
+// ErrorText returns the message of a JSON API error. For other text, it returns text.
 func ErrorText(text string) string {
 	var response map[string]any
 	if json.Unmarshal([]byte(text), &response) != nil {

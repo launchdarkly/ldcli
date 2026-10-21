@@ -82,8 +82,6 @@ func Run(options Options) error {
 	return finishSelection(options, files)
 }
 
-// promptForSourceOfTruth asks the user for the source of truth of the added
-// variations. The bool result is true when the user cancels.
 func promptForSourceOfTruth(options Options) (syncdomain.SourceOfTruth, bool, error) {
 	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
 		return "", false, syncdomain.ErrNoSourceOfTruth
@@ -271,8 +269,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if err != nil {
 		return err
 	}
-	// Write the rules before the files. If a later step fails, the same add
-	// can run again, because a rule upsert can repeat.
+	// Write the rules before the files, so that add can run again after a failure.
 	written, err := writeSourceOfTruthRules(options, files)
 	if err != nil {
 		return err
@@ -302,8 +299,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	return nil
 }
 
-// writeSourceOfTruthRules writes the rule of each file, and reports whether
-// every project has the rules.
+// writeSourceOfTruthRules reports whether every project has the rules.
 func writeSourceOfTruthRules(options Options, files []synclocal.VariationFile) (bool, error) {
 	ids := make([]syncdomain.ResourceID, 0, len(files))
 	for _, file := range files {

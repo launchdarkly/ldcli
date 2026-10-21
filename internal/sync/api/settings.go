@@ -9,15 +9,12 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-// maxSettingsResources is the largest number of resources in one sync settings request.
 const maxSettingsResources = 100
 
-// ErrSyncSettingsUnavailable means that the sync settings API of a project
-// returned 404. For example, the plan of the account does not include the feature.
+// ErrSyncSettingsUnavailable means that the sync settings API of a project returned 404.
 var ErrSyncSettingsUnavailable = errors.New("sync settings are not available")
 
-// SettingsUnavailableWarning returns the warning for a project without sync
-// settings. The effect tells the user what the command did instead.
+// SettingsUnavailableWarning returns the warning for a project without sync settings.
 func SettingsUnavailableWarning(projectKey, effect string) string {
 	return fmt.Sprintf("Warning: sync settings are not available for project %s. %s\n", projectKey, effect)
 }
@@ -33,8 +30,7 @@ type syncSetting struct {
 	Direction         string          `json:"direction"`
 }
 
-// ResolveSourceOfTruth returns the source of truth of each resource in one
-// project. If the API returns 404, the error wraps ErrSyncSettingsUnavailable.
+// ResolveSourceOfTruth returns the source of truth of each resource in one project.
 func (client Client) ResolveSourceOfTruth(
 	projectKey string,
 	ids []syncdomain.ResourceID,
@@ -96,7 +92,6 @@ func (client Client) resolveSourceOfTruthBatch(
 	return nil
 }
 
-// The sync settings API names a source of truth with a direction.
 const (
 	directionCodeCanonical = "code_canonical"
 	directionBoth          = "both"
@@ -125,22 +120,17 @@ type settingRule struct {
 	Direction       string          `json:"direction,omitempty"`
 }
 
-// SetSourceOfTruth writes an exact sync settings rule with source for each
-// variation of one project. If the API returns 404, the error wraps
-// ErrSyncSettingsUnavailable.
+// SetSourceOfTruth writes an exact rule with source for each variation of one project.
 func (client Client) SetSourceOfTruth(projectKey string, ids []syncdomain.ResourceID, source syncdomain.SourceOfTruth) error {
 	return client.patchSettings(projectKey, ids, wireDirection(source))
 }
 
-// DeleteSourceOfTruth deletes the exact sync settings rule of each variation
-// of one project. A rule that does not exist is not an error. If the API
-// returns 404, the error wraps ErrSyncSettingsUnavailable.
+// DeleteSourceOfTruth deletes the exact rule of each variation of one project, if the rule exists.
 func (client Client) DeleteSourceOfTruth(projectKey string, ids []syncdomain.ResourceID) error {
 	return client.patchSettings(projectKey, ids, "")
 }
 
-// patchSettings upserts an exact rule with direction for each resource. If
-// direction is empty, it deletes the rule.
+// patchSettings upserts an exact rule for each resource, or deletes it when direction is empty.
 func (client Client) patchSettings(projectKey string, ids []syncdomain.ResourceID, direction string) error {
 	for start := 0; start < len(ids); start += maxSettingsResources {
 		body := struct {

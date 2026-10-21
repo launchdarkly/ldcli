@@ -25,20 +25,17 @@ import (
 
 // syncWorkspace is the Git repository that one command syncs.
 type syncWorkspace struct {
-	root string
-	// source names the repository in each LaunchDarkly write and sync report.
+	root   string
 	source string
 	api    syncapi.Client
 	local  synclocal.Store
 	// baselines keeps the sync.lock file and the remote manifest.
-	baselines syncmanifest.Baselines
-	// warnedSettings are the projects without sync settings that the run reported.
+	baselines      syncmanifest.Baselines
 	warnedSettings map[string]bool
 }
 
 // Runner runs the prompt sync commands. Tests replace its function fields.
 type Runner struct {
-	// transport sends each LaunchDarkly request.
 	transport  syncapi.Transport
 	bootstrap  func(syncbootstrap.Options) error
 	detach     func(syncdetach.Options) error
@@ -47,8 +44,7 @@ type Runner struct {
 	isTerminal func(io.Reader, io.Writer) bool
 }
 
-// NewRunner creates a runner. The runner sends each LaunchDarkly request
-// with transport.
+// NewRunner creates a runner that calls LaunchDarkly through transport.
 func NewRunner(transport syncapi.Transport) Runner {
 	return Runner{
 		transport:  transport,

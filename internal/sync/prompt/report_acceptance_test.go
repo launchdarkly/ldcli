@@ -121,8 +121,6 @@ func TestPromptCanceledSyncSendsNoReport(t *testing.T) {
 	writeManifest(t, root, baseline)
 	api := &directAPI{variation: pointer(variation("Server"))}
 
-	// The local and the server changes conflict, and --conflict=abort stops
-	// the sync before any write.
 	_, _, _ = runPrompt(t, root, api, "--yes", "--no-input", "--conflict=abort")
 
 	assert.Empty(t, api.reports)

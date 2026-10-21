@@ -12,7 +12,6 @@ import (
 )
 
 // NewSyncCmd creates the parent command for synchronization workflows.
-// The transport sends each LaunchDarkly request of the sync commands.
 func NewSyncCmd(transport syncapi.Transport, analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",

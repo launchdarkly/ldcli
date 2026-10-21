@@ -37,8 +37,7 @@ type ResourceOutcome struct {
 	Error         string                   `json:"error,omitempty"`
 }
 
-// outputSourceOfTruth returns code-only for a code-only resource. Output
-// leaves out the default, ui-and-code.
+// outputSourceOfTruth leaves out the default, ui-and-code.
 func outputSourceOfTruth(codeOnly bool) syncdomain.SourceOfTruth {
 	if codeOnly {
 		return syncdomain.SourceOfTruthCodeOnly

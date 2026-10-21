@@ -1,5 +1,4 @@
-// Package apitest serves a test LaunchDarkly API over HTTP, so that tests send
-// real requests through the sync API client.
+// Package apitest serves a test LaunchDarkly API over HTTP.
 package apitest
 
 import (
@@ -12,7 +11,6 @@ import (
 )
 
 // CloseConnection makes the server close the connection without a response.
-// The client then cannot know if a write succeeded.
 const CloseConnection = -1
 
 // Request is one request that the test server received.
@@ -36,9 +34,7 @@ func JSON(value any) (int, []byte) {
 	return http.StatusOK, body
 }
 
-// NewServer starts a test server that sends each request to handler. The
-// server closes after the test. It does not keep connections open, so the
-// client never sends a request again on a closed connection.
+// NewServer serves handler until the test ends. It turns off keep-alive, so the client never reuses a closed connection.
 func NewServer(t testing.TB, handler Handler) *httptest.Server {
 	t.Helper()
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -12,7 +12,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 )
 
-// headerServer records the headers of each request, by method and path.
 type headerServer struct {
 	url     string
 	headers map[string]http.Header

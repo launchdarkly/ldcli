@@ -220,9 +220,7 @@ func (variation Variation) attachmentIndex(kind AttachmentKind, key string) int 
 	})
 }
 
-// WithPromptOf returns a copy of the variation that has the prompt of source.
-// The prompt is the instructions of an agent variation and the messages of a
-// completion variation.
+// WithPromptOf returns a copy of the variation with the instructions and the messages of source.
 func (variation Variation) WithPromptOf(source Variation) Variation {
 	variation.Instructions = source.Instructions
 	variation.Messages = slices.Clone(source.Messages)

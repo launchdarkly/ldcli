@@ -21,16 +21,14 @@ type SyncAction struct {
 	DryRun bool
 }
 
-// AddAction writes selected LaunchDarkly variations as local files, and sets
-// their source of truth. If SourceOfTruth is empty, add asks the user.
+// AddAction writes selected LaunchDarkly variations as local files, and sets their source of truth.
 type AddAction struct {
 	Variations    []syncdomain.ResourceID
 	DryRun        bool
 	SourceOfTruth syncdomain.SourceOfTruth
 }
 
-// SourceOfTruthAction changes the source of truth of variations that the
-// workspace already syncs.
+// SourceOfTruthAction changes the source of truth of variations that the workspace syncs.
 type SourceOfTruthAction struct {
 	Variations    []syncdomain.ResourceID
 	SourceOfTruth syncdomain.SourceOfTruth

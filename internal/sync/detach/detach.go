@@ -102,8 +102,7 @@ func Run(options Options) error {
 			return err
 		}
 	}
-	// Delete the rules before the local files. If a later step fails, the
-	// same command can run again, because a rule deletion can repeat.
+	// Delete the rules before the files, so that detach can run again after a failure.
 	if err := deleteSourceOfTruthRules(options, selected); err != nil {
 		return err
 	}

@@ -12,15 +12,12 @@ import (
 	"strconv"
 )
 
-// SyncSourceHeader is the request header that marks a write by sync. Its
-// value is the sync source of the repository, for example
-// "git:github.com/acme/app".
+// SyncSourceHeader marks a write by sync. Its value is the sync source of the repository.
 const SyncSourceHeader = "LD-Sync-Source"
 
 const apiVersion = "20240415"
 
-// Transport keeps the User-Agent header of each sync request. The zero value
-// sends no User-Agent header.
+// Transport keeps the User-Agent header of each sync request. The zero value works.
 type Transport struct {
 	userAgent string
 }
@@ -32,12 +29,9 @@ func NewTransport(cliVersion string) Transport {
 
 // Options are the values of one command that a Client uses.
 type Options struct {
-	// BaseURI is the LaunchDarkly URL, for example "https://app.launchdarkly.com".
 	BaseURI     string
 	AccessToken string
-	// SyncSource is the sync source of the repository, for example
-	// "git:github.com/acme/app". Each write sends it in SyncSourceHeader. If
-	// SyncSource is empty, a write sends no sync header.
+	// SyncSource is the value of SyncSourceHeader on each write.
 	SyncSource string
 }
 
@@ -49,8 +43,7 @@ type Client struct {
 	syncSource  string
 }
 
-// Client creates a client for the API at options.BaseURI. The client uses
-// the HTTP client of the transport.
+// Client creates a client for one command.
 func (transport Transport) Client(options Options) Client {
 	return Client{
 		transport:   transport,
@@ -108,10 +101,7 @@ func (client Client) mutate(request mutation, path ...string) ([]byte, error) {
 	return response, nil
 }
 
-// do sends one request and returns the response body. A request with a body
-// sends it as JSON. A request that is not a GET is a write. A write sends the
-// sync source header when the client has a sync source. If LaunchDarkly sends a
-// status of 400 or more, the error text is the JSON API error.
+// do sends one request. If LaunchDarkly sends a status of 400 or more, the error text is the JSON API error.
 func (client Client) do(method, endpoint string, query url.Values, body []byte) ([]byte, error) {
 	var reader io.Reader
 	if body != nil {

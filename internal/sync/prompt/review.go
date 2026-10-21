@@ -15,9 +15,8 @@ const applyQuestion = "\nSync these changes? [y/N] "
 // reviewAndConfirmPlan shows the plan and reports whether to apply it.
 //
 // A plan that changes only the manifest applies without a question. With
-// --yes, every plan applies. In watch mode, a plan applies when it does not
-// delete a file, revert a change made in LaunchDarkly, or discard a local
-// change. Every other plan needs the user to agree.
+// --yes, every plan applies. In watch mode, a plan without a deletion, an
+// archive, or a revert applies. Every other plan needs the user to agree.
 func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, error) {
 	if err := writePlanReview(options.ErrorOutput, "plaintext", plan, terminalWidth(options.ErrorOutput)); err != nil {
 		return false, err

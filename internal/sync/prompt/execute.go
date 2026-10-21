@@ -170,14 +170,12 @@ func applyResourceChange(
 	return nil
 }
 
-// mergedServerChange is the LaunchDarkly half of an ActionUpdateBoth.
 func mergedServerChange(resource PlannedResource) PlannedResource {
 	resource.Action = ActionUpdateServer
 	resource.Local, resource.LocalFingerprint = resource.Merged, resource.MergedFingerprint
 	return resource
 }
 
-// mergedLocalChange is the local half of an ActionUpdateBoth. It keeps the form of the local file.
 func mergedLocalChange(resource PlannedResource, localFile *syncdomain.Variation) PlannedResource {
 	variation := variationForLocalFile(*resource.Merged, localFile, resource.Local)
 	resource.Action, resource.Server = ActionUpdateLocal, &variation

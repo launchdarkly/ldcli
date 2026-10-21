@@ -46,7 +46,6 @@ type directAPI struct {
 	reportErr                *apiError
 }
 
-// apiError is an error response of the test API.
 type apiError struct {
 	status int
 	body   string
@@ -58,7 +57,6 @@ var (
 	boomError      = &apiError{http.StatusInternalServerError, `{"code":"internal","message":"boom"}`}
 )
 
-// respond returns the error response, or status 200 when err is nil.
 func (err *apiError) respond() (int, []byte) {
 	if err == nil {
 		return http.StatusOK, nil
@@ -1330,7 +1328,6 @@ func (api *multiDirectAPI) serve(request apitest.Request) (int, []byte) {
 
 var manifestsByRoot = map[string]*syncapi.SyncManifest{}
 
-// fakeAPI is an in-memory LaunchDarkly API. A test serves it over HTTP.
 type fakeAPI interface {
 	serve(apitest.Request) (int, []byte)
 }

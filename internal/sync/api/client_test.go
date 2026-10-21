@@ -13,9 +13,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 )
 
-// recordingServer is a test LaunchDarkly API. It records each request and
-// sends the responses in order. If Status is set, each request gets Status
-// and ErrorBody.
+// recordingServer records each request. It sends Responses in order, or Status and ErrorBody to each request.
 type recordingServer struct {
 	Requests  []apitest.Request
 	Responses [][]byte

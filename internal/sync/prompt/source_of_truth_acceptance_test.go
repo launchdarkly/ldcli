@@ -129,7 +129,6 @@ func TestPromptSourceOfTruthRejectsDuplicateAndUnknownValue(t *testing.T) {
 	assert.Empty(t, api.settingsPatches)
 }
 
-// failingProjectSettingsAPI fails each sync settings write of one project.
 type failingProjectSettingsAPI struct {
 	*directAPI
 	projectKey string

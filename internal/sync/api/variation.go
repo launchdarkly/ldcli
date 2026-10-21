@@ -30,9 +30,8 @@ type createVariationRequest struct {
 }
 
 // updateVariationRequest sends every field that sync owns, so that a field
-// that is empty in the local file is also cleared in LaunchDarkly. The model
-// config key is the exception. The API rejects an empty key, so a variation
-// without a model config leaves out the field.
+// that is empty in the local file is also cleared in LaunchDarkly.
+// The API rejects an empty model config key, so the request leaves it out.
 type updateVariationRequest struct {
 	Name               string                      `json:"name"`
 	Instructions       *string                     `json:"instructions,omitempty"`

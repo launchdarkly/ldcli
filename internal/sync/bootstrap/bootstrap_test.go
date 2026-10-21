@@ -466,7 +466,6 @@ func (store *memoryManifestStore) Save(_ syncmanifest.Baseline, next syncmanifes
 	return syncmanifest.Baseline{Lock: next}, nil
 }
 
-// settingsAPI is a sync settings API that accepts each write.
 func settingsAPI(t *testing.T) syncapi.Client {
 	server := apitest.NewServer(t, func(apitest.Request) (int, []byte) { return http.StatusOK, []byte(`{}`) })
 	return syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL})

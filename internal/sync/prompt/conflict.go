@@ -16,7 +16,6 @@ type ConflictResolution string
 
 const (
 	// ConflictUseLaunchDarkly writes the LaunchDarkly state to the local file.
-	// A code-only variation keeps its local prompt.
 	ConflictUseLaunchDarkly ConflictResolution = "launchdarkly"
 	// ConflictUseLocal writes the local state to LaunchDarkly.
 	ConflictUseLocal ConflictResolution = "local"

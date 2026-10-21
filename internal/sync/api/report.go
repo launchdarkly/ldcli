@@ -8,8 +8,7 @@ import (
 
 const maxReportResources = 1000
 
-// SyncReportResource is the result of one resource in a sync report. An
-// empty Error means that the resource synced.
+// SyncReportResource is one resource of a sync report. An empty Error means that it synced.
 type SyncReportResource struct {
 	ID    syncdomain.ResourceID
 	Error string
@@ -22,8 +21,7 @@ type reportResource struct {
 	Error             string          `json:"error,omitempty"`
 }
 
-// PostSyncReport sends the result of one sync of the repository source for
-// one project. A report without resources sends no request.
+// PostSyncReport sends the sync report of one project. It sends nothing without resources.
 func (client Client) PostSyncReport(projectKey, source string, resources []SyncReportResource) error {
 	for start := 0; start < len(resources); start += maxReportResources {
 		body := struct {

@@ -8,8 +8,6 @@ import (
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
-// runSourceOfTruth writes the source of truth rule of each selected variation.
-// Each variation must already sync in the workspace.
 func runSourceOfTruth(options Options, workspace syncWorkspace, action SourceOfTruthAction) error {
 	for _, variation := range action.Variations {
 		configKey, variationKey, err := variation.VariationKeys()

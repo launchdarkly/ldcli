@@ -23,8 +23,7 @@ type workspaceState struct {
 	baseline    syncmanifest.Baseline
 	plan        Plan
 	localFiles  map[ResourceID]syncdomain.SyncedResource
-	// noSettings are the projects without sync settings.
-	noSettings []string
+	noSettings  []string
 }
 
 // loadState reads the baseline, the local files, and LaunchDarkly, and builds
@@ -50,7 +49,6 @@ func (workspace syncWorkspace) loadState(client syncapi.Client) (workspaceState,
 	}, nil
 }
 
-// warnUnavailableSettings warns once in a run about each project without sync settings.
 func (workspace syncWorkspace) warnUnavailableSettings(output io.Writer, state workspaceState) {
 	for _, projectKey := range state.noSettings {
 		if !workspace.warnedSettings[projectKey] {
@@ -60,16 +58,15 @@ func (workspace syncWorkspace) warnUnavailableSettings(output io.Writer, state w
 	}
 }
 
-// loadedPlan is the plan and the inputs that loadWorkspacePlan read.
 type loadedPlan struct {
 	plan       Plan
 	localFiles map[ResourceID]syncdomain.SyncedResource
 	noSettings []string
 }
 
-// loadWorkspacePlan reads the local variations, their LaunchDarkly versions,
-// and their sources of truth, and compares both sides with the lock. It also
-// returns the local variations as their files store them.
+// loadWorkspacePlan reads the local variations and their LaunchDarkly
+// versions, and compares both with the lock. It also returns the local
+// variations as their files store them.
 func loadWorkspacePlan(
 	repositoryRoot string,
 	baseline syncmanifest.Baseline,
@@ -122,8 +119,6 @@ func loadWorkspacePlan(
 	return loadedPlan{plan: plan, localFiles: localFilesByID, noSettings: noSettings}, nil
 }
 
-// resolveCodeOnly returns the code-only variations. It also returns the
-// projects that have no sync settings.
 func resolveCodeOnly(
 	client syncapi.Client,
 	ids map[ResourceID]struct{},

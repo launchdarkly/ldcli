@@ -8,13 +8,9 @@ import (
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
-// maxReportErrorLength is the largest number of characters that the report
-// of one failed resource can send.
 const maxReportErrorLength = 1000
 
-// sendSyncReports sends one sync report for each project in outcomes. If a
-// report fails, it writes a warning to the error output. A failed report does
-// not change the result of the sync, so it returns nothing.
+// sendSyncReports sends the report of each project. A failed report is only a warning.
 func (workspace syncWorkspace) sendSyncReports(errorOutput io.Writer, outcomes []ResourceOutcome) {
 	ids := make([]ResourceID, 0, len(outcomes))
 	resources := make(map[ResourceID]syncapi.SyncReportResource, len(outcomes))
@@ -38,8 +34,7 @@ func (workspace syncWorkspace) sendSyncReports(errorOutput io.Writer, outcomes [
 	}
 }
 
-// reportResource returns the report of one outcome. A resource that did not
-// sync, because it failed or sync skipped it, is a failure.
+// reportResource returns the report of one outcome. A skipped resource is a failure.
 func reportResource(outcome ResourceOutcome) syncapi.SyncReportResource {
 	resource := syncapi.SyncReportResource{ID: outcome.ID}
 	if outcome.Status != OutcomeSucceeded {
@@ -51,8 +46,6 @@ func reportResource(outcome ResourceOutcome) syncapi.SyncReportResource {
 	return resource
 }
 
-// inSyncOutcomes returns a succeeded outcome for each resource of a plan that
-// has no changes.
 func inSyncOutcomes(plan Plan) []ResourceOutcome {
 	outcomes := make([]ResourceOutcome, 0, len(plan.Resources))
 	for _, resource := range plan.Resources {
@@ -61,7 +54,6 @@ func inSyncOutcomes(plan Plan) []ResourceOutcome {
 	return outcomes
 }
 
-// truncate returns at most limit characters of text.
 func truncate(text string, limit int) string {
 	runes := []rune(text)
 	if len(runes) <= limit {

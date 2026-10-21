@@ -61,8 +61,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 	if !proceed {
 		if !resolved.HasChanges() {
-			// Every resource is already in sync. The report records that the
-			// repository still matches LaunchDarkly.
+			// The report of an in-sync run tells LaunchDarkly that the repository still matches.
 			workspace.sendSyncReports(options.ErrorOutput, inSyncOutcomes(resolved))
 			return cleanupOrphanedAttachments(options, workspace.local, interactive)
 		}
@@ -95,8 +94,8 @@ func checkUnchanged(options Options, reviewed, current workspaceState) error {
 }
 
 // applyPlan applies the conflict choices to the current plan, executes it,
-// records the new baseline, and sends the sync report. It removes unused
-// attachment files only when every step succeeds.
+// and records the new baseline. It removes unused attachment files only when
+// every step succeeds.
 func (runner Runner) applyPlan(
 	options Options,
 	workspace syncWorkspace,
@@ -112,8 +111,7 @@ func (runner Runner) applyPlan(
 	if _, err := workspace.baselines.Save(current.baseline, next); err != nil {
 		failures = append(failures, err)
 	}
-	// Send the report also when a write failed, so that LaunchDarkly shows
-	// the failure. A failed report does not change the result.
+	// Send the report also after a failed write, so that LaunchDarkly shows the failure.
 	workspace.sendSyncReports(options.ErrorOutput, outcomes)
 	if err := workspace.local.RemoveEmptyDirectories(); err != nil {
 		failures = append(failures, err)
