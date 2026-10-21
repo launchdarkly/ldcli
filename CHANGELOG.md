@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.14.0](https://github.com/launchdarkly/ldcli/compare/v3.13.0...v3.14.0) (2026-10-21)
+
+
+### Features
+
+* ask which agent space to use and confirm the setup plan ([#922](https://github.com/launchdarkly/ldcli/issues/922)) ([6cda377](https://github.com/launchdarkly/ldcli/commit/6cda377888cf46a88a55835707945f7fb4101881))
+* offer to run aws sso login when SSO credentials expire ([#919](https://github.com/launchdarkly/ldcli/issues/919)) ([0f8b02b](https://github.com/launchdarkly/ldcli/commit/0f8b02b056210772ff03715d604e72260ea5ed2e))
+* plan the AWS setup steps ([#928](https://github.com/launchdarkly/ldcli/issues/928)) ([80173e2](https://github.com/launchdarkly/ldcli/commit/80173e2c9681d6f2f814a7735cc979f0361c524c))
+* read agent space ownership and operator app state ([#927](https://github.com/launchdarkly/ldcli/issues/927)) ([3b4933e](https://github.com/launchdarkly/ldcli/commit/3b4933eb1fbc0cf965cc31795955842fb7887a54))
+* run the setup plan ([#921](https://github.com/launchdarkly/ldcli/issues/921)) ([4d0ea53](https://github.com/launchdarkly/ldcli/commit/4d0ea539eb5204600529dc2c9598ac4845ca9cf4))
+* show names and states in the plaintext status output ([#920](https://github.com/launchdarkly/ldcli/issues/920)) ([4d695a6](https://github.com/launchdarkly/ldcli/commit/4d695a6cc75707a890f8d72becb104d75133bd6c))
+
+
+### Bug Fixes
+
+* find the association of this AWS account, not of another account ([#932](https://github.com/launchdarkly/ldcli/issues/932)) ([3139370](https://github.com/launchdarkly/ldcli/commit/313937088e6a649746cdc20569a56fdde9825dc5))
+
 ## [3.13.0](https://github.com/launchdarkly/ldcli/compare/v3.12.0...v3.13.0) (2026-10-21)
 
 
