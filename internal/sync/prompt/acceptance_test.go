@@ -911,6 +911,156 @@ func deleteVariationFile(t *testing.T, root string) {
 	require.NoError(t, err)
 }
 
+func TestPromptFilterSyncsOnlyTheNamedVariation(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, variation("Local"), true)
+	writeManifest(t, root, baseline)
+	other := addOtherProjectVariation(t, root)
+	lockBefore := readLock(t, root)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "--project", "production", "--config-key", "support", "--key", "default", "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Local", api.variation.Name)
+	for _, request := range api.requests {
+		assert.NotContains(t, request, "/projects/other/")
+	}
+	lockAfter := readLock(t, root)
+	assert.Contains(t, lockAfter.Resources, other)
+	assert.Contains(t, lockBefore.Resources, other)
+	assert.NotEqual(t, lockBefore, lockAfter)
+}
+
+func TestPromptTargetFlagErrorsComeBeforeAnyRequest(t *testing.T) {
+	tests := map[string]struct {
+		arguments []string
+		want      string
+	}{
+		"key without project": {[]string{"--key", "default"}, "--key needs --project"},
+		"key without config": {
+			[]string{"--project", "production", "--key", "default"},
+			"--key needs --config-key. In sync prompts, --key is a variation key.",
+		},
+		"config without project": {[]string{"--config-key", "support"}, "--config-key needs --project"},
+		"blank project":          {[]string{"--project", " "}, "--project cannot be blank"},
+		"repeated key": {
+			[]string{"--project", "production", "--config-key", "support", "--key", "default", "--key", "default"},
+			"variation production/support/default was selected more than once",
+		},
+		"key that is not synced": {
+			[]string{"--project", "production", "--config-key", "support", "--key", "serch"},
+			"variation production/support/serch is not synced in this repository. " +
+				"To start syncing it, run ldcli sync prompts add --project production --config-key support --key serch.",
+		},
+		"project that is not synced": {
+			[]string{"--project", "demo"},
+			`project "demo" has no synced resources in this repository. To start, run ldcli sync prompts add --project demo.`,
+		},
+		"config that is not synced": {
+			[]string{"--project", "production", "--config-key", "chat"},
+			`config "chat" in project "production" has no synced variations in this repository. ` +
+				"To start, run ldcli sync prompts add --project production --config-key chat.",
+		},
+		"selectors and target flags": {
+			[]string{"add", "production/support/other", "--project", "production"},
+			"pass variations as --project, --config-key, and --key, or as project-key/config-key/variation-key arguments, not both",
+		},
+		"project that --to does not name": {
+			[]string{"attach", "tool", "search", "--project", "production", "--to", "other/support/default"},
+			`--to "other/support/default" names project "other", but --project is "production"`,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			writeVariation(t, root, variation("Baseline"), true)
+			writeManifest(t, root, variation("Baseline"))
+			api := &directAPI{}
+
+			_, _, err := runPrompt(t, root, api, append(test.arguments, "--no-input")...)
+
+			require.ErrorContains(t, err, test.want)
+			assert.Empty(t, api.requests)
+		})
+	}
+}
+
+func TestPromptAddsVariationsNamedByTargetFlags(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{variation: pointer(variation("Remote"))}
+
+	stdout, _, err := runPrompt(t, root, api, "add", "--project", "production", "--config-key", "support", "--key", "default", "--no-input")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Bootstrapped 1 variation file")
+	assertManifestFingerprint(t, root, variation("Remote"))
+}
+
+// Sync flags come only from the command line. A user's environment must not
+// apply, filter, or resolve a sync.
+func TestPromptIgnoresSyncFlagsFromTheEnvironment(t *testing.T) {
+	root := initRepository(t)
+	writeVariation(t, root, variation("Local"), true)
+	writeManifest(t, root, variation("Baseline"))
+	api := &directAPI{variation: pointer(variation("Baseline"))}
+	t.Setenv("LD_YES", "true")
+	t.Setenv("LD_CONFLICT", "bogus")
+	t.Setenv("LD_PROJECT", "demo")
+	t.Setenv("LD_KEY", "default")
+	t.Setenv("LD_NO_INPUT", "true")
+
+	_, _, err := runPrompt(t, root, api)
+	require.ErrorContains(t, err, "interactive confirmation requires a terminal")
+	requireOnlyReads(t, api.requests)
+
+	_, _, err = runPrompt(t, root, api, "add")
+	require.ErrorContains(t, err, "interactive prompt selection requires a terminal")
+}
+
+func TestPromptReadsTheAccessTokenFromTheEnvironment(t *testing.T) {
+	root := initRepository(t)
+	writeVariation(t, root, variation("Baseline"), true)
+	writeManifest(t, root, variation("Baseline"))
+	api := &directAPI{variation: pointer(variation("Baseline")), manifest: manifestsByRoot[root]}
+	t.Chdir(root)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LD_ACCESS_TOKEN", "token")
+
+	stdout, _, err := cmd.CallCmdCapturingStderr(t, cmd.APIClients{ResourcesClient: api}, analytics.NoopClientFn{}.Tracker(),
+		[]string{"sync", "prompts", "--base-uri", "https://example.test", "--dry-run", "--output", "plaintext"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "No changes. 1 in sync.\n", string(stdout))
+}
+
+// addOtherProjectVariation syncs a variation in a second project and returns
+// its sync.lock entry.
+func addOtherProjectVariation(t *testing.T, root string) syncmanifest.Resource {
+	t.Helper()
+	store := synclocal.NewStore(root)
+	value := variation("Other")
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "other", ConfigKey: "chat", Upsert: true, Variation: value}})
+	require.NoError(t, err)
+	id := syncdomain.VariationID("other", "chat", "default")
+	fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, value)
+	require.NoError(t, err)
+
+	lock := readLock(t, root)
+	lock.SetFingerprint(id, fingerprint)
+	require.NoError(t, syncmanifest.WriteLock(store, lock))
+	return syncmanifest.Resource{ResourceKind: id.Kind, ProjectKey: id.ProjectKey, LookupKey: id.LookupKey, Fingerprint: fingerprint}
+}
+
+func readLock(t *testing.T, root string) syncmanifest.Manifest {
+	t.Helper()
+	lock, err := syncmanifest.ReadLock(synclocal.NewStore(root))
+	require.NoError(t, err)
+	return lock
+}
+
 func TestPromptRestoresTrackedMissingFileInsteadOfArchiving(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")

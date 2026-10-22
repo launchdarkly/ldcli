@@ -227,6 +227,30 @@ func TestRunUsesExplicitSelectionsWithoutTerminal(t *testing.T) {
 	assert.Equal(t, []string{"project"}, manifestStore.loadedProjectKeys)
 }
 
+func TestRunListsOnlyTheResourcesThatTheFilterKeeps(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	_, err := store.Add([]synclocal.VariationFile{{
+		ProjectKey: "project", ConfigKey: "config", Variation: testVariation("prompt"),
+	}})
+	require.NoError(t, err)
+	options := Options{
+		RepositoryRoot: root, Store: store, Baselines: newMemoryManifestStore(),
+		Input: bytes.NewBuffer(nil), NoInput: true,
+	}
+
+	var otherProject bytes.Buffer
+	options.Output, options.Filter = &otherProject, syncdomain.Filter{Project: "other"}
+	require.NoError(t, Run(options))
+	assert.Equal(t, "No resources are currently synced.\n", otherProject.String())
+
+	options.Output, options.Filter = bytes.NewBuffer(nil), syncdomain.Filter{Project: "project"}
+	require.EqualError(t, Run(options), "--key values are required with --no-input")
+
+	options.Filter = syncdomain.Filter{}
+	require.EqualError(t, Run(options), "--project and --key are required with --no-input")
+}
+
 func TestRunReportsWhenNoResourcesAreSynced(t *testing.T) {
 	root := t.TempDir()
 	var output bytes.Buffer

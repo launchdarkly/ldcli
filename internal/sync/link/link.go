@@ -43,6 +43,8 @@ type Options struct {
 	Format           string
 	Input            io.Reader
 	Output           io.Writer
+	// ProjectKey skips the project question when Run asks for the destination.
+	ProjectKey string
 	// Target is the new variation. If it is nil, Run asks the user.
 	Target  *Target
 	NoInput bool
@@ -163,15 +165,26 @@ func targetSelection(options Options, prompt linkedPrompt, target Target) (Selec
 // that the linked file does not have. The bool result is true when the user
 // cancels.
 func promptForSelection(options Options, prompt linkedPrompt) (Selection, string, bool, error) {
-	project, canceled, err := syncinteractive.SelectProject(options.Input, options.Output, options.Catalog)
-	if err != nil || canceled {
-		return Selection{}, "", canceled, err
+	project := syncapi.Project{Key: options.ProjectKey}
+	if project.Key == "" {
+		var canceled bool
+		var err error
+		if project, canceled, err = syncinteractive.SelectProject(options.Input, options.Output, options.Catalog); err != nil || canceled {
+			return Selection{}, "", canceled, err
+		}
 	}
 	var modes []syncdomain.VariationMode
 	if prompt.parsed.Mode != "" {
 		modes = []syncdomain.VariationMode{prompt.parsed.Mode}
 	}
 	config, canceled, err := syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, modes)
+	if syncapi.IsNotFound(err) && options.ProjectKey != "" {
+		// The config search is the first read in the project, so a 404 means
+		// that the project is missing.
+		return Selection{}, "", false, fmt.Errorf(
+			"project %q was not found in LaunchDarkly, or the access token cannot read it", options.ProjectKey,
+		)
+	}
 	if err != nil || canceled {
 		return Selection{}, "", canceled, err
 	}

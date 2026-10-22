@@ -87,6 +87,69 @@ func TestRunRequiresTerminal(t *testing.T) {
 	)
 }
 
+func TestRunNamesTheMissingTargetFlagsWithoutInput(t *testing.T) {
+	tests := map[string]struct {
+		projectKey, configKey string
+		want                  string
+	}{
+		"no flags":           {want: "--project, --config-key, and --key are required with --no-input"},
+		"project":            {projectKey: "project", want: "--config-key and --key are required with --no-input"},
+		"project and config": {projectKey: "project", configKey: "config", want: "--key values are required with --no-input"},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := Run(Options{
+				Catalog: &fakeCatalog{}, Store: synclocal.NewStore(t.TempDir()),
+				Input: bytes.NewBuffer(nil), Output: bytes.NewBuffer(nil),
+				ProjectKey: test.projectKey, ConfigKey: test.configKey, NoInput: true,
+			})
+
+			require.EqualError(t, err, test.want)
+		})
+	}
+}
+
+func TestPromptForVariationsSkipsTheQuestionsThatFlagsAnswer(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	variation := syncdomain.Variation{Key: "variation", Name: "Variation", Mode: syncdomain.VariationModeAgent, Instructions: "Be helpful."}
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
+	require.NoError(t, err)
+	catalog := &noSearchCatalog{config: syncapi.Config{
+		Key: "config", Mode: syncdomain.VariationModeAgent, Variations: []syncdomain.Variation{variation},
+	}}
+
+	files, canceled, err := promptForVariations(Options{
+		Catalog: catalog, Store: store, Input: bytes.NewBuffer(nil), Output: bytes.NewBuffer(nil),
+		ProjectKey: "project", ConfigKey: "config",
+	})
+
+	require.NoError(t, err)
+	assert.False(t, canceled)
+	assert.Empty(t, files, "every variation of the config is already synced")
+}
+
+// noSearchCatalog fails when a question searches projects or configs.
+type noSearchCatalog struct {
+	config syncapi.Config
+}
+
+func (*noSearchCatalog) SearchProjects(string, int, int) (syncapi.Page[syncapi.Project], error) {
+	return syncapi.Page[syncapi.Project]{}, errors.New("asked for the project")
+}
+
+func (*noSearchCatalog) SearchConfigs(string, string, []syncdomain.VariationMode, int, int) (syncapi.Page[syncapi.Config], error) {
+	return syncapi.Page[syncapi.Config]{}, errors.New("asked for the config")
+}
+
+func (catalog *noSearchCatalog) Config(projectKey, configKey string) (syncapi.Config, error) {
+	if projectKey != "project" || configKey != catalog.config.Key {
+		return syncapi.Config{}, errors.New("read the wrong config")
+	}
+	return catalog.config, nil
+}
+
 func TestRunUsesExplicitVariationSelectorsWithoutTerminal(t *testing.T) {
 	root := t.TempDir()
 	var output bytes.Buffer

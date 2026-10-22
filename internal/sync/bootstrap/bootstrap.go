@@ -45,6 +45,9 @@ type Options struct {
 	DryRun  bool
 	// Diff shows the content of each file that a dry run lists.
 	Diff bool
+	// ProjectKey and ConfigKey skip the project and the config questions.
+	ProjectKey string
+	ConfigKey  string
 	// Selections are the variations to add. If it is empty, Run asks the user.
 	Selections []syncdomain.ResourceID
 	NoInput    bool
@@ -58,7 +61,7 @@ func Run(options Options) error {
 		files, err = selectedVariations(options)
 	} else {
 		if err := syncinteractive.RequireTerminal(
-			options.Input, options.Output, options.NoInput, "variation selectors", "prompt selection",
+			options.Input, options.Output, options.NoInput, missingTargetFlags(options), "prompt selection",
 		); err != nil {
 			return err
 		}
@@ -124,14 +127,37 @@ func selectedVariations(options Options) ([]synclocal.VariationFile, error) {
 	return files, nil
 }
 
-// promptForVariations asks the user for a project, a config, and one or more
-// variations. The bool result is true when the user cancels.
-func promptForVariations(options Options) ([]synclocal.VariationFile, bool, error) {
-	project, canceled, err := syncinteractive.SelectProject(options.Input, options.Output, options.Catalog)
-	if err != nil || canceled {
-		return nil, canceled, err
+// missingTargetFlags names the flags that answer the questions that Run still
+// has to ask.
+func missingTargetFlags(options Options) string {
+	switch {
+	case options.ProjectKey == "":
+		return "--project, --config-key, and --key"
+	case options.ConfigKey == "":
+		return "--config-key and --key"
+	default:
+		return "--key values"
 	}
-	config, canceled, err := syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, nil)
+}
+
+// promptForVariations asks the user for a project, a config, and one or more
+// variations. ProjectKey and ConfigKey skip their questions. The bool result
+// is true when the user cancels.
+func promptForVariations(options Options) ([]synclocal.VariationFile, bool, error) {
+	project := syncapi.Project{Key: options.ProjectKey}
+	var canceled bool
+	var err error
+	if project.Key == "" {
+		if project, canceled, err = syncinteractive.SelectProject(options.Input, options.Output, options.Catalog); err != nil || canceled {
+			return nil, canceled, err
+		}
+	}
+	config := syncapi.Config{Key: options.ConfigKey}
+	if config.Key == "" {
+		config, canceled, err = syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, nil)
+	} else {
+		config, err = options.Catalog.Config(project.Key, config.Key)
+	}
 	if err != nil || canceled {
 		return nil, canceled, err
 	}
