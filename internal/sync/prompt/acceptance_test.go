@@ -1280,6 +1280,27 @@ func TestPromptSyncsStandaloneToolsAndSkills(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Human handoff", api.skills["handoff"].Name)
 
+	// LaunchDarkly owns the skill name after the create. A rename there is not
+	// a change, and a push of a local edit does not send the local name.
+	handoff := api.skills["handoff"]
+	handoff.Name = "Renamed in LaunchDarkly"
+	api.skills["handoff"] = handoff
+	stdout, err = runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeSkills}, false)
+	require.NoError(t, err)
+	assert.Contains(t, planRows(t, stdout), "skill handoff in_sync", "a rename in LaunchDarkly is not a change")
+	writeLocalFile(t, root, "skills/handoff.md",
+		"---\nkey: handoff\ndescription: Hand off to a person\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n")
+	api.requests = nil
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeSkills}, true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, countRequests(api.requests, "PATCH", "/ai-configs/skills/handoff"))
+	assert.Equal(t, "Hand off to a person", api.skills["handoff"].Description)
+	assert.Equal(t, "Renamed in LaunchDarkly", api.skills["handoff"].Name, "the push must not send the local name")
+	content, err = os.ReadFile(filepath.Join(root, syncdomain.RootDir, "production", "skills", "handoff.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "name: Human handoff\n", "the file keeps its local name")
+	assert.Contains(t, string(content), "upsert: true\n")
+
 	// A deletion in LaunchDarkly deletes the standalone file and its baseline.
 	delete(api.tools, "lookup")
 	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeTools}, true)
