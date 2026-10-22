@@ -19,53 +19,6 @@ import (
 // not an input schema.
 var definitionKeys = []string{"formatVersion", "inputSchema", "schema"}
 
-// Check applies the content rules of a create of a tool or a skill. It reads
-// nothing, so an add runs it before any request.
-func (input Input) Check(kind syncdomain.AttachmentKind) error {
-	if err := input.checkContentFlag(kind); err != nil {
-		return err
-	}
-	if kind == syncdomain.AttachmentTool {
-		_, err := parseSchema(*input.JSONSchema)
-		return err
-	}
-	switch {
-	case strings.TrimSpace(*input.Content) == "":
-		return errors.New("--content cannot be blank")
-	case input.Name != nil && strings.TrimSpace(*input.Name) == "":
-		return errors.New("--name cannot be blank")
-	}
-	return nil
-}
-
-// checkContentFlag makes sure that the flag that starts a create is set when
-// another create flag is.
-func (input Input) checkContentFlag(kind syncdomain.AttachmentKind) error {
-	flag, content := "--content", input.Content
-	if kind == syncdomain.AttachmentTool {
-		flag, content = "--json-schema", input.JSONSchema
-	}
-	if content != nil {
-		return nil
-	}
-
-	var passed []string
-	if input.Name != nil {
-		passed = append(passed, "--name")
-	}
-	if input.Description != nil {
-		passed = append(passed, "--description")
-	}
-	switch len(passed) {
-	case 0:
-		return fmt.Errorf("add creates a %s only when %s is set", kind, flag)
-	case 1:
-		return fmt.Errorf("%s needs %s. add creates a %s only when %s is set.", passed[0], flag, kind, flag)
-	default:
-		return fmt.Errorf("%s need %s. add creates a %s only when %s is set.", joinFlags(passed), flag, kind, flag)
-	}
-}
-
 // parseSchema decodes the value of --json-schema, which must be one JSON
 // object.
 func parseSchema(value string) (map[string]any, error) {
@@ -126,7 +79,7 @@ func (input Input) Ask(id syncdomain.ResourceID, questions Questions) (Input, bo
 // from "$(cat file)" has the fingerprint of the file.
 func (input Input) Attachment(id syncdomain.ResourceID) (syncdomain.Attachment, error) {
 	kind := syncdomain.AttachmentKind(id.Kind)
-	if err := input.Check(kind); err != nil {
+	if err := input.Check(id.Kind); err != nil {
 		return syncdomain.Attachment{}, err
 	}
 

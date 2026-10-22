@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synccreate "github.com/launchdarkly/ldcli/internal/sync/create"
 	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 )
@@ -549,4 +550,246 @@ func (reader *answerReader) Read(buffer []byte) (int, error) {
 		reader.onAnswer()
 	}
 	return copy(buffer, reader.answer), nil
+}
+
+var (
+	escalationID   = syncdomain.VariationID("production", "support", "escalation")
+	escalationFile = "configs/support/escalation.prompt.md"
+	claude         = syncapi.ModelConfig{Key: "claude", ID: "claude-sonnet", Name: "Claude", Version: 3}
+)
+
+func TestCreateMakesAnAgentVariationFromFlags(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{{Key: "gpt", ID: "gpt-5", Version: 1}, claude}}
+	action := createVariationAction("escalation", synccreate.Input{
+		Content: pointer("Hand the conversation to a person."), ModelConfigKey: pointer("claude"),
+	})
+
+	stdout, notes, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: action, Yes: true})
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"resources": [{"resourceKind": "variation", "projectKey": "production", "lookupKey": "support/escalation",
+		"action": "create_server", "status": "succeeded"}]}`, stdout)
+	assert.Equal(t, "Note: Created .launchdarkly/production/"+escalationFile+".\n", notes)
+	assert.Equal(t, &syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "escalation", Name: "Escalation", Instructions: "Hand the conversation to a person.",
+		ModelConfigKey: "claude", ModelConfigVersion: 3, Model: claude.VariationModel(),
+	}, api.variation)
+	file := readLocalFile(t, root, escalationFile)
+	assert.Contains(t, file, "upsert: true\nmode: agent\nkey: escalation\nname: Escalation\nmodelConfigKey: claude\nmodelConfigVersion: 3\n")
+	assert.NotContains(t, file, "ref:")
+	assert.Equal(t, []syncdomain.ResourceID{escalationID}, lockResourceIDs(readLock(t, root)))
+
+	stdout, err = runSyncAction(t, root, api, syncdomain.ScopePrompts, syncprompt.SyncAction{DryRun: true}, false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/escalation in_sync"}, planRows(t, stdout))
+}
+
+func TestCreateMakesACompletionVariationFromFlags(t *testing.T) {
+	tests := map[string]struct {
+		content string
+		want    []syncdomain.Message
+	}{
+		"role blocks": {
+			content: "<system>Be brief.</system>\n<user>{{question}}</user>",
+			want:    []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: "Be brief."}, {Role: "user", Content: "{{question}}"}},
+		},
+		"plain text": {
+			content: "Be brief.",
+			want:    []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: "Be brief."}},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			api := &directAPI{configMode: syncdomain.VariationModeCompletion, modelConfigs: []syncapi.ModelConfig{claude}}
+			action := createVariationAction("escalation", synccreate.Input{Content: &test.content, ModelConfigKey: pointer("claude")})
+
+			_, _, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: action, Yes: true})
+
+			require.NoError(t, err)
+			require.NotNil(t, api.variation)
+			assert.Equal(t, test.want, api.variation.Messages)
+			assert.Empty(t, api.variation.Instructions)
+		})
+	}
+}
+
+func TestCreateVariationLeavesOtherPendingChangesAsTheyAre(t *testing.T) {
+	root := initRepository(t)
+	writeLocalFile(t, root, "tools/refund.json", `{"formatVersion": 1, "upsert": true, "key": "refund", "schema": {"type": "object"}}`)
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{claude}}
+	action := createVariationAction("escalation", synccreate.Input{Content: pointer("Escalate."), ModelConfigKey: pointer("claude")})
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: action, Yes: true})
+
+	require.NoError(t, err)
+	require.NotNil(t, api.variation)
+	assert.NotContains(t, api.tools, "refund", "the new tool waits for a sync")
+	assert.Equal(t, []syncdomain.ResourceID{escalationID}, lockResourceIDs(readLock(t, root)))
+}
+
+func TestCreateAdoptsAVariationWhoseModelConfigHasANewerVersion(t *testing.T) {
+	root := initRepository(t)
+	older := claude
+	older.Version = 2
+	existing := syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "escalation", Name: "Escalation", Instructions: "Escalate.",
+		ModelConfigKey: "claude", ModelConfigVersion: 2, Model: older.VariationModel(),
+	}
+	api := &directAPI{variation: &existing, variationState: "published", modelConfigs: []syncapi.ModelConfig{claude}}
+	action := createVariationAction("escalation", synccreate.Input{
+		Content: pointer("Escalate."), Name: pointer("Escalation"), ModelConfigKey: pointer("claude"),
+	})
+
+	stdout, notes, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: action, Yes: true})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Bootstrapped 1 variation file in .launchdarkly.\n", stdout)
+	assert.Equal(t, "Note: variation production/support/escalation already exists in LaunchDarkly with this content, "+
+		"so add started syncing it.\n", notes)
+	requireOnlyReads(t, api.requests)
+	assert.Contains(t, readLocalFile(t, root, escalationFile), "modelConfigVersion: 2\n", "the file takes the version from LaunchDarkly")
+}
+
+func TestCreateRefusesAVariationWithOtherContent(t *testing.T) {
+	refusal := "variation production/support/escalation already exists in LaunchDarkly with different content, " +
+		"and add does not change it. To sync the LaunchDarkly version, run " +
+		"ldcli sync prompts add --project production --config-key support --key escalation, then edit the file and run ldcli sync prompts or ldcli sync all."
+	tests := map[string]synccreate.Input{
+		"prompt":       {Content: pointer("Escalate now."), ModelConfigKey: pointer("claude")},
+		"name":         {Content: pointer("Escalate."), Name: pointer("Escalate"), ModelConfigKey: pointer("claude")},
+		"model config": {Content: pointer("Escalate."), ModelConfigKey: pointer("gpt")},
+	}
+	for name, input := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			api := &directAPI{variation: &syncdomain.Variation{
+				Mode: syncdomain.VariationModeAgent, Key: "escalation", Name: "Escalation", Instructions: "Escalate.",
+				ModelConfigKey: "claude", ModelConfigVersion: 3, Model: claude.VariationModel(),
+			}, variationState: "published", modelConfigs: []syncapi.ModelConfig{claude}}
+
+			_, _, err := runScoped(t, root, api, syncprompt.Options{
+				Scope: syncdomain.ScopePrompts, Action: createVariationAction("escalation", input), Yes: true,
+			})
+
+			require.EqualError(t, err, refusal)
+			requireOnlyReads(t, api.requests)
+			assert.NoDirExists(t, filepath.Join(root, syncdomain.RootDir))
+		})
+	}
+}
+
+func TestCreateRefusesTheKeyOfAnArchivedVariation(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{variation: &syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "escalation", Name: "Escalation", Instructions: "Escalate.",
+	}, variationState: "archived", modelConfigs: []syncapi.ModelConfig{claude}}
+	action := createVariationAction("escalation", synccreate.Input{Content: pointer("Escalate."), ModelConfigKey: pointer("claude")})
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: action, Yes: true})
+
+	require.EqualError(t, err, "variation production/support/escalation is archived in LaunchDarkly, "+
+		"and a new variation cannot use its key. Pass another --key.")
+	requireOnlyReads(t, api.requests)
+	assert.NoDirExists(t, filepath.Join(root, syncdomain.RootDir))
+}
+
+func TestCreateVariationChecksTheFlagsBeforeAnyRequest(t *testing.T) {
+	valid := synccreate.Input{Content: pointer("Escalate."), ModelConfigKey: pointer("claude")}
+	tests := map[string]struct {
+		action syncprompt.AddAction
+		want   string
+	}{
+		"no target flags": {
+			action: syncprompt.AddAction{Create: &valid},
+			want:   "variation creation requires --project, --config-key, and --key without interactive input",
+		},
+		"no model config": {
+			action: createVariationAction("escalation", synccreate.Input{Content: pointer("Escalate.")}),
+			want:   "variation creation requires --model-config-key without interactive input",
+		},
+		"name without content": {
+			action: createVariationAction("escalation", synccreate.Input{Name: pointer("Escalation")}),
+			want:   "--name needs --content. add creates a variation only when --content is set.",
+		},
+		"blank content": {
+			action: createVariationAction("escalation", synccreate.Input{Content: pointer("\t"), ModelConfigKey: pointer("claude")}),
+			want:   "--content cannot be blank",
+		},
+		"positional selector": {
+			action: syncprompt.AddAction{Resources: []syncdomain.ResourceID{escalationID}, Create: &valid},
+			want: "a variation that add creates comes from --project, --config-key, and --key, " +
+				"not from project-key/config-key/variation-key arguments",
+		},
+		"two keys": {
+			action: syncprompt.AddAction{
+				Filter: syncdomain.Filter{Project: "production", ConfigKey: "support", Keys: []string{"escalation", "handoff"}},
+				Create: &valid,
+			},
+			want: "add creates one variation at a time. Pass at most one --key.",
+		},
+		"invalid key": {
+			action: createVariationAction("escalate now", valid),
+			want: `variation key "escalate now" must use only letters, digits, ".", "_", and "-", ` +
+				"and start with a letter or digit",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			api := &directAPI{modelConfigs: []syncapi.ModelConfig{claude}}
+
+			_, _, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: test.action, Yes: true})
+
+			require.EqualError(t, err, test.want)
+			assert.Empty(t, api.requests)
+		})
+	}
+}
+
+func TestCreateVariationReadsTheContentBeforeTheModelConfig(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{configMode: syncdomain.VariationModeCompletion, modelConfigs: []syncapi.ModelConfig{claude}}
+	action := createVariationAction("escalation", synccreate.Input{Content: pointer("<system>Be brief."), ModelConfigKey: pointer("claude")})
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: action, Yes: true})
+
+	require.EqualError(t, err, "--content: unclosed <system> tag")
+	assert.Equal(t, []string{"GET https://example.test/api/v2/projects/production/ai-configs/support"}, api.requests)
+}
+
+func TestCreateVariationNeedsAModelConfigThatExists(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{claude}}
+	action := createVariationAction("escalation", synccreate.Input{Content: pointer("Escalate."), ModelConfigKey: pointer("llama")})
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: action, Yes: true})
+
+	require.EqualError(t, err, `model config "llama" was not found`)
+	requireOnlyReads(t, api.requests)
+	assert.NoDirExists(t, filepath.Join(root, syncdomain.RootDir))
+}
+
+func TestCreateVariationRemovesTheFileWhenLaunchDarklyRejectsTheCreate(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{
+		modelConfigs: []syncapi.ModelConfig{claude},
+		createErr:    errors.New(`{"code":"invalid_request","message":"instructions are too long","statusCode":400}`),
+	}
+	action := createVariationAction("escalation", synccreate.Input{Content: pointer("Escalate."), ModelConfigKey: pointer("claude")})
+
+	_, notes, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopePrompts, Action: action, Yes: true})
+
+	require.ErrorContains(t, err, "instructions are too long")
+	assert.Equal(t, "Note: Removed .launchdarkly/production/"+escalationFile+".\n", notes)
+	assert.NoDirExists(t, filepath.Join(root, syncdomain.RootDir))
+}
+
+// createVariationAction is the add that creates the variation key in the
+// config "support" of the project "production".
+func createVariationAction(key string, input synccreate.Input) syncprompt.AddAction {
+	return syncprompt.AddAction{
+		Filter: syncdomain.Filter{Project: "production", ConfigKey: "support", Keys: []string{key}}, Create: &input,
+	}
 }
