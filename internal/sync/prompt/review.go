@@ -55,8 +55,13 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 // cleanupOrphanedAttachments shows the tool and skill files that no local
 // variation uses, and deletes them after the user agrees. Without --yes and
 // without a terminal, it keeps the files. Before it deletes a file, it makes
-// sure again that no variation uses the file.
+// sure again that no variation uses the file. A filtered sync keeps every
+// file. A variation outside the filter can have a missing file that a full
+// sync restores, and then its tools and skills only look unused.
 func cleanupOrphanedAttachments(options Options, store synclocal.Store, interactive bool) error {
+	if !options.syncAction().Filter.IsZero() {
+		return nil
+	}
 	orphaned, err := store.OrphanedAttachments()
 	if err != nil || len(orphaned) == 0 {
 		return err

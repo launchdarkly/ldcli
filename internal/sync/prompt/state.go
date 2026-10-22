@@ -23,19 +23,23 @@ type workspaceState struct {
 }
 
 // loadState reads the baseline, the local files, and LaunchDarkly, and builds
-// the plan.
-func (workspace syncWorkspace) loadState(client syncapi.Client) (workspaceState, error) {
-	projectKeys, err := workspace.projectKeys()
+// the plan of the resources that the filter keeps.
+func (workspace syncWorkspace) loadState(client syncapi.Client, filter syncdomain.Filter) (workspaceState, error) {
+	synced, err := workspace.syncedResources()
 	if err != nil {
 		return workspaceState{}, err
 	}
+	if err := checkFilter(filter, synced); err != nil {
+		return workspaceState{}, err
+	}
+	projectKeys := projectKeys(synced, filter)
 	// The lock is the common ancestor in a three-way comparison of the local
 	// files and LaunchDarkly.
 	baseline, err := workspace.baselines.Load(projectKeys)
 	if err != nil {
 		return workspaceState{}, err
 	}
-	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client)
+	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client, filter)
 	if err != nil {
 		return workspaceState{}, err
 	}
@@ -44,31 +48,40 @@ func (workspace syncWorkspace) loadState(client syncapi.Client) (workspaceState,
 
 // loadWorkspacePlan reads the local variations and their LaunchDarkly
 // versions, and compares both with the lock. It also returns the local
-// variations as their files store them.
+// variations as their files store them. It drops each variation that the
+// filter does not keep before it reads LaunchDarkly.
 func loadWorkspacePlan(
 	repositoryRoot string,
 	baseline syncmanifest.Baseline,
 	client syncapi.Client,
+	filter syncdomain.Filter,
 ) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
 	localFiles, err := compileWorkspace(repositoryRoot)
 	if err != nil {
 		return Plan{}, nil, err
 	}
+	localFiles = slices.DeleteFunc(localFiles, func(resource syncdomain.SyncedResource) bool {
+		return !filter.Includes(resource.ID())
+	})
 	local, err := canonicalizeLocalVariationModels(localFiles, client.ModelConfig)
 	if err != nil {
 		return Plan{}, nil, err
 	}
 
+	tracked := syncmanifest.New()
+	for _, resource := range baseline.Lock.Resources {
+		if resource.ResourceKind == syncdomain.KindVariation && filter.Includes(resource.ID()) {
+			tracked.Resources = append(tracked.Resources, resource)
+		}
+	}
 	localFilesByID := make(map[ResourceID]syncdomain.SyncedResource, len(localFiles))
-	ids := make(map[ResourceID]struct{}, len(localFiles)+len(baseline.Lock.Resources))
+	ids := make(map[ResourceID]struct{}, len(localFiles)+len(tracked.Resources))
 	for _, resource := range localFiles {
 		localFilesByID[resource.ID()] = resource
 		ids[resource.ID()] = struct{}{}
 	}
-	for _, resource := range baseline.Lock.Resources {
-		if resource.ResourceKind == syncdomain.KindVariation {
-			ids[resource.ID()] = struct{}{}
-		}
+	for _, resource := range tracked.Resources {
+		ids[resource.ID()] = struct{}{}
 	}
 
 	attachments := newAttachmentCache(client)
@@ -80,7 +93,7 @@ func loadWorkspacePlan(
 		}
 		server[id] = resource
 	}
-	plan := BuildPlan(baseline.Lock, local, server)
+	plan := BuildPlan(tracked, local, server)
 	for index := range plan.Resources {
 		plan.Resources[index].SyncedElsewhere = baseline.Stale(plan.Resources[index].ID)
 		planRestore(repositoryRoot, baseline, &plan.Resources[index])
@@ -146,10 +159,11 @@ func readServerResource(client syncapi.Client, attachments *attachmentCache, id 
 	return resource, nil
 }
 
-// projectKeys returns each project that has a local sync file or an entry in
-// the sync.lock file. A project whose files are all missing is still in the
-// lock, so sync can restore its files.
-func (workspace syncWorkspace) projectKeys() ([]string, error) {
+// syncedResources returns the identity of each resource that has a local sync
+// file or an entry in the sync.lock file. It reads only local files, so that a
+// filter that names a resource that is not synced fails before any
+// LaunchDarkly read.
+func (workspace syncWorkspace) syncedResources() ([]ResourceID, error) {
 	files, err := synclocal.SourceFiles(workspace.root)
 	if err != nil {
 		return nil, err
@@ -159,14 +173,56 @@ func (workspace syncWorkspace) projectKeys() ([]string, error) {
 		return nil, err
 	}
 
-	projectKeys := lock.ProjectKeys()
+	var synced []ResourceID
+	for _, resource := range lock.Resources {
+		synced = append(synced, resource.ID())
+	}
 	for _, file := range files {
 		if id, ok := synclocal.ParseManagedPath(file); ok {
-			projectKeys = append(projectKeys, id.ProjectKey)
+			synced = append(synced, id)
 		}
 	}
-	slices.Sort(projectKeys)
-	return slices.Compact(projectKeys), nil
+	return synced, nil
+}
+
+// projectKeys returns each project of a synced resource that the filter keeps.
+// A project whose files are all missing is still in the lock, so sync can
+// restore its files.
+func projectKeys(synced []ResourceID, filter syncdomain.Filter) []string {
+	var keys []string
+	for _, id := range synced {
+		if filter.Includes(id) {
+			keys = append(keys, id.ProjectKey)
+		}
+	}
+	slices.Sort(keys)
+	return slices.Compact(keys)
+}
+
+// checkFilter returns an error when the filter names a project, a config, or
+// a variation that has no local file and no sync.lock entry, so that a typo
+// never gives an empty plan that looks like success.
+func checkFilter(filter syncdomain.Filter, synced []ResourceID) error {
+	if filter.IsZero() {
+		return nil
+	}
+	if !slices.ContainsFunc(synced, func(id ResourceID) bool { return id.ProjectKey == filter.Project }) {
+		return fmt.Errorf("project %q has no synced resources in this repository. "+
+			"To start, run ldcli sync prompts add --project %s.", filter.Project, filter.Project)
+	}
+	for _, key := range filter.Keys {
+		if id := syncdomain.VariationID(filter.Project, filter.ConfigKey, key); !slices.Contains(synced, id) {
+			return fmt.Errorf("%s is not synced in this repository. To start syncing it, "+
+				"run ldcli sync prompts add --project %s --config-key %s --key %s.",
+				id.Label(), filter.Project, filter.ConfigKey, key)
+		}
+	}
+	if !slices.ContainsFunc(synced, filter.Includes) {
+		return fmt.Errorf("config %q in project %q has no synced variations in this repository. "+
+			"To start, run ldcli sync prompts add --project %s --config-key %s.",
+			filter.ConfigKey, filter.Project, filter.Project, filter.ConfigKey)
+	}
+	return nil
 }
 
 // compileWorkspace reads the local variations. A workspace without a managed

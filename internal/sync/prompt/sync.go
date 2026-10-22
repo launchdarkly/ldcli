@@ -31,7 +31,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		watched = &watchedSources{watcher: watcher, snapshot: snapshot, debounce: watchDebounce}
 	}
 
-	reviewed, err := workspace.loadState(client)
+	reviewed, err := workspace.loadState(client, options.syncAction().Filter)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	// Read both sides again, so that no action uses state from before the review.
-	current, err := workspace.loadState(client)
+	current, err := workspace.loadState(client, options.syncAction().Filter)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,9 @@ func (runner Runner) applyPlan(
 	interactive bool,
 ) error {
 	plan := applyConflictResolutions(current.plan, resolutions)
-	outcomes, next, err := executePlan(workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles)
+	outcomes, next, err := executePlan(
+		workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles, options.syncAction().Filter,
+	)
 
 	failures := []error{err}
 	if _, err := workspace.baselines.Save(current.baseline, next); err != nil {

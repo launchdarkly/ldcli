@@ -13,7 +13,8 @@ import (
 // executePlan applies each action of the plan, and returns the outcomes and
 // the new manifest. The manifest records only the actions that succeed. The
 // manifest argument does not change. localFiles has each local variation as
-// its file stores it.
+// its file stores it. filter is the filter of the plan. A filtered plan keeps
+// every tool and skill entry, because it does not see the other variations.
 func executePlan(
 	repositoryRoot string,
 	localStore synclocal.Store,
@@ -21,6 +22,7 @@ func executePlan(
 	manifest syncmanifest.Manifest,
 	plan Plan,
 	localFiles map[ResourceID]syncdomain.SyncedResource,
+	filter syncdomain.Filter,
 ) ([]ResourceOutcome, syncmanifest.Manifest, error) {
 	// A conflict choice applies to the full plan. Write nothing until every
 	// conflict has a choice, so that a shared attachment cannot change while
@@ -75,7 +77,9 @@ func executePlan(
 		if err != nil {
 			failures = append(failures, err)
 		} else {
-			next.RemoveUnusedAttachments(variations)
+			if filter.IsZero() {
+				next.RemoveUnusedAttachments(variations)
+			}
 			next.SetRefs(variations)
 		}
 	}
