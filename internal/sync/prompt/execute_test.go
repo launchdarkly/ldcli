@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -502,4 +503,147 @@ func TestExecutePlanDeletesAToolOnlyAfterNoVariationUsesIt(t *testing.T) {
 			assert.Equal(t, []ResourceID{deletion.ID, pull.ID}, []ResourceID{outcomes[0].ID, outcomes[1].ID}, "outcomes stay in plan order")
 		})
 	}
+}
+
+// A tool row runs before the variations that use the tool. A variation push
+// that newly attaches the tool must pin the content that the tool row pulled,
+// and must not publish its older local copy.
+func TestExecutePlanPushPinsAToolThatTheSamePlanPulled(t *testing.T) {
+	old, pulled := testAttachment(syncdomain.AttachmentTool, "old"), testAttachment(syncdomain.AttachmentTool, "new")
+	pulled.Version = 5
+	withTool := testVariation("support")
+	withTool.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	withTool.Attachments = []syncdomain.Attachment{old}
+	withoutTool := testVariation("support")
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "production", ConfigKey: "support", Variation: withTool}})
+	require.NoError(t, err)
+
+	toolRow := planAttachment(old.ID("production"), &old, &pulled, attachmentFingerprint(t, old), true)
+	require.Equal(t, ActionUpdateLocal, toolRow.Action)
+	push := PlannedResource{
+		ID: testResourceID(), Action: ActionUpdateServer, Local: &withTool, Server: &withoutTool,
+		LocalFingerprint: fingerprintOf(t, withTool),
+	}
+	current := testAttachment(syncdomain.AttachmentTool, "new")
+	api := &settleAPI{tool: attachmentMutationAPI{current: *current.Tool, version: 5}}
+	manifest := syncmanifest.New()
+	manifest.SetFingerprint(toolRow.ID, toolRow.BaselineFingerprint)
+
+	outcomes, next, err := executePlan(root, store, syncapi.NewClient(api, "token", "https://example.com"),
+		manifest, Plan{Resources: []PlannedResource{toolRow, push}}, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, api.tool.updates, "the push must not publish the old local copy")
+	require.Len(t, api.variations, 1)
+	assert.JSONEq(t, `[{"key":"search","version":5}]`, string(api.variations[0]["tools"]))
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 5}}, outcomes[1].pins)
+	assert.Equal(t, attachmentFingerprint(t, pulled), fingerprintIn(next, toolRow.ID), "sync.lock records the pulled tool")
+	withPulled := withTool
+	withPulled.Attachments = []syncdomain.Attachment{pulled}
+	assert.Equal(t, fingerprintOf(t, withPulled), fingerprintIn(next, push.ID))
+	assert.Equal(t, "new", *readLocalTool(t, root).Description)
+}
+
+// A variation pull that newly references a tool must keep the edit that a
+// tool row before it pushed. If that push fails, the pull fails too, so that
+// it cannot write the old LaunchDarkly copy over the edit.
+func TestExecutePlanPullKeepsAToolThatTheSamePlanPushed(t *testing.T) {
+	for name, test := range map[string]struct {
+		updateErr error
+		wantError string
+	}{
+		"the tool push succeeds": {},
+		"the tool push fails":    {updateErr: errors.New(`{"code":"forbidden","statusCode":403}`), wantError: "forbidden"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			edited, remote := testAttachment(syncdomain.AttachmentTool, "new"), testAttachment(syncdomain.AttachmentTool, "old")
+			remote.Version = 2
+			withTool := testVariation("support")
+			withTool.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+			withTool.Attachments = []syncdomain.Attachment{remote}
+			withoutTool := testVariation("support")
+			root := t.TempDir()
+			store := synclocal.NewStore(root)
+			_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "production", ConfigKey: "support", Variation: withoutTool}})
+			require.NoError(t, err)
+			_, err = store.ReplaceAttachments([]syncdomain.SyncedAttachment{{ProjectKey: "production", Attachment: edited}})
+			require.NoError(t, err)
+
+			toolRow := planAttachment(edited.ID("production"), &edited, &remote, attachmentFingerprint(t, remote), true)
+			require.Equal(t, ActionUpdateServer, toolRow.Action)
+			pull := PlannedResource{
+				ID: testResourceID(), Action: ActionUpdateLocal, Local: &withoutTool, Server: &withTool,
+				ServerFingerprint: fingerprintOf(t, withTool),
+			}
+			current := testAttachment(syncdomain.AttachmentTool, "old")
+			api := &settleAPI{tool: attachmentMutationAPI{current: *current.Tool, version: 2, updateErr: test.updateErr}}
+
+			outcomes, next, err := executePlan(root, store, syncapi.NewClient(api, "token", "https://example.com"),
+				syncmanifest.New(), Plan{Resources: []PlannedResource{toolRow, pull}}, nil)
+
+			assert.Equal(t, "new", *readLocalTool(t, root).Description, "the local edit stays")
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+				assert.Equal(t, OutcomeFailed, outcomes[1].Status, "the pull must not run")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "new", *api.tool.current.Description)
+			assert.Equal(t, attachmentFingerprint(t, edited), fingerprintIn(next, toolRow.ID))
+			withEdit := withTool
+			withEdit.Attachments = []syncdomain.Attachment{edited}
+			assert.Equal(t, fingerprintOf(t, withEdit), fingerprintIn(next, pull.ID))
+		})
+	}
+}
+
+// settleAPI serves the tool "search" like attachmentMutationAPI, and records
+// the body of each variation update.
+type settleAPI struct {
+	tool       attachmentMutationAPI
+	variations []map[string]json.RawMessage
+}
+
+func (api *settleAPI) MakeRequest(
+	accessToken, method, path, contentType string, query url.Values, body []byte, isBeta bool,
+) ([]byte, error) {
+	if strings.Contains(path, "/ai-tools/") {
+		return api.tool.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+	}
+	var request map[string]json.RawMessage
+	if err := json.Unmarshal(body, &request); err != nil {
+		return nil, err
+	}
+	api.variations = append(api.variations, request)
+	return []byte(`{}`), nil
+}
+
+func (*settleAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func fingerprintOf(t *testing.T, variation syncdomain.Variation) string {
+	t.Helper()
+	value, err := syncdomain.FingerprintVariation("production", "support/default", variation)
+	require.NoError(t, err)
+	return value
+}
+
+func fingerprintIn(manifest syncmanifest.Manifest, id ResourceID) string {
+	for _, resource := range manifest.Resources {
+		if resource.ID() == id {
+			return resource.Fingerprint
+		}
+	}
+	return ""
+}
+
+func readLocalTool(t *testing.T, root string) syncdomain.Tool {
+	t.Helper()
+	local, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	require.Len(t, local, 1)
+	return *local[0].Attachment.Tool
 }

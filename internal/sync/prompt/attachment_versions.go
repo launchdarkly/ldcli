@@ -3,6 +3,7 @@ package prompt
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -26,6 +27,70 @@ func newAttachmentResolver(client syncapi.Client) *attachmentResolver {
 		resolved: make(map[ResourceID]syncdomain.Attachment),
 		failures: make(map[ResourceID]error),
 	}
+}
+
+// settle records the result of a tool or skill row. A pull settles the
+// LaunchDarkly content. A push settles through resolve.
+func (resolver *attachmentResolver) settle(id ResourceID, attachment syncdomain.Attachment, err error) {
+	if err != nil {
+		resolver.failures[id] = err
+		return
+	}
+	resolver.resolved[id] = attachment
+}
+
+// settledRow returns the variation row with the content that this execution
+// already gave each of its tools and skills. Without it, a variation pull
+// writes the old LaunchDarkly copy over a tool that a row before it pushed,
+// and a variation push publishes the old local copy over a tool that a row
+// before it pulled. If a tool or skill of the row failed, the row fails too.
+func (resolver *attachmentResolver) settledRow(resource PlannedResource) (PlannedResource, error) {
+	side, fingerprint := &resource.Local, &resource.LocalFingerprint
+	switch {
+	case resource.Action == ActionUpdateLocal:
+		side, fingerprint = &resource.Server, &resource.ServerFingerprint
+	case !resource.Action.changesServer():
+		return resource, nil
+	}
+	if *side == nil {
+		return resource, nil
+	}
+	for _, attachment := range (*side).Attachments {
+		if err, failed := resolver.failures[attachment.ID(resource.ID.ProjectKey)]; failed {
+			return resource, err
+		}
+	}
+
+	attachments, changed := resolver.settledAttachments(resource.ID.ProjectKey, (*side).Attachments)
+	if !changed {
+		return resource, nil
+	}
+	variation := **side
+	variation.Attachments = attachments
+	value, err := syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, variation)
+	if err != nil {
+		return resource, err
+	}
+	*side, *fingerprint = &variation, value
+	return resource, nil
+}
+
+// settledAttachments returns a copy of the attachments in which each one that
+// this execution settled has the settled content. It reports whether any
+// content changed. Each attachment keeps its upsert flag.
+func (resolver *attachmentResolver) settledAttachments(
+	projectKey string,
+	attachments []syncdomain.Attachment,
+) ([]syncdomain.Attachment, bool) {
+	result := slices.Clone(attachments)
+	changed := false
+	for index, attachment := range result {
+		if settled, ok := resolver.resolved[attachment.ID(projectKey)]; ok && !syncdomain.SameAttachmentContent(settled, attachment) {
+			settled.Upsert = attachment.Upsert
+			result[index], changed = settled, true
+		}
+	}
+	return result, changed
 }
 
 // resolveVariation returns a copy of the variation that pins the published

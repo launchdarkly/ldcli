@@ -57,7 +57,9 @@ func executePlan(
 				if file, ok := localFiles[resource.ID]; ok {
 					localFile = &file.Variation
 				}
-				pins, err = applyResourceChange(repositoryRoot, localStore, client, attachments, resource, localFile)
+				if resource, err = attachments.settledRow(resource); err == nil {
+					pins, err = applyResourceChange(repositoryRoot, localStore, client, attachments, resource, localFile)
+				}
 			} else {
 				version, err = applyAttachmentChange(repositoryRoot, localStore, attachments, resource)
 			}
@@ -73,7 +75,8 @@ func executePlan(
 
 		if outcome.Status == OutcomeSucceeded {
 			if variation := attachmentManifestState(resource); variation != nil {
-				if err := next.SetAttachments(resource.ID.ProjectKey, variation.Attachments); err != nil {
+				settled, _ := attachments.settledAttachments(resource.ID.ProjectKey, variation.Attachments)
+				if err := next.SetAttachments(resource.ID.ProjectKey, settled); err != nil {
 					fail(err)
 				}
 			}
@@ -265,10 +268,12 @@ func applyAttachmentChange(
 		return published.Version, err
 	case ActionUpdateLocal:
 		server := syncdomain.SyncedAttachment{ProjectKey: resource.ID.ProjectKey, Attachment: *resource.ServerAttachment}
-		if _, err := localStore.ReplaceAttachments([]syncdomain.SyncedAttachment{server}); err != nil {
-			return 0, err
+		_, err := localStore.ReplaceAttachments([]syncdomain.SyncedAttachment{server})
+		if err == nil {
+			err = verifyLocalResult(repositoryRoot, resource)
 		}
-		return server.Attachment.Version, verifyLocalResult(repositoryRoot, resource)
+		attachments.settle(resource.ID, server.Attachment, err)
+		return server.Attachment.Version, err
 	case ActionDeleteLocal:
 		// The pull of a variation that drops the reference ran first. If that
 		// pull failed, the variation still uses the file, so keep it.
