@@ -104,9 +104,7 @@ func (runner Runner) applyPlan(
 	interactive bool,
 ) error {
 	plan := applyConflictResolutions(current.plan, resolutions)
-	outcomes, next, err := executePlan(
-		workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles, options.syncAction().Filter,
-	)
+	outcomes, next, err := executePlan(workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles)
 
 	failures := []error{err}
 	if _, err := workspace.baselines.Save(current.baseline, next); err != nil {

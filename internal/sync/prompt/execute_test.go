@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,7 +33,7 @@ func TestExecutePlanDoesNotMutateReviewedManifest(t *testing.T) {
 		LocalFingerprint: "updated",
 	}}}
 
-	_, updatedManifest, err := executePlan("", synclocal.Store{}, syncapi.Client{}, reviewedManifest, plan, nil, syncdomain.Filter{})
+	_, updatedManifest, err := executePlan("", synclocal.Store{}, syncapi.Client{}, reviewedManifest, plan, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "reviewed", reviewedManifest.Resources[0].Fingerprint)
@@ -48,7 +50,7 @@ func TestApplyServerChangeDoesNotRereadAfterDefinitiveAPIError(t *testing.T) {
 	}
 
 	client := syncapi.NewClient(transport, "token", "https://example.com")
-	err := applyServerChange(client, newAttachmentResolver(client), resource)
+	_, err := applyServerChange(client, newAttachmentResolver(client), resource)
 
 	require.ErrorContains(t, err, `"statusCode":400`)
 	assert.Zero(t, transport.reads)
@@ -77,7 +79,7 @@ func TestExecutePlanDoesNotMutateWhileConflictIsUnresolved(t *testing.T) {
 		},
 	}}
 
-	outcomes, _, err := executePlan("", synclocal.Store{}, client, syncmanifest.New(), plan, nil, syncdomain.Filter{})
+	outcomes, _, err := executePlan("", synclocal.Store{}, client, syncmanifest.New(), plan, nil)
 
 	require.ErrorContains(t, err, "cannot sync conflicted resource")
 	assert.Empty(t, outcomes)
@@ -119,7 +121,7 @@ func TestExecutePlanSkipsEveryConsumerWhenSharedAttachmentFails(t *testing.T) {
 		syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"},
 		"sha256:reviewed",
 	)
-	outcomes, manifest, err := executePlan("", synclocal.Store{}, client, originalManifest, plan, nil, syncdomain.Filter{})
+	outcomes, manifest, err := executePlan("", synclocal.Store{}, client, originalManifest, plan, nil)
 
 	require.Error(t, err)
 	require.Len(t, outcomes, 2)
@@ -191,7 +193,7 @@ func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
 	transport := &variationUpdateAPI{}
 	client := syncapi.NewClient(transport, "token", "https://example.com")
 
-	err = applyResourceChange(
+	pins, err := applyResourceChange(
 		root,
 		store,
 		client,
@@ -211,6 +213,7 @@ func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
 	assert.Equal(t, map[string]any{"modelName": "claude-sonnet", "temperature": 0.2}, request.Model)
 	require.Len(t, request.Tools, 1)
 	assert.Equal(t, 2, request.Tools[0].Version)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 2}}, pins)
 }
 
 type variationUpdateAPI struct {
@@ -367,7 +370,7 @@ func TestApplyServerChangeReadsAgainAfterAVariationCreateConflict(t *testing.T) 
 			require.NoError(t, err)
 			client := syncapi.NewClient(&createConflictAPI{remote: string(remote)}, "token", "https://example.com")
 
-			err = applyServerChange(client, newAttachmentResolver(client), resource)
+			_, err = applyServerChange(client, newAttachmentResolver(client), resource)
 
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
@@ -401,4 +404,102 @@ func (api *createConflictAPI) MakeRequest(_ string, method string, _ string, _ s
 
 func (*createConflictAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
 	return nil, nil
+}
+
+func TestExecutePlanAppliesToolRows(t *testing.T) {
+	tool := func(description string, version int) *syncdomain.Attachment {
+		return &syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Version: version, Tool: &syncdomain.Tool{
+			Key: "search", Description: &description, Schema: map[string]any{"type": "object"},
+		}}
+	}
+	baseline := *tool("Old", 0)
+	id := baseline.ID("production")
+
+	tests := map[string]struct {
+		local, server   *syncdomain.Attachment
+		wantAction      Action
+		wantVersion     int
+		wantDescription string
+	}{
+		"push":   {local: tool("New", 0), server: tool("Old", 2), wantAction: ActionUpdateServer, wantVersion: 3, wantDescription: "New"},
+		"pull":   {local: tool("Old", 0), server: tool("New", 5), wantAction: ActionUpdateLocal, wantVersion: 5, wantDescription: "New"},
+		"delete": {local: tool("Old", 0), wantAction: ActionDeleteLocal},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			store := synclocal.NewStore(root)
+			_, err := store.ReplaceAttachments([]syncdomain.SyncedAttachment{{ProjectKey: "production", Attachment: *test.local}})
+			require.NoError(t, err)
+			resource := planAttachment(id, test.local, test.server, attachmentFingerprint(t, baseline), true)
+			require.Equal(t, test.wantAction, resource.Action)
+			transport := &attachmentMutationAPI{current: *tool("Old", 0).Tool, version: 2}
+			client := syncapi.NewClient(transport, "token", "https://example.com")
+			manifest := syncmanifest.New()
+			manifest.SetFingerprint(id, resource.BaselineFingerprint)
+
+			outcomes, next, err := executePlan(root, store, client, manifest, Plan{Resources: []PlannedResource{resource}}, nil)
+
+			require.NoError(t, err)
+			require.Len(t, outcomes, 1)
+			assert.Equal(t, OutcomeSucceeded, outcomes[0].Status)
+			assert.Equal(t, test.wantVersion, outcomes[0].Version)
+			local, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+			require.NoError(t, err)
+			if test.wantDescription == "" {
+				assert.Empty(t, local)
+				assert.Empty(t, next.Resources, "a deletion removes the baseline")
+				return
+			}
+			require.Len(t, local, 1)
+			assert.Equal(t, test.wantDescription, *local[0].Attachment.Tool.Description)
+			assert.Equal(t, attachmentFingerprint(t, *tool("New", 0)), next.Resources[0].Fingerprint)
+		})
+	}
+}
+
+// A tool deletion runs after every variation row, so that the pull of a
+// variation that drops the tool runs first. Without that pull, the variation
+// still uses the file, and the deletion keeps it.
+func TestExecutePlanDeletesAToolOnlyAfterNoVariationUsesIt(t *testing.T) {
+	tool := testAttachment(syncdomain.AttachmentTool, "local")
+	withTool := testVariation("support")
+	withTool.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	withTool.Attachments = []syncdomain.Attachment{tool}
+	withoutTool := testVariation("support")
+	deletion := planAttachment(tool.ID("production"), &tool, nil, attachmentFingerprint(t, tool), true)
+	require.Equal(t, ActionDeleteLocal, deletion.Action)
+	pull := PlannedResource{ID: testResourceID(), Action: ActionUpdateLocal, Local: &withTool, Server: &withoutTool}
+	variationDeletion := PlannedResource{ID: testResourceID(), Action: ActionDeleteLocal, Local: &withTool}
+
+	for name, test := range map[string]struct {
+		resources []PlannedResource
+		wantError string
+	}{
+		"the variation pull drops the tool": {resources: []PlannedResource{deletion, pull}},
+		"the variation is deleted":          {resources: []PlannedResource{deletion, variationDeletion}},
+		"no pull":                           {resources: []PlannedResource{deletion}, wantError: "variation production/support/default still uses it"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			store := synclocal.NewStore(root)
+			_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "production", ConfigKey: "support", Variation: withTool}})
+			require.NoError(t, err)
+
+			outcomes, _, err := executePlan(root, store, syncapi.Client{}, syncmanifest.New(), Plan{Resources: test.resources}, nil)
+
+			toolFile := filepath.Join(root, syncdomain.RootDir, "production", "tools", "search.json")
+			_, statErr := os.Stat(toolFile)
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+				assert.Equal(t, OutcomeFailed, outcomes[0].Status)
+				assert.NoError(t, statErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.ErrorIs(t, statErr, os.ErrNotExist)
+			assert.Equal(t, []ResourceID{deletion.ID, pull.ID}, []ResourceID{outcomes[0].ID, outcomes[1].ID}, "outcomes stay in plan order")
+		})
+	}
 }

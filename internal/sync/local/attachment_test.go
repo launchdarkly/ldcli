@@ -277,7 +277,7 @@ func TestOrphanedAttachmentsRequireEveryLocalReferenceToBeRemoved(t *testing.T) 
 		ProjectKey: "project", Kind: syncdomain.AttachmentTool, Key: "search", Path: "project/tools/search.json",
 	}}, orphaned)
 
-	deleted, err := store.DeleteAttachments(orphaned)
+	deleted, err := store.DeleteAttachments([]syncdomain.ResourceID{{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"project/tools/search.json"}, deleted)
 	_, statErr := os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
@@ -298,7 +298,7 @@ func TestOrphanedAttachmentsFindsFlatSkillFile(t *testing.T) {
 		ProjectKey: "project", Kind: syncdomain.AttachmentSkill, Key: "support", Path: "project/skills/support.md",
 	}}, orphaned)
 
-	deleted, err := store.DeleteAttachments(orphaned)
+	deleted, err := store.DeleteAttachments([]syncdomain.ResourceID{{Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "support"}})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"project/skills/support.md"}, deleted)
 	_, statErr := os.Stat(skillPath)
@@ -353,6 +353,32 @@ func TestCompileAttachmentsRejectsSymlink(t *testing.T) {
 	_, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
 
 	require.ErrorContains(t, err, "symbolic links are not supported")
+}
+
+func TestReplaceAttachmentsWritesStandaloneFilesAndKeepsLocalFields(t *testing.T) {
+	root := t.TempDir()
+	writeManagedFile(t, root, "project/tools/search.json", `{"formatVersion": 1, "upsert": true, "key": "search", "schema": {}}`)
+	description := "Search the docs"
+	search := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Version: 4, Tool: &syncdomain.Tool{
+		Key: "search", Description: &description, Schema: map[string]any{"type": "object"},
+	}}
+	triage := syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{
+		Key: "triage", Name: "Triage", Description: "Triage", Markdown: "Pick a queue.\n",
+	}}
+
+	written, err := NewStore(root).ReplaceAttachments([]syncdomain.SyncedAttachment{
+		{ProjectKey: "project", Attachment: search}, {ProjectKey: "project", Attachment: triage},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"project/tools/search.json", "project/skills/triage.md"}, written)
+	attachments, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	require.Len(t, attachments, 2)
+	assert.Equal(t, "Pick a queue.\n", attachments[0].Attachment.Skill.Markdown)
+	assert.Empty(t, attachments[0].Attachment.Skill.Name, "the file does not get the LaunchDarkly name")
+	assert.Equal(t, "Search the docs", *attachments[1].Attachment.Tool.Description)
+	assert.True(t, attachments[1].Attachment.Upsert, "the file keeps its upsert flag")
 }
 
 func writeManagedFile(t *testing.T, root, relativePath, content string) {

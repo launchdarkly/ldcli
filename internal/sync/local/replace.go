@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
@@ -37,15 +38,7 @@ func (store Store) ReplaceVariations(replacements []VariationReplacement) ([]str
 	if err != nil {
 		return nil, err
 	}
-	if err := stageFiles(files); err != nil {
-		return nil, err
-	}
-	defer removeStagedFiles(files)
-
-	if err := verifyOriginals(files); err != nil {
-		return nil, err
-	}
-	if err := commitFiles(files); err != nil {
+	if err := replaceFiles(files); err != nil {
 		return nil, err
 	}
 
@@ -56,6 +49,52 @@ func (store Store) ReplaceVariations(replacements []VariationReplacement) ([]str
 		}
 	}
 	return paths, nil
+}
+
+// ReplaceAttachments writes the content of each tool and skill file in one
+// transaction, like ReplaceVariations. A missing file is created, and an
+// existing file keeps its local fields. It returns the paths that it wrote.
+func (store Store) ReplaceAttachments(attachments []syncdomain.SyncedAttachment) ([]string, error) {
+	rendered := make([]RenderedFile, 0, len(attachments))
+	for _, attachment := range attachments {
+		filePath, err := attachmentPath(attachment.ProjectKey, attachment.Attachment.Kind, attachment.Attachment.Key())
+		if err != nil {
+			return nil, err
+		}
+		content, err := renderAttachment(attachment.Attachment)
+		if err != nil {
+			return nil, err
+		}
+		rendered = append(rendered, RenderedFile{Path: filePath, Content: content})
+	}
+	files, err := store.prepareAttachmentFiles(rendered)
+	if err != nil {
+		return nil, err
+	}
+	if err := replaceFiles(files); err != nil {
+		return nil, err
+	}
+
+	paths := make([]string, 0, len(files))
+	for _, file := range files {
+		paths = append(paths, file.displayPath)
+	}
+	return paths, nil
+}
+
+// replaceFiles writes the staged files in one transaction. It writes every
+// file to a temporary path, makes sure that no original changed, and then
+// renames each file into place.
+func replaceFiles(files []stagedFile) error {
+	if err := stageFiles(files); err != nil {
+		return err
+	}
+	defer removeStagedFiles(files)
+
+	if err := verifyOriginals(files); err != nil {
+		return err
+	}
+	return commitFiles(files)
 }
 
 // ReplaceFileAtomically replaces the file at path only if its content is
@@ -136,7 +175,11 @@ func (store Store) prepareReplacements(replacements []VariationReplacement) ([]s
 		})
 	}
 
-	attachments, err := store.prepareAttachmentFiles(attachmentSources)
+	rendered, err := renderAttachmentFiles(attachmentSources)
+	if err != nil {
+		return nil, err
+	}
+	attachments, err := store.prepareAttachmentFiles(rendered)
 	if err != nil {
 		return nil, err
 	}
@@ -188,14 +231,9 @@ func (store Store) prepareLinkedFile(ref Reference, replacement VariationReplace
 	}, nil
 }
 
-// prepareAttachmentFiles renders each tool and skill file that changed. A new
-// file is created. An existing file keeps its local fields.
-func (store Store) prepareAttachmentFiles(files []VariationFile) ([]stagedFile, error) {
-	rendered, err := renderAttachmentFiles(files)
-	if err != nil {
-		return nil, err
-	}
-
+// prepareAttachmentFiles stages each rendered tool and skill file that
+// changed. A new file is created. An existing file keeps its local fields.
+func (store Store) prepareAttachmentFiles(rendered []RenderedFile) ([]stagedFile, error) {
 	var staged []stagedFile
 	for _, file := range rendered {
 		path := store.absolute(file.Path)
