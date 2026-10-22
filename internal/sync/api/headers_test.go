@@ -58,7 +58,6 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 	_, err := client.PatchSyncManifest("project", source, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, client.SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly))
-	require.NoError(t, client.PostSyncReport("project", source, []SyncReportResource{{ID: ids[0]}}))
 	writes := []string{
 		"POST /api/v2/projects/project/ai-configs/support/variations",
 		"PATCH /api/v2/projects/project/ai-configs/support/variations/helpful",
@@ -66,7 +65,6 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 		"PATCH /api/v2/projects/project/ai-tools/search",
 		"PATCH /api/v2/projects/project/configs/sync/manifests",
 		"PATCH /api/v2/projects/project/configs/sync/settings",
-		"POST /api/v2/projects/project/configs/sync/reports",
 	}
 	require.Len(t, recorder.headers, len(writes))
 	for _, write := range writes {

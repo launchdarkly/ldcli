@@ -43,7 +43,6 @@ type directAPI struct {
 	settingsPatches          []string
 	settingsPatchErr         *apiError
 	reports                  []string
-	reportErr                *apiError
 }
 
 type apiError struct {
@@ -91,7 +90,7 @@ func (api *directAPI) serveSettings(request apitest.Request) (int, []byte) {
 
 func (api *directAPI) serveReport(request apitest.Request) (int, []byte) {
 	api.reports = append(api.reports, string(request.Body))
-	return api.reportErr.respond()
+	return http.StatusNotFound, nil
 }
 
 type notFoundAPI struct{}
@@ -1211,7 +1210,7 @@ func TestPromptMarksEachWriteWithSyncSource(t *testing.T) {
 		writes++
 		assert.Equal(t, []string{"git:example/repo"}, source, request)
 	}
-	assert.Equal(t, 3, writes, "sync updates the variation and the manifest, and sends the report")
+	assert.Equal(t, 2, writes, "sync updates the variation and the manifest")
 }
 
 type ambiguousWriteAPI struct {
@@ -1587,8 +1586,7 @@ func requireOnlyReads(t *testing.T, requests []string) {
 		require.True(
 			t,
 			strings.HasPrefix(request, "GET ") ||
-				(strings.HasPrefix(request, "PATCH ") && strings.HasSuffix(request, "/configs/sync/manifests")) ||
-				(strings.HasPrefix(request, "POST ") && strings.HasSuffix(request, "/configs/sync/reports")),
+				(strings.HasPrefix(request, "PATCH ") && strings.HasSuffix(request, "/configs/sync/manifests")),
 			request,
 		)
 	}

@@ -14,7 +14,7 @@ import (
 //  2. Ask the user to resolve each conflict.
 //  3. Show the plan and ask the user to apply it.
 //  4. Read the state again, and stop if it changed after the review.
-//  5. Apply the plan, record the new baseline, and report the results.
+//  5. Apply the plan and record the new baseline.
 //
 // In watch mode, watcher is not nil. A file change during the review returns
 // errRefreshWatchPlan, so that the watch loop builds a new plan.
@@ -61,8 +61,6 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 	if !proceed {
 		if !resolved.HasChanges() {
-			// The report of an in-sync run tells LaunchDarkly that the repository still matches.
-			workspace.sendSyncReports(options.ErrorOutput, inSyncOutcomes(resolved))
 			return cleanupOrphanedAttachments(options, workspace.local, interactive)
 		}
 		return nil
@@ -111,8 +109,6 @@ func (runner Runner) applyPlan(
 	if _, err := workspace.baselines.Save(current.baseline, next); err != nil {
 		failures = append(failures, err)
 	}
-	// Send the report also after a failed write, so that LaunchDarkly shows the failure.
-	workspace.sendSyncReports(options.ErrorOutput, outcomes)
 	if err := workspace.local.RemoveEmptyDirectories(); err != nil {
 		failures = append(failures, err)
 	}
