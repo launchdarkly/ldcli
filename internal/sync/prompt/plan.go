@@ -87,6 +87,23 @@ func (resource PlannedResource) hasServer() bool {
 	return resource.Server != nil || resource.ServerAttachment != nil
 }
 
+// writtenSides returns the variation that a variation row writes, and the
+// variation that the write replaces. A push writes the local variation to
+// LaunchDarkly, and a pull writes the LaunchDarkly variation to the local
+// file. Both are nil for a row that writes no variation.
+func (resource PlannedResource) writtenSides() (source, target *syncdomain.Variation) {
+	switch {
+	case resource.ID.Kind != syncdomain.KindVariation:
+		return nil, nil
+	case resource.Action.changesServer():
+		return resource.Local, resource.Server
+	case resource.Action == ActionUpdateLocal:
+		return resource.Server, resource.Local
+	default:
+		return nil, nil
+	}
+}
+
 // Plan is the sync decision for each resource, in identity order.
 type Plan struct {
 	Resources []PlannedResource

@@ -83,10 +83,15 @@ func loadWorkspacePlan(
 			return Plan{}, nil, err
 		}
 		plan.Resources = append(plan.Resources, rows...)
-		slices.SortFunc(plan.Resources, func(left, right PlannedResource) int {
-			return syncdomain.CompareResourceIDs(left.ID, right.ID)
-		})
 	}
+	referenced, err := planReferencedAttachments(repositoryRoot, baseline.Lock, attachments, plan.Resources)
+	if err != nil {
+		return Plan{}, nil, err
+	}
+	plan.Resources = append(plan.Resources, referenced...)
+	slices.SortFunc(plan.Resources, func(left, right PlannedResource) int {
+		return syncdomain.CompareResourceIDs(left.ID, right.ID)
+	})
 
 	checkAttachmentBaselines(plan.Resources, baseline.Lock)
 	checkAttachmentDeletes(plan.Resources, variations)
@@ -180,6 +185,69 @@ func planAttachmentRows(
 	return planAttachments(tracked, local, server), nil
 }
 
+// planReferencedAttachments plans a row for each tool and skill that a
+// variation row writes to a side that does not use it yet, when the tool or
+// skill exists on both sides with different content. Without the row, the
+// variation row would write its own copy over the other side. The row decides
+// the content, and executePlan applies it before the variation rows.
+// checkAttachmentBaselines covers the tools and skills that both sides use.
+func planReferencedAttachments(
+	repositoryRoot string,
+	lock syncmanifest.Manifest,
+	attachments *attachmentCache,
+	resources []PlannedResource,
+) ([]PlannedResource, error) {
+	referenced := make(map[ResourceID]bool)
+	for _, resource := range resources {
+		for _, id := range newReferences(resource) {
+			referenced[id] = true
+		}
+	}
+	for _, resource := range resources {
+		delete(referenced, resource.ID)
+	}
+	if len(referenced) == 0 {
+		return nil, nil
+	}
+
+	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, func(id ResourceID) bool { return referenced[id] })
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(rows, func(row PlannedResource) bool {
+		return !row.hasLocal() || !row.hasServer() || row.LocalFingerprint == row.ServerFingerprint
+	}), nil
+}
+
+// newReferences returns each tool and skill that a variation row writes to a
+// side that does not use it yet. A conflict can write either side.
+func newReferences(resource PlannedResource) []ResourceID {
+	var ids []ResourceID
+	add := func(source, target *syncdomain.Variation) {
+		if source == nil {
+			return
+		}
+		for _, attachment := range source.Attachments {
+			if target == nil || !hasAttachment(*target, attachment) {
+				ids = append(ids, attachment.ID(resource.ID.ProjectKey))
+			}
+		}
+	}
+	if resource.ID.Kind == syncdomain.KindVariation && resource.Action == ActionConflict {
+		add(resource.Local, resource.Server)
+		add(resource.Server, resource.Local)
+	} else {
+		add(resource.writtenSides())
+	}
+	return ids
+}
+
+// hasAttachment reports whether a variation uses the tool or skill of attachment.
+func hasAttachment(variation syncdomain.Variation, attachment syncdomain.Attachment) bool {
+	_, ok := variation.Attachment(attachment.Kind, attachment.Key())
+	return ok
+}
+
 // checkAttachmentBaselines makes sure that a variation row does not move a
 // tool or a skill past a change on the other side. sync.lock records the
 // state of each tool and skill on its own. A row becomes a conflict when the
@@ -193,18 +261,8 @@ func checkAttachmentBaselines(resources []PlannedResource, lock syncmanifest.Man
 
 	for index := range resources {
 		resource := &resources[index]
-		var source, target *syncdomain.Variation
-		switch {
-		case resource.ID.Kind != syncdomain.KindVariation:
-			continue
-		case resource.Action.changesServer():
-			source, target = resource.Local, resource.Server
-		case resource.Action == ActionUpdateLocal:
-			source, target = resource.Server, resource.Local
-		default:
-			continue
-		}
-		if target == nil {
+		source, target := resource.writtenSides()
+		if source == nil || target == nil {
 			continue
 		}
 		for _, id := range resource.changedAttachments {

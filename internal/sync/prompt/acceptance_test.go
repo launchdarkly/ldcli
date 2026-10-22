@@ -682,6 +682,152 @@ func TestPromptUpdateResolvesOmittedModelConfigVersionToLatest(t *testing.T) {
 	requireOnlyReads(t, api.requests)
 }
 
+// A push of a variation that newly attaches a tracked tool must not publish
+// the local copy over a change in LaunchDarkly. The plan pulls the tool, and
+// the variation pins the pulled version.
+func TestPromptPushOfANewToolReferenceKeepsTheLaunchDarklyChange(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeManifest(t, root, baseline)
+	trackTool(t, root, searchTool("old"))
+	local := baseline
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{toolAttachment(searchTool("old"), 0)}
+	writeVariation(t, root, local, true)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{"search": {Tool: searchTool("new"), Version: 2}}}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tool search update_local", "variation support/default update_server"}, planRows(t, stdout))
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Zero(t, countRequests(api.requests, "PATCH", "/ai-tools/search"), "the push must not publish the old local copy")
+	assert.Equal(t, "new", *api.tools["search"].Description)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 2}}, api.variation.Tools)
+	assert.Contains(t, readLocalFile(t, root, "tools/search.json"), `"description": "new"`)
+}
+
+// A pull of a variation that newly references a tracked tool must not write
+// the LaunchDarkly copy over a local edit. The plan pushes the tool, and the
+// file keeps the edit. The next sync only repins the variation.
+func TestPromptPullOfANewToolReferenceKeepsTheLocalEdit(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	trackTool(t, root, searchTool("old"))
+	writeLocalFile(t, root, "tools/search.json",
+		`{"formatVersion": 1, "key": "search", "description": "edited", "schema": {"type": "object"}}`)
+	server := baseline
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	api := &directAPI{variation: &server, tools: map[string]versionedTool{"search": {Tool: searchTool("old"), Version: 1}}}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tool search update_server", "variation support/default update_local"}, planRows(t, stdout))
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Contains(t, readLocalFile(t, root, "tools/search.json"), `"description": "edited"`, "the local edit stays")
+	assert.Equal(t, "edited", *api.tools["search"].Description)
+	assert.Equal(t, 2, api.tools["search"].Version)
+	stdout, _, err = runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default update_server"}, planRows(t, stdout))
+	assert.Contains(t, stdout, `"attachment versions"`, "the variation only repins the tool")
+}
+
+// The same holds for a skill.
+func TestPromptPullOfANewSkillReferenceKeepsTheLocalEdit(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	summarize := syncdomain.Skill{Key: "summarize", Name: "Summarize", Description: "Summarize", Markdown: "Old.\n"}
+	trackAttachment(t, root, syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Version: 1, Skill: &summarize})
+	writeLocalFile(t, root, "skills/summarize.md", "---\nkey: summarize\ndescription: Summarize\n---\n\nEdited.\n")
+	server := baseline
+	server.Skills = []syncdomain.AttachmentRef{{Key: "summarize", Version: 1}}
+	api := &directAPI{variation: &server, skills: map[string]versionedSkill{"summarize": {Skill: summarize, Version: 1}}}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Contains(t, readLocalFile(t, root, "skills/summarize.md"), "Edited.", "the local edit stays")
+	assert.Equal(t, "Edited.\n", api.skills["summarize"].Markdown)
+}
+
+// When both sides of a newly referenced tool changed, the tool row is a
+// conflict, and one choice covers the tool and the variation.
+func TestPromptNewToolReferenceWithTwoChangesIsAConflict(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeManifest(t, root, baseline)
+	trackTool(t, root, searchTool("old"))
+	local := baseline
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{toolAttachment(searchTool("edited"), 0)}
+	writeVariation(t, root, local, true)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{"search": {Tool: searchTool("new"), Version: 2}}}
+
+	_, stderr, err := runPrompt(t, root, api, "--yes", "--no-input")
+
+	require.ErrorContains(t, err, "conflict resolution requires --conflict or --resolve without interactive input")
+	assert.Contains(t, stderr, "Conflict: tool production/search changed on both sides. "+
+		"It shares a changed tool or skill with variation production/support/default, so one choice covers them all.")
+	requireOnlyReads(t, api.requests)
+}
+
+// A newly referenced tool whose two sides are equal cannot be overwritten, so
+// the plan has no row for it.
+func TestPromptNewToolReferenceWithEqualSidesPlansNoToolRow(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeManifest(t, root, baseline)
+	trackTool(t, root, searchTool("same"))
+	local := baseline
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{toolAttachment(searchTool("same"), 0)}
+	writeVariation(t, root, local, true)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{"search": {Tool: searchTool("same"), Version: 1}}}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default update_server"}, planRows(t, stdout))
+}
+
+func searchTool(description string) syncdomain.Tool {
+	return syncdomain.Tool{Key: "search", Description: pointer(description), Schema: map[string]any{"type": "object"}}
+}
+
+// trackTool records the tool in sync.lock and in the remote manifest, as a
+// sync that synced it does.
+func trackTool(t *testing.T, root string, tool syncdomain.Tool) {
+	t.Helper()
+	trackAttachment(t, root, toolAttachment(tool, 1))
+}
+
+func trackAttachment(t *testing.T, root string, attachment syncdomain.Attachment) {
+	t.Helper()
+	lock := readLock(t, root)
+	require.NoError(t, lock.SetAttachments("production", []syncdomain.Attachment{attachment}))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	fingerprint, err := syncdomain.FingerprintAttachment("production", attachment)
+	require.NoError(t, err)
+	manifestsByRoot[root].Items = append(manifestsByRoot[root].Items, syncapi.SyncManifestResource{
+		ResourceKind: syncdomain.Kind(attachment.Kind), ResourceLookupKey: attachment.Key(), Fingerprint: fingerprint, Version: 1,
+	})
+}
+
+func readLocalFile(t *testing.T, root, projectPath string) string {
+	t.Helper()
+	return string(must(os.ReadFile(filepath.Join(root, syncdomain.RootDir, "production", filepath.FromSlash(projectPath)))))
+}
+
 func TestPromptPushesLocalChangeAndAdvancesManifest(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
