@@ -222,10 +222,16 @@ func renderAttachment(attachment syncdomain.Attachment) ([]byte, error) {
 		}
 		return renderToolFile(toolFile{FormatVersion: toolFormatVersion, Upsert: attachment.Upsert, Tool: *attachment.Tool})
 	case attachment.Kind == syncdomain.AttachmentSkill && attachment.Skill != nil:
-		// LaunchDarkly owns the name of a skill, so the file does not get it.
-		// A pull keeps the name of an existing file.
+		// LaunchDarkly owns the name of a skill, so a file from LaunchDarkly
+		// does not get it, and a pull keeps the name of an existing file. A
+		// file with upsert can still create the skill, so it keeps the name
+		// that the create sends.
 		skill := *attachment.Skill
-		return renderSkillFile(skillFrontMatter{Key: skill.Key, Description: &skill.Description, Upsert: attachment.Upsert}, skill.Markdown)
+		metadata := skillFrontMatter{Key: skill.Key, Description: &skill.Description, Upsert: attachment.Upsert}
+		if attachment.Upsert {
+			metadata.Name = skill.Name
+		}
+		return renderSkillFile(metadata, skill.Markdown)
 	default:
 		return nil, fmt.Errorf("%s %q has no content", attachment.Kind, attachment.Key())
 	}

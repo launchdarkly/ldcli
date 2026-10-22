@@ -261,10 +261,10 @@ func applyAttachmentChange(
 	case ActionCreateServer, ActionUpdateServer:
 		// A create row exists only with upsert, or after the user chose the
 		// local side of a conflict in which LaunchDarkly has no copy. Both
-		// allow the create.
+		// allow the create, but not the update of a copy that appears later.
 		local := *resource.LocalAttachment
 		local.Upsert = local.Upsert || resource.Action == ActionCreateServer
-		published, err := attachments.resolve(resource.ID.ProjectKey, local)
+		published, err := attachments.resolve(resource.ID.ProjectKey, local, resource.Action == ActionCreateServer)
 		return published.Version, err
 	case ActionUpdateLocal:
 		server := syncdomain.SyncedAttachment{ProjectKey: resource.ID.ProjectKey, Attachment: *resource.ServerAttachment}

@@ -72,7 +72,8 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	if err := checkUnchanged(options, reviewed, current); err != nil {
 		return err
 	}
-	return runner.applyPlan(options, workspace, client, current, conflicts.resolutions)
+	_, err = runner.applyPlan(options, workspace, client, current, conflicts.resolutions)
+	return err
 }
 
 // checkUnchanged returns an error if the state changed after the review.
@@ -90,14 +91,14 @@ func checkUnchanged(options Options, reviewed, current workspaceState) error {
 }
 
 // applyPlan applies the conflict choices to the current plan, executes it,
-// and records the new baseline.
+// records the new baseline, and returns the outcome of each row.
 func (runner Runner) applyPlan(
 	options Options,
 	workspace syncWorkspace,
 	client syncapi.Client,
 	current workspaceState,
 	resolutions map[syncdomain.ResourceID]ConflictResolution,
-) error {
+) ([]ResourceOutcome, error) {
 	plan := applyConflictResolutions(current.plan, resolutions)
 	outcomes, next, err := executePlan(workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles)
 
@@ -112,5 +113,5 @@ func (runner Runner) applyPlan(
 		failures = append(failures, err)
 	}
 	writeRepinNotes(options.ErrorOutput, plan, outcomes)
-	return errors.Join(failures...)
+	return outcomes, errors.Join(failures...)
 }

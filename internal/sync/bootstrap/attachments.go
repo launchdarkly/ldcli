@@ -75,24 +75,8 @@ func promptForAttachment(options Options) ([]syncdomain.ResourceID, bool, error)
 // selection that this repository already syncs, or that LaunchDarkly does not
 // have, is an error. The local checks come first, so they need no read.
 func readNewAttachments(options Options, selections []syncdomain.ResourceID) ([]syncdomain.SyncedAttachment, error) {
-	lock, err := syncmanifest.ReadLock(options.Store)
-	if err != nil {
+	if err := CheckNotSynced(options.Store, selections); err != nil {
 		return nil, err
-	}
-	for _, id := range selections {
-		exists, err := options.Store.AttachmentExists(id)
-		switch {
-		case err != nil:
-			return nil, err
-		case exists:
-			path, err := synclocal.AttachmentPath(id)
-			if err != nil {
-				return nil, err
-			}
-			return nil, fmt.Errorf("%s is already synced. Edit %s and run ldcli sync %ss.", id.Label(), path, id.Kind)
-		case slices.ContainsFunc(lock.Resources, func(resource syncmanifest.Resource) bool { return resource.ID() == id }):
-			return nil, fmt.Errorf("%s has a sync.lock entry but no local file. Run ldcli sync %ss to restore it.", id.Label(), id.Kind)
-		}
 	}
 
 	attachments := make([]syncdomain.SyncedAttachment, 0, len(selections))
@@ -107,6 +91,32 @@ func readNewAttachments(options Options, selections []syncdomain.ResourceID) ([]
 		attachments = append(attachments, syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
 	}
 	return attachments, nil
+}
+
+// CheckNotSynced returns an error for a tool or skill that this repository
+// already syncs, because it has a local file or a sync.lock entry. It reads
+// only local files.
+func CheckNotSynced(store synclocal.Store, ids []syncdomain.ResourceID) error {
+	lock, err := syncmanifest.ReadLock(store)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		exists, err := store.AttachmentExists(id)
+		switch {
+		case err != nil:
+			return err
+		case exists:
+			path, err := synclocal.AttachmentPath(id)
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("%s is already synced. Edit %s and run ldcli sync %ss or ldcli sync all.", id.Label(), path, id.Kind)
+		case slices.ContainsFunc(lock.Resources, func(resource syncmanifest.Resource) bool { return resource.ID() == id }):
+			return fmt.Errorf("%s has a sync.lock entry but no local file. Run ldcli sync %ss or ldcli sync all to restore it.", id.Label(), id.Kind)
+		}
+	}
+	return nil
 }
 
 // writeAttachments writes the files and records their baseline. If the

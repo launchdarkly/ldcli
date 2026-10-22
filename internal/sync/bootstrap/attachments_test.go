@@ -65,11 +65,11 @@ func TestRunRefusesAToolBeforeAnyWrite(t *testing.T) {
 		"missing in LaunchDarkly": {want: "tool project/search does not exist in LaunchDarkly."},
 		"already synced": {
 			local: true, launchDarkly: []syncdomain.Attachment{search},
-			want: "tool project/search is already synced. Edit .launchdarkly/project/tools/search.json and run ldcli sync tools.",
+			want: "tool project/search is already synced. Edit .launchdarkly/project/tools/search.json and run ldcli sync tools or ldcli sync all.",
 		},
 		"lock entry without a file": {
 			tracked: true, launchDarkly: []syncdomain.Attachment{search},
-			want: "tool project/search has a sync.lock entry but no local file. Run ldcli sync tools to restore it.",
+			want: "tool project/search has a sync.lock entry but no local file. Run ldcli sync tools or ldcli sync all to restore it.",
 		},
 	}
 

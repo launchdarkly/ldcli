@@ -327,7 +327,7 @@ func TestPublishReadsAgainAfterACreateConflict(t *testing.T) {
 			transport := &createConflictAPI{remote: test.remote}
 			client := syncapi.NewClient(transport, "token", "https://example.com")
 
-			published, err := newAttachmentResolver(client).resolve("project", local)
+			published, err := newAttachmentResolver(client).resolve("project", local, true)
 
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
@@ -345,7 +345,7 @@ func TestPublishCreatesASkillOnlyWithUpsert(t *testing.T) {
 	skill := syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{Key: "handoff", Markdown: "# Handoff\n"}}
 	client := syncapi.NewClient(&createConflictAPI{}, "token", "https://example.com")
 
-	_, err := newAttachmentResolver(client).resolve("project", skill)
+	_, err := newAttachmentResolver(client).resolve("project", skill, false)
 
 	require.EqualError(t, err, `skill "handoff" does not exist in LaunchDarkly; add upsert: true to its front matter to create it during sync`)
 }
