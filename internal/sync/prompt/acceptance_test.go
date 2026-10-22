@@ -41,6 +41,13 @@ type directAPI struct {
 	// expandTools makes each read of the variation add the content of its
 	// tools to model.parameters.tools, as LaunchDarkly does.
 	expandTools bool
+	// createErr fails each create of a tool or a skill after onCreate runs.
+	// onCreate can add the resource, as another working copy does.
+	createErr error
+	onCreate  func()
+	// onRequest runs before each request, so that it can change LaunchDarkly
+	// between two reads, as another working copy does.
+	onRequest func(method, path string)
 }
 
 type notFoundAPI struct{}
@@ -83,8 +90,18 @@ func (api *directAPI) MakeRequest(
 	_ bool,
 ) ([]byte, error) {
 	api.requests = append(api.requests, method+" "+path)
+	if api.onRequest != nil {
+		api.onRequest(method, path)
+	}
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		return handleManifestRequest(api.manifest, method, query, body)
+	}
+	isCreate := method == http.MethodPost && (strings.HasSuffix(path, "/ai-tools") || strings.HasSuffix(path, "/ai-configs/skills"))
+	if isCreate && api.createErr != nil {
+		if api.onCreate != nil {
+			api.onCreate()
+		}
+		return nil, api.createErr
 	}
 	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodPost {
 		var tool versionedTool
@@ -2057,15 +2074,22 @@ func runSyncAction(
 // the JSON output and the notes. A question fails the run.
 func runScoped(t *testing.T, root string, api *directAPI, options syncprompt.Options) (string, string, error) {
 	t.Helper()
+	options.NoInput, options.Input = true, failingReader{}
+	return runWith(t, root, api, syncprompt.NewRunner(api), options)
+}
+
+// runWith runs options through runner with JSON output, and returns the
+// output and the notes.
+func runWith(t *testing.T, root string, api *directAPI, runner syncprompt.Runner, options syncprompt.Options) (string, string, error) {
+	t.Helper()
 	if manifestsByRoot[root] == nil {
 		manifestsByRoot[root] = &syncapi.SyncManifest{Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
 	}
 	api.manifest = manifestsByRoot[root]
 	var output, notes bytes.Buffer
 	options.WorkingDirectory, options.AccessToken, options.BaseURI = root, "token", "https://example.test"
-	options.OutputKind, options.NoInput, options.Input = "json", true, failingReader{}
-	options.Output, options.ErrorOutput = &output, &notes
-	err := syncprompt.NewRunner(api).Run(options)
+	options.OutputKind, options.Output, options.ErrorOutput = "json", &output, &notes
+	err := runner.Run(options)
 	return output.String(), notes.String(), err
 }
 

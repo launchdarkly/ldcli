@@ -146,6 +146,9 @@ func (runner Runner) runSync(options Options, workspace syncWorkspace, action Sy
 }
 
 func (runner Runner) runAdd(options Options, workspace syncWorkspace, action AddAction) error {
+	if action.Create != nil {
+		return runner.runCreate(options, workspace, action)
+	}
 	exists, err := workspace.local.Exists()
 	if err != nil {
 		return err

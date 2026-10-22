@@ -7,6 +7,7 @@ import (
 	"io"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	synccreate "github.com/launchdarkly/ldcli/internal/sync/create"
 	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
@@ -31,6 +32,10 @@ type AddAction struct {
 	Resources []syncdomain.ResourceID
 	Filter    syncdomain.Filter
 	DryRun    bool
+	// Create is the content of one tool or skill that add creates when
+	// LaunchDarkly does not have it. A nil Create adds only resources that
+	// LaunchDarkly has.
+	Create *synccreate.Input
 }
 
 // AttachAction adds a tool or a skill to a local variation, and then syncs.
@@ -68,7 +73,20 @@ func (action SyncAction) validate(scope syncdomain.Scope) error {
 }
 
 func (action AddAction) validate(scope syncdomain.Scope) error {
-	return validateSelections(action.Resources, action.Filter, scope.KeyKind())
+	kind := scope.KeyKind()
+	if err := validateSelections(action.Resources, action.Filter, kind); err != nil {
+		return err
+	}
+	if action.Create == nil {
+		return nil
+	}
+	if !syncdomain.AttachmentKind(kind).Valid() {
+		return errors.New("add creates only tools and skills")
+	}
+	if len(selections(action.Resources, action.Filter, kind)) > 1 {
+		return fmt.Errorf("add creates one %s at a time. Pass at most one --key.", kind)
+	}
+	return action.Create.Check(syncdomain.AttachmentKind(kind))
 }
 
 func (action DetachAction) validate(scope syncdomain.Scope) error {
