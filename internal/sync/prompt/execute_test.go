@@ -300,3 +300,105 @@ func (api *definitiveMutationAPI) MakeRequest(
 func (*definitiveMutationAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
 	return nil, nil
 }
+
+// Another working copy can create the same tool or skill first. A create that
+// gets a 409 reads the attachment again, and succeeds when LaunchDarkly has
+// the local content.
+func TestPublishReadsAgainAfterACreateConflict(t *testing.T) {
+	description := "Search the docs"
+	local := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Upsert: true, Tool: &syncdomain.Tool{
+		Key: "search", Description: &description, Schema: map[string]any{"type": "object"},
+	}}
+
+	tests := map[string]struct {
+		remote    string
+		wantError string
+	}{
+		"same content":      {remote: `{"key":"search","description":"Search the docs","schema":{"type":"object"},"version":1}`},
+		"different content": {remote: `{"key":"search","schema":{"type":"string"},"version":1}`, wantError: `tool "search" changed concurrently`},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			transport := &createConflictAPI{remote: test.remote}
+			client := syncapi.NewClient(transport, "token", "https://example.com")
+
+			published, err := newAttachmentResolver(client).resolve("project", local)
+
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+				require.ErrorContains(t, err, `"statusCode":409`)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, 1, published.Version)
+			assert.Equal(t, []string{"GET", "POST", "GET"}, transport.methods)
+		})
+	}
+}
+
+func TestPublishCreatesASkillOnlyWithUpsert(t *testing.T) {
+	skill := syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{Key: "handoff", Markdown: "# Handoff\n"}}
+	client := syncapi.NewClient(&createConflictAPI{}, "token", "https://example.com")
+
+	_, err := newAttachmentResolver(client).resolve("project", skill)
+
+	require.EqualError(t, err, `skill "handoff" does not exist in LaunchDarkly; add upsert: true to its front matter to create it during sync`)
+}
+
+func TestApplyServerChangeReadsAgainAfterAVariationCreateConflict(t *testing.T) {
+	local := testVariation("New")
+	resource := PlannedResource{ID: testResourceID(), Action: ActionCreateServer, Local: &local}
+	var err error
+	resource.LocalFingerprint, err = syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, local)
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		remote    syncdomain.Variation
+		wantError string
+	}{
+		"same content":      {remote: local},
+		"different content": {remote: testVariation("Other"), wantError: "server variation changed concurrently"},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			remote, err := json.Marshal(map[string]any{"key": "support", "mode": "agent", "variations": []syncdomain.Variation{test.remote}})
+			require.NoError(t, err)
+			client := syncapi.NewClient(&createConflictAPI{remote: string(remote)}, "token", "https://example.com")
+
+			err = applyServerChange(client, newAttachmentResolver(client), resource)
+
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+// createConflictAPI answers each create with a 409. A read returns remote
+// after the create, and a 404 before it.
+type createConflictAPI struct {
+	remote  string
+	created bool
+	methods []string
+}
+
+func (api *createConflictAPI) MakeRequest(_ string, method string, _ string, _ string, _ url.Values, _ []byte, _ bool) ([]byte, error) {
+	api.methods = append(api.methods, method)
+	switch {
+	case method == "POST":
+		api.created = true
+		return nil, errors.New(`{"code":"conflict","statusCode":409}`)
+	case api.created:
+		return []byte(api.remote), nil
+	default:
+		return nil, errors.New(`{"code":"not_found","statusCode":404}`)
+	}
+}
+
+func (*createConflictAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
+}

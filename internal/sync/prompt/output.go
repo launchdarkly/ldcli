@@ -316,6 +316,8 @@ func repinsOnly(resource PlannedResource) bool {
 // "instructions changed in LaunchDarkly".
 func planReason(resource PlannedResource) string {
 	switch {
+	case resource.Action == ActionCreateServer && resource.LocalAttachment != nil && resource.LocalAttachment.Skill != nil:
+		return fmt.Sprintf("new, name %q", resource.LocalAttachment.Skill.CreateName())
 	case resource.Action == ActionCreateServer:
 		return "new"
 	case repinsOnly(resource):

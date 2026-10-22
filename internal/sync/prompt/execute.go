@@ -157,8 +157,8 @@ func applyResourceChange(
 }
 
 // applyServerChange writes one variation to LaunchDarkly. If the write fails
-// without a response, it reads the variation to find whether the write
-// succeeded.
+// without a response, or a create gets a 409 because the variation exists
+// now, it reads the variation to find whether LaunchDarkly has the content.
 func applyServerChange(client syncapi.Client, attachments *attachmentResolver, resource PlannedResource) error {
 	configKey, variationKey, err := resource.ID.VariationKeys()
 	if err != nil {
@@ -183,7 +183,8 @@ func applyServerChange(client syncapi.Client, attachments *attachmentResolver, r
 	default:
 		return fmt.Errorf("action %q does not change LaunchDarkly", resource.Action)
 	}
-	if writeErr == nil || !syncapi.MutationMayHaveSucceeded(writeErr) {
+	createConflict := resource.Action == ActionCreateServer && syncapi.IsConflict(writeErr)
+	if writeErr == nil || !syncapi.MutationMayHaveSucceeded(writeErr) && !createConflict {
 		return writeErr
 	}
 

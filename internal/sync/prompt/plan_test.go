@@ -246,13 +246,24 @@ func TestPlanAttachmentThreeWayRules(t *testing.T) {
 	}
 }
 
+// LaunchDarkly owns the name of a skill, so a rename there is not a change.
+func TestPlanAttachmentIgnoresTheSkillName(t *testing.T) {
+	local, server := testAttachment(syncdomain.AttachmentSkill, "same"), testAttachment(syncdomain.AttachmentSkill, "same")
+	local.Skill.Name, server.Skill.Name = "Summarize", "Summarize a ticket"
+
+	resource := planAttachment(local.ID("production"), &local, &server, attachmentFingerprint(t, local), true)
+
+	assert.Equal(t, ActionInSync, resource.Action)
+	assert.Empty(t, resource.Diff)
+}
+
 func TestPlanAttachmentExplainsHowToCreateOrStopSyncing(t *testing.T) {
 	tool, skill := testAttachment(syncdomain.AttachmentTool, "local"), testAttachment(syncdomain.AttachmentSkill, "local")
 
 	assert.Equal(t, `tool "search" does not exist in LaunchDarkly. To create it during sync, add "upsert": true to its file. `+
 		"To stop syncing it, run ldcli sync tools detach --project production --key search.",
 		planAttachment(tool.ID("production"), &tool, nil, "", false).Error)
-	assert.Equal(t, `skill "summarize" does not exist in LaunchDarkly. `+
+	assert.Equal(t, `skill "summarize" does not exist in LaunchDarkly. To create it during sync, add upsert: true to its front matter. `+
 		"To stop syncing it, run ldcli sync skills detach --project production --key summarize.",
 		planAttachment(skill.ID("production"), &skill, nil, "", false).Error)
 }

@@ -249,7 +249,19 @@ func TestPlanReasonNamesTheChange(t *testing.T) {
 		resource PlannedResource
 		want     string
 	}{
-		"create":  {PlannedResource{Action: ActionCreateServer}, "new"},
+		"create": {PlannedResource{Action: ActionCreateServer}, "new"},
+		"create a skill with a name": {
+			PlannedResource{Action: ActionCreateServer, LocalAttachment: &syncdomain.Attachment{
+				Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{Key: "handoff", Name: "Human handoff"},
+			}},
+			`new, name "Human handoff"`,
+		},
+		"create a skill without a name": {
+			PlannedResource{Action: ActionCreateServer, LocalAttachment: &syncdomain.Attachment{
+				Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{Key: "incident-summary"},
+			}},
+			`new, name "Incident summary"`,
+		},
 		"restore": {PlannedResource{Action: ActionUpdateLocal}, "local file missing"},
 		"delete":  {PlannedResource{Action: ActionDeleteLocal}, "deleted in LaunchDarkly"},
 		"forget":  {PlannedResource{Action: ActionRemoveManifest}, "gone on both sides"},
