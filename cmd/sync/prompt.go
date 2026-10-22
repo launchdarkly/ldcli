@@ -156,7 +156,7 @@ func newAddCmd(client resources.Client) *cobra.Command {
 				return nil, err
 			}
 			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-			return syncprompt.AddAction{Variations: variations, Filter: targetFilter(cmd), DryRun: dryRun}, nil
+			return syncprompt.AddAction{Resources: variations, Filter: targetFilter(cmd), DryRun: dryRun}, nil
 		}),
 	}
 	addTargetFlags(cmd, questionFlagHelp)
