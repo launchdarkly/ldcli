@@ -90,12 +90,22 @@ func TestPlanAndOutcomeJSONIsStable(t *testing.T) {
 `, output.String())
 
 	output.Reset()
+	tool := ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}
 	require.NoError(t, writeOutcomeOutput(&output, "json", plan, []ResourceOutcome{
-		{ID: pushed, Action: ActionUpdateServer, Status: OutcomeSucceeded},
+		{ID: tool, Action: ActionUpdateServer, Status: OutcomeSucceeded, Version: 4},
+		{ID: pushed, Action: ActionUpdateServer, Status: OutcomeSucceeded, pins: []syncdomain.AttachmentRef{{Key: "search", Version: 4}}},
 		{ID: stale, Action: ActionUpdateLocal, Status: OutcomeFailed, Error: "write failed"},
 	}))
 	assert.Equal(t, `{
   "resources": [
+    {
+      "resourceKind": "tool",
+      "projectKey": "production",
+      "lookupKey": "search",
+      "action": "update_server",
+      "status": "succeeded",
+      "version": 4
+    },
     {
       "resourceKind": "variation",
       "projectKey": "production",
@@ -317,7 +327,10 @@ func TestWriteOutcomeOutputMirrorsThePlan(t *testing.T) {
 	plan := reviewTestPlan()
 	outcomes := []ResourceOutcome{
 		{ID: plan.Resources[0].ID, Action: ActionUpdateManifest, Status: OutcomeSucceeded},
-		{ID: plan.Resources[1].ID, Action: ActionUpdateServer, Status: OutcomeSucceeded},
+		{
+			ID: plan.Resources[1].ID, Action: ActionUpdateServer, Status: OutcomeSucceeded,
+			pins: []syncdomain.AttachmentRef{{Key: "search", Version: 4}, {Key: "summarize", Version: 2}},
+		},
 		{ID: plan.Resources[2].ID, Action: ActionUpdateLocal, Status: OutcomeFailed, Error: "write failed"},
 		{ID: plan.Resources[4].ID, Action: ActionInSync, Status: OutcomeSucceeded},
 	}
@@ -328,11 +341,12 @@ func TestWriteOutcomeOutputMirrorsThePlan(t *testing.T) {
 	assert.Equal(t, `Tools
   recorded   production/lookup            same as LaunchDarkly
 Prompts
-  pushed     production/support/default   instructions changed
+  pushed     production/support/default   pins search v4, summarize v2
 
 Failed: variation production/support/second: write failed
 2 applied, 1 failed. 1 in sync.
 `, output.String())
+	assert.Equal(t, "version 4", resultReason(PlannedResource{Action: ActionUpdateServer}, ResourceOutcome{Version: 4}))
 }
 
 func TestWritePlanDescribesMissingLaunchDarklyVariation(t *testing.T) {

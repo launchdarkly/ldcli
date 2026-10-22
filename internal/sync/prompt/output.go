@@ -38,6 +38,12 @@ type ResourceOutcome struct {
 	Action Action        `json:"action"`
 	Status OutcomeStatus `json:"status"`
 	Error  string        `json:"error,omitempty"`
+	// Version is the version that LaunchDarkly has after a write to a tool or
+	// a skill, or after a pull of one.
+	Version int `json:"version,omitempty"`
+	// pins are the tool and skill versions of a variation that sync wrote to
+	// LaunchDarkly.
+	pins []syncdomain.AttachmentRef
 }
 
 // resourceOutput is the identity of a resource in JSON output.
@@ -122,7 +128,7 @@ func writeOutcomeOutput(out io.Writer, outputKind string, plan Plan, outcomes []
 		default:
 			rows = append(rows, reviewRow{
 				kind:  outcome.ID.Kind,
-				cells: []string{actionWordFor(resource).result, outcome.ID.String(), planReason(resource)},
+				cells: []string{actionWordFor(resource).result, outcome.ID.String(), resultReason(resource, outcome)},
 			})
 		}
 	}
@@ -341,6 +347,23 @@ func planReason(resource PlannedResource) string {
 	default:
 		return ""
 	}
+}
+
+// resultReason gives the short reason of a result row. A write names the new
+// version of a tool or a skill, or the versions that a variation pins.
+// Otherwise the result has the reason of its plan row.
+func resultReason(resource PlannedResource, outcome ResourceOutcome) string {
+	if outcome.Version != 0 {
+		return fmt.Sprintf("version %d", outcome.Version)
+	}
+	if len(outcome.pins) == 0 {
+		return planReason(resource)
+	}
+	pins := make([]string, 0, len(outcome.pins))
+	for _, pin := range outcome.pins {
+		pins = append(pins, fmt.Sprintf("%s v%d", pin.Key, pin.Version))
+	}
+	return "pins " + strings.Join(pins, ", ")
 }
 
 // changedFieldsReason names the fields that the diff of a row changes, for

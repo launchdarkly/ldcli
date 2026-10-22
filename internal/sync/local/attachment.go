@@ -347,16 +347,13 @@ func (store Store) OrphanedAttachments() ([]OrphanedAttachment, error) {
 	return orphaned, nil
 }
 
-// DeleteAttachments deletes tool and skill files in one transaction.
-func (store Store) DeleteAttachments(attachments []OrphanedAttachment) ([]string, error) {
-	paths := make([]string, 0, len(attachments))
-	for _, attachment := range attachments {
-		relativePath, err := attachmentPath(attachment.ProjectKey, attachment.Kind, attachment.Key)
+// DeleteAttachments deletes the files of tools and skills in one transaction.
+func (store Store) DeleteAttachments(ids []syncdomain.ResourceID) ([]string, error) {
+	paths := make([]string, 0, len(ids))
+	for _, id := range ids {
+		relativePath, err := attachmentPath(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
 		if err != nil {
 			return nil, err
-		}
-		if relativePath != attachment.Path {
-			return nil, fmt.Errorf("attachment path %q does not match %q", attachment.Path, relativePath)
 		}
 		paths = append(paths, relativePath)
 	}

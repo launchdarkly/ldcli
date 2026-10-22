@@ -57,9 +57,12 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 // without a terminal, it keeps the files. Before it deletes a file, it makes
 // sure again that no variation uses the file. A filtered sync keeps every
 // file. A variation outside the filter can have a missing file that a full
-// sync restores, and then its tools and skills only look unused.
+// sync restores, and then its tools and skills only look unused. A sync that
+// plans tools or skills also keeps every file, because each file is a row of
+// its own.
 func cleanupOrphanedAttachments(options Options, store synclocal.Store, interactive bool) error {
-	if !options.syncAction().Filter.IsZero() {
+	action := options.syncAction()
+	if !action.Filter.IsZero() || action.Scope.Includes(syncdomain.KindTool) || action.Scope.Includes(syncdomain.KindSkill) {
 		return nil
 	}
 	orphaned, err := store.OrphanedAttachments()
@@ -112,7 +115,13 @@ func cleanupOrphanedAttachments(options Options, store synclocal.Store, interact
 		return nil
 	}
 
-	deleted, err := store.DeleteAttachments(orphaned)
+	ids := make([]syncdomain.ResourceID, 0, len(orphaned))
+	for _, attachment := range orphaned {
+		ids = append(ids, syncdomain.ResourceID{
+			Kind: syncdomain.Kind(attachment.Kind), ProjectKey: attachment.ProjectKey, LookupKey: attachment.Key,
+		})
+	}
+	deleted, err := store.DeleteAttachments(ids)
 	if err != nil {
 		return err
 	}

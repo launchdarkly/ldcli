@@ -573,7 +573,14 @@ func TestPromptDeletesUnreferencedLocalToolWithYes(t *testing.T) {
 	assert.Contains(t, api.tools, "search")
 	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "tools", "search.json"))
 	require.ErrorIs(t, err, os.ErrNotExist)
-	assertManifestFingerprint(t, root, detached)
+	// A sync keeps the row of a tool that no variation uses. Only a detach
+	// removes it.
+	searchFingerprint, err := syncdomain.FingerprintAttachment("production", toolAttachment(tool, 2))
+	require.NoError(t, err)
+	assert.Equal(t, []syncmanifest.Resource{
+		{ResourceKind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search", Fingerprint: searchFingerprint},
+		{ResourceKind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default", Fingerprint: fingerprint(t, detached)},
+	}, readLock(t, root).Resources)
 }
 
 func TestPromptUpdateResolvesOmittedModelConfigVersionToLatest(t *testing.T) {
@@ -1180,7 +1187,7 @@ func TestPromptPlansToolAndSkillRowsByScope(t *testing.T) {
 		t.Run(string(scope), func(t *testing.T) {
 			api.requests = nil
 
-			stdout, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: scope})
+			stdout, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: scope}, false)
 
 			require.NoError(t, err)
 			assert.Equal(t, want, planRows(t, stdout))
@@ -1197,7 +1204,7 @@ func TestPromptFiltersToolRowsBeforeAnyRead(t *testing.T) {
 	root, api := writeStandaloneAttachmentWorkspace(t)
 	filter := syncdomain.Filter{Project: "production", Keys: []string{"lookup"}}
 
-	stdout, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeTools, Filter: filter})
+	stdout, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeTools, Filter: filter}, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tool lookup update_manifest"}, planRows(t, stdout))
@@ -1221,10 +1228,93 @@ func TestPromptFiltersToolRowsBeforeAnyRead(t *testing.T) {
 		},
 	} {
 		api.requests = nil
-		_, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeTools, Filter: test.filter})
+		_, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeTools, Filter: test.filter}, false)
 		require.EqualError(t, err, test.want)
 		assert.Empty(t, api.requests)
 	}
+}
+
+func TestPromptSyncsStandaloneToolsAndSkills(t *testing.T) {
+	root, api := writeStandaloneAttachmentWorkspace(t)
+	writeLocalFile(t, root, "tools/search.json", `{"formatVersion": 1, "key": "search", "description": "Search", "schema": {"type": "object"}}`)
+	all := syncprompt.SyncAction{Scope: syncdomain.ScopeAll}
+
+	// One plan pushes the tool once, creates the new tool, records the rest,
+	// and then pins the new tool version in the variation.
+	stdout, err := runSyncAction(t, root, api, all, true)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, `"lookupKey": "search",
+      "action": "update_server",
+      "status": "succeeded",
+      "version": 2`)
+	assert.Equal(t, 1, countRequests(api.requests, "PATCH", "/ai-tools/search"))
+	assert.Equal(t, 1, countRequests(api.requests, "POST", "/ai-tools"))
+	assert.Equal(t, 1, countRequests(api.requests, "PATCH", "/configs/sync/manifests"))
+	assert.Less(t, slices.Index(api.requests, "PATCH https://example.test/api/v2/projects/production/ai-tools/search"),
+		slices.Index(api.requests, "PATCH https://example.test/api/v2/projects/production/ai-configs/support/variations/default"))
+	assert.Equal(t, 1, api.tools["refund"].Version)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 2}}, api.variation.Tools)
+	assert.Len(t, readLock(t, root).Resources, 6, "the lock keeps every tool and skill, also the ones that no variation uses")
+
+	api.requests = nil
+	stdout, err = runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeAll}, false)
+	require.NoError(t, err)
+	for _, row := range planRows(t, stdout) {
+		assert.True(t, strings.HasSuffix(row, " in_sync"), row)
+	}
+
+	// A change in LaunchDarkly pulls into the standalone file.
+	lookup := api.tools["lookup"]
+	lookup.Description = pointer("Look up an order")
+	lookup.Version++
+	api.tools["lookup"] = lookup
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeTools}, true)
+	require.NoError(t, err)
+	content, err := os.ReadFile(filepath.Join(root, syncdomain.RootDir, "production", "tools", "lookup.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "Look up an order")
+
+	// A hand-written skill file with upsert creates the skill.
+	writeLocalFile(t, root, "skills/handoff.md", "---\nkey: handoff\ndescription: Hand off\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n")
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeSkills}, true)
+	require.NoError(t, err)
+	assert.Equal(t, "Human handoff", api.skills["handoff"].Name)
+
+	// LaunchDarkly owns the skill name after the create. A rename there is not
+	// a change, and a push of a local edit does not send the local name.
+	handoff := api.skills["handoff"]
+	handoff.Name = "Renamed in LaunchDarkly"
+	api.skills["handoff"] = handoff
+	stdout, err = runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeSkills}, false)
+	require.NoError(t, err)
+	assert.Contains(t, planRows(t, stdout), "skill handoff in_sync", "a rename in LaunchDarkly is not a change")
+	writeLocalFile(t, root, "skills/handoff.md",
+		"---\nkey: handoff\ndescription: Hand off to a person\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n")
+	api.requests = nil
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeSkills}, true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, countRequests(api.requests, "PATCH", "/ai-configs/skills/handoff"))
+	assert.Equal(t, "Hand off to a person", api.skills["handoff"].Description)
+	assert.Equal(t, "Renamed in LaunchDarkly", api.skills["handoff"].Name, "the push must not send the local name")
+	content, err = os.ReadFile(filepath.Join(root, syncdomain.RootDir, "production", "skills", "handoff.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "name: Human handoff\n", "the file keeps its local name")
+	assert.Contains(t, string(content), "upsert: true\n")
+
+	// A deletion in LaunchDarkly deletes the standalone file and its baseline.
+	delete(api.tools, "lookup")
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeTools}, true)
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir, "production", "tools", "lookup.json"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	assert.NotContains(t, string(must(os.ReadFile(filepath.Join(root, syncdomain.RootDir, "sync.lock")))), "key: lookup")
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
 
 // writeStandaloneAttachmentWorkspace syncs a variation that uses the tool
@@ -1266,13 +1356,15 @@ func writeStandaloneAttachmentWorkspace(t *testing.T) (string, *directAPI) {
 	}
 }
 
-func runSyncAction(t *testing.T, root string, api *directAPI, action syncprompt.SyncAction) (string, error) {
+// runSyncAction runs one sync through Runner.Run, because no command selects
+// a scope yet. It returns the JSON output.
+func runSyncAction(t *testing.T, root string, api *directAPI, action syncprompt.SyncAction, yes bool) (string, error) {
 	t.Helper()
 	api.manifest = manifestsByRoot[root]
 	var output bytes.Buffer
 	err := syncprompt.NewRunner(api).Run(syncprompt.Options{
 		WorkingDirectory: root, AccessToken: "token", BaseURI: "https://example.test", OutputKind: "json",
-		Action: action, Input: strings.NewReader(""), Output: &output, ErrorOutput: io.Discard,
+		Action: action, Yes: yes, Input: strings.NewReader(""), Output: &output, ErrorOutput: io.Discard,
 	})
 	return output.String(), err
 }
