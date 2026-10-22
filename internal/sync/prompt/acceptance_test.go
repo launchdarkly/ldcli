@@ -1,9 +1,11 @@
 package prompt_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,6 +26,7 @@ import (
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
+	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
@@ -112,7 +115,7 @@ func (api *directAPI) MakeRequest(
 		key := path[strings.LastIndex(path, "/")+1:]
 		skill, ok := api.skills[key]
 		if !ok {
-			return nil, fmt.Errorf("skill not found")
+			return nil, fmt.Errorf(`{"code":"not_found","message":"skill not found","statusCode":404}`)
 		}
 		if method == "PATCH" {
 			if err := json.Unmarshal(body, &skill.Skill); err != nil {
@@ -1121,6 +1124,153 @@ func readLock(t *testing.T, root string) syncmanifest.Manifest {
 	lock, err := syncmanifest.ReadLock(synclocal.NewStore(root))
 	require.NoError(t, err)
 	return lock
+}
+
+func TestPromptPlansToolAndSkillRowsByScope(t *testing.T) {
+	root, api := writeStandaloneAttachmentWorkspace(t)
+	tools := []string{"tool lookup update_manifest", "tool refund create_server", "tool search in_sync"}
+	skills := []string{"skill summarize in_sync", "skill triage update_manifest"}
+	variations := []string{"variation support/default in_sync"}
+
+	for scope, want := range map[syncdomain.Scope][]string{
+		syncdomain.ScopePrompts: variations,
+		syncdomain.ScopeTools:   tools,
+		syncdomain.ScopeSkills:  skills,
+		syncdomain.ScopeAll:     slices.Concat(skills, tools, variations),
+	} {
+		t.Run(string(scope), func(t *testing.T) {
+			api.requests = nil
+
+			stdout, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: scope})
+
+			require.NoError(t, err)
+			assert.Equal(t, want, planRows(t, stdout))
+			requireOnlyReads(t, api.requests)
+			if scope == syncdomain.ScopeAll {
+				assert.Equal(t, 1, countRequests(api.requests, "GET", "/ai-tools/search"),
+					"the tool row and the variation share one read")
+			}
+		})
+	}
+}
+
+func TestPromptFiltersToolRowsBeforeAnyRead(t *testing.T) {
+	root, api := writeStandaloneAttachmentWorkspace(t)
+	filter := syncdomain.Filter{Project: "production", Keys: []string{"lookup"}}
+
+	stdout, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeTools, Filter: filter})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tool lookup update_manifest"}, planRows(t, stdout))
+	assert.Equal(t, []string{
+		"GET https://example.test/api/v2/projects/production/configs/sync/manifests",
+		"GET https://example.test/api/v2/projects/production/ai-tools/lookup",
+	}, api.requests)
+
+	for _, test := range []struct {
+		filter syncdomain.Filter
+		want   string
+	}{
+		{
+			syncdomain.Filter{Project: "production", Keys: []string{"serch"}},
+			"tool production/serch is not synced in this repository. " +
+				"To start syncing it, run ldcli sync tools add --project production --key serch.",
+		},
+		{
+			syncdomain.Filter{Project: "demo"},
+			`project "demo" has no synced resources in this repository. To start, run ldcli sync tools add --project demo.`,
+		},
+	} {
+		api.requests = nil
+		_, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeTools, Filter: test.filter})
+		require.EqualError(t, err, test.want)
+		assert.Empty(t, api.requests)
+	}
+}
+
+// writeStandaloneAttachmentWorkspace syncs a variation that uses the tool
+// "search" and the skill "summarize". It also writes three tool and skill
+// files that no variation uses: "lookup" and "triage", which LaunchDarkly
+// has, and "refund", which LaunchDarkly does not have and which has upsert.
+func writeStandaloneAttachmentWorkspace(t *testing.T) (string, *directAPI) {
+	t.Helper()
+	root := initRepository(t)
+	search := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+	summarize := syncdomain.Skill{Key: "summarize", Description: "Summarize a ticket", Markdown: "Write three bullet points.\n"}
+	used := variation("Baseline")
+	used.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	used.Skills = []syncdomain.AttachmentRef{{Key: "summarize"}}
+	used.Attachments = []syncdomain.Attachment{
+		toolAttachment(search, 0), {Kind: syncdomain.AttachmentSkill, Skill: &summarize},
+	}
+	writeVariation(t, root, used, true)
+	writeManifest(t, root, used)
+
+	lookup := syncdomain.Tool{Key: "lookup", Schema: map[string]any{"type": "object"}}
+	triage := syncdomain.Skill{Key: "triage", Name: "Triage", Description: "Triage a ticket", Markdown: "Pick a queue.\n"}
+	writeLocalFile(t, root, "tools/lookup.json", `{"formatVersion": 1, "key": "lookup", "schema": {"type": "object"}}`)
+	writeLocalFile(t, root, "tools/refund.json", `{"formatVersion": 1, "upsert": true, "key": "refund", "schema": {"type": "object"}}`)
+	writeLocalFile(t, root, "skills/triage.md", "---\nkey: triage\ndescription: Triage a ticket\n---\n\nPick a queue.\n")
+
+	server := used
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Skills = []syncdomain.AttachmentRef{{Key: "summarize", Version: 1}}
+	server.Attachments = nil
+	summarizeInLaunchDarkly := summarize
+	summarizeInLaunchDarkly.Name = "Summarize"
+	return root, &directAPI{
+		variation: &server,
+		tools:     map[string]versionedTool{"search": {Tool: search, Version: 1}, "lookup": {Tool: lookup, Version: 2}},
+		skills: map[string]versionedSkill{
+			"summarize": {Skill: summarizeInLaunchDarkly, Version: 1}, "triage": {Skill: triage, Version: 3},
+		},
+	}
+}
+
+func runSyncAction(t *testing.T, root string, api *directAPI, action syncprompt.SyncAction) (string, error) {
+	t.Helper()
+	api.manifest = manifestsByRoot[root]
+	var output bytes.Buffer
+	err := syncprompt.NewRunner(api).Run(syncprompt.Options{
+		WorkingDirectory: root, AccessToken: "token", BaseURI: "https://example.test", OutputKind: "json",
+		Action: action, Input: strings.NewReader(""), Output: &output, ErrorOutput: io.Discard,
+	})
+	return output.String(), err
+}
+
+// planRows returns "kind lookup-key action" for each row of a JSON plan.
+func planRows(t *testing.T, plan string) []string {
+	t.Helper()
+	var output struct {
+		Resources []struct {
+			ResourceKind string `json:"resourceKind"`
+			LookupKey    string `json:"lookupKey"`
+			Action       string `json:"action"`
+		} `json:"resources"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(plan), &output))
+	rows := make([]string, 0, len(output.Resources))
+	for _, resource := range output.Resources {
+		rows = append(rows, resource.ResourceKind+" "+resource.LookupKey+" "+resource.Action)
+	}
+	return rows
+}
+
+func countRequests(requests []string, method, pathSuffix string) int {
+	count := 0
+	for _, request := range requests {
+		if strings.HasPrefix(request, method+" ") && strings.HasSuffix(request, pathSuffix) {
+			count++
+		}
+	}
+	return count
+}
+
+func writeLocalFile(t *testing.T, root, projectPath, content string) {
+	t.Helper()
+	path := filepath.Join(root, syncdomain.RootDir, "production", filepath.FromSlash(projectPath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 }
 
 func TestPromptRestoresTrackedMissingFileInsteadOfArchiving(t *testing.T) {

@@ -7,6 +7,46 @@ import (
 	"strings"
 )
 
+// Scope is the resource kinds that one sync command plans.
+type Scope string
+
+const (
+	ScopePrompts Scope = "prompts"
+	ScopeTools   Scope = "tools"
+	ScopeSkills  Scope = "skills"
+	ScopeAll     Scope = "all"
+)
+
+// Includes reports whether the scope plans resources of kind. The empty scope
+// plans prompt variations.
+func (scope Scope) Includes(kind Kind) bool {
+	switch scope {
+	case "", ScopePrompts:
+		return kind == KindVariation
+	case ScopeTools:
+		return kind == KindTool
+	case ScopeSkills:
+		return kind == KindSkill
+	case ScopeAll:
+		return true
+	default:
+		return false
+	}
+}
+
+// KeyKind returns the kind of resource that --key names in the scope. A sync
+// of all kinds takes no --key.
+func (scope Scope) KeyKind() Kind {
+	switch scope {
+	case ScopeTools:
+		return KindTool
+	case ScopeSkills:
+		return KindSkill
+	default:
+		return KindVariation
+	}
+}
+
 // Filter is the resources that the --project, --config-key, and --key flags
 // name. A sync keeps only those resources. An add or a detach uses them
 // instead of asking. The zero Filter names every resource.

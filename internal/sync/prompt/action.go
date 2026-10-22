@@ -17,10 +17,12 @@ type CommandAction interface {
 }
 
 // SyncAction reconciles the workspace once, or each time a watched file
-// changes. Filter limits the sync to the resources that it names.
+// changes. Scope is the resource kinds that the sync plans, and Filter limits
+// the sync to the resources that it names.
 type SyncAction struct {
 	Watch  bool
 	DryRun bool
+	Scope  syncdomain.Scope
 	Filter syncdomain.Filter
 }
 
@@ -64,7 +66,7 @@ func (action SyncAction) validate() error {
 	if action.Watch && action.DryRun {
 		return errors.New("watch does not support --dry-run")
 	}
-	return action.Filter.Validate(syncdomain.KindVariation)
+	return action.Filter.Validate(action.Scope.KeyKind())
 }
 
 func (action AddAction) validate() error {

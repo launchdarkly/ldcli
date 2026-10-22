@@ -6,6 +6,7 @@ package sync
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -72,6 +73,10 @@ func (id ResourceID) VariationKeys() (configKey, variationKey string, err error)
 
 // CompareResourceIDs orders identities by kind, project, and lookup key. Plans,
 // manifests, and output use this order so that results are deterministic.
+//
+// Sync applies a plan in this order. The kind names sort skills and tools
+// before the variations that pin them, so a variation pins the version that
+// the same sync published.
 func CompareResourceIDs(left, right ResourceID) int {
 	if result := strings.Compare(string(left.Kind), string(right.Kind)); result != 0 {
 		return result
@@ -92,6 +97,47 @@ func ValidateKey(key string) error {
 		return errors.New("must be a single path segment")
 	case strings.IndexByte(key, 0) >= 0:
 		return errors.New("must not contain a null byte")
+	default:
+		return nil
+	}
+}
+
+// These limits copy the create validation of the LaunchDarkly API for
+// variations, tools, and skills (AIConfigVariationPost, AIToolPost, and
+// AgentSkillPost). LaunchDarkly stays the authority. The copy lets a plan
+// report a bad key before the apply starts. Lengths count bytes, as
+// LaunchDarkly does.
+const (
+	createKeyMaxLength         = 256
+	skillKeyMaxLength          = 64
+	createNameMaxLength        = 256
+	createDescriptionMaxLength = 1024
+)
+
+var (
+	createKeyPattern     = regexp.MustCompile(`^[a-zA-Z0-9][._\-a-zA-Z0-9]*$`)
+	skillKeyPattern      = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	windowsReservedNames = regexp.MustCompile(`^(con|prn|aux|nul|com[0-9]|lpt[0-9])$`)
+)
+
+// ValidateCreate checks the key, the name, and the description of a resource
+// that sync creates in LaunchDarkly.
+func ValidateCreate(kind Kind, key, name, description string) error {
+	switch {
+	case kind == KindSkill && !skillKeyPattern.MatchString(key):
+		return fmt.Errorf("skill key %q must use only lowercase letters, digits, and hyphens, and start with a letter or digit", key)
+	case kind == KindSkill && len(key) > skillKeyMaxLength:
+		return fmt.Errorf("skill key %q must be at most %d characters", key, skillKeyMaxLength)
+	case kind == KindSkill && windowsReservedNames.MatchString(key):
+		return fmt.Errorf("skill key %q is a reserved file name on Windows", key)
+	case kind != KindSkill && !createKeyPattern.MatchString(key):
+		return fmt.Errorf("%s key %q must use only letters, digits, \".\", \"_\", and \"-\", and start with a letter or digit", kind, key)
+	case len(key) > createKeyMaxLength:
+		return fmt.Errorf("%s key %q must be at most %d characters", kind, key, createKeyMaxLength)
+	case len(name) > createNameMaxLength:
+		return fmt.Errorf("%s name must be at most %d characters", kind, createNameMaxLength)
+	case len(description) > createDescriptionMaxLength:
+		return fmt.Errorf("%s description must be at most %d characters", kind, createDescriptionMaxLength)
 	default:
 		return nil
 	}

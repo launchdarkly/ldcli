@@ -267,6 +267,63 @@ func TestOrphanedAttachmentsFindsFlatSkillFile(t *testing.T) {
 	require.ErrorIs(t, statErr, os.ErrNotExist)
 }
 
+func TestCompileAttachmentsReadsStandaloneAndReferencedFiles(t *testing.T) {
+	root := t.TempDir()
+	search := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+	variation := syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Default", Instructions: "Help.",
+		Tools:       []syncdomain.AttachmentRef{{Key: "search"}},
+		Attachments: []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &search}},
+	}
+	_, err := NewStore(root).Add([]VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
+	require.NoError(t, err)
+	writeManagedFile(t, root, "project/tools/refund.json", `{"formatVersion": 1, "upsert": true, "key": "refund", "schema": {}}`)
+	writeManagedFile(t, root, "project/skills/triage.md", "---\nkey: triage\ndescription: Triage\n---\n\nPick a queue.\n")
+	writeManagedFile(t, root, "other/tools/broken.json", "not json")
+
+	attachments, err := CompileAttachments(root, func(id syncdomain.ResourceID) bool { return id.ProjectKey == "project" })
+
+	require.NoError(t, err)
+	var ids []string
+	for _, attachment := range attachments {
+		ids = append(ids, attachment.ID().Label())
+	}
+	assert.Equal(t, []string{"skill project/triage", "tool project/refund", "tool project/search"}, ids)
+	assert.True(t, attachments[1].Attachment.Upsert)
+}
+
+func TestCompileAttachmentsReportsTheInvalidFile(t *testing.T) {
+	root := t.TempDir()
+	writeManagedFile(t, root, "project/tools/broken.json", "not json")
+
+	_, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+
+	var parseErr ParseError
+	require.ErrorAs(t, err, &parseErr)
+	assert.Equal(t, ".launchdarkly/project/tools/broken.json", parseErr.Path)
+	assert.ErrorContains(t, err, `parse tool "broken"`)
+}
+
+func TestCompileAttachmentsRejectsSymlink(t *testing.T) {
+	root := t.TempDir()
+	external := filepath.Join(root, "external.json")
+	require.NoError(t, os.WriteFile(external, []byte(`{"formatVersion":1,"key":"search","schema":{}}`), 0o644))
+	toolPath := filepath.Join(root, ".launchdarkly", "project", "tools", "search.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(toolPath), 0o755))
+	require.NoError(t, os.Symlink(external, toolPath))
+
+	_, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+
+	require.ErrorContains(t, err, "symbolic links are not supported")
+}
+
+func writeManagedFile(t *testing.T, root, relativePath, content string) {
+	t.Helper()
+	path := filepath.Join(root, syncdomain.RootDir, filepath.FromSlash(relativePath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+}
+
 func TestCompileWorkspaceRejectsAttachmentSymlink(t *testing.T) {
 	root := t.TempDir()
 	wrapperPath := filepath.Join(root, ".launchdarkly", "project", "configs", "config", "default.prompt.md")

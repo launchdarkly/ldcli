@@ -321,11 +321,11 @@ func planReason(resource PlannedResource) string {
 	case repinsOnly(resource):
 		return repinReason(resource.Diff["attachment versions"])
 	case resource.Action == ActionUpdateServer:
-		return changedFieldsReason(resource.Diff, "changed")
-	case resource.Action == ActionUpdateLocal && resource.Local == nil:
+		return changedFieldsReason(resource, "changed")
+	case resource.Action == ActionUpdateLocal && !resource.hasLocal():
 		return "local file missing"
 	case resource.Action == ActionUpdateLocal:
-		return changedFieldsReason(resource.Diff, "changed in LaunchDarkly")
+		return changedFieldsReason(resource, "changed in LaunchDarkly")
 	case resource.Action == ActionDeleteLocal:
 		return "deleted in LaunchDarkly"
 	case resource.Action == ActionUpdateManifest:
@@ -341,16 +341,22 @@ func planReason(resource PlannedResource) string {
 	}
 }
 
-// changedFieldsReason names the fields that a diff changes, for example
-// "instructions, tools changed".
-func changedFieldsReason(diff variationDiffFields, verb string) string {
+// changedFieldsReason names the fields that the diff of a row changes, for
+// example "instructions, tools changed". A tool or skill row names the fields
+// of the tool or the skill, for example "description changed".
+func changedFieldsReason(resource PlannedResource, verb string) string {
 	var fields []string
-	if part, ok := diff["variation"]; ok {
+	if part, ok := resource.Diff["variation"]; ok {
 		fields = append(fields, changedKeys(part.Before, part.After)...)
 	}
-	for _, part := range []string{"tools", "skills"} {
-		if _, ok := diff[part]; ok {
-			fields = append(fields, part)
+	for _, name := range []string{"tools", "skills"} {
+		part, ok := resource.Diff[name]
+		switch {
+		case !ok:
+		case resource.ID.Kind == syncdomain.KindVariation:
+			fields = append(fields, name)
+		default:
+			fields = append(fields, changedKeys(onlyItem(part.Before), onlyItem(part.After))...)
 		}
 	}
 	if len(fields) == 0 {
@@ -373,6 +379,15 @@ func changedKeys(before, after json.RawMessage) []string {
 	keys = slices.DeleteFunc(keys, func(key string) bool { return bytes.Equal(beforeFields[key], afterFields[key]) })
 	slices.Sort(keys)
 	return keys
+}
+
+// onlyItem returns the one item of a JSON list, or nil.
+func onlyItem(list json.RawMessage) json.RawMessage {
+	var items []json.RawMessage
+	if json.Unmarshal(list, &items) != nil || len(items) != 1 {
+		return nil
+	}
+	return items[0]
 }
 
 // repinReason names each tool and skill that a repin moves, for example
