@@ -99,22 +99,25 @@ func writeOutcomeOutput(out io.Writer, outputKind string, plan Plan, outcomes []
 	if err != nil {
 		return err
 	}
-	if outputKind == outputJSON {
-		type outcomeOutput struct {
-			resourceOutput
-			ResourceOutcome
-		}
-		resources := make([]outcomeOutput, 0, len(outcomes))
-		for _, outcome := range outcomes {
-			resources = append(resources, outcomeOutput{resourceOutput: newResourceOutput(outcome.ID), ResourceOutcome: outcome})
-		}
-		return writeJSON(out, map[string]any{"resources": resources})
-	}
-
 	planned := make(map[ResourceID]PlannedResource, len(plan.Resources))
 	for _, resource := range plan.Resources {
 		planned[resource.ID] = resource
 	}
+	if outputKind == outputJSON {
+		type outcomeOutput struct {
+			resourceOutput
+			ResourceOutcome
+			Create *skillCreateOutput `json:"create,omitempty"`
+		}
+		resources := make([]outcomeOutput, 0, len(outcomes))
+		for _, outcome := range outcomes {
+			resources = append(resources, outcomeOutput{
+				resourceOutput: newResourceOutput(outcome.ID), ResourceOutcome: outcome, Create: skillCreate(planned[outcome.ID]),
+			})
+		}
+		return writeJSON(out, map[string]any{"resources": resources})
+	}
+
 	var rows []reviewRow
 	var failures []ResourceOutcome
 	inSync := 0
@@ -143,6 +146,22 @@ func writeOutcomeOutput(out io.Writer, outputKind string, plan Plan, outcomes []
 	}
 	_ = console.Line(resultTotals(len(rows), len(failures), inSync))
 	return nil
+}
+
+// skillCreateOutput is the name that sync sends when it creates a skill, and
+// where the name comes from.
+type skillCreateOutput struct {
+	Name       string `json:"name"`
+	NameSource string `json:"nameSource"`
+}
+
+// skillCreate returns the name of the skill that a row creates, or nil for a
+// row that creates no skill.
+func skillCreate(resource PlannedResource) *skillCreateOutput {
+	if resource.Action != ActionCreateServer || resource.LocalAttachment == nil || resource.LocalAttachment.Skill == nil {
+		return nil
+	}
+	return &skillCreateOutput{Name: resource.LocalAttachment.Skill.CreateName(), NameSource: resource.nameSource}
 }
 
 // checkOutputKind returns the output kind. An empty kind is plain text.

@@ -83,7 +83,8 @@ func readNewAttachments(options Options, selections []syncdomain.ResourceID) ([]
 	for _, id := range selections {
 		attachment, err := options.Attachments.ReadAttachment(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
 		if syncapi.IsNotFound(err) {
-			return nil, fmt.Errorf("%s does not exist in LaunchDarkly.", id.Label())
+			return nil, fmt.Errorf("%s does not exist in LaunchDarkly. To create it, run %s with %s.",
+				id.Label(), AddCommand(id), createFlags[id.Kind])
 		}
 		if err != nil {
 			return nil, err
@@ -91,6 +92,20 @@ func readNewAttachments(options Options, selections []syncdomain.ResourceID) ([]
 		attachments = append(attachments, syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
 	}
 	return attachments, nil
+}
+
+// createFlags names the flags of an add that creates a tool or a skill.
+var createFlags = map[syncdomain.Kind]string{
+	syncdomain.KindTool:  "--json-schema, and optionally --description",
+	syncdomain.KindSkill: "--content, and optionally --name and --description",
+}
+
+// AddCommand is the command that starts syncing one resource.
+func AddCommand(id syncdomain.ResourceID) string {
+	if configKey, variationKey, err := id.VariationKeys(); err == nil {
+		return fmt.Sprintf("ldcli sync prompts add --project %s --config-key %s --key %s", id.ProjectKey, configKey, variationKey)
+	}
+	return fmt.Sprintf("ldcli sync %ss add --project %s --key %s", id.Kind, id.ProjectKey, id.LookupKey)
 }
 
 // CheckNotSynced returns an error for a tool or skill that this repository
