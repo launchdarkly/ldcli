@@ -42,7 +42,8 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		Use:   "prompts",
 		Short: "Synchronize local prompt variations with LaunchDarkly",
 		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the LaunchDarkly manifest. " +
-			"Sync rechecks state before every write, rerun sync after a change.",
+			"Sync rechecks state before every write, rerun sync after a change. " +
+			"Tool and skill files that no prompt variation uses are not in this plan. Use ldcli sync all, ldcli sync tools, or ldcli sync skills to sync them.",
 		Example: `  # Preview synchronization changes
   ldcli sync prompts --dry-run
 
@@ -55,16 +56,13 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
   # Sync one config, and prefer local changes when conflicts occur
   ldcli sync prompts --project production --config-key support --yes --conflict=local`,
 		Args: validatedArgs(cobra.NoArgs),
-		RunE: runPrompt(client, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
-			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-			return syncprompt.SyncAction{DryRun: dryRun, Filter: targetFilter(cmd)}, nil
-		}),
+		RunE: runCommand(client, syncdomain.ScopePrompts, buildSyncAction),
 	}
 
 	addTargetFlags(cmd, filterFlagHelp)
-	addApplyFlags(cmd, true)
+	addApplyFlags(cmd, syncdomain.ScopePrompts, true)
 	cmd.AddCommand(
-		newWatchCmd(client),
+		newWatchCmd(client, syncdomain.ScopePrompts, filterFlagHelp),
 		newAddCmd(client),
 		newAttachCmd(client),
 		newDetachCmd(client),
@@ -77,7 +75,15 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 
 type actionBuilder func(*cobra.Command, []string) (syncprompt.CommandAction, error)
 
-func runPrompt(client resources.Client, buildAction actionBuilder) func(*cobra.Command, []string) error {
+// buildSyncAction reads the flags of a root sync command.
+func buildSyncAction(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
+	dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
+	return syncprompt.SyncAction{DryRun: dryRun, Filter: targetFilter(cmd)}, nil
+}
+
+// runCommand returns the RunE function of a sync command. It runs the action
+// that buildAction reads from the flags, in the scope of the command.
+func runCommand(client resources.Client, scope syncdomain.Scope, buildAction actionBuilder) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		workingDirectory, err := os.Getwd()
 		if err != nil {
@@ -101,6 +107,7 @@ func runPrompt(client resources.Client, buildAction actionBuilder) func(*cobra.C
 			AccessToken:      viper.GetString(cliflags.AccessTokenFlag),
 			BaseURI:          viper.GetString(cliflags.BaseURIFlag),
 			OutputKind:       outputKind,
+			Scope:            scope,
 			Action:           action,
 			ConflictPolicy:   policy,
 			Yes:              yes,
@@ -118,22 +125,26 @@ func runPrompt(client resources.Client, buildAction actionBuilder) func(*cobra.C
 	}
 }
 
-func newWatchCmd(client resources.Client) *cobra.Command {
+// newWatchCmd creates the watch command of a scope. help is the help text of
+// the target flags of the root sync of the scope.
+func newWatchCmd(client resources.Client, scope syncdomain.Scope, help targetFlagHelp) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "watch",
 		Short: "Synchronize when managed files change",
-		Example: `  # Watch files and confirm each set of changes
-  ldcli sync prompts watch
+		Long: "Synchronize each time a managed file changes. " +
+			"Watch creates a resource from a file with upsert when the file is saved.",
+		Example: fmt.Sprintf(`  # Watch files and confirm each set of changes
+  ldcli sync %s watch
 
   # Apply watched changes without prompting and report unresolved conflicts
-  ldcli sync prompts watch --yes --no-input`,
+  ldcli sync %s watch --yes --no-input`, scope, scope),
 		Args: validatedArgs(cobra.NoArgs),
-		RunE: runPrompt(client, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
+		RunE: runCommand(client, scope, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
 			return syncprompt.SyncAction{Watch: true, Filter: targetFilter(cmd)}, nil
 		}),
 	}
-	addTargetFlags(cmd, filterFlagHelp)
-	addApplyFlags(cmd, false)
+	addTargetFlags(cmd, help)
+	addApplyFlags(cmd, scope, false)
 	return cmd
 }
 
@@ -150,7 +161,7 @@ func newAddCmd(client resources.Client) *cobra.Command {
   # Add variations by key without prompting
   ldcli sync prompts add --project production --config-key support --key default --key concise --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
-		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runCommand(client, syncdomain.ScopePrompts, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
 			if err != nil {
 				return nil, err
@@ -195,7 +206,7 @@ func newAttachKindCmd(client resources.Client, kind syncdomain.AttachmentKind) *
     --to production/support/default \
     --yes --no-input`, kind, kind, kind, kind),
 		Args: validatedArgs(cobra.MaximumNArgs(1)),
-		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runCommand(client, syncdomain.ScopePrompts, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			target, err := optionalVariationFlag(cmd, toFlag)
 			if err != nil {
 				return nil, err
@@ -209,7 +220,7 @@ func newAttachKindCmd(client resources.Client, kind syncdomain.AttachmentKind) *
 	}
 	addTargetFlags(cmd, targetFlagHelp{project: questionFlagHelp.project})
 	cmd.Flags().String(toFlag, "", "Target variation (project-key/config-key/variation-key)")
-	addApplyFlags(cmd, false)
+	addApplyFlags(cmd, syncdomain.ScopePrompts, false)
 	return cmd
 }
 
@@ -229,7 +240,7 @@ func newDetachCmd(client resources.Client) *cobra.Command {
   # Stop syncing one variation and archive it in LaunchDarkly
   ldcli sync prompts detach --project production --config-key support --key default --archive --yes --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
-		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runCommand(client, syncdomain.ScopePrompts, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
 			if err != nil {
 				return nil, err
@@ -256,7 +267,7 @@ func newLinkCmd(client resources.Client) *cobra.Command {
     --model-config-key claude \
     --yes --no-input`,
 		Args: validatedArgs(cobra.ExactArgs(1)),
-		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runCommand(client, syncdomain.ScopePrompts, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			format, _ := cmd.Flags().GetString(formatFlag)
 			target, err := linkTarget(cmd)
 			if err != nil {
@@ -272,17 +283,21 @@ func newLinkCmd(client resources.Client) *cobra.Command {
 	cmd.Flags().String(nameFlag, "", "Variation name when absent from the linked file")
 	cmd.Flags().String(contentFlag, "", "Prompt content when absent from the linked file")
 	_ = cmd.MarkFlagRequired(formatFlag)
-	addApplyFlags(cmd, false)
+	addApplyFlags(cmd, syncdomain.ScopePrompts, false)
 	return cmd
 }
 
-func addApplyFlags(cmd *cobra.Command, dryRun bool) {
+// addApplyFlags registers the flags of a command that applies a plan. Only
+// the prompts scope has --resolve, which names variations.
+func addApplyFlags(cmd *cobra.Command, scope syncdomain.Scope, dryRun bool) {
 	if dryRun {
 		cmd.Flags().Bool(dryRunFlag, false, "Preview synchronization changes without applying them")
 	}
 	cmd.Flags().Bool(diffFlag, false, "Show full diffs in the plan")
 	cmd.Flags().String(conflictFlag, "", "Default conflict resolution: launchdarkly, local, or abort")
-	cmd.Flags().StringArray(resolveFlag, nil, "Resolve one variation conflict (project-key/config-key/variation-key=choice)")
+	if scope == syncdomain.ScopePrompts {
+		cmd.Flags().StringArray(resolveFlag, nil, "Resolve one variation conflict (project-key/config-key/variation-key=choice)")
+	}
 	cmd.Flags().Bool(yesFlag, false, "Apply changes without confirmation")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 }
@@ -309,6 +324,21 @@ var (
 		key:       "Variation key. Repeat for more variations. Needs --config-key.",
 	}
 )
+
+// attachmentFlagHelp describes the target flags of a tool or skill command.
+// With filter, the flags limit a sync. Otherwise they answer questions.
+func attachmentFlagHelp(kind syncdomain.AttachmentKind, filter bool) targetFlagHelp {
+	if filter {
+		return targetFlagHelp{
+			project: filterFlagHelp.project,
+			key:     fmt.Sprintf("Sync only this %s. Repeat for more %ss. Needs --project.", kind, kind),
+		}
+	}
+	return targetFlagHelp{
+		project: questionFlagHelp.project,
+		key:     fmt.Sprintf("%s key. Repeat for more %ss. Needs --project.", strings.ToUpper(string(kind[:1]))+string(kind[1:]), kind),
+	}
+}
 
 // addTargetFlags registers --project, --config-key, and --key.
 func addTargetFlags(cmd *cobra.Command, help targetFlagHelp) {
