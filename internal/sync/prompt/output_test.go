@@ -253,6 +253,20 @@ func TestWritePlanReviewSummarizesPlansWithoutChanges(t *testing.T) {
 	assert.Equal(t, "No changes. 2 in sync.\n", output.String())
 }
 
+func TestWritePlanReviewNamesTheAddOfAnEmptyScope(t *testing.T) {
+	for scope, want := range map[syncdomain.Scope]string{
+		syncdomain.ScopePrompts: "No prompt variations are synced in this repository. To start, run ldcli sync prompts add.\n",
+		syncdomain.ScopeTools:   "No tools are synced in this repository. To start, run ldcli sync tools add.\n",
+		syncdomain.ScopeSkills:  "No skills are synced in this repository. To start, run ldcli sync skills add.\n",
+		syncdomain.ScopeAll: "Nothing to sync in this repository. " +
+			"To start, run ldcli sync prompts add, ldcli sync tools add, or ldcli sync skills add.\n",
+	} {
+		var output bytes.Buffer
+		require.NoError(t, writePlanReview(&output, "plaintext", Plan{Scope: scope}, 0, false))
+		assert.Equal(t, want, output.String(), "scope %s", scope)
+	}
+}
+
 func TestPlanReasonNamesTheChange(t *testing.T) {
 	variation := testVariation("Support")
 	tests := map[string]struct {

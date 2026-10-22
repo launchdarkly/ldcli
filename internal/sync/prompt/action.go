@@ -11,28 +11,26 @@ import (
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
-// CommandAction is one prompt sync operation.
+// CommandAction is one sync operation. scope is the scope of the command.
 type CommandAction interface {
-	validate() error
+	validate(scope syncdomain.Scope) error
 }
 
 // SyncAction reconciles the workspace once, or each time a watched file
-// changes. Scope is the resource kinds that the sync plans, and Filter limits
-// the sync to the resources that it names.
+// changes. Filter limits the sync to the resources that it names.
 type SyncAction struct {
 	Watch  bool
 	DryRun bool
-	Scope  syncdomain.Scope
 	Filter syncdomain.Filter
 }
 
-// AddAction writes selected LaunchDarkly variations as local files. The
-// variations come from positional selectors or from the target flags in
-// Filter, which also skip the project and config questions.
+// AddAction writes selected LaunchDarkly resources of the kind of the scope
+// as local files. The resources come from positional selectors or from the
+// target flags in Filter, which also skip the project and config questions.
 type AddAction struct {
-	Variations []syncdomain.ResourceID
-	Filter     syncdomain.Filter
-	DryRun     bool
+	Resources []syncdomain.ResourceID
+	Filter    syncdomain.Filter
+	DryRun    bool
 }
 
 // AttachAction adds a tool or a skill to a local variation, and then syncs.
@@ -62,22 +60,22 @@ type LinkAction struct {
 	Target     *synclink.Target
 }
 
-func (action SyncAction) validate() error {
+func (action SyncAction) validate(scope syncdomain.Scope) error {
 	if action.Watch && action.DryRun {
 		return errors.New("watch does not support --dry-run")
 	}
-	return action.Filter.Validate(action.Scope.KeyKind())
+	return action.Filter.Validate(scope.KeyKind())
 }
 
-func (action AddAction) validate() error {
-	return validateSelections(action.Variations, action.Filter)
+func (action AddAction) validate(scope syncdomain.Scope) error {
+	return validateSelections(action.Resources, action.Filter, scope.KeyKind())
 }
 
-func (action DetachAction) validate() error {
-	return validateSelections(action.Resources, action.Filter)
+func (action DetachAction) validate(scope syncdomain.Scope) error {
+	return validateSelections(action.Resources, action.Filter, scope.KeyKind())
 }
 
-func (action AttachAction) validate() error {
+func (action AttachAction) validate(syncdomain.Scope) error {
 	if !action.Kind.Valid() {
 		return errors.New("attachment kind must be tool or skill")
 	}
@@ -87,7 +85,7 @@ func (action AttachAction) validate() error {
 	return validateProjectFlag(action.ProjectKey, action.Target)
 }
 
-func (action LinkAction) validate() error {
+func (action LinkAction) validate(syncdomain.Scope) error {
 	switch {
 	case action.File == "":
 		return errors.New("linked file is required")
@@ -106,13 +104,19 @@ func (action LinkAction) validate() error {
 	return syncreference.ValidateFormat(action.Format)
 }
 
-// validateSelections rejects variations that come both from positional
-// selectors and from target flags.
-func validateSelections(selectors []syncdomain.ResourceID, filter syncdomain.Filter) error {
-	if err := filter.Validate(syncdomain.KindVariation); err != nil {
+// validateSelections rejects positional selectors outside the prompts scope,
+// and resources that come both from positional selectors and from target
+// flags. kind is the kind that --key names.
+func validateSelections(selectors []syncdomain.ResourceID, filter syncdomain.Filter, kind syncdomain.Kind) error {
+	if err := filter.Validate(kind); err != nil {
 		return err
 	}
-	if len(selectors) != 0 && !filter.IsZero() {
+	switch {
+	case len(selectors) == 0:
+		return nil
+	case kind != syncdomain.KindVariation:
+		return fmt.Errorf("only variations have positional selectors. Pass %ss as --project and --key.", kindNoun(kind))
+	case !filter.IsZero():
 		return errors.New("pass variations as --project, --config-key, and --key, " +
 			"or as project-key/config-key/variation-key arguments, not both")
 	}
@@ -131,12 +135,13 @@ func validateProjectFlag(projectKey string, target *syncdomain.ResourceID) error
 	return nil
 }
 
-// selections returns the variations that positional selectors or --key name.
-func selections(selectors []syncdomain.ResourceID, filter syncdomain.Filter) []syncdomain.ResourceID {
+// selections returns the resources that positional selectors or --key name.
+// kind is the kind that --key names.
+func selections(selectors []syncdomain.ResourceID, filter syncdomain.Filter, kind syncdomain.Kind) []syncdomain.ResourceID {
 	if len(selectors) != 0 {
 		return selectors
 	}
-	return filter.IDs(syncdomain.KindVariation)
+	return filter.IDs(kind)
 }
 
 // Options are the command input and the streams of one prompt sync command.
@@ -145,6 +150,9 @@ type Options struct {
 	AccessToken      string
 	BaseURI          string
 	OutputKind       string
+	// Scope is the resource kinds that the command syncs, adds, or detaches.
+	// The empty scope is prompt variations.
+	Scope syncdomain.Scope
 	// Action is the operation to run. A nil action is a SyncAction.
 	Action         CommandAction
 	ConflictPolicy ConflictPolicy
@@ -166,7 +174,7 @@ func validateOptions(options Options) error {
 	if options.Action == nil {
 		return nil
 	}
-	return options.Action.validate()
+	return options.Action.validate(options.Scope)
 }
 
 // withDefaults returns the options with a context and an action.

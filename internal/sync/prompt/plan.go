@@ -76,6 +76,8 @@ type PlannedResource struct {
 	// conflictUses are the conflicted variations that newly use the tool or
 	// skill of this row on one side, when no push or pull needs the row.
 	conflictUses []conflictUse
+	// usedBy are the local variations that use the tool or skill of this row.
+	usedBy []ResourceID
 	// restoreRef is the link that a restored variation file keeps.
 	restoreRef *syncdomain.Reference
 }
@@ -115,6 +117,13 @@ type conflictUse struct {
 // Plan is the sync decision for each resource, in identity order.
 type Plan struct {
 	Resources []PlannedResource
+	// Scope is the resource kinds that the plan covers. The empty scope is
+	// prompt variations.
+	Scope syncdomain.Scope
+	// standalone counts the tool and skill files, by kind, that no local
+	// variation uses. Only a prompts plan counts them, because it leaves them
+	// out.
+	standalone map[syncdomain.Kind]int
 }
 
 // BuildPlan compares the baseline with the local and the server state. The
