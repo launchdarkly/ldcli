@@ -415,24 +415,39 @@ func TestCheckAttachmentDeletesKeepsAToolThatAVariationStillUses(t *testing.T) {
 	}
 }
 
+// A deleted tool stays out of the conflict group of a variation that uses it,
+// so that a local choice cannot create the tool again. The check after the
+// choice decides the delete.
 func TestApplyConflictResolutionsChecksToolDeletesAgain(t *testing.T) {
 	tool := testAttachment(syncdomain.AttachmentTool, "local")
 	user := testVariation("user")
 	user.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
 	user.Attachments = []syncdomain.Attachment{tool}
 	withoutTool := testVariation("user")
-	plan := Plan{Resources: []PlannedResource{
-		{ID: tool.ID("production"), Action: ActionDeleteLocal},
-		{ID: testResourceID(), Action: ActionConflict, Local: &user, Server: &withoutTool},
-	}}
+	deletion := planAttachment(tool.ID("production"), &tool, nil, attachmentFingerprint(t, tool), true)
+	require.Equal(t, ActionDeleteLocal, deletion.Action)
+	conflict := PlannedResource{ID: testResourceID(), Action: ActionConflict, Local: &user, Server: &withoutTool}
+	conflict.changedAttachments = changedAttachmentIDs(conflict)
+	plan := Plan{Resources: []PlannedResource{deletion, conflict}}
 
-	pulled := applyConflictResolutions(plan, map[ResourceID]ConflictResolution{testResourceID(): ConflictUseLaunchDarkly})
+	groups := groupConflicts(plan)
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0].resources, 1, "the deleted tool does not take the choice")
+	choose := func(resolution ConflictResolution) Plan {
+		resolutions := make(map[ResourceID]ConflictResolution)
+		for _, member := range groups[0].resources {
+			resolutions[member.ID] = resolution
+		}
+		return applyConflictResolutions(plan, resolutions)
+	}
+
+	pulled := choose(ConflictUseLaunchDarkly)
 	assert.Equal(t, ActionDeleteLocal, pulled.Resources[0].Action)
 	assert.Equal(t, ActionUpdateLocal, pulled.Resources[1].Action)
 	require.NoError(t, pulled.BlockingError())
 
-	pushed := applyConflictResolutions(plan, map[ResourceID]ConflictResolution{testResourceID(): ConflictUseLocal})
-	assert.Equal(t, ActionError, pushed.Resources[0].Action)
+	pushed := choose(ConflictUseLocal)
+	assert.Equal(t, ActionError, pushed.Resources[0].Action, "the local choice must not create the deleted tool")
 	assert.Equal(t, ActionUpdateServer, pushed.Resources[1].Action)
 	require.EqualError(t, pushed.BlockingError(), "cannot sync tool production/search: tool production/search was deleted in LaunchDarkly, "+
 		"but variation production/support/default still uses it. Remove it from the variation first.")

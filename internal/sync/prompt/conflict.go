@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 )
@@ -183,7 +184,10 @@ func writeConflict(output io.Writer, group conflictGroup) error {
 
 // groupConflicts returns one group for each conflict. A group also has every
 // other variation that shares a changed attachment with it, directly or
-// through another variation in the group.
+// through another variation in the group. An error row does not join a group.
+// A tool or skill that LaunchDarkly deleted does not join either, because a
+// local choice would create it again. checkResolvedAttachmentDeletes decides
+// that row after the choice.
 func groupConflicts(plan Plan) []conflictGroup {
 	var groups []conflictGroup
 	visited := make([]bool, len(plan.Resources))
@@ -195,9 +199,11 @@ func groupConflicts(plan Plan) []conflictGroup {
 		members := []int{start}
 		for next := 0; next < len(members); next++ {
 			for candidate := range plan.Resources {
+				row := plan.Resources[candidate]
 				if visited[candidate] ||
-					plan.Resources[candidate].Action == ActionError ||
-					!sharesChangedAttachment(plan.Resources[members[next]], plan.Resources[candidate]) {
+					row.Action == ActionError ||
+					(row.ID.Kind != syncdomain.KindVariation && row.Action == ActionDeleteLocal) ||
+					!sharesChangedAttachment(plan.Resources[members[next]], row) {
 					continue
 				}
 				visited[candidate] = true
