@@ -262,9 +262,9 @@ func (plan Plan) BlockingError() error {
 	for _, resource := range plan.Resources {
 		switch resource.Action {
 		case ActionConflict:
-			return fmt.Errorf("cannot sync conflicted resource %s", resource.ID)
+			return fmt.Errorf("cannot sync conflicted resource %s", resource.ID.Label())
 		case ActionError:
-			return fmt.Errorf("cannot sync %s: %s", resource.ID, resource.Error)
+			return fmt.Errorf("cannot sync %s: %s", resource.ID.Label(), resource.Error)
 		}
 	}
 	return nil

@@ -36,7 +36,8 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		return err
 	}
 	if options.dryRun() {
-		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan); err != nil {
+		writePlanNotes(options.ErrorOutput, reviewed.plan)
+		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan, options.Diff); err != nil {
 			return err
 		}
 		return reviewed.plan.BlockingError()
@@ -111,7 +112,7 @@ func (runner Runner) applyPlan(
 	if err := workspace.local.RemoveEmptyDirectories(); err != nil {
 		failures = append(failures, err)
 	}
-	if err := writeOutcomeOutput(options.Output, options.OutputKind, outcomes); err != nil {
+	if err := writeOutcomeOutput(options.Output, options.OutputKind, plan, outcomes); err != nil {
 		failures = append(failures, err)
 	}
 	if err := errors.Join(failures...); err != nil {

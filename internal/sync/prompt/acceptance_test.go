@@ -782,7 +782,7 @@ func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
 	assert.False(t, slices.ContainsFunc(api.requests, func(request string) bool {
 		return strings.HasPrefix(request, "PATCH ") && strings.Contains(request, "/variations/")
 	}), "sync wrote the older local file back to LaunchDarkly")
-	assert.Contains(t, review, "Another working copy synced this variation after your sync.lock.")
+	assert.Contains(t, review, "Note: Another working copy synced variation production/support/default after your sync.lock.")
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)

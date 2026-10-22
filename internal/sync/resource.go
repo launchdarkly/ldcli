@@ -55,6 +55,11 @@ func (id ResourceID) String() string {
 	return id.ProjectKey + "/" + id.LookupKey
 }
 
+// Label returns the kind and the identity, for example "tool demo/search".
+func (id ResourceID) Label() string {
+	return string(id.Kind) + " " + id.String()
+}
+
 // VariationKeys splits a variation lookup key into its config key and its
 // variation key.
 func (id ResourceID) VariationKeys() (configKey, variationKey string, err error) {

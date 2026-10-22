@@ -232,6 +232,7 @@ func (runner Runner) bootstrapOptions(
 		DryRun:      dryRun,
 		Selections:  selections,
 		NoInput:     options.NoInput,
+		Diff:        options.Diff,
 	}
 }
 

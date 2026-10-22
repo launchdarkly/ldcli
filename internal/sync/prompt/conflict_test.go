@@ -139,6 +139,25 @@ func TestResolveConflictsShowsDiffBeforePrompt(t *testing.T) {
 	assert.Less(t, strings.Index(rendered, "LaunchDarkly now"), strings.Index(rendered, "Using local."))
 }
 
+func TestWriteConflictNamesTheResourcesThatOneChoiceCovers(t *testing.T) {
+	conflict := divergentPlan(t).Resources[0]
+	shared := conflict
+	shared.ID.LookupKey = "support/shared"
+	shared.Action = ActionUpdateServer
+
+	var single, group bytes.Buffer
+	require.NoError(t, writeConflict(&single, conflictGroup{resources: []PlannedResource{conflict}}))
+	require.NoError(t, writeConflict(&group, conflictGroup{resources: []PlannedResource{conflict, shared}}))
+
+	assert.True(t, strings.HasPrefix(single.String(),
+		"\nConflict: variation production/support/default changed on both sides.\n\n      Variation content (changed)\n"))
+	assert.True(t, strings.HasPrefix(group.String(),
+		"\nConflict: variation production/support/default changed on both sides. "+
+			"It shares a changed tool or skill with variation production/support/shared, so one choice covers them all.\n"))
+	assert.Contains(t, group.String(), "\n  variation production/support/shared\n")
+	assert.Equal(t, 2, strings.Count(group.String(), "Variation content (changed)"))
+}
+
 func TestResolveConflictsRequiresTerminalEvenWithYes(t *testing.T) {
 	plan := divergentPlan(t)
 	input := strings.NewReader("")
@@ -214,7 +233,6 @@ func TestGroupConflictsDeduplicatesSharedAttachment(t *testing.T) {
 	groups := groupConflicts(Plan{Resources: []PlannedResource{first, second}})
 
 	require.Len(t, groups, 1)
-	assert.True(t, groups[0].attachment)
 	assert.Len(t, groups[0].resources, 2)
 }
 
@@ -247,7 +265,6 @@ func TestGroupConflictsConnectsMixedChangesAcrossSharedAttachments(t *testing.T)
 	groups := groupConflicts(Plan{Resources: resources})
 
 	require.Len(t, groups, 1)
-	assert.True(t, groups[0].attachment)
 	assert.Len(t, groups[0].resources, 4)
 }
 
