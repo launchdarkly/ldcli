@@ -31,7 +31,7 @@ func TestExecutePlanDoesNotMutateReviewedManifest(t *testing.T) {
 		LocalFingerprint: "updated",
 	}}}
 
-	_, updatedManifest, err := executePlan("", synclocal.Store{}, syncapi.Client{}, reviewedManifest, plan, nil)
+	_, updatedManifest, err := executePlan("", synclocal.Store{}, syncapi.Client{}, reviewedManifest, plan, nil, syncdomain.Filter{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "reviewed", reviewedManifest.Resources[0].Fingerprint)
@@ -77,7 +77,7 @@ func TestExecutePlanDoesNotMutateWhileConflictIsUnresolved(t *testing.T) {
 		},
 	}}
 
-	outcomes, _, err := executePlan("", synclocal.Store{}, client, syncmanifest.New(), plan, nil)
+	outcomes, _, err := executePlan("", synclocal.Store{}, client, syncmanifest.New(), plan, nil, syncdomain.Filter{})
 
 	require.ErrorContains(t, err, "cannot sync conflicted resource")
 	assert.Empty(t, outcomes)
@@ -119,7 +119,7 @@ func TestExecutePlanSkipsEveryConsumerWhenSharedAttachmentFails(t *testing.T) {
 		syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"},
 		"sha256:reviewed",
 	)
-	outcomes, manifest, err := executePlan("", synclocal.Store{}, client, originalManifest, plan, nil)
+	outcomes, manifest, err := executePlan("", synclocal.Store{}, client, originalManifest, plan, nil, syncdomain.Filter{})
 
 	require.Error(t, err)
 	require.Len(t, outcomes, 2)

@@ -1036,6 +1036,68 @@ func TestPromptReadsTheAccessTokenFromTheEnvironment(t *testing.T) {
 	assert.Equal(t, "No changes. 1 in sync.\n", string(stdout))
 }
 
+// A filtered sync does not see the variations outside the filter. A missing
+// file of such a variation must not make its tool look unused, because a full
+// sync restores the file.
+func TestPromptFilterKeepsToolsOfVariationsOutsideTheFilter(t *testing.T) {
+	tests := map[string]struct {
+		local string
+	}{
+		"with a change":    {local: "Local"},
+		"without a change": {local: "Baseline"},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			baseline := variation("Baseline")
+			writeVariation(t, root, variation(test.local), true)
+			writeManifest(t, root, baseline)
+			toolID := addOtherProjectVariationWithTool(t, root)
+			toolPath := filepath.Join(root, syncdomain.RootDir, "other", "tools", "search.json")
+			api := &directAPI{variation: pointer(baseline)}
+
+			_, _, err := runPrompt(t, root, api, "--project", "production", "--yes")
+
+			require.NoError(t, err)
+			assert.Equal(t, test.local, api.variation.Name)
+			assert.FileExists(t, toolPath)
+			assert.True(t, slices.ContainsFunc(readLock(t, root).Resources, func(resource syncmanifest.Resource) bool {
+				return resource.ID() == toolID
+			}), "the sync.lock file must keep the tool of the other project")
+			for _, request := range api.requests {
+				assert.NotContains(t, request, "/projects/other/")
+			}
+		})
+	}
+}
+
+// addOtherProjectVariationWithTool tracks a variation that uses the tool
+// "search" in a second project. The tool file exists, but the variation file
+// is missing, as after a branch switch. It returns the ID of the tool.
+func addOtherProjectVariationWithTool(t *testing.T, root string) syncdomain.ResourceID {
+	t.Helper()
+	store := synclocal.NewStore(root)
+	value := variation("Other")
+	value.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	value.Attachments = []syncdomain.Attachment{toolAttachment(syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}, 1)}
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "other", ConfigKey: "chat", Upsert: true, Variation: value}})
+	require.NoError(t, err)
+
+	lock := readLock(t, root)
+	require.NoError(t, lock.SetAttachments("other", value.Attachments))
+	id := syncdomain.VariationID("other", "chat", "default")
+	fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, value)
+	require.NoError(t, err)
+	lock.SetFingerprint(id, fingerprint)
+	require.NoError(t, syncmanifest.WriteLock(store, lock))
+
+	_, err = store.DeleteVariations([]synclocal.VariationDeletion{{ProjectKey: "other", ConfigKey: "chat", VariationKey: "default"}})
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(root, syncdomain.RootDir, "other", "tools", "search.json"))
+	return value.Attachments[0].ID("other")
+}
+
 // addOtherProjectVariation syncs a variation in a second project and returns
 // its sync.lock entry.
 func addOtherProjectVariation(t *testing.T, root string) syncmanifest.Resource {
