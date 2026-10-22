@@ -293,6 +293,7 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 		resource := &resolved.Resources[index]
 		if resolution, ok := resolutions[resource.ID]; ok {
 			resource.Action = resolvedConflictAction(*resource, resolution)
+			resource.RevertsServer = revertsServer(*resource)
 		}
 	}
 	return resolved
@@ -302,10 +303,15 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 func resolvedConflictAction(resource PlannedResource, resolution ConflictResolution) Action {
 	switch resolution {
 	case ConflictUseLaunchDarkly:
-		if resource.Server == nil {
+		switch {
+		case resource.Server == nil:
 			return ActionDeleteLocal
+		case resource.Merged != nil && resource.MergedFingerprint != resource.ServerFingerprint:
+			// A code-only variation keeps the local prompt.
+			return ActionUpdateBoth
+		default:
+			return ActionUpdateLocal
 		}
-		return ActionUpdateLocal
 	case ConflictUseLocal:
 		// A conflict always has a local file, because a missing file is restored.
 		if resource.Server == nil {

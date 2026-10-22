@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"net/url"
+	"net/http"
 	"os/exec"
 	"strings"
 	"testing"
@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
@@ -256,17 +258,17 @@ func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
 	baseline, local, server := testVariation("baseline"), testVariation("local"), testVariation("server")
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server}
-	runner := NewRunner(api)
+	runner := NewRunner(syncapi.NewTransport("test"))
 	input := strings.NewReader("\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
+			Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
+		conflictWorkspace(t, root, localStore, manifestStore, api),
 		nil,
 	)
 
@@ -281,17 +283,17 @@ func TestRunWorkspaceSyncAbortsConflictWithoutWriting(t *testing.T) {
 	baseline, local, server := testVariation("baseline"), testVariation("local"), testVariation("server")
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server}
-	runner := NewRunner(api)
+	runner := NewRunner(syncapi.NewTransport("test"))
 	input := strings.NewReader("\x1b[B\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
+			Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
+		conflictWorkspace(t, root, localStore, manifestStore, api),
 		nil,
 	)
 
@@ -307,17 +309,17 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 	baseline, local, server := attachmentConflictVariations()
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server, tool: server.Attachments[0]}
-	runner := NewRunner(api)
+	runner := NewRunner(syncapi.NewTransport("test"))
 	input := strings.NewReader("\x1b[B\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
+			Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
+		conflictWorkspace(t, root, localStore, manifestStore, api),
 		nil,
 	)
 
@@ -338,17 +340,17 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 	baseline, local, server := attachmentConflictVariations()
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server, tool: server.Attachments[0]}
-	runner := NewRunner(api)
+	runner := NewRunner(syncapi.NewTransport("test"))
 	input := strings.NewReader("\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
+			Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
+		conflictWorkspace(t, root, localStore, manifestStore, api),
 		nil,
 	)
 
@@ -392,6 +394,58 @@ func attachmentConflictVariations() (syncdomain.Variation, syncdomain.Variation,
 		Kind: syncdomain.AttachmentTool, Version: 2, Tool: &serverTool,
 	}}
 	return baseline, local, server
+}
+
+func TestResolveConflictsCodeOnlyKeepsLocalPrompt(t *testing.T) {
+	baseline := testVariation("baseline")
+	local, server := baseline, baseline
+	local.Name, server.Name = "local", "server"
+	local.Instructions, server.Instructions = "Local prompt", "Server prompt"
+	tests := []struct {
+		name       string
+		resolution ConflictResolution
+		server     syncdomain.Variation
+		action     Action
+		reverts    bool
+	}{
+		{"LaunchDarkly with a different prompt", ConflictUseLaunchDarkly, server, ActionUpdateBoth, true},
+		{"LaunchDarkly with the same prompt", ConflictUseLaunchDarkly, withInstructions(server, "Local prompt"), ActionUpdateLocal, false},
+		{"local", ConflictUseLocal, server, ActionUpdateServer, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan := codeOnlyPlan(t, baseline, local, test.server)
+			require.Equal(t, ActionConflict, plan.Resources[0].Action)
+			options := Options{ConflictPolicy: ConflictPolicy{Default: test.resolution}, ErrorOutput: io.Discard}
+
+			result, err := resolveConflicts(options, plan, strings.NewReader(""), false, nil)
+			require.NoError(t, err)
+			resolved := applyConflictResolutions(plan, result.resolutions)
+
+			resource := resolved.Resources[0]
+			assert.Equal(t, test.action, resource.Action)
+			assert.Equal(t, test.reverts, resource.RevertsServer)
+			assert.Equal(t, "Local prompt", resource.Merged.Instructions)
+			assert.Equal(t, test.server.Name, resource.Merged.Name)
+		})
+	}
+}
+
+func withInstructions(variation syncdomain.Variation, instructions string) syncdomain.Variation {
+	variation.Instructions = instructions
+	return variation
+}
+
+func codeOnlyPlan(t *testing.T, baseline, local, server syncdomain.Variation) Plan {
+	t.Helper()
+	id := testResourceID()
+	baselineFingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, baseline)
+	require.NoError(t, err)
+	manifest := syncmanifest.New()
+	manifest.SetFingerprint(id, baselineFingerprint)
+	return BuildPlan(manifest, localResources(&local, true), map[ResourceID]ServerResource{
+		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent, CodeOnly: true},
+	})
 }
 
 func divergentPlan(t *testing.T) Plan {
@@ -440,6 +494,11 @@ func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomai
 	return localStore, manifestStore
 }
 
+func conflictWorkspace(t *testing.T, root string, local synclocal.Store, baselines syncmanifest.Baselines, api *conflictAPI) syncWorkspace {
+	client := syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: apitest.NewServer(t, api.serve).URL, AccessToken: "token"})
+	return syncWorkspace{root: root, api: client, local: local, baselines: baselines, warnedSettings: make(map[string]bool)}
+}
+
 type memoryManifestStore struct {
 	manifest syncmanifest.Manifest
 }
@@ -459,47 +518,36 @@ type conflictAPI struct {
 	requests  []string
 }
 
-func (api *conflictAPI) MakeRequest(
-	_ string,
-	method string,
-	path string,
-	_ string,
-	_ url.Values,
-	body []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *conflictAPI) serve(request apitest.Request) (int, []byte) {
+	method, path, body := request.Method, request.Path, request.Body
 	api.requests = append(api.requests, method)
 	if strings.Contains(path, "/ai-tools/") {
 		if method == "PATCH" {
 			var tool syncdomain.Tool
 			if err := json.Unmarshal(body, &tool); err != nil {
-				return nil, err
+				return http.StatusBadRequest, nil
 			}
 			api.tool.Tool = &tool
 			api.tool.Version++
 		}
-		return json.Marshal(struct {
+		return apitest.JSON(struct {
 			syncdomain.Tool
 			Version int `json:"version"`
 		}{Tool: *api.tool.Tool, Version: api.tool.Version})
 	}
 	if method == "GET" {
-		return json.Marshal(map[string]any{
+		return apitest.JSON(map[string]any{
 			"key": "support", "name": "Support", "mode": "agent", "variations": []syncdomain.Variation{*api.variation},
 		})
 	}
 	if method == "PATCH" {
 		var update syncdomain.Variation
 		if err := json.Unmarshal(body, &update); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		update.Mode = syncdomain.VariationModeAgent
 		update.Key = api.variation.Key
 		api.variation = &update
 	}
-	return []byte(`{}`), nil
-}
-
-func (*conflictAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
+	return http.StatusOK, []byte(`{}`)
 }

@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
@@ -26,15 +25,18 @@ import (
 
 // syncWorkspace is the Git repository that one command syncs.
 type syncWorkspace struct {
-	root  string
-	local synclocal.Store
+	root   string
+	source string
+	api    syncapi.Client
+	local  synclocal.Store
 	// baselines keeps the sync.lock file and the remote manifest.
-	baselines syncmanifest.Baselines
+	baselines      syncmanifest.Baselines
+	warnedSettings map[string]bool
 }
 
 // Runner runs the prompt sync commands. Tests replace its function fields.
 type Runner struct {
-	client     resources.Client
+	transport  syncapi.Transport
 	bootstrap  func(syncbootstrap.Options) error
 	detach     func(syncdetach.Options) error
 	link       func(synclink.Options) (string, error)
@@ -42,10 +44,10 @@ type Runner struct {
 	isTerminal func(io.Reader, io.Writer) bool
 }
 
-// NewRunner creates a runner that calls LaunchDarkly through client.
-func NewRunner(client resources.Client) Runner {
+// NewRunner creates a runner that calls LaunchDarkly through transport.
+func NewRunner(transport syncapi.Transport) Runner {
 	return Runner{
-		client:     client,
+		transport:  transport,
 		bootstrap:  syncbootstrap.Run,
 		detach:     syncdetach.Run,
 		link:       synclink.Run,
@@ -67,11 +69,17 @@ func (runner Runner) Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	api := runner.transport.Client(syncapi.Options{
+		BaseURI: options.BaseURI, AccessToken: options.AccessToken, SyncSource: resolved.Source,
+	})
 	local := synclocal.NewStore(resolved.Root)
 	workspace := syncWorkspace{
-		root:      resolved.Root,
-		local:     local,
-		baselines: syncmanifest.NewBaselineStore(syncmanifest.NewStore(runner.api(options), resolved.Source), local),
+		root:           resolved.Root,
+		source:         resolved.Source,
+		api:            api,
+		local:          local,
+		baselines:      syncmanifest.NewBaselineStore(syncmanifest.NewStore(api, resolved.Source), local),
+		warnedSettings: make(map[string]bool),
 	}
 
 	switch action := options.Action.(type) {
@@ -111,7 +119,7 @@ func (runner Runner) runSync(options Options, workspace syncWorkspace, action Sy
 		return err
 	}
 	if !exists && len(projectKeys) == 0 {
-		if err := runner.bootstrap(runner.bootstrapOptions(options, workspace, true, action.DryRun, nil)); err != nil {
+		if err := runner.bootstrap(bootstrapOptions(options, workspace, true, AddAction{DryRun: action.DryRun})); err != nil {
 			return err
 		}
 		if !action.Watch {
@@ -138,7 +146,7 @@ func (runner Runner) runAdd(options Options, workspace syncWorkspace, action Add
 	if err != nil {
 		return err
 	}
-	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action.DryRun, action.Variations))
+	return runner.bootstrap(bootstrapOptions(options, workspace, !exists, action))
 }
 
 func (runner Runner) runDetach(options Options, workspace syncWorkspace, action DetachAction) error {
@@ -156,9 +164,11 @@ func (runner Runner) runDetach(options Options, workspace syncWorkspace, action 
 		Selections:     action.Variations,
 		NoInput:        options.NoInput,
 		Archive:        action.Archive,
-		Archiver:       runner.api(options),
+		Archiver:       workspace.api,
 		Yes:            options.Yes,
 		Context:        options.Context,
+		Settings:       workspace.api,
+		ErrorOutput:    options.ErrorOutput,
 	})
 }
 
@@ -166,7 +176,7 @@ func (runner Runner) runDetach(options Options, workspace syncWorkspace, action 
 // cancels.
 func (runner Runner) runLink(options Options, workspace syncWorkspace, action LinkAction) (bool, error) {
 	path, err := runner.link(synclink.Options{
-		Catalog:          runner.api(options),
+		Catalog:          workspace.api,
 		Store:            workspace.local,
 		RepositoryRoot:   workspace.root,
 		WorkingDirectory: options.WorkingDirectory,
@@ -207,37 +217,27 @@ func (runner Runner) runAttach(options Options, workspace syncWorkspace, action 
 	if action.Target != nil {
 		attach.ProjectKey, attach.VariationID = action.Target.ProjectKey, action.Target.LookupKey
 	}
-	err = attachToVariation(workspace.local, runner.api(options), attach)
+	err = attachToVariation(workspace.local, workspace.api, attach)
 	if errors.Is(err, errAttachmentCanceled) {
 		return false, nil
 	}
 	return err == nil, err
 }
 
-func (runner Runner) bootstrapOptions(
-	options Options,
-	workspace syncWorkspace,
-	initial, dryRun bool,
-	selections []syncdomain.ResourceID,
-) syncbootstrap.Options {
-	api := runner.api(options)
+func bootstrapOptions(options Options, workspace syncWorkspace, initial bool, action AddAction) syncbootstrap.Options {
 	return syncbootstrap.Options{
-		Catalog:     api,
-		Attachments: api,
+		ErrorOutput: options.ErrorOutput,
+		Catalog:     workspace.api,
+		Attachments: workspace.api,
 		Store:       workspace.local,
 		Baselines:   workspace.baselines,
 		Input:       options.Input,
 		Output:      options.Output,
 		Initial:     initial,
-		DryRun:      dryRun,
-		Selections:  selections,
+		DryRun:      action.DryRun,
+		Selections:  action.Variations,
 		NoInput:     options.NoInput,
 	}
-}
-
-// api returns the LaunchDarkly client for the command.
-func (runner Runner) api(options Options) syncapi.Client {
-	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI)
 }
 
 // interactive reports whether the command can ask the user for input.

@@ -3,10 +3,13 @@ package prompt
 import (
 	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
@@ -20,6 +23,7 @@ type workspaceState struct {
 	baseline    syncmanifest.Baseline
 	plan        Plan
 	localFiles  map[ResourceID]syncdomain.SyncedResource
+	noSettings  []string
 }
 
 // loadState reads the baseline, the local files, and LaunchDarkly, and builds
@@ -35,11 +39,29 @@ func (workspace syncWorkspace) loadState(client syncapi.Client) (workspaceState,
 	if err != nil {
 		return workspaceState{}, err
 	}
-	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client)
+	loaded, err := loadWorkspacePlan(workspace.root, baseline, client)
 	if err != nil {
 		return workspaceState{}, err
 	}
-	return workspaceState{projectKeys: projectKeys, baseline: baseline, plan: plan, localFiles: localFiles}, nil
+	return workspaceState{
+		projectKeys: projectKeys, baseline: baseline, plan: loaded.plan, localFiles: loaded.localFiles,
+		noSettings: loaded.noSettings,
+	}, nil
+}
+
+func (workspace syncWorkspace) warnUnavailableSettings(output io.Writer, state workspaceState) {
+	for _, projectKey := range state.noSettings {
+		if !workspace.warnedSettings[projectKey] {
+			workspace.warnedSettings[projectKey] = true
+			_ = syncconsole.New(output).Write(syncapi.SettingsUnavailableWarning(projectKey, "Sync uses ui-and-code."))
+		}
+	}
+}
+
+type loadedPlan struct {
+	plan       Plan
+	localFiles map[ResourceID]syncdomain.SyncedResource
+	noSettings []string
 }
 
 // loadWorkspacePlan reads the local variations and their LaunchDarkly
@@ -49,14 +71,14 @@ func loadWorkspacePlan(
 	repositoryRoot string,
 	baseline syncmanifest.Baseline,
 	client syncapi.Client,
-) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
+) (loadedPlan, error) {
 	localFiles, err := compileWorkspace(repositoryRoot)
 	if err != nil {
-		return Plan{}, nil, err
+		return loadedPlan{}, err
 	}
 	local, err := canonicalizeLocalVariationModels(localFiles, client.ModelConfig)
 	if err != nil {
-		return Plan{}, nil, err
+		return loadedPlan{}, err
 	}
 
 	localFilesByID := make(map[ResourceID]syncdomain.SyncedResource, len(localFiles))
@@ -76,8 +98,17 @@ func loadWorkspacePlan(
 	for id := range ids {
 		resource, err := readServerResource(client, attachments, id)
 		if err != nil {
-			return Plan{}, nil, err
+			return loadedPlan{}, err
 		}
+		server[id] = resource
+	}
+	codeOnly, noSettings, err := resolveCodeOnly(client, ids)
+	if err != nil {
+		return loadedPlan{}, err
+	}
+	for id := range codeOnly {
+		resource := server[id]
+		resource.CodeOnly = true
 		server[id] = resource
 	}
 	plan := BuildPlan(baseline.Lock, local, server)
@@ -85,7 +116,31 @@ func loadWorkspacePlan(
 		plan.Resources[index].SyncedElsewhere = baseline.Stale(plan.Resources[index].ID)
 		planRestore(repositoryRoot, baseline, &plan.Resources[index])
 	}
-	return plan, localFilesByID, nil
+	return loadedPlan{plan: plan, localFiles: localFilesByID, noSettings: noSettings}, nil
+}
+
+func resolveCodeOnly(
+	client syncapi.Client,
+	ids map[ResourceID]struct{},
+) (map[ResourceID]bool, []string, error) {
+	codeOnly := make(map[ResourceID]bool)
+	var noSettings []string
+	sorted := slices.SortedFunc(maps.Keys(ids), syncdomain.CompareResourceIDs)
+	for projectKey, projectIDs := range syncdomain.GroupByProject(sorted) {
+		sources, err := client.ResolveSourceOfTruth(projectKey, projectIDs)
+		switch {
+		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
+			noSettings = append(noSettings, projectKey)
+		case err != nil:
+			return nil, nil, err
+		}
+		for id, source := range sources {
+			if source == syncdomain.SourceOfTruthCodeOnly {
+				codeOnly[id] = true
+			}
+		}
+	}
+	return codeOnly, noSettings, nil
 }
 
 // planRestore checks a variation whose local file is missing. The restored
@@ -218,7 +273,9 @@ func samePlannedResourceState(reviewed, current PlannedResource) bool {
 		reviewed.BaselineFingerprint == current.BaselineFingerprint &&
 		reviewed.LocalFingerprint == current.LocalFingerprint &&
 		reviewed.ServerFingerprint == current.ServerFingerprint &&
+		reviewed.MergedFingerprint == current.MergedFingerprint &&
 		reviewed.ServerMode == current.ServerMode &&
+		reviewed.CodeOnly == current.CodeOnly &&
 		reviewed.Upsert == current.Upsert &&
 		reviewed.ServerHasStaleAttachmentPins == current.ServerHasStaleAttachmentPins &&
 		sameAttachmentPins(reviewed.Server, current.Server)

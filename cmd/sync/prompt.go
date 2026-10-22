@@ -3,6 +3,7 @@ package sync
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,8 +13,8 @@ import (
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/output"
-	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 )
@@ -33,12 +34,15 @@ const (
 )
 
 // NewPromptCmd creates the prompt synchronization command.
-func NewPromptCmd(client resources.Client) *cobra.Command {
+func NewPromptCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prompts",
 		Short: "Synchronize local prompt variations with LaunchDarkly",
 		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the LaunchDarkly manifest. " +
-			"Sync rechecks state before every write, rerun sync after a change.",
+			"Sync rechecks state before every write, rerun sync after a change. " +
+			"Each variation has a source of truth, ui-and-code or code-only. " +
+			"A code-only variation keeps the prompt of its local file, and its other settings sync both ways. " +
+			"To change the source of truth, use the variation menu in LaunchDarkly.",
 		Example: `  # Preview synchronization changes
   ldcli sync prompts --dry-run
 
@@ -56,7 +60,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 			}
 			return validators.Validate()(cmd, args)
 		},
-		RunE: runPrompt(client, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
 			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 			return syncprompt.SyncAction{DryRun: dryRun}, nil
 		}),
@@ -64,11 +68,11 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 
 	addApplyFlags(cmd, true)
 	cmd.AddCommand(
-		newWatchCmd(client),
-		newAddCmd(client),
-		newAttachCmd(client),
-		newDetachCmd(client),
-		newLinkCmd(client),
+		newWatchCmd(transport),
+		newAddCmd(transport),
+		newAttachCmd(transport),
+		newDetachCmd(transport),
+		newLinkCmd(transport),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -77,7 +81,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 
 type actionBuilder func(*cobra.Command, []string) (syncprompt.CommandAction, error)
 
-func runPrompt(client resources.Client, buildAction actionBuilder) func(*cobra.Command, []string) error {
+func runPrompt(transport syncapi.Transport, buildAction actionBuilder) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		workingDirectory, err := os.Getwd()
 		if err != nil {
@@ -95,7 +99,7 @@ func runPrompt(client resources.Client, buildAction actionBuilder) func(*cobra.C
 		noInput, _ := cmd.Flags().GetBool(noInputFlag)
 		outputKind := cliflags.GetOutputKind(cmd)
 
-		err = syncprompt.NewRunner(client).Run(syncprompt.Options{
+		err = syncprompt.NewRunner(transport).Run(syncprompt.Options{
 			WorkingDirectory: workingDirectory,
 			AccessToken:      viper.GetString(cliflags.AccessTokenFlag),
 			BaseURI:          viper.GetString(cliflags.BaseURIFlag),
@@ -116,7 +120,7 @@ func runPrompt(client resources.Client, buildAction actionBuilder) func(*cobra.C
 	}
 }
 
-func newWatchCmd(client resources.Client) *cobra.Command {
+func newWatchCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "watch",
 		Short: "Synchronize when managed files change",
@@ -126,7 +130,7 @@ func newWatchCmd(client resources.Client) *cobra.Command {
   # Apply watched changes without prompting and report unresolved conflicts
   ldcli sync prompts watch --yes --no-input`,
 		Args: validatedArgs(cobra.NoArgs),
-		RunE: runPrompt(client, func(*cobra.Command, []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(*cobra.Command, []string) (syncprompt.CommandAction, error) {
 			return syncprompt.SyncAction{Watch: true}, nil
 		}),
 	}
@@ -134,34 +138,29 @@ func newWatchCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func newAddCmd(client resources.Client) *cobra.Command {
+func newAddCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add [project-key/config-key/variation-key...]",
 		Short: "Add prompt variations from LaunchDarkly",
+		Long: "Write LaunchDarkly prompt variations as local files, and start to sync them. " +
+			"Add keeps the source of truth of each variation. To change it, use the variation menu in LaunchDarkly.",
 		Example: `  # Choose variations interactively
   ldcli sync prompts add
 
-  # Add one variation by its full selector
+  # Add one variation
   ldcli sync prompts add production/support/default
 
   # Add multiple variations without prompting
   ldcli sync prompts add production/support/default production/chat/concise --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
-		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
-			variations, err := parseVariationSelectors(args)
-			if err != nil {
-				return nil, err
-			}
-			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-			return syncprompt.AddAction{Variations: variations, DryRun: dryRun}, nil
-		}),
+		RunE: runPrompt(transport, addAction),
 	}
 	cmd.Flags().Bool(dryRunFlag, false, "Preview local files without creating them")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }
 
-func newAttachCmd(client resources.Client) *cobra.Command {
+func newAttachCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "attach",
 		Short: "Attach a tool or skill to a synced variation",
@@ -172,13 +171,13 @@ func newAttachCmd(client resources.Client) *cobra.Command {
   ldcli sync prompts attach skill summarize --to production/support/default --yes`,
 	}
 	cmd.AddCommand(
-		newAttachKindCmd(client, syncdomain.AttachmentTool),
-		newAttachKindCmd(client, syncdomain.AttachmentSkill),
+		newAttachKindCmd(transport, syncdomain.AttachmentTool),
+		newAttachKindCmd(transport, syncdomain.AttachmentSkill),
 	)
 	return cmd
 }
 
-func newAttachKindCmd(client resources.Client, kind syncdomain.AttachmentKind) *cobra.Command {
+func newAttachKindCmd(transport syncapi.Transport, kind syncdomain.AttachmentKind) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   string(kind) + " [key]",
 		Short: "Attach a " + string(kind) + " to a synced variation",
@@ -190,7 +189,7 @@ func newAttachKindCmd(client resources.Client, kind syncdomain.AttachmentKind) *
     --to production/support/default \
     --yes --no-input`, kind, kind, kind, kind),
 		Args: validatedArgs(cobra.MaximumNArgs(1)),
-		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			target, err := optionalVariationFlag(cmd, toFlag)
 			if err != nil {
 				return nil, err
@@ -207,10 +206,13 @@ func newAttachKindCmd(client resources.Client, kind syncdomain.AttachmentKind) *
 	return cmd
 }
 
-func newDetachCmd(client resources.Client) *cobra.Command {
+func newDetachCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "detach [project-key/config-key/variation-key...]",
 		Short: "Stop syncing local prompt variations",
+		Long: "Stop syncing local prompt variations. Detach deletes the local files of the variations. " +
+			"It also deletes the exact sync settings rule of each variation, so that LaunchDarkly accepts changes to it again. " +
+			"LaunchDarkly keeps the variations, unless you use --archive.",
 		Example: `  # Choose variations interactively
   ldcli sync prompts detach
 
@@ -220,7 +222,7 @@ func newDetachCmd(client resources.Client) *cobra.Command {
   # Stop syncing one variation and archive it in LaunchDarkly
   ldcli sync prompts detach production/support/default --archive --yes --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
-		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
 			if err != nil {
 				return nil, err
@@ -235,7 +237,7 @@ func newDetachCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func newLinkCmd(client resources.Client) *cobra.Command {
+func newLinkCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "link <file>",
 		Short: "Link an external prompt file",
@@ -246,7 +248,7 @@ func newLinkCmd(client resources.Client) *cobra.Command {
     --model-config-key claude \
     --yes --no-input`,
 		Args: validatedArgs(cobra.ExactArgs(1)),
-		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			format, _ := cmd.Flags().GetString(formatFlag)
 			target, err := linkTarget(cmd)
 			if err != nil {
@@ -284,12 +286,24 @@ func validatedArgs(validate cobra.PositionalArgs) cobra.PositionalArgs {
 	}
 }
 
+func addAction(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+	variations, err := parseVariationSelectors(args)
+	if err != nil {
+		return nil, err
+	}
+	dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
+	return syncprompt.AddAction{Variations: variations, DryRun: dryRun}, nil
+}
+
 func parseVariationSelectors(values []string) ([]syncdomain.ResourceID, error) {
 	variations := make([]syncdomain.ResourceID, 0, len(values))
 	for _, value := range values {
 		variation, err := syncdomain.ParseVariationSelector(value)
 		if err != nil {
 			return nil, err
+		}
+		if slices.Contains(variations, variation) {
+			return nil, fmt.Errorf("variation %s was selected more than once", variation)
 		}
 		variations = append(variations, variation)
 	}

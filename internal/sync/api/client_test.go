@@ -3,68 +3,52 @@ package api
 import (
 	"errors"
 	"net/http"
-	"net/url"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 )
 
-type recordedRequest struct {
-	AccessToken string
-	Method      string
-	Path        string
-	ContentType string
-	Query       url.Values
-	Body        []byte
-	IsBeta      bool
-}
-
-type recordingClient struct {
-	Requests  []recordedRequest
+// recordingServer records each request. It sends Responses in order, or Status and ErrorBody to each request.
+type recordingServer struct {
+	Requests  []apitest.Request
 	Responses [][]byte
-	Err       error
+	Status    int
+	ErrorBody string
 }
 
-var _ resources.Client = &recordingClient{}
-
-func (client *recordingClient) MakeRequest(
-	accessToken string,
-	method string,
-	path string,
-	contentType string,
-	query url.Values,
-	body []byte,
-	isBeta bool,
-) ([]byte, error) {
-	client.Requests = append(client.Requests, recordedRequest{
-		AccessToken: accessToken,
-		Method:      method,
-		Path:        path,
-		ContentType: contentType,
-		Query:       query,
-		Body:        append([]byte(nil), body...),
-		IsBeta:      isBeta,
+func (recorder *recordingServer) client(t *testing.T) Client {
+	t.Helper()
+	server := apitest.NewServer(t, func(request apitest.Request) (int, []byte) {
+		recorder.Requests = append(recorder.Requests, request)
+		switch {
+		case recorder.Status != 0:
+			return recorder.Status, []byte(recorder.ErrorBody)
+		case len(recorder.Responses) < len(recorder.Requests):
+			return http.StatusOK, nil
+		default:
+			return http.StatusOK, recorder.Responses[len(recorder.Requests)-1]
+		}
 	})
-	if client.Err != nil {
-		return nil, client.Err
-	}
-	if len(client.Responses) < len(client.Requests) {
-		return nil, nil
-	}
-
-	return client.Responses[len(client.Requests)-1], nil
+	return NewTransport("test").Client(Options{BaseURI: server.URL, AccessToken: "token"})
 }
 
-func (*recordingClient) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
+func TestZeroTransportSendsRequests(t *testing.T) {
+	server := apitest.NewServer(t, func(apitest.Request) (int, []byte) {
+		return http.StatusOK, []byte(`{"key":"support","mode":"agent","variations":[]}`)
+	})
+
+	_, err := Transport{}.Client(Options{BaseURI: server.URL}).ReadVariation("project", "support", "default")
+
+	require.NoError(t, err)
 }
 
 func TestClientVariationReadsParentConfig(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{
 		"key": "support",
 		"name": "Support agent",
 		"mode": "agent",
@@ -83,7 +67,7 @@ func TestClientVariationReadsParentConfig(t *testing.T) {
 			}
 		]
 	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 
 	state, err := client.ReadVariation("project", "support", "helpful")
 
@@ -97,26 +81,26 @@ func TestClientVariationReadsParentConfig(t *testing.T) {
 
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
-	assert.Equal(t, "token", request.AccessToken)
+	assert.Equal(t, "token", request.Header.Get("Authorization"))
 	assert.Equal(t, "GET", request.Method)
 	assert.Equal(
 		t,
-		"https://example.com/api/v2/projects/project/ai-configs/support",
+		"/api/v2/projects/project/ai-configs/support",
 		request.Path,
 	)
-	assert.Empty(t, request.ContentType)
+	assert.Empty(t, request.Header.Get("Content-Type"))
 	assert.Empty(t, request.Query)
 	assert.Empty(t, request.Body)
-	assert.False(t, request.IsBeta)
+	assert.Equal(t, apiVersion, request.Header.Get("LD-API-Version"))
 }
 
 func TestClientVariationReturnsFalseWhenMissing(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{
 		"key": "support",
 		"mode": "agent",
 		"variations": [{"key": "other", "name": "Other"}]
 	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 
 	state, err := client.ReadVariation("project", "support", "missing")
 
@@ -127,7 +111,7 @@ func TestClientVariationReturnsFalseWhenMissing(t *testing.T) {
 }
 
 func TestClientVariationTreatsArchivedVariationAsMissing(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{
 		"key": "support",
 		"mode": "agent",
 		"variations": [{
@@ -137,7 +121,7 @@ func TestClientVariationTreatsArchivedVariationAsMissing(t *testing.T) {
 			"instructions": "Help the user."
 		}]
 	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 
 	state, err := client.ReadVariation("project", "support", "helpful")
 
@@ -148,23 +132,15 @@ func TestClientVariationTreatsArchivedVariationAsMissing(t *testing.T) {
 }
 
 func TestClientVariationReturnsTransportError(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Err: errors.New("unavailable")},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	_, err := client.ReadVariation("project", "support", "helpful")
 
-	require.ErrorContains(t, err, `get config "support" in project "project": unavailable`)
+	require.ErrorContains(t, err, `get config "support" in project "project": Get "`)
 }
 
 func TestClientVariationRejectsInvalidResponse(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Responses: [][]byte{[]byte(`not json`)}},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Responses: [][]byte{[]byte(`not json`)}}).client(t)
 
 	_, err := client.ReadVariation("project", "support", "helpful")
 
@@ -172,7 +148,7 @@ func TestClientVariationRejectsInvalidResponse(t *testing.T) {
 }
 
 func TestClientVariationReadsModelConfigVersion(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{
 		"key": "support",
 		"mode": "agent",
 		"variations": [{
@@ -181,7 +157,7 @@ func TestClientVariationReadsModelConfigVersion(t *testing.T) {
 			"modelConfigVersion": 2
 		}]
 	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 
 	state, err := client.ReadVariation("project", "support", "helpful")
 
@@ -190,11 +166,11 @@ func TestClientVariationReadsModelConfigVersion(t *testing.T) {
 }
 
 func TestClientCreateVariation(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{
 		"key": "concise",
 		"name": "Concise"
 	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 	variation := syncdomain.Variation{
 		Mode:               syncdomain.VariationModeCompletion,
 		Key:                "concise",
@@ -222,16 +198,16 @@ func TestClientCreateVariation(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
-	assert.Equal(t, "token", request.AccessToken)
+	assert.Equal(t, "token", request.Header.Get("Authorization"))
 	assert.Equal(t, "POST", request.Method)
 	assert.Equal(
 		t,
-		"https://example.com/api/v2/projects/project/ai-configs/support/variations",
+		"/api/v2/projects/project/ai-configs/support/variations",
 		request.Path,
 	)
-	assert.Equal(t, "application/json", request.ContentType)
+	assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 	assert.Empty(t, request.Query)
-	assert.False(t, request.IsBeta)
+	assert.Equal(t, apiVersion, request.Header.Get("LD-API-Version"))
 	assert.JSONEq(t, `{
 		"key": "concise",
 		"name": "Concise",
@@ -249,8 +225,8 @@ func TestClientCreateVariation(t *testing.T) {
 }
 
 func TestClientCreateAgentVariationOmitsCompletionFields(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 	variation := testVariation(syncdomain.VariationModeAgent)
 	variation.Messages = []syncdomain.Message{{Role: "user", Content: "stale completion message"}}
 
@@ -262,11 +238,7 @@ func TestClientCreateAgentVariationOmitsCompletionFields(t *testing.T) {
 }
 
 func TestClientCreateVariationReturnsTransportError(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Err: errors.New("forbidden")},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	err := client.CreateVariation(
 		"project",
@@ -274,16 +246,12 @@ func TestClientCreateVariationReturnsTransportError(t *testing.T) {
 		testVariation(syncdomain.VariationModeAgent),
 	)
 
-	require.ErrorContains(t, err, `create config variation "helpful": forbidden`)
+	require.ErrorContains(t, err, `create config variation "helpful": Post "`)
 	assert.True(t, MutationMayHaveSucceeded(err))
 }
 
 func TestClientMutationRecognizesDefinitiveAPIError(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Err: errors.New(`{"code":"invalid_request","statusCode":400}`)},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Status: 400, ErrorBody: `{"code":"invalid_request","statusCode":400}`}).client(t)
 
 	err := client.CreateVariation(
 		"project",
@@ -296,8 +264,8 @@ func TestClientMutationRecognizesDefinitiveAPIError(t *testing.T) {
 }
 
 func TestClientCreateVariationReturnsEncodeError(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 	variation := testVariation(syncdomain.VariationModeAgent)
 	variation.Model = map[string]any{"invalid": make(chan int)}
 
@@ -308,11 +276,11 @@ func TestClientCreateVariationReturnsEncodeError(t *testing.T) {
 }
 
 func TestClientUpdateVariation(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{
 		"key": "helpful",
 		"name": "Very helpful"
 	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 	variation := testVariation(syncdomain.VariationModeAgent)
 	variation.Name = "Very helpful"
 	variation.ModelConfigVersion = 3
@@ -323,17 +291,17 @@ func TestClientUpdateVariation(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
-	assert.Equal(t, "token", request.AccessToken)
+	assert.Equal(t, "token", request.Header.Get("Authorization"))
 	assert.Equal(t, "PATCH", request.Method)
 	assert.Equal(
 		t,
-		"https://example.com/api/v2/projects/project/ai-configs/support/variations/helpful",
+		"/api/v2/projects/project/ai-configs/support/variations/helpful",
 		request.Path,
 	)
-	assert.Equal(t, "application/json", request.ContentType)
+	assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 	assert.Empty(t, request.Query)
 	assert.NotEmpty(t, request.Body)
-	assert.False(t, request.IsBeta)
+	assert.Equal(t, apiVersion, request.Header.Get("LD-API-Version"))
 	assert.JSONEq(t, `{
 		"name": "Very helpful",
 		"instructions": "Help the user.",
@@ -347,8 +315,8 @@ func TestClientUpdateVariation(t *testing.T) {
 }
 
 func TestClientUpdateVariationSendsEmptyOwnedFieldsToClearThem(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 	variation := syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent,
 		Key:  "helpful",
@@ -361,15 +329,14 @@ func TestClientUpdateVariationSendsEmptyOwnedFieldsToClearThem(t *testing.T) {
 	assert.JSONEq(t, `{
 		"name": "Helpful",
 		"instructions": "",
-		"modelConfigKey": "",
 		"model": {},
 		"outputFormat": {}
 	}`, string(transport.Requests[0].Body))
 }
 
 func TestClientUpdateCompletionVariationOmitsAgentFields(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 	variation := testVariation(syncdomain.VariationModeCompletion)
 	variation.Messages = []syncdomain.Message{{Role: "system", Content: "Help the user."}}
 
@@ -388,8 +355,8 @@ func TestClientUpdateCompletionVariationOmitsAgentFields(t *testing.T) {
 }
 
 func TestClientUpdateCompletionVariationSendsEmptyMessagesToClearThem(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 	variation := testVariation(syncdomain.VariationModeCompletion)
 
 	require.NoError(t, client.UpdateVariation("project", "support", variation))
@@ -400,11 +367,7 @@ func TestClientUpdateCompletionVariationSendsEmptyMessagesToClearThem(t *testing
 }
 
 func TestClientUpdateVariationReturnsTransportError(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Err: errors.New("conflict")},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	err := client.UpdateVariation(
 		"project",
@@ -412,12 +375,12 @@ func TestClientUpdateVariationReturnsTransportError(t *testing.T) {
 		testVariation(syncdomain.VariationModeAgent),
 	)
 
-	require.ErrorContains(t, err, `update config variation "helpful": conflict`)
+	require.ErrorContains(t, err, `update config variation "helpful": Patch "`)
 }
 
 func TestClientUpdateVariationReturnsEncodeError(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 	variation := testVariation(syncdomain.VariationModeAgent)
 	variation.Model = map[string]any{"invalid": make(chan int)}
 
@@ -428,41 +391,37 @@ func TestClientUpdateVariationReturnsEncodeError(t *testing.T) {
 }
 
 func TestClientArchiveVariation(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 
 	err := client.ArchiveVariation("project", "support", "helpful")
 
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
-	assert.Equal(t, "token", request.AccessToken)
+	assert.Equal(t, "token", request.Header.Get("Authorization"))
 	assert.Equal(t, "PATCH", request.Method)
 	assert.Equal(
 		t,
-		"https://example.com/api/v2/projects/project/ai-configs/support/variations/helpful",
+		"/api/v2/projects/project/ai-configs/support/variations/helpful",
 		request.Path,
 	)
-	assert.Equal(t, "application/json", request.ContentType)
+	assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 	assert.Empty(t, request.Query)
 	assert.JSONEq(t, `{"state":"archived"}`, string(request.Body))
-	assert.False(t, request.IsBeta)
+	assert.Equal(t, apiVersion, request.Header.Get("LD-API-Version"))
 }
 
 func TestClientArchiveVariationReturnsTransportError(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Err: errors.New("in use")},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Status: apitest.CloseConnection}).client(t)
 
 	err := client.ArchiveVariation("project", "support", "helpful")
 
-	require.ErrorContains(t, err, `archive config variation "helpful": in use`)
+	require.ErrorContains(t, err, `archive config variation "helpful": Patch "`)
 }
 
 func TestClientGetsSyncManifest(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{
 		"source": "git:example.com/acme/repo",
 		"items": [{
 			"resourceKind": "variation",
@@ -471,7 +430,7 @@ func TestClientGetsSyncManifest(t *testing.T) {
 			"version": 3
 		}]
 	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 
 	manifest, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
 
@@ -481,16 +440,16 @@ func TestClientGetsSyncManifest(t *testing.T) {
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
 	assert.Equal(t, http.MethodGet, request.Method)
-	assert.Equal(t, "https://example.com/api/v2/projects/project/configs/sync/manifests", request.Path)
+	assert.Equal(t, "/api/v2/projects/project/configs/sync/manifests", request.Path)
 	assert.Equal(t, "git:example.com/acme/repo", request.Query.Get("source"))
 }
 
 func TestClientPatchesSyncManifest(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{
 		"source": "git:example.com/acme/repo",
 		"items": []
 	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 
 	_, err := client.PatchSyncManifest(
 		"project",
@@ -506,7 +465,7 @@ func TestClientPatchesSyncManifest(t *testing.T) {
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
 	assert.Equal(t, http.MethodPatch, request.Method)
-	assert.Equal(t, "application/json", request.ContentType)
+	assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 	assert.JSONEq(t, `{
 		"source": "git:example.com/acme/repo",
 		"upserts": [{
@@ -572,5 +531,62 @@ func testVariation(mode syncdomain.VariationMode) syncdomain.Variation {
 		Instructions:   "Help the user.",
 		ModelConfigKey: "claude",
 		Model:          map[string]any{"modelName": "claude-3-5-sonnet"},
+	}
+}
+
+func TestClientUpdateVariationOmitsEmptyModelConfigKey(t *testing.T) {
+	transport := &recordingServer{}
+	client := transport.client(t)
+	variation := testVariation(syncdomain.VariationModeAgent)
+	variation.ModelConfigKey = ""
+
+	require.NoError(t, client.UpdateVariation("project", "support", variation))
+	require.NoError(t, client.CreateVariation("project", "support", variation))
+
+	require.Len(t, transport.Requests, 2)
+	for _, request := range transport.Requests {
+		assert.NotContains(t, string(request.Body), `"modelConfigKey"`, request.Method)
+	}
+}
+
+func TestClientReportsErrorResponsesAsTheResourcesClientDoes(t *testing.T) {
+	tests := map[string]struct {
+		status int
+		body   string
+		want   string
+	}{
+		"JSON without a status": {
+			status: http.StatusBadRequest,
+			body:   `{"code":"invalid_request","message":"Invalid key"}`,
+			want:   `{"code":"invalid_request","message":"Invalid key","statusCode":400}`,
+		},
+		"text": {
+			status: http.StatusBadGateway,
+			body:   "upstream failed",
+			want:   `{"code":"bad_gateway","message":"upstream failed","statusCode":502}`,
+		},
+		"empty": {
+			status: http.StatusConflict,
+			want: `{"code":"conflict","message":"Conflict","statusCode":409,` +
+				`"suggestion":"Conflict: the resource may have been modified since you last read it. Fetch the latest version and retry."}`,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				writer.WriteHeader(test.status)
+				_, _ = writer.Write([]byte(test.body))
+			}))
+			t.Cleanup(server.Close)
+			client := NewTransport("test").Client(Options{BaseURI: server.URL, AccessToken: "token"})
+
+			_, err := client.do(http.MethodGet, server.URL+"/api/v2/projects", nil, nil)
+
+			require.Error(t, err)
+			assert.JSONEq(t, test.want, err.Error())
+			status, ok := responseStatusCode(err)
+			assert.True(t, ok)
+			assert.Equal(t, test.status, status)
+		})
 	}
 }

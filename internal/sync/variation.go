@@ -219,3 +219,10 @@ func (variation Variation) attachmentIndex(kind AttachmentKind, key string) int 
 		return attachment.Kind == kind && attachment.Key() == key
 	})
 }
+
+// WithPromptOf returns a copy of the variation with the instructions and the messages of source.
+func (variation Variation) WithPromptOf(source Variation) Variation {
+	variation.Instructions = source.Instructions
+	variation.Messages = slices.Clone(source.Messages)
+	return variation
+}

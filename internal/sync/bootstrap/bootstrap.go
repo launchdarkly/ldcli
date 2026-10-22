@@ -39,6 +39,7 @@ type Options struct {
 	Baselines   syncmanifest.Baselines
 	Input       io.Reader
 	Output      io.Writer
+	ErrorOutput io.Writer
 	// Initial is true when the workspace has no .launchdarkly directory.
 	Initial bool
 	DryRun  bool

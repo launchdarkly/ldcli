@@ -3,25 +3,54 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
-
-	"github.com/launchdarkly/ldcli/internal/resources"
 )
+
+// SyncSourceHeader marks a write by sync. Its value is the sync source of the repository.
+const SyncSourceHeader = "LD-Sync-Source"
+
+const apiVersion = "20240415"
+
+// Transport keeps the User-Agent header of each sync request. The zero value works.
+type Transport struct {
+	userAgent string
+}
+
+// NewTransport creates a transport whose User-Agent header names cliVersion.
+func NewTransport(cliVersion string) Transport {
+	return Transport{userAgent: fmt.Sprintf("launchdarkly-cli/v%s", cliVersion)}
+}
+
+// Options are the values of one command that a Client uses.
+type Options struct {
+	BaseURI     string
+	AccessToken string
+	// SyncSource is the value of SyncSourceHeader on each write.
+	SyncSource string
+}
 
 // Client calls the LaunchDarkly REST API with one access token.
 type Client struct {
-	transport   resources.Client
-	accessToken string
+	transport   Transport
 	baseURI     string
+	accessToken string
+	syncSource  string
 }
 
-// NewClient creates a client for the API at baseURI.
-func NewClient(transport resources.Client, accessToken, baseURI string) Client {
-	return Client{transport: transport, accessToken: accessToken, baseURI: baseURI}
+// Client creates a client for one command.
+func (transport Transport) Client(options Options) Client {
+	return Client{
+		transport:   transport,
+		baseURI:     options.BaseURI,
+		accessToken: options.AccessToken,
+		syncSource:  options.SyncSource,
+	}
 }
 
 // Page is one server-filtered page of catalog items.
@@ -47,7 +76,7 @@ func (client Client) read(description, projectKey string, query url.Values, path
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", query, nil, false)
+	response, err := client.do(http.MethodGet, endpoint, query, nil)
 	if err != nil {
 		return nil, contextualAPIError(err, description, projectKey)
 	}
@@ -65,11 +94,47 @@ func (client Client) mutate(request mutation, path ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.transport.MakeRequest(client.accessToken, request.method, endpoint, "application/json", nil, body, false)
+	response, err := client.do(request.method, endpoint, nil, body)
 	if err != nil {
 		return nil, newMutationError(request.action, request.resource, request.key, err)
 	}
 	return response, nil
+}
+
+// do sends one request. If LaunchDarkly sends a status of 400 or more, the error text is the JSON API error.
+func (client Client) do(method, endpoint string, query url.Values, body []byte) ([]byte, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	request, err := http.NewRequest(method, endpoint, reader)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	request.Header.Set("Authorization", client.accessToken)
+	request.Header.Set("User-Agent", client.transport.userAgent)
+	request.Header.Set("LD-API-Version", apiVersion)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if method != http.MethodGet {
+		request.Header.Set(SyncSourceHeader, client.syncSource)
+	}
+	request.URL.RawQuery = query.Encode()
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode >= http.StatusBadRequest {
+		return nil, statusError(response.StatusCode, responseBody, request.URL.Scheme+"://"+request.URL.Host)
+	}
+	return responseBody, nil
 }
 
 func (client Client) endpoint(path ...string) (string, error) {

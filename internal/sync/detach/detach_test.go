@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +17,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
@@ -188,6 +190,7 @@ func TestRunRequiresTerminalWhenResourcesExist(t *testing.T) {
 	require.NoError(t, err)
 
 	err = Run(Options{
+		Settings:       settingsAPI(t),
 		RepositoryRoot: root,
 		Store:          store,
 		Baselines:      newMemoryManifestStore(),
@@ -211,6 +214,7 @@ func TestRunUsesExplicitSelectionsWithoutTerminal(t *testing.T) {
 	manifestStore := newMemoryManifestStore()
 
 	err = Run(Options{
+		Settings:       settingsAPI(t),
 		RepositoryRoot: root,
 		Store:          store,
 		Baselines:      manifestStore,
@@ -232,6 +236,7 @@ func TestRunReportsWhenNoResourcesAreSynced(t *testing.T) {
 	var output bytes.Buffer
 
 	err := Run(Options{
+		Settings:       settingsAPI(t),
 		RepositoryRoot: root,
 		Store:          synclocal.NewStore(root),
 		Baselines:      newMemoryManifestStore(),
@@ -248,6 +253,7 @@ func TestRunRejectsExplicitSelectionWhenNoResourcesAreSynced(t *testing.T) {
 	var output bytes.Buffer
 
 	err := Run(Options{
+		Settings:       settingsAPI(t),
 		RepositoryRoot: root,
 		Store:          synclocal.NewStore(root),
 		Baselines:      newMemoryManifestStore(),
@@ -386,11 +392,12 @@ type archiveWorkspace struct {
 	store     synclocal.Store
 	baselines *memoryManifestStore
 	keys      []string
+	settings  syncapi.Client
 }
 
 func newArchiveWorkspace(t *testing.T, keys ...string) archiveWorkspace {
 	t.Helper()
-	workspace := archiveWorkspace{root: t.TempDir(), baselines: newMemoryManifestStore(), keys: keys}
+	workspace := archiveWorkspace{root: t.TempDir(), baselines: newMemoryManifestStore(), keys: keys, settings: settingsAPI(t)}
 	workspace.store = synclocal.NewStore(workspace.root)
 	for _, key := range keys {
 		_, err := workspace.store.Add([]synclocal.VariationFile{{
@@ -416,6 +423,7 @@ func (workspace archiveWorkspace) options(archiver Archiver) Options {
 		Selections:     selections,
 		NoInput:        true,
 		Archiver:       archiver,
+		Settings:       workspace.settings,
 	}
 }
 
@@ -528,4 +536,9 @@ func testVariation(key string) syncdomain.Variation {
 
 func testFingerprint() string {
 	return "sha256:" + strings.Repeat("0", 64)
+}
+
+func settingsAPI(t *testing.T) syncapi.Client {
+	server := apitest.NewServer(t, func(apitest.Request) (int, []byte) { return http.StatusOK, []byte(`{}`) })
+	return syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL})
 }

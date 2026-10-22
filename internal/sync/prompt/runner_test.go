@@ -3,7 +3,7 @@ package prompt
 import (
 	"context"
 	"io"
-	"net/url"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	syncdetach "github.com/launchdarkly/ldcli/internal/sync/detach"
 	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
@@ -55,7 +55,7 @@ func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T
 			}
 
 			called := false
-			runner := NewRunner(noopResourceClient{})
+			runner := NewRunner(syncapi.NewTransport("test"))
 			runner.bootstrap = func(options syncbootstrap.Options) error {
 				called = true
 				assert.Equal(t, test.wantInitial, options.Initial)
@@ -83,7 +83,7 @@ func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T
 }
 
 func TestRunnerRequiresGit(t *testing.T) {
-	runner := NewRunner(noopResourceClient{})
+	runner := NewRunner(syncapi.NewTransport("test"))
 	called := false
 	runner.bootstrap = func(syncbootstrap.Options) error {
 		called = true
@@ -104,7 +104,7 @@ func TestRunnerRequiresGit(t *testing.T) {
 func TestRunnerWatchDoesNotRunInitialSync(t *testing.T) {
 	root := initGitRepository(t)
 	require.NoError(t, os.Mkdir(filepath.Join(root, syncdomain.RootDir), 0o755))
-	runner := NewRunner(noopResourceClient{})
+	runner := NewRunner(syncapi.NewTransport("test"))
 	watchCalled := false
 	runner.watch = func(
 		_ context.Context,
@@ -134,7 +134,7 @@ func TestRunnerWatchDoesNotRunInitialSync(t *testing.T) {
 
 func TestRunnerLinksPrompt(t *testing.T) {
 	root := initGitRepository(t)
-	runner := NewRunner(noopResourceClient{})
+	runner := NewRunner(syncapi.NewTransport("test"))
 	linkCalled := false
 	runner.link = func(options synclink.Options) (string, error) {
 		linkCalled = true
@@ -159,7 +159,7 @@ func TestRunnerLinksPrompt(t *testing.T) {
 
 func TestRunnerDetachesWithoutCallingTheAPI(t *testing.T) {
 	root := initGitRepository(t)
-	runner := NewRunner(noopResourceClient{})
+	runner := NewRunner(syncapi.NewTransport("test"))
 	called := false
 	runner.detach = func(options syncdetach.Options) error {
 		called = true
@@ -189,7 +189,7 @@ func TestRunnerChecksAttachmentTerminalOnOutput(t *testing.T) {
 	var output, errorOutput strings.Builder
 	var checkedInput io.Reader
 	var checkedOutput io.Writer
-	runner := NewRunner(noopResourceClient{})
+	runner := NewRunner(syncapi.NewTransport("test"))
 	runner.isTerminal = func(input io.Reader, output io.Writer) bool {
 		checkedInput = input
 		checkedOutput = output
@@ -259,7 +259,7 @@ func TestAttachToVariationPreservesExistingSharedAttachmentEdits(t *testing.T) {
 		current: syncdomain.Tool{Key: "search", Description: &serverDescription, Schema: map[string]any{"type": "object"}},
 		version: 2,
 	}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	err = attachToVariation(store, client, attachOptions{
 		RepositoryRoot: root,
 		ProjectKey:     "project",
@@ -278,7 +278,7 @@ func TestAttachToVariationPreservesExistingSharedAttachmentEdits(t *testing.T) {
 }
 
 func TestEmptyAttachmentSearchReturnsNoResults(t *testing.T) {
-	client := syncapi.NewClient(emptyAttachmentClient{}, "token", "https://example.com")
+	client := newTestClient(t, emptyAttachmentClient{}.serve)
 
 	attachments, totalCount, err := searchAttachmentPage(client, "project", syncdomain.AttachmentTool, "missing", 25, 0)
 
@@ -289,7 +289,7 @@ func TestEmptyAttachmentSearchReturnsNoResults(t *testing.T) {
 
 func TestToolSearchPageReturnsTrueLatestVersion(t *testing.T) {
 	transport := &toolSearchClient{}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 
 	attachments, totalCount, err := searchAttachmentPage(client, "project", syncdomain.AttachmentTool, "old description", 25, 0)
 
@@ -315,45 +315,33 @@ func TestAttachPreservesOtherKinds(t *testing.T) {
 	assert.Len(t, variation.Attachments, 2)
 }
 
-type noopResourceClient struct{}
-
-var _ resources.Client = noopResourceClient{}
-
-func (noopResourceClient) MakeRequest(string, string, string, string, url.Values, []byte, bool) ([]byte, error) {
-	return nil, nil
-}
-
-func (noopResourceClient) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
+// newTestClient serves handler over HTTP and returns a client for the server.
+func newTestClient(t *testing.T, handler apitest.Handler) syncapi.Client {
+	t.Helper()
+	server := apitest.NewServer(t, handler)
+	return syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL, AccessToken: "token"})
 }
 
 type emptyAttachmentClient struct{}
 
-func (emptyAttachmentClient) MakeRequest(string, string, string, string, url.Values, []byte, bool) ([]byte, error) {
-	return []byte(`{"items":[],"totalCount":0}`), nil
-}
-
-func (emptyAttachmentClient) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
+func (emptyAttachmentClient) serve(apitest.Request) (int, []byte) {
+	return http.StatusOK, []byte(`{"items":[],"totalCount":0}`)
 }
 
 type toolSearchClient struct {
 	requests int
 }
 
-func (client *toolSearchClient) MakeRequest(_ string, _ string, path string, _ string, _ url.Values, _ []byte, _ bool) ([]byte, error) {
+func (client *toolSearchClient) serve(request apitest.Request) (int, []byte) {
+	path := request.Path
 	client.requests++
 	if strings.HasSuffix(path, "/ai-tools") {
-		return []byte(`{
+		return http.StatusOK, []byte(`{
 			"items":[{"key":"search","description":"old description","schema":{},"version":2}],
 			"totalCount":1
-		}`), nil
+		}`)
 	}
-	return []byte(`{"key":"search","description":"new description","schema":{},"version":3}`), nil
-}
-
-func (*toolSearchClient) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
+	return http.StatusOK, []byte(`{"key":"search","description":"new description","schema":{},"version":3}`)
 }
 
 func initGitRepository(t *testing.T) string {

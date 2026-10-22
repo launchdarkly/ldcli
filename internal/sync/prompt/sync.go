@@ -14,13 +14,13 @@ import (
 //  2. Ask the user to resolve each conflict.
 //  3. Show the plan and ask the user to apply it.
 //  4. Read the state again, and stop if it changed after the review.
-//  5. Apply the plan, record the new baseline, and report the results.
+//  5. Apply the plan and record the new baseline.
 //
 // In watch mode, watcher is not nil. A file change during the review returns
 // errRefreshWatchPlan, so that the watch loop builds a new plan.
 func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, watcher *sourceWatcher) error {
 	options = options.withDefaults()
-	client := runner.api(options)
+	client := workspace.api
 
 	var watched *watchedSources
 	if watcher != nil {
@@ -35,6 +35,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	if err != nil {
 		return err
 	}
+	workspace.warnUnavailableSettings(options.ErrorOutput, reviewed)
 	if options.dryRun() {
 		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan); err != nil {
 			return err

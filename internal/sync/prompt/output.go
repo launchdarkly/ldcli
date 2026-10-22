@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
@@ -28,10 +29,20 @@ const (
 
 // ResourceOutcome is the result of the action of one planned resource.
 type ResourceOutcome struct {
-	ID     ResourceID    `json:"-"`
-	Action Action        `json:"action"`
-	Status OutcomeStatus `json:"status"`
-	Error  string        `json:"error,omitempty"`
+	ID            ResourceID               `json:"-"`
+	Action        Action                   `json:"action"`
+	Status        OutcomeStatus            `json:"status"`
+	SourceOfTruth syncdomain.SourceOfTruth `json:"sourceOfTruth,omitempty"`
+	Reverts       bool                     `json:"reverts,omitempty"`
+	Error         string                   `json:"error,omitempty"`
+}
+
+// outputSourceOfTruth leaves out the default, ui-and-code.
+func outputSourceOfTruth(codeOnly bool) syncdomain.SourceOfTruth {
+	if codeOnly {
+		return syncdomain.SourceOfTruthCodeOnly
+	}
+	return ""
 }
 
 // resourceOutput is the identity of a resource in JSON output.
@@ -57,21 +68,27 @@ func writePlanOutput(out io.Writer, outputKind string, plan Plan) error {
 
 	type planResourceOutput struct {
 		resourceOutput
-		Action          Action              `json:"action"`
-		SyncedElsewhere bool                `json:"syncedElsewhere,omitempty"`
-		Suggestion      string              `json:"suggestion,omitempty"`
-		Error           string              `json:"error,omitempty"`
-		Diff            variationDiffFields `json:"diff,omitempty"`
+		Action          Action                   `json:"action"`
+		SourceOfTruth   syncdomain.SourceOfTruth `json:"sourceOfTruth,omitempty"`
+		Reverts         bool                     `json:"reverts,omitempty"`
+		SyncedElsewhere bool                     `json:"syncedElsewhere,omitempty"`
+		Suggestion      string                   `json:"suggestion,omitempty"`
+		Error           string                   `json:"error,omitempty"`
+		Diff            variationDiffFields      `json:"diff,omitempty"`
+		LocalDiff       variationDiffFields      `json:"localDiff,omitempty"`
 	}
 	resources := make([]planResourceOutput, 0, len(plan.Resources))
 	for _, resource := range plan.Resources {
 		resources = append(resources, planResourceOutput{
 			resourceOutput:  newResourceOutput(resource.ID),
 			Action:          resource.Action,
+			SourceOfTruth:   outputSourceOfTruth(resource.CodeOnly),
+			Reverts:         resource.RevertsServer,
 			SyncedElsewhere: resource.SyncedElsewhere,
 			Suggestion:      staleSuggestion(resource),
 			Error:           resource.Error,
 			Diff:            resource.Diff,
+			LocalDiff:       resource.LocalDiff,
 		})
 	}
 	return writeJSON(out, map[string]any{"resources": resources})
@@ -102,7 +119,11 @@ func writeOutcomeOutput(out io.Writer, outputKind string, outcomes []ResourceOut
 		_ = console.Line("Sync results:")
 	}
 	for _, outcome := range outcomes {
-		_ = console.Printf("- %s  action=%s  status=%s\n", outcome.ID, outcome.Action, outcome.Status)
+		_ = console.Printf("- %s  action=%s  status=%s", outcome.ID, outcome.Action, outcome.Status)
+		if outcome.SourceOfTruth != "" {
+			_ = console.Printf("  sourceOfTruth=%s", outcome.SourceOfTruth)
+		}
+		_ = console.Line("")
 		if outcome.Error != "" {
 			_ = console.Printf("  Error: %s\n", outcome.Error)
 		}
@@ -168,6 +189,12 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 			_ = console.Printf("\n    %s\n      Action: %s\n", reviewHeading("Variation: "+variationKey, width), action)
 		}
 
+		if resource.CodeOnly {
+			detail("Source of truth", "code-only (the local prompt wins, and the other settings sync both ways)")
+		}
+		if resource.RevertsServer {
+			detail("Note", "Reverts a prompt change made in LaunchDarkly")
+		}
 		if resource.SyncedElsewhere {
 			detail("Note", "Another working copy synced this variation after your sync.lock.")
 			detail("Suggestion", staleSuggestion(resource))
@@ -177,6 +204,13 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 		}
 		if len(resource.Diff) != 0 {
 			rendered, err := renderVariationDiff(resource.Diff, outputKind, width, diffPresentation(resource.Action))
+			if err != nil {
+				return err
+			}
+			_ = console.Write(rendered)
+		}
+		if len(resource.LocalDiff) != 0 {
+			rendered, err := renderVariationDiff(resource.LocalDiff, outputKind, width, diffPresentation(ActionUpdateLocal))
 			if err != nil {
 				return err
 			}
@@ -222,6 +256,8 @@ func actionDescription(action Action) string {
 		return "Update LaunchDarkly from the local file"
 	case ActionUpdateLocal:
 		return "Update the local file from LaunchDarkly"
+	case ActionUpdateBoth:
+		return "Keep the local prompt in LaunchDarkly, and update the other settings in the local file"
 	case ActionDeleteLocal:
 		return "Delete the local file"
 	case ActionUpdateManifest:
@@ -250,7 +286,7 @@ func diffPresentation(action Action) variationDiffPresentation {
 	switch action {
 	case ActionUpdateLocal, ActionDeleteLocal:
 		return variationDiffPresentation{beforeLabel: "Local file now", afterLabel: "Local file after sync", reverse: true}
-	case ActionCreateServer, ActionUpdateServer:
+	case ActionCreateServer, ActionUpdateServer, ActionUpdateBoth:
 		return variationDiffPresentation{beforeLabel: "LaunchDarkly now", afterLabel: "LaunchDarkly after sync"}
 	default:
 		return variationDiffPresentation{beforeLabel: "LaunchDarkly now", afterLabel: "Local file now"}

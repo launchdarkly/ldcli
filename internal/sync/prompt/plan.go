@@ -16,6 +16,7 @@ const (
 	ActionCreateServer   Action = "create_server"
 	ActionUpdateServer   Action = "update_server"
 	ActionUpdateLocal    Action = "update_local"
+	ActionUpdateBoth     Action = "update_both"
 	ActionDeleteLocal    Action = "delete_local"
 	ActionUpdateManifest Action = "update_manifest"
 	ActionRemoveManifest Action = "remove_manifest"
@@ -25,12 +26,12 @@ const (
 
 // changesServer reports whether the action writes to LaunchDarkly.
 func (action Action) changesServer() bool {
-	return action == ActionCreateServer || action == ActionUpdateServer
+	return action == ActionCreateServer || action == ActionUpdateServer || action == ActionUpdateBoth
 }
 
 // changesLocal reports whether the action writes a local file.
 func (action Action) changesLocal() bool {
-	return action == ActionUpdateLocal || action == ActionDeleteLocal
+	return action == ActionUpdateLocal || action == ActionDeleteLocal || action == ActionUpdateBoth
 }
 
 // ResourceID is the identity of a synchronized resource.
@@ -42,6 +43,7 @@ type ResourceID = syncdomain.ResourceID
 type ServerResource struct {
 	Variation  *syncdomain.Variation
 	ConfigMode syncdomain.VariationMode
+	CodeOnly   bool
 }
 
 // PlannedResource is the local and the server state of one resource, and the
@@ -56,6 +58,12 @@ type PlannedResource struct {
 	ServerMode          syncdomain.VariationMode
 	Local               *syncdomain.Variation
 	Server              *syncdomain.Variation
+	CodeOnly            bool
+	// Merged is the local prompt with the other settings of LaunchDarkly. Only
+	// a code-only variation that exists on both sides has it.
+	Merged            *syncdomain.Variation
+	MergedFingerprint string
+	RevertsServer     bool
 	// SyncedElsewhere is true when another working copy synced the resource
 	// after this working copy wrote its sync.lock file. The plan is still
 	// correct, because it compares against this working copy's lock.
@@ -64,12 +72,16 @@ type PlannedResource struct {
 	// version of a tool or skill than its latest version.
 	ServerHasStaleAttachmentPins bool
 	Diff                         variationDiffFields
-	Error                        string
+	// LocalDiff is the change to the local file of an ActionUpdateBoth.
+	LocalDiff variationDiffFields
+	Error     string
 	// changedAttachments are the tools and skills whose content differs
 	// between the local file and LaunchDarkly.
 	changedAttachments []ResourceID
 	// restoreRef is the link that a restored variation file keeps.
 	restoreRef *syncdomain.Reference
+	// swappedFingerprint is the fingerprint of the local settings with the LaunchDarkly prompt.
+	swappedFingerprint string
 }
 
 // Plan is the sync decision for each resource, in identity order.
@@ -126,6 +138,7 @@ func planResource(
 ) PlannedResource {
 	resource := PlannedResource{
 		ID: id, BaselineFingerprint: baselineFingerprint, Server: server.Variation, ServerMode: server.ConfigMode,
+		CodeOnly: server.CodeOnly,
 	}
 	fail := func(message string) PlannedResource {
 		resource.Action, resource.Error = ActionError, message
@@ -150,10 +163,24 @@ func planResource(
 		}
 	}
 
+	if resource.CodeOnly && resource.Local != nil && server.Variation != nil {
+		merged := server.Variation.WithPromptOf(*resource.Local)
+		swapped := resource.Local.WithPromptOf(*server.Variation)
+		resource.MergedFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, merged)
+		if err == nil {
+			resource.swappedFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, swapped)
+		}
+		if err != nil {
+			return fail(fmt.Sprintf("invalid merged variation: %s", err))
+		}
+		resource.Merged = &merged
+	}
+
 	resource.Action = chooseAction(tracked, resource)
 	if resource.Action == ActionError {
 		resource.Error = "variation does not exist in LaunchDarkly; set upsert: true to create it"
 	}
+	resource.RevertsServer = revertsServer(resource)
 	// The fingerprints do not include versions. If LaunchDarkly pins an older
 	// attachment version, sync updates the pin even when the content matches.
 	currentPins, latestPins, stalePins := attachmentPinDiff(resource.Server)
@@ -164,7 +191,11 @@ func planResource(
 
 	// The diff shows only changes in behavior. The raw JSON can differ when
 	// the fingerprints match, for example because the API adds defaults.
-	if resource.LocalFingerprint != resource.ServerFingerprint {
+	switch {
+	case resource.Action == ActionUpdateBoth:
+		resource.Diff = variationDiff(resource.Server, resource.Merged)
+		resource.LocalDiff = variationDiff(resource.Local, resource.Merged)
+	case resource.LocalFingerprint != resource.ServerFingerprint:
 		resource.Diff = variationDiff(resource.Server, resource.Local)
 	}
 	if stalePins && resource.Action != ActionConflict {
@@ -177,9 +208,69 @@ func planResource(
 	return resource
 }
 
-// chooseAction compares each fingerprint with the baseline to find which side
-// changed. It returns ActionError for a new local variation without upsert.
 func chooseAction(tracked bool, resource PlannedResource) Action {
+	action := chooseUIAndCodeAction(tracked, resource)
+	if !resource.CodeOnly {
+		return action
+	}
+	switch {
+	case action == ActionUpdateLocal && resource.Local != nil:
+		return chooseCodeOnlyMerge(resource, false)
+	case action == ActionDeleteLocal, action == ActionConflict && resource.Server == nil:
+		// The variation was archived in LaunchDarkly, so sync creates it again.
+		return ActionCreateServer
+	case action == ActionConflict:
+		return chooseCodeOnlyMerge(resource, true)
+	default:
+		return action
+	}
+}
+
+// chooseCodeOnlyMerge compares the merged variation with each side. bothChanged
+// is true when the local file also changed, so a settings difference is a conflict.
+func chooseCodeOnlyMerge(resource PlannedResource, bothChanged bool) Action {
+	promptDiffers := resource.MergedFingerprint != resource.ServerFingerprint
+	settingsDiffer := resource.MergedFingerprint != resource.LocalFingerprint
+	tracked := resource.BaselineFingerprint != ""
+	switch {
+	case bothChanged && tracked && resource.MergedFingerprint == resource.BaselineFingerprint:
+		// LaunchDarkly changed only the prompt, and the local file changed only the other settings.
+		return ActionUpdateServer
+	case bothChanged && tracked && resource.swappedFingerprint == resource.BaselineFingerprint:
+		// The local file changed only the prompt, and LaunchDarkly changed only the other settings.
+		return ActionUpdateBoth
+	case settingsDiffer && bothChanged:
+		return ActionConflict
+	case promptDiffers && settingsDiffer:
+		return ActionUpdateBoth
+	case promptDiffers:
+		return ActionUpdateServer
+	case settingsDiffer:
+		return ActionUpdateLocal
+	default:
+		return ActionUpdateManifest
+	}
+}
+
+// revertsServer reports whether the action undoes an archive or a prompt change in LaunchDarkly.
+func revertsServer(resource PlannedResource) bool {
+	switch {
+	case !resource.CodeOnly || !resource.Action.changesServer():
+		return false
+	case resource.Server == nil:
+		return resource.BaselineFingerprint != ""
+	case resource.ServerFingerprint == resource.BaselineFingerprint:
+		return false
+	default:
+		// When the swapped variation matches the baseline, LaunchDarkly did not change the prompt.
+		return resource.MergedFingerprint != resource.ServerFingerprint &&
+			resource.swappedFingerprint != resource.BaselineFingerprint
+	}
+}
+
+// chooseUIAndCodeAction compares each fingerprint with the baseline to find which side
+// changed. It returns ActionError for a new local variation without upsert.
+func chooseUIAndCodeAction(tracked bool, resource PlannedResource) Action {
 	localExists := resource.Local != nil
 	serverExists := resource.Server != nil
 
@@ -247,6 +338,13 @@ func (plan Plan) RequiresConfirmation() bool {
 func (plan Plan) HasDestructiveActions() bool {
 	return slices.ContainsFunc(plan.Resources, func(resource PlannedResource) bool {
 		return resource.Action == ActionDeleteLocal
+	})
+}
+
+// HasOverwrites reports whether the plan reverts a change made in LaunchDarkly.
+func (plan Plan) HasOverwrites() bool {
+	return slices.ContainsFunc(plan.Resources, func(resource PlannedResource) bool {
+		return resource.RevertsServer
 	})
 }
 

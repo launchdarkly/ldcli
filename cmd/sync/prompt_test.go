@@ -7,11 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 )
 
 func TestPromptCommandUsesActionSubcommands(t *testing.T) {
-	command := NewPromptCmd(nil)
+	command := NewPromptCmd(syncapi.NewTransport("test"))
 
 	assert.Equal(t, "prompts", command.Use)
 	for _, name := range []string{"watch", "add", "attach", "detach", "link"} {
@@ -32,13 +33,13 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 }
 
 func TestSyncCommandIncludesExamples(t *testing.T) {
-	command := NewSyncCmd(nil, nil)
+	command := NewSyncCmd(syncapi.NewTransport("test"), nil)
 
 	assert.Contains(t, command.Example, "ldcli sync prompts")
 }
 
 func TestPromptCommandHelpIncludesExamples(t *testing.T) {
-	command := NewPromptCmd(nil)
+	command := NewPromptCmd(syncapi.NewTransport("test"))
 	tests := map[string][]string{
 		"prompts":      {},
 		"watch":        {"watch"},
@@ -65,7 +66,7 @@ func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 }
 
 func TestAttachSubcommandsAcceptOptionalKeyAndTarget(t *testing.T) {
-	command := NewPromptCmd(nil)
+	command := NewPromptCmd(syncapi.NewTransport("test"))
 	tool, _, err := command.Find([]string{"attach", "tool"})
 	require.NoError(t, err)
 	require.NoError(t, tool.ParseFlags([]string{"--to", "project/config/variation"}))
@@ -76,6 +77,23 @@ func TestAttachSubcommandsAcceptOptionalKeyAndTarget(t *testing.T) {
 	assert.Equal(t, syncdomain.ResourceID{
 		Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
 	}, *target)
+}
+
+func TestAddHasNoSourceOfTruthFlag(t *testing.T) {
+	command := NewPromptCmd(syncapi.NewTransport("test"))
+	add, _, err := command.Find([]string{"add"})
+	require.NoError(t, err)
+
+	assert.Nil(t, add.Flags().Lookup("source-of-truth"))
+	require.NoError(t, add.ParseFlags([]string{"--no-input"}))
+	_, err = addAction(add, []string{"production/support/default"})
+	require.NoError(t, err)
+}
+
+func TestParseVariationSelectorsRejectsDuplicates(t *testing.T) {
+	_, err := parseVariationSelectors([]string{"project/config/first", "project/config/first"})
+
+	require.ErrorContains(t, err, "variation project/config/first was selected more than once")
 }
 
 func TestParseVariationSelectorsRejectsAmbiguousValues(t *testing.T) {
@@ -95,7 +113,7 @@ func TestParseVariationSelectorsRejectsAmbiguousValues(t *testing.T) {
 }
 
 func TestConflictPolicyParsesDefaultAndOverrides(t *testing.T) {
-	command := NewPromptCmd(nil)
+	command := NewPromptCmd(syncapi.NewTransport("test"))
 	require.NoError(t, command.ParseFlags([]string{
 		"--conflict=launchdarkly",
 		"--resolve=project/config/variation=local",

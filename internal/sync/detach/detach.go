@@ -44,7 +44,9 @@ type Options struct {
 	Archiver Archiver
 	Yes      bool
 	// Context stops the archive confirmation and the archive when it ends.
-	Context context.Context
+	Context     context.Context
+	Settings    syncapi.SettingsWriter
+	ErrorOutput io.Writer
 
 	// isTerminal reports whether the streams are a terminal. Tests replace it.
 	isTerminal func(io.Reader, io.Writer) bool
@@ -99,6 +101,10 @@ func Run(options Options) error {
 		if err := archiveVariations(options.context(), options.Archiver, selected); err != nil {
 			return err
 		}
+	}
+	// Delete the rules before the files, so that detach can run again after a failure.
+	if err := deleteSourceOfTruthRules(options, selected); err != nil {
+		return err
 	}
 	if err := detachResources(options, baseline, selected); err != nil {
 		return err
@@ -182,6 +188,21 @@ func archiveVariations(ctx context.Context, archiver Archiver, selected []syncdo
 		}
 		if err := archiver.ArchiveVariation(resource.ProjectKey, configKey, variationKey); err != nil && !syncapi.IsNotFound(err) {
 			return fmt.Errorf("archive variation %s: %w", resource, err)
+		}
+	}
+	return nil
+}
+
+func deleteSourceOfTruthRules(options Options, selected []syncdomain.ResourceID) error {
+	for projectKey, ids := range syncdomain.GroupByProject(selected) {
+		err := options.Settings.DeleteSourceOfTruth(projectKey, ids)
+		switch {
+		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
+			_ = syncconsole.New(options.ErrorOutput).Write(
+				syncapi.SettingsUnavailableWarning(projectKey, "Detach did not delete the sync settings rules of the variations."),
+			)
+		case err != nil:
+			return err
 		}
 	}
 	return nil

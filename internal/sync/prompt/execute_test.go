@@ -2,8 +2,7 @@ package prompt
 
 import (
 	"encoding/json"
-	"errors"
-	"net/url"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +10,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
@@ -47,7 +47,7 @@ func TestApplyServerChangeDoesNotRereadAfterDefinitiveAPIError(t *testing.T) {
 		Local:  &variation,
 	}
 
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	err := applyServerChange(client, newAttachmentResolver(client), resource)
 
 	require.ErrorContains(t, err, `"statusCode":400`)
@@ -59,7 +59,7 @@ func TestExecutePlanDoesNotMutateWhileConflictIsUnresolved(t *testing.T) {
 		current: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
 		version: 2,
 	}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	variation := testVariation("local")
 	variation.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
 	variation.Attachments = []syncdomain.Attachment{{
@@ -87,11 +87,11 @@ func TestExecutePlanDoesNotMutateWhileConflictIsUnresolved(t *testing.T) {
 
 func TestExecutePlanSkipsEveryConsumerWhenSharedAttachmentFails(t *testing.T) {
 	transport := &attachmentMutationAPI{
-		current:   syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
-		version:   2,
-		updateErr: errors.New(`{"code":"invalid_request","statusCode":400}`),
+		current:      syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+		version:      2,
+		updateStatus: http.StatusBadRequest,
 	}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	description := "Search all documentation"
 	variation := syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Support",
@@ -136,7 +136,7 @@ func TestAttachmentVersioningDoesNotMutateReviewedVariation(t *testing.T) {
 		current: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
 		version: 2,
 	}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	variation := testVariation("local")
 	variation.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
 	variation.Attachments = []syncdomain.Attachment{{
@@ -189,7 +189,7 @@ func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
 		ServerHasStaleAttachmentPins: true,
 	}
 	transport := &variationUpdateAPI{}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 
 	err = applyResourceChange(
 		root,
@@ -217,86 +217,53 @@ type variationUpdateAPI struct {
 	body []byte
 }
 
-func (api *variationUpdateAPI) MakeRequest(
-	_ string,
-	method string,
-	_ string,
-	_ string,
-	_ url.Values,
-	body []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *variationUpdateAPI) serve(request apitest.Request) (int, []byte) {
+	method, body := request.Method, request.Body
 	if method == "PATCH" {
 		api.body = body
 	}
-	return []byte(`{}`), nil
-}
-
-func (*variationUpdateAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
+	return http.StatusOK, []byte(`{}`)
 }
 
 type attachmentMutationAPI struct {
-	current   syncdomain.Tool
-	version   int
-	reads     int
-	updates   int
-	updateErr error
+	current      syncdomain.Tool
+	version      int
+	reads        int
+	updates      int
+	updateStatus int
 }
 
-func (api *attachmentMutationAPI) MakeRequest(
-	_ string,
-	method string,
-	_ string,
-	_ string,
-	_ url.Values,
-	body []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *attachmentMutationAPI) serve(request apitest.Request) (int, []byte) {
+	method, body := request.Method, request.Body
 	switch method {
 	case "GET":
 		api.reads++
 	case "PATCH":
 		api.updates++
-		if api.updateErr != nil {
-			return nil, api.updateErr
+		if api.updateStatus != 0 {
+			return api.updateStatus, []byte(`{"code":"invalid_request"}`)
 		}
 		if err := json.Unmarshal(body, &api.current); err != nil {
-			return nil, err
+			return http.StatusBadRequest, nil
 		}
 		api.current.Key = "search"
 		api.version++
 	}
-	return json.Marshal(struct {
+	return apitest.JSON(struct {
 		syncdomain.Tool
 		Version int `json:"version"`
 	}{Tool: api.current, Version: api.version})
-}
-
-func (*attachmentMutationAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
 }
 
 type definitiveMutationAPI struct {
 	reads int
 }
 
-func (api *definitiveMutationAPI) MakeRequest(
-	_ string,
-	method string,
-	_ string,
-	_ string,
-	_ url.Values,
-	_ []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *definitiveMutationAPI) serve(request apitest.Request) (int, []byte) {
+	method := request.Method
 	if method == "GET" {
 		api.reads++
-		return []byte(`{"key":"support","mode":"agent","variations":[]}`), nil
+		return http.StatusOK, []byte(`{"key":"support","mode":"agent","variations":[]}`)
 	}
-	return nil, errors.New(`{"code":"invalid_request","statusCode":400}`)
-}
-
-func (*definitiveMutationAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
+	return 400, []byte(`{"code":"invalid_request","statusCode":400}`)
 }

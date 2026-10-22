@@ -81,8 +81,28 @@ func responseStatusCode(err error) (int, bool) {
 	return int(status), ok && status != 0
 }
 
-// responseError finds the JSON response body in an error chain. The resources
-// client reports an API failure as an error whose text is the response body.
+// statusError returns an error in the form of a resources client error, so that ldcli can show it.
+func statusError(status int, body []byte, baseURI string) error {
+	var response map[string]any
+	if json.Unmarshal(body, &response) != nil || response == nil {
+		message := string(body)
+		if message == "" {
+			message = http.StatusText(status)
+		}
+		code := strings.ToLower(strings.ReplaceAll(http.StatusText(status), " ", "_"))
+		response = map[string]any{"code": code, "message": message}
+	}
+	if _, exists := response["statusCode"]; !exists {
+		response["statusCode"] = status
+	}
+	if suggestion := lderrors.SuggestionForStatus(status, baseURI); suggestion != "" {
+		response["suggestion"] = suggestion
+	}
+	text, _ := json.Marshal(response)
+	return lderrors.NewError(string(text))
+}
+
+// responseError finds the JSON response body in an error chain.
 func responseError(err error) (map[string]any, bool) {
 	for current := err; current != nil; current = errors.Unwrap(current) {
 		var response map[string]any
@@ -91,4 +111,16 @@ func responseError(err error) (map[string]any, bool) {
 		}
 	}
 	return nil, false
+}
+
+// ErrorText returns the message of a JSON API error. For other text, it returns text.
+func ErrorText(text string) string {
+	var response map[string]any
+	if json.Unmarshal([]byte(text), &response) != nil {
+		return text
+	}
+	if message, ok := response["message"].(string); ok && message != "" {
+		return message
+	}
+	return text
 }

@@ -39,7 +39,10 @@ func executePlan(
 	}
 
 	for _, resource := range plan.Resources {
-		outcome := ResourceOutcome{ID: resource.ID, Action: resource.Action, Status: OutcomeSucceeded}
+		outcome := ResourceOutcome{
+			ID: resource.ID, Action: resource.Action, Status: OutcomeSucceeded,
+			SourceOfTruth: outputSourceOfTruth(resource.CodeOnly), Reverts: resource.RevertsServer,
+		}
 		switch {
 		case resource.Action == ActionInSync:
 		case resource.Action == ActionUpdateManifest:
@@ -90,6 +93,8 @@ func attachmentManifestState(resource PlannedResource) *syncdomain.Variation {
 		return resource.Local
 	case ActionUpdateLocal:
 		return resource.Server
+	case ActionUpdateBoth:
+		return resource.Merged
 	default:
 		return nil
 	}
@@ -100,6 +105,8 @@ func recordSuccessfulChange(manifest *syncmanifest.Manifest, resource PlannedRes
 	switch {
 	case resource.Action == ActionDeleteLocal:
 		manifest.Remove(resource.ID)
+	case resource.Action == ActionUpdateBoth:
+		manifest.SetFingerprint(resource.ID, resource.MergedFingerprint)
 	case resource.Action.changesServer():
 		manifest.SetFingerprint(resource.ID, resource.LocalFingerprint)
 	default:
@@ -117,6 +124,17 @@ func applyResourceChange(
 	resource PlannedResource,
 	localFile *syncdomain.Variation,
 ) error {
+	if resource.Action == ActionUpdateBoth {
+		// Write LaunchDarkly first, so that a failed write leaves the local file as it is.
+		if err := applyServerChange(client, attachments, mergedServerChange(resource)); err != nil {
+			return err
+		}
+		local := mergedLocalChange(resource, localFile)
+		if err := applyLocalChange(localStore, local); err != nil {
+			return err
+		}
+		return verifyLocalResult(repositoryRoot, local)
+	}
 	if resource.Action.changesServer() {
 		return applyServerChange(client, attachments, resource)
 	}
@@ -150,6 +168,18 @@ func applyResourceChange(
 		return client.UpdateVariation(resource.ID.ProjectKey, configKey, pinned)
 	}
 	return nil
+}
+
+func mergedServerChange(resource PlannedResource) PlannedResource {
+	resource.Action = ActionUpdateServer
+	resource.Local, resource.LocalFingerprint = resource.Merged, resource.MergedFingerprint
+	return resource
+}
+
+func mergedLocalChange(resource PlannedResource, localFile *syncdomain.Variation) PlannedResource {
+	variation := variationForLocalFile(*resource.Merged, localFile, resource.Local)
+	resource.Action, resource.Server = ActionUpdateLocal, &variation
+	return resource
 }
 
 // applyServerChange writes one variation to LaunchDarkly. If the write fails
