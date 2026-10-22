@@ -2,14 +2,12 @@ package local
 
 import (
 	"bytes"
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"maps"
-	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -35,14 +33,6 @@ type skillFrontMatter struct {
 	Description *string `yaml:"description"`
 	Name        string  `yaml:"name,omitempty"`
 	Upsert      bool    `yaml:"upsert,omitempty"`
-}
-
-// OrphanedAttachment is a tool or skill file that no variation uses.
-type OrphanedAttachment struct {
-	ProjectKey string
-	Kind       syncdomain.AttachmentKind
-	Key        string
-	Path       string
 }
 
 // CompileAttachments reads each tool and skill file that include accepts. It
@@ -291,60 +281,6 @@ func preserveLocalFields(filePath string, original, replacement []byte) ([]byte,
 	}
 	updated.Name, updated.Upsert = local.Name, updated.Upsert || local.Upsert
 	return renderSkillFile(updated, string(markdown))
-}
-
-// OrphanedAttachments returns each tool and skill file that no local
-// variation uses.
-func (store Store) OrphanedAttachments() ([]OrphanedAttachment, error) {
-	variations, err := CompileWorkspace(store.repositoryRoot)
-	if err != nil && !errors.Is(err, ErrNoDirectory) {
-		return nil, err
-	}
-	used := make(map[syncdomain.ResourceID]struct{})
-	for _, variation := range variations {
-		for _, attachment := range variation.Variation.Attachments {
-			used[attachment.ID(variation.ProjectKey)] = struct{}{}
-		}
-	}
-
-	var orphaned []OrphanedAttachment
-	err = filepath.WalkDir(store.root, func(filePath string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
-		}
-		relativePath, err := filepath.Rel(store.repositoryRoot, filePath)
-		if err != nil {
-			return err
-		}
-		id, ok := ParseManagedPath(filepath.ToSlash(relativePath))
-		if !ok || id.Kind == syncdomain.KindVariation {
-			return nil
-		}
-		if _, isUsed := used[id]; !isUsed {
-			orphaned = append(orphaned, OrphanedAttachment{
-				ProjectKey: id.ProjectKey,
-				Kind:       syncdomain.AttachmentKind(id.Kind),
-				Key:        id.LookupKey,
-				Path:       strings.TrimPrefix(filepath.ToSlash(relativePath), syncdomain.RootDir+"/"),
-			})
-		}
-		return nil
-	})
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("find unreferenced attachments: %w", err)
-	}
-
-	slices.SortFunc(orphaned, func(left, right OrphanedAttachment) int {
-		return cmp.Or(
-			strings.Compare(left.ProjectKey, right.ProjectKey),
-			strings.Compare(string(left.Kind), string(right.Kind)),
-			strings.Compare(left.Key, right.Key),
-		)
-	})
-	return orphaned, nil
 }
 
 // DeleteAttachments deletes the files of tools and skills in one transaction.

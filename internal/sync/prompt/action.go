@@ -44,13 +44,13 @@ type AttachAction struct {
 	Target     *syncdomain.ResourceID
 }
 
-// DetachAction stops syncing selected local variations. With Archive, it
-// also archives them in LaunchDarkly. The variations come from positional
-// selectors or from the target flags in Filter.
+// DetachAction stops syncing selected local resources. With Archive, it
+// also archives the variations in LaunchDarkly. The resources come from
+// positional selectors or from the target flags in Filter.
 type DetachAction struct {
-	Variations []syncdomain.ResourceID
-	Filter     syncdomain.Filter
-	Archive    bool
+	Resources []syncdomain.ResourceID
+	Filter    syncdomain.Filter
+	Archive   bool
 }
 
 // LinkAction creates a variation whose prompt is an external file, and then
@@ -74,7 +74,7 @@ func (action AddAction) validate() error {
 }
 
 func (action DetachAction) validate() error {
-	return validateSelections(action.Variations, action.Filter)
+	return validateSelections(action.Resources, action.Filter)
 }
 
 func (action AttachAction) validate() error {
