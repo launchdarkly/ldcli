@@ -57,7 +57,7 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 	require.NoError(t, client.UpdateAttachment("project", tool))
 	_, err := client.PatchSyncManifest("project", source, nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, client.SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly))
+	require.NoError(t, client.DeleteSourceOfTruth("project", ids))
 	writes := []string{
 		"POST /api/v2/projects/project/ai-configs/support/variations",
 		"PATCH /api/v2/projects/project/ai-configs/support/variations/helpful",

@@ -118,24 +118,6 @@ func TestClientResolveSourceOfTruthRejectsUnknownDirection(t *testing.T) {
 	require.ErrorContains(t, err, `unsupported sync direction "sideways"`)
 }
 
-func TestClientSetSourceOfTruthUpsertsExactRule(t *testing.T) {
-	transport := &recordingServer{}
-	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
-
-	err := transport.client(t).SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly)
-
-	require.NoError(t, err)
-	require.Len(t, transport.Requests, 1)
-	request := transport.Requests[0]
-	assert.Equal(t, http.MethodPatch, request.Method)
-	assert.Equal(t, "/api/v2/projects/project/configs/sync/settings", request.Path)
-	assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
-	assert.JSONEq(t, `{
-		"upserts": [{"resourceKind":"variation","resourcePattern":"support-bot/default","direction":"code_canonical"}],
-		"deletions": []
-	}`, string(request.Body))
-}
-
 func TestClientDeleteSourceOfTruthDeletesExactRule(t *testing.T) {
 	transport := &recordingServer{}
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
@@ -149,31 +131,31 @@ func TestClientDeleteSourceOfTruthDeletesExactRule(t *testing.T) {
 	}`, string(transport.Requests[0].Body))
 }
 
-func TestClientSetSourceOfTruthSendsAtMostOneHundredRules(t *testing.T) {
+func TestClientDeleteSourceOfTruthSendsAtMostOneHundredRules(t *testing.T) {
 	ids := make([]syncdomain.ResourceID, 0, 150)
 	for index := range 150 {
 		ids = append(ids, syncdomain.VariationID("project", "support", fmt.Sprintf("v%03d", index)))
 	}
 	transport := &recordingServer{}
 
-	require.NoError(t, transport.client(t).SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthUIAndCode))
+	require.NoError(t, transport.client(t).DeleteSourceOfTruth("project", ids))
 
 	require.Len(t, transport.Requests, 2)
 	var first, second struct {
-		Upserts []settingRule `json:"upserts"`
+		Deletions []settingRule `json:"deletions"`
 	}
 	require.NoError(t, json.Unmarshal(transport.Requests[0].Body, &first))
 	require.NoError(t, json.Unmarshal(transport.Requests[1].Body, &second))
-	assert.Len(t, first.Upserts, 100)
-	assert.Len(t, second.Upserts, 50)
-	assert.Equal(t, settingRule{ResourceKind: syncdomain.KindVariation, ResourcePattern: "support/v100", Direction: "both"}, second.Upserts[0])
+	assert.Len(t, first.Deletions, 100)
+	assert.Len(t, second.Deletions, 50)
+	assert.Equal(t, settingRule{ResourceKind: syncdomain.KindVariation, ResourcePattern: "support/v100"}, second.Deletions[0])
 }
 
-func TestClientSetSourceOfTruthReturnsSentinelWhenNotFound(t *testing.T) {
+func TestClientDeleteSourceOfTruthReturnsSentinelWhenNotFound(t *testing.T) {
 	transport := &recordingServer{Status: 404, ErrorBody: `{"code":"not_found","message":"Not found","statusCode":404}`}
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
-	err := transport.client(t).SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly)
+	err := transport.client(t).DeleteSourceOfTruth("project", ids)
 
 	require.ErrorIs(t, err, ErrSyncSettingsUnavailable)
 }

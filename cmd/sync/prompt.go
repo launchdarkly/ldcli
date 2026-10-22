@@ -29,7 +29,6 @@ const (
 	nameFlag           = "name"
 	noInputFlag        = "no-input"
 	resolveFlag        = "resolve"
-	sourceOfTruthFlag  = "source-of-truth"
 	toFlag             = "to"
 	yesFlag            = "yes"
 )
@@ -43,12 +42,12 @@ func NewPromptCmd(transport syncapi.Transport) *cobra.Command {
 			"Sync rechecks state before every write, rerun sync after a change. " +
 			"Each variation has a source of truth, ui-and-code or code-only. " +
 			"A code-only variation keeps the prompt of its local file, and its other settings sync both ways. " +
-			"To change the source of truth later, use the variation menu in LaunchDarkly.",
+			"To change the source of truth, use the variation menu in LaunchDarkly.",
 		Example: `  # Preview synchronization changes
   ldcli sync prompts --dry-run
 
   # Add the first variation without prompting
-  ldcli sync prompts add production/support/default --source-of-truth code-only --no-input
+  ldcli sync prompts add production/support/default --no-input
 
   # Apply changes in an existing workspace without prompting
   ldcli sync prompts --yes --no-input
@@ -144,24 +143,19 @@ func newAddCmd(transport syncapi.Transport) *cobra.Command {
 		Use:   "add [project-key/config-key/variation-key...]",
 		Short: "Add prompt variations from LaunchDarkly",
 		Long: "Write LaunchDarkly prompt variations as local files, and start to sync them. " +
-			"With --source-of-truth ui-and-code, the LaunchDarkly UI and the local file can both change a variation. " +
-			"With code-only, only the local file can change the prompt, and the other settings sync both ways.",
-		Example: `  # Choose variations and the source of truth interactively
+			"Add keeps the source of truth of each variation. To change it, use the variation menu in LaunchDarkly.",
+		Example: `  # Choose variations interactively
   ldcli sync prompts add
 
-  # Add one variation whose prompt only the local file can change
-  ldcli sync prompts add production/support/default --source-of-truth code-only
-
-  # Add one variation that the UI and the local file can both change
-  ldcli sync prompts add production/support/default --source-of-truth ui-and-code
+  # Add one variation
+  ldcli sync prompts add production/support/default
 
   # Add multiple variations without prompting
-  ldcli sync prompts add production/support/default production/chat/concise --source-of-truth code-only --no-input`,
+  ldcli sync prompts add production/support/default production/chat/concise --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
 		RunE: runPrompt(transport, addAction),
 	}
 	cmd.Flags().Bool(dryRunFlag, false, "Preview local files without creating them")
-	cmd.Flags().String(sourceOfTruthFlag, "", "The source of truth of the variations: ui-and-code or code-only")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }
@@ -298,16 +292,7 @@ func addAction(cmd *cobra.Command, args []string) (syncprompt.CommandAction, err
 		return nil, err
 	}
 	dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-	noInput, _ := cmd.Flags().GetBool(noInputFlag)
-	action := syncprompt.AddAction{Variations: variations, DryRun: dryRun}
-	if value, _ := cmd.Flags().GetString(sourceOfTruthFlag); value != "" {
-		if action.SourceOfTruth, err = syncdomain.ParseSourceOfTruth(value); err != nil {
-			return nil, err
-		}
-	} else if noInput && !dryRun {
-		return nil, syncdomain.ErrNoSourceOfTruth
-	}
-	return action, nil
+	return syncprompt.AddAction{Variations: variations, DryRun: dryRun}, nil
 }
 
 func parseVariationSelectors(values []string) ([]syncdomain.ResourceID, error) {

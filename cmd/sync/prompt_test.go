@@ -32,15 +32,6 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	assert.Nil(t, link.Flags().Lookup("model-config"))
 }
 
-func TestPromptCommandHasNoSourceOfTruthSubcommand(t *testing.T) {
-	command := NewPromptCmd(syncapi.NewTransport("test"))
-
-	child, _, err := command.Find([]string{"source-of-truth"})
-	require.NoError(t, err)
-	assert.Equal(t, "prompts", child.Name())
-	assert.Contains(t, command.Long, "To change the source of truth later, use the variation menu in LaunchDarkly.")
-}
-
 func TestSyncCommandIncludesExamples(t *testing.T) {
 	command := NewSyncCmd(syncapi.NewTransport("test"), nil)
 
@@ -88,16 +79,13 @@ func TestAttachSubcommandsAcceptOptionalKeyAndTarget(t *testing.T) {
 	}, *target)
 }
 
-func TestAddNeedsSourceOfTruthWithNoInput(t *testing.T) {
+func TestAddHasNoSourceOfTruthFlag(t *testing.T) {
 	command := NewPromptCmd(syncapi.NewTransport("test"))
 	add, _, err := command.Find([]string{"add"})
 	require.NoError(t, err)
+
+	assert.Nil(t, add.Flags().Lookup("source-of-truth"))
 	require.NoError(t, add.ParseFlags([]string{"--no-input"}))
-
-	_, err = addAction(add, []string{"production/support/default"})
-	require.ErrorContains(t, err, "add needs a source of truth. Use --source-of-truth ui-and-code or code-only.")
-
-	require.NoError(t, add.ParseFlags([]string{"--dry-run"}))
 	_, err = addAction(add, []string{"production/support/default"})
 	require.NoError(t, err)
 }

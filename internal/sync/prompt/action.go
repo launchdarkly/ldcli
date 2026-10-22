@@ -21,11 +21,10 @@ type SyncAction struct {
 	DryRun bool
 }
 
-// AddAction writes selected LaunchDarkly variations as local files, and sets their source of truth.
+// AddAction writes selected LaunchDarkly variations as local files.
 type AddAction struct {
-	Variations    []syncdomain.ResourceID
-	DryRun        bool
-	SourceOfTruth syncdomain.SourceOfTruth
+	Variations []syncdomain.ResourceID
+	DryRun     bool
 }
 
 // AttachAction adds a tool or a skill to a local variation, and then syncs.

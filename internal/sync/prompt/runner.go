@@ -226,19 +226,17 @@ func (runner Runner) runAttach(options Options, workspace syncWorkspace, action 
 
 func bootstrapOptions(options Options, workspace syncWorkspace, initial bool, action AddAction) syncbootstrap.Options {
 	return syncbootstrap.Options{
-		Settings:      workspace.api,
-		SourceOfTruth: action.SourceOfTruth,
-		ErrorOutput:   options.ErrorOutput,
-		Catalog:       workspace.api,
-		Attachments:   workspace.api,
-		Store:         workspace.local,
-		Baselines:     workspace.baselines,
-		Input:         options.Input,
-		Output:        options.Output,
-		Initial:       initial,
-		DryRun:        action.DryRun,
-		Selections:    action.Variations,
-		NoInput:       options.NoInput,
+		ErrorOutput: options.ErrorOutput,
+		Catalog:     workspace.api,
+		Attachments: workspace.api,
+		Store:       workspace.local,
+		Baselines:   workspace.baselines,
+		Input:       options.Input,
+		Output:      options.Output,
+		Initial:     initial,
+		DryRun:      action.DryRun,
+		Selections:  action.Variations,
+		NoInput:     options.NoInput,
 	}
 }
 

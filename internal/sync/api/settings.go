@@ -97,53 +97,29 @@ const (
 	directionBoth          = "both"
 )
 
-func wireDirection(source syncdomain.SourceOfTruth) string {
-	if source == syncdomain.SourceOfTruthCodeOnly {
-		return directionCodeCanonical
-	}
-	return directionBoth
-}
-
 func settingsPath(projectKey string) []string {
 	return projectPath(projectKey, "configs/sync/settings")
 }
 
-// SettingsWriter writes the source of truth rules of variations.
+// SettingsWriter deletes the source of truth rules of variations.
 type SettingsWriter interface {
-	SetSourceOfTruth(projectKey string, ids []syncdomain.ResourceID, source syncdomain.SourceOfTruth) error
 	DeleteSourceOfTruth(projectKey string, ids []syncdomain.ResourceID) error
 }
 
 type settingRule struct {
 	ResourceKind    syncdomain.Kind `json:"resourceKind"`
 	ResourcePattern string          `json:"resourcePattern"`
-	Direction       string          `json:"direction,omitempty"`
-}
-
-// SetSourceOfTruth writes an exact rule with source for each variation of one project.
-func (client Client) SetSourceOfTruth(projectKey string, ids []syncdomain.ResourceID, source syncdomain.SourceOfTruth) error {
-	return client.patchSettings(projectKey, ids, wireDirection(source))
 }
 
 // DeleteSourceOfTruth deletes the exact rule of each variation of one project, if the rule exists.
 func (client Client) DeleteSourceOfTruth(projectKey string, ids []syncdomain.ResourceID) error {
-	return client.patchSettings(projectKey, ids, "")
-}
-
-// patchSettings upserts an exact rule for each resource, or deletes it when direction is empty.
-func (client Client) patchSettings(projectKey string, ids []syncdomain.ResourceID, direction string) error {
 	for start := 0; start < len(ids); start += maxSettingsResources {
 		body := struct {
 			Upserts   []settingRule `json:"upserts"`
 			Deletions []settingRule `json:"deletions"`
 		}{Upserts: []settingRule{}, Deletions: []settingRule{}}
 		for _, id := range ids[start:min(start+maxSettingsResources, len(ids))] {
-			rule := settingRule{ResourceKind: id.Kind, ResourcePattern: id.LookupKey, Direction: direction}
-			if direction == "" {
-				body.Deletions = append(body.Deletions, rule)
-			} else {
-				body.Upserts = append(body.Upserts, rule)
-			}
+			body.Deletions = append(body.Deletions, settingRule{ResourceKind: id.Kind, ResourcePattern: id.LookupKey})
 		}
 		_, err := client.mutate(mutation{
 			method: http.MethodPatch, action: "update", resource: "sync settings for project", key: projectKey, body: body,
