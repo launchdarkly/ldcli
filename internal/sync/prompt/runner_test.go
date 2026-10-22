@@ -312,23 +312,23 @@ func TestAttachToVariationPreservesStandaloneAttachmentEdits(t *testing.T) {
 func TestEmptyAttachmentSearchReturnsNoResults(t *testing.T) {
 	client := syncapi.NewClient(emptyAttachmentClient{}, "token", "https://example.com")
 
-	attachments, totalCount, err := searchAttachmentPage(client, "project", syncdomain.AttachmentTool, "missing", 25, 0)
+	page, err := client.SearchAttachments("project", syncdomain.AttachmentTool, "missing", 25, 0)
 
 	require.NoError(t, err)
-	assert.Empty(t, attachments)
-	assert.Zero(t, totalCount)
+	assert.Empty(t, page.Items)
+	assert.Zero(t, page.TotalCount)
 }
 
 func TestToolSearchPageReturnsTrueLatestVersion(t *testing.T) {
 	transport := &toolSearchClient{}
 	client := syncapi.NewClient(transport, "token", "https://example.com")
 
-	attachments, totalCount, err := searchAttachmentPage(client, "project", syncdomain.AttachmentTool, "old description", 25, 0)
+	page, err := client.SearchAttachments("project", syncdomain.AttachmentTool, "old description", 25, 0)
 
 	require.NoError(t, err)
-	require.Len(t, attachments, 1)
-	assert.Equal(t, 3, attachments[0].Version)
-	assert.Equal(t, 1, totalCount)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, 3, page.Items[0].Version)
+	assert.Equal(t, 1, page.TotalCount)
 	assert.Equal(t, 2, transport.requests)
 }
 
