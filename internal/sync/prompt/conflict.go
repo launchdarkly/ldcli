@@ -313,13 +313,13 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 func resolvedConflictAction(resource PlannedResource, resolution ConflictResolution) Action {
 	switch resolution {
 	case ConflictUseLaunchDarkly:
-		if resource.Server == nil {
+		if !resource.hasServer() {
 			return ActionDeleteLocal
 		}
 		return ActionUpdateLocal
 	case ConflictUseLocal:
 		// A conflict always has a local file, because a missing file is restored.
-		if resource.Server == nil {
+		if !resource.hasServer() {
 			return ActionCreateServer
 		}
 		return ActionUpdateServer

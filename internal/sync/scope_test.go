@@ -7,6 +7,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestScopePlansItsKinds(t *testing.T) {
+	tests := map[Scope][]Kind{
+		"":           {KindVariation},
+		ScopePrompts: {KindVariation},
+		ScopeTools:   {KindTool},
+		ScopeSkills:  {KindSkill},
+		ScopeAll:     {KindSkill, KindTool, KindVariation},
+	}
+
+	for scope, want := range tests {
+		var kinds []Kind
+		for _, kind := range []Kind{KindSkill, KindTool, KindVariation} {
+			if scope.Includes(kind) {
+				kinds = append(kinds, kind)
+			}
+		}
+		assert.Equal(t, want, kinds, scope)
+	}
+	assert.Equal(t, KindTool, ScopeTools.KeyKind())
+	assert.Equal(t, KindSkill, ScopeSkills.KeyKind())
+	assert.Equal(t, KindVariation, ScopePrompts.KeyKind())
+}
+
 func TestFilterValidateNeedsParentsAndRejectsBadValues(t *testing.T) {
 	tests := map[string]struct {
 		filter Filter
@@ -67,6 +90,18 @@ func TestFilterIncludesOnlyTheNamedResources(t *testing.T) {
 			assert.Equal(t, test.want, included)
 		})
 	}
+}
+
+func TestFilterNamesToolsByKey(t *testing.T) {
+	filter := Filter{Project: "demo", Keys: []string{"search"}}
+	search := ResourceID{Kind: KindTool, ProjectKey: "demo", LookupKey: "search"}
+
+	require.NoError(t, filter.Validate(KindTool))
+	assert.Equal(t, []ResourceID{search}, filter.IDs(KindTool))
+	assert.True(t, filter.Includes(search))
+	assert.False(t, filter.Includes(ResourceID{Kind: KindTool, ProjectKey: "demo", LookupKey: "lookup"}))
+	require.EqualError(t, Filter{Project: "demo", Keys: []string{"search", "search"}}.Validate(KindTool),
+		"tool demo/search was selected more than once")
 }
 
 func TestFilterIDsNamesEachKey(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -23,13 +24,17 @@ type workspaceState struct {
 }
 
 // loadState reads the baseline, the local files, and LaunchDarkly, and builds
-// the plan of the resources that the filter keeps.
-func (workspace syncWorkspace) loadState(client syncapi.Client, filter syncdomain.Filter) (workspaceState, error) {
+// the plan of the resources in the scope that the filter keeps.
+func (workspace syncWorkspace) loadState(
+	client syncapi.Client,
+	scope syncdomain.Scope,
+	filter syncdomain.Filter,
+) (workspaceState, error) {
 	synced, err := workspace.syncedResources()
 	if err != nil {
 		return workspaceState{}, err
 	}
-	if err := checkFilter(filter, synced); err != nil {
+	if err := checkFilter(scope, filter, synced); err != nil {
 		return workspaceState{}, err
 	}
 	projectKeys := projectKeys(synced, filter)
@@ -39,28 +44,69 @@ func (workspace syncWorkspace) loadState(client syncapi.Client, filter syncdomai
 	if err != nil {
 		return workspaceState{}, err
 	}
-	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client, filter)
+	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client, scope, filter)
 	if err != nil {
 		return workspaceState{}, err
 	}
 	return workspaceState{projectKeys: projectKeys, baseline: baseline, plan: plan, localFiles: localFiles}, nil
 }
 
-// loadWorkspacePlan reads the local variations and their LaunchDarkly
-// versions, and compares both with the lock. It also returns the local
-// variations as their files store them. It drops each variation that the
-// filter does not keep before it reads LaunchDarkly.
+// loadWorkspacePlan plans the variations, tools, and skills of the scope. It
+// drops each resource that the filter does not keep before it reads
+// LaunchDarkly. It also returns the local variations as their files store them.
 func loadWorkspacePlan(
 	repositoryRoot string,
 	baseline syncmanifest.Baseline,
 	client syncapi.Client,
+	scope syncdomain.Scope,
 	filter syncdomain.Filter,
 ) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
-	localFiles, err := compileWorkspace(repositoryRoot)
+	variations, err := compileWorkspace(repositoryRoot)
 	if err != nil {
 		return Plan{}, nil, err
 	}
-	localFiles = slices.DeleteFunc(localFiles, func(resource syncdomain.SyncedResource) bool {
+	// A tool that a variation uses can also have a row of its own. The cache
+	// reads it from LaunchDarkly once.
+	attachments := newAttachmentCache(client)
+
+	var plan Plan
+	var localFiles map[ResourceID]syncdomain.SyncedResource
+	if scope.Includes(syncdomain.KindVariation) {
+		if plan, localFiles, err = planVariationRows(repositoryRoot, baseline, client, attachments, filter, variations); err != nil {
+			return Plan{}, nil, err
+		}
+	}
+	if scope.Includes(syncdomain.KindTool) || scope.Includes(syncdomain.KindSkill) {
+		include := func(id ResourceID) bool { return scope.Includes(id.Kind) && filter.Includes(id) }
+		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include)
+		if err != nil {
+			return Plan{}, nil, err
+		}
+		plan.Resources = append(plan.Resources, rows...)
+		slices.SortFunc(plan.Resources, func(left, right PlannedResource) int {
+			return syncdomain.CompareResourceIDs(left.ID, right.ID)
+		})
+	}
+
+	checkAttachmentBaselines(plan.Resources, baseline.Lock)
+	checkAttachmentDeletes(plan.Resources, variations)
+	for index := range plan.Resources {
+		plan.Resources[index].SyncedElsewhere = baseline.Stale(plan.Resources[index].ID)
+	}
+	return plan, localFiles, nil
+}
+
+// planVariationRows reads the variations that the filter keeps from
+// LaunchDarkly, and compares both sides with the lock.
+func planVariationRows(
+	repositoryRoot string,
+	baseline syncmanifest.Baseline,
+	client syncapi.Client,
+	attachments *attachmentCache,
+	filter syncdomain.Filter,
+	variations []syncdomain.SyncedResource,
+) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
+	localFiles := slices.DeleteFunc(slices.Clone(variations), func(resource syncdomain.SyncedResource) bool {
 		return !filter.Includes(resource.ID())
 	})
 	local, err := canonicalizeLocalVariationModels(localFiles, client.ModelConfig)
@@ -84,7 +130,6 @@ func loadWorkspacePlan(
 		ids[resource.ID()] = struct{}{}
 	}
 
-	attachments := newAttachmentCache(client)
 	server := make(map[ResourceID]ServerResource, len(ids))
 	for id := range ids {
 		resource, err := readServerResource(client, attachments, id)
@@ -95,10 +140,141 @@ func loadWorkspacePlan(
 	}
 	plan := BuildPlan(tracked, local, server)
 	for index := range plan.Resources {
-		plan.Resources[index].SyncedElsewhere = baseline.Stale(plan.Resources[index].ID)
 		planRestore(repositoryRoot, baseline, &plan.Resources[index])
 	}
 	return plan, localFilesByID, nil
+}
+
+// planAttachmentRows reads each tool and skill that include accepts and that
+// has a local file or a lock entry, and compares both sides with the lock.
+func planAttachmentRows(
+	repositoryRoot string,
+	lock syncmanifest.Manifest,
+	attachments *attachmentCache,
+	include func(ResourceID) bool,
+) ([]PlannedResource, error) {
+	local, err := synclocal.CompileAttachments(repositoryRoot, include)
+	if err != nil {
+		return nil, err
+	}
+	tracked := syncmanifest.New()
+	for _, resource := range lock.Resources {
+		if resource.ResourceKind != syncdomain.KindVariation && include(resource.ID()) {
+			tracked.Resources = append(tracked.Resources, resource)
+		}
+	}
+
+	ids := make([]ResourceID, 0, len(local)+len(tracked.Resources))
+	for _, attachment := range local {
+		ids = append(ids, attachment.ID())
+	}
+	for _, resource := range tracked.Resources {
+		ids = append(ids, resource.ID())
+	}
+	server := make(map[ResourceID]*syncdomain.Attachment, len(ids))
+	for _, id := range ids {
+		if server[id], err = attachments.read(id); err != nil {
+			return nil, err
+		}
+	}
+	return planAttachments(tracked, local, server), nil
+}
+
+// checkAttachmentBaselines makes sure that a variation row does not move a
+// tool or a skill past a change on the other side. sync.lock records the
+// state of each tool and skill on its own. A row becomes a conflict when the
+// side that it overwrites changed since that state, or when the attachment has
+// no state and both sides have different content.
+func checkAttachmentBaselines(resources []PlannedResource, lock syncmanifest.Manifest) {
+	baselines := make(map[ResourceID]string, len(lock.Resources))
+	for _, resource := range lock.Resources {
+		baselines[resource.ID()] = resource.Fingerprint
+	}
+
+	for index := range resources {
+		resource := &resources[index]
+		var source, target *syncdomain.Variation
+		switch {
+		case resource.ID.Kind != syncdomain.KindVariation:
+			continue
+		case resource.Action.changesServer():
+			source, target = resource.Local, resource.Server
+		case resource.Action == ActionUpdateLocal:
+			source, target = resource.Server, resource.Local
+		default:
+			continue
+		}
+		if target == nil {
+			continue
+		}
+		for _, id := range resource.changedAttachments {
+			kind := syncdomain.AttachmentKind(id.Kind)
+			overwritten, ok := target.Attachment(kind, id.LookupKey)
+			if !ok {
+				continue
+			}
+			// Without a baseline, sync cannot tell which side changed, so two
+			// different versions conflict. A new attachment on one side does not.
+			_, unsynced := source.Attachment(kind, id.LookupKey)
+			if baseline, tracked := baselines[id]; tracked {
+				fingerprint, err := syncdomain.FingerprintAttachment(id.ProjectKey, overwritten)
+				unsynced = err != nil || fingerprint != baseline
+			}
+			if unsynced {
+				resource.Action = ActionConflict
+				break
+			}
+		}
+	}
+}
+
+// checkAttachmentDeletes keeps a tool or a skill that LaunchDarkly deleted
+// while a local variation still uses it. The deletion becomes an error, unless
+// the same plan pulls a version of that variation without the reference.
+func checkAttachmentDeletes(resources []PlannedResource, variations []syncdomain.SyncedResource) {
+	variationRows := make(map[ResourceID]PlannedResource)
+	for _, resource := range resources {
+		if resource.ID.Kind == syncdomain.KindVariation {
+			variationRows[resource.ID] = resource
+		}
+	}
+
+	for index := range resources {
+		resource := &resources[index]
+		if resource.ID.Kind == syncdomain.KindVariation || resource.Action != ActionDeleteLocal {
+			continue
+		}
+		for _, variation := range variations {
+			if !uses(variation, resource.ID) {
+				continue
+			}
+			row, planned := variationRows[variation.ID()]
+			if planned && row.Action == ActionUpdateLocal && !references(row.Server, resource.ID) {
+				continue
+			}
+			fix := "Run ldcli sync all to pull the variation first."
+			if planned {
+				fix = "Remove it from the variation first."
+			}
+			resource.Action = ActionError
+			resource.Error = fmt.Sprintf("%s was deleted in LaunchDarkly, but %s still uses it. %s",
+				resource.ID.Label(), variation.ID().Label(), fix)
+			break
+		}
+	}
+}
+
+// uses reports whether a local variation uses a tool or a skill.
+func uses(variation syncdomain.SyncedResource, id ResourceID) bool {
+	_, ok := variation.Variation.Attachment(syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+	return ok && variation.ProjectKey == id.ProjectKey
+}
+
+// references reports whether a server variation references a tool or a skill.
+func references(variation *syncdomain.Variation, id ResourceID) bool {
+	return variation != nil && slices.ContainsFunc(variation.Refs(syncdomain.AttachmentKind(id.Kind)), func(ref syncdomain.AttachmentRef) bool {
+		return ref.Key == id.LookupKey
+	})
 }
 
 // planRestore checks a variation whose local file is missing. The restored
@@ -200,21 +376,26 @@ func projectKeys(synced []ResourceID, filter syncdomain.Filter) []string {
 }
 
 // checkFilter returns an error when the filter names a project, a config, or
-// a variation that has no local file and no sync.lock entry, so that a typo
-// never gives an empty plan that looks like success.
-func checkFilter(filter syncdomain.Filter, synced []ResourceID) error {
+// a resource of the scope that has no local file and no sync.lock entry, so
+// that a typo never gives an empty plan that looks like success.
+func checkFilter(scope syncdomain.Scope, filter syncdomain.Filter, synced []ResourceID) error {
 	if filter.IsZero() {
 		return nil
 	}
+	synced = slices.DeleteFunc(slices.Clone(synced), func(id ResourceID) bool { return !scope.Includes(id.Kind) })
 	if !slices.ContainsFunc(synced, func(id ResourceID) bool { return id.ProjectKey == filter.Project }) {
-		return fmt.Errorf("project %q has no synced resources in this repository. "+
-			"To start, run ldcli sync prompts add --project %s.", filter.Project, filter.Project)
+		var commands []string
+		for _, kind := range []syncdomain.Kind{syncdomain.KindVariation, syncdomain.KindTool, syncdomain.KindSkill} {
+			if scope.Includes(kind) {
+				commands = append(commands, fmt.Sprintf("ldcli sync %ss add --project %s", kindNoun(kind), filter.Project))
+			}
+		}
+		return fmt.Errorf("project %q has no synced resources in this repository. To start, run %s.",
+			filter.Project, strings.Join(commands, " or "))
 	}
-	for _, key := range filter.Keys {
-		if id := syncdomain.VariationID(filter.Project, filter.ConfigKey, key); !slices.Contains(synced, id) {
-			return fmt.Errorf("%s is not synced in this repository. To start syncing it, "+
-				"run ldcli sync prompts add --project %s --config-key %s --key %s.",
-				id.Label(), filter.Project, filter.ConfigKey, key)
+	for _, id := range filter.IDs(scope.KeyKind()) {
+		if !slices.Contains(synced, id) {
+			return fmt.Errorf("%s is not synced in this repository. To start syncing it, run %s.", id.Label(), addCommand(id))
 		}
 	}
 	if !slices.ContainsFunc(synced, filter.Includes) {
@@ -223,6 +404,14 @@ func checkFilter(filter syncdomain.Filter, synced []ResourceID) error {
 			filter.ConfigKey, filter.Project, filter.Project, filter.ConfigKey)
 	}
 	return nil
+}
+
+// addCommand is the command that starts syncing one resource.
+func addCommand(id ResourceID) string {
+	if configKey, variationKey, err := id.VariationKeys(); err == nil {
+		return fmt.Sprintf("ldcli sync prompts add --project %s --config-key %s --key %s", id.ProjectKey, configKey, variationKey)
+	}
+	return fmt.Sprintf("ldcli sync %ss add --project %s --key %s", id.Kind, id.ProjectKey, id.LookupKey)
 }
 
 // compileWorkspace reads the local variations. A workspace without a managed
@@ -236,28 +425,54 @@ func compileWorkspace(repositoryRoot string) ([]syncdomain.SyncedResource, error
 }
 
 // attachmentCache reads each tool and skill from LaunchDarkly once while it
-// builds a plan, because many variations can share one attachment.
+// builds a plan, because many variations can share one attachment, and a tool
+// or a skill can also have a row of its own.
 type attachmentCache struct {
-	client      syncapi.Client
-	attachments map[syncdomain.ResourceID]syncdomain.Attachment
+	client  syncapi.Client
+	results map[syncdomain.ResourceID]attachmentRead
+}
+
+type attachmentRead struct {
+	attachment syncdomain.Attachment
+	err        error
 }
 
 func newAttachmentCache(client syncapi.Client) *attachmentCache {
-	return &attachmentCache{client: client, attachments: make(map[syncdomain.ResourceID]syncdomain.Attachment)}
+	return &attachmentCache{client: client, results: make(map[syncdomain.ResourceID]attachmentRead)}
 }
 
+// get reads the latest version of an attachment. It keeps each result and
+// each 404.
+func (cache *attachmentCache) get(id ResourceID) (syncdomain.Attachment, error) {
+	if result, ok := cache.results[id]; ok {
+		return result.attachment, result.err
+	}
+	attachment, err := cache.client.ReadAttachment(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+	if err == nil || syncapi.IsNotFound(err) {
+		cache.results[id] = attachmentRead{attachment: attachment, err: err}
+	}
+	return attachment, err
+}
+
+// read returns the latest version of an attachment, or nil when LaunchDarkly
+// does not have it.
+func (cache *attachmentCache) read(id ResourceID) (*syncdomain.Attachment, error) {
+	attachment, err := cache.get(id)
+	switch {
+	case syncapi.IsNotFound(err):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	default:
+		return &attachment, nil
+	}
+}
+
+// hydrate reads every attachment that a server variation references. A
+// missing attachment is an error.
 func (cache *attachmentCache) hydrate(projectKey string, variation *syncdomain.Variation) error {
 	return variation.HydrateAttachments(func(kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
-		id := syncdomain.ResourceID{Kind: syncdomain.Kind(kind), ProjectKey: projectKey, LookupKey: key}
-		if attachment, ok := cache.attachments[id]; ok {
-			return attachment, nil
-		}
-		attachment, err := cache.client.ReadAttachment(projectKey, kind, key)
-		if err != nil {
-			return syncdomain.Attachment{}, err
-		}
-		cache.attachments[id] = attachment
-		return attachment, nil
+		return cache.get(syncdomain.ResourceID{Kind: syncdomain.Kind(kind), ProjectKey: projectKey, LookupKey: key})
 	})
 }
 

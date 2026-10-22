@@ -258,8 +258,20 @@ func TestPlanReasonNamesTheChange(t *testing.T) {
 			"variation does not exist in LaunchDarkly",
 		},
 		"tools": {
-			PlannedResource{Action: ActionUpdateLocal, Local: &variation, Diff: variationDiffFields{"tools": {}}},
+			PlannedResource{ID: testResourceID(), Action: ActionUpdateLocal, Local: &variation, Diff: variationDiffFields{"tools": {}}},
 			"tools changed in LaunchDarkly",
+		},
+		"tool fields": {
+			PlannedResource{
+				ID: ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}, Action: ActionUpdateServer,
+				Diff: attachmentDiff(
+					&syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{}}},
+					&syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+						Key: "search", Description: pointerTo("Search"), Schema: map[string]any{"type": "object"},
+					}},
+				),
+			},
+			"description, schema changed",
 		},
 		"repin": {
 			PlannedResource{
@@ -495,4 +507,8 @@ func reviewTestPlan() Plan {
 		{ID: variationID("support/third"), Action: ActionConflict, Local: &local, Server: &server, Diff: diff},
 		{ID: variationID("support/fourth"), Action: ActionInSync},
 	}}
+}
+
+func pointerTo[T any](value T) *T {
+	return &value
 }

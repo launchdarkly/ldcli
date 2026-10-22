@@ -41,6 +41,36 @@ type OrphanedAttachment struct {
 	Path       string
 }
 
+// CompileAttachments reads each tool and skill file that include accepts. It
+// does not read the other files, so an invalid file outside include does not
+// stop the read. Like CompileWorkspace, it rejects a symbolic link in a
+// managed path.
+func CompileAttachments(repositoryRoot string, include func(syncdomain.ResourceID) bool) ([]syncdomain.SyncedAttachment, error) {
+	root, err := filepath.EvalSymlinks(repositoryRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository root: %w", err)
+	}
+	files, err := SourceFiles(root)
+	if err != nil {
+		return nil, err
+	}
+
+	fsys := workspaceFS{root: root}
+	var attachments []syncdomain.SyncedAttachment
+	for _, file := range files {
+		id, ok := ParseManagedPath(file)
+		if !ok || id.Kind == syncdomain.KindVariation || !include(id) {
+			continue
+		}
+		attachment, err := readAttachment(fsys, id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+		if err != nil {
+			return nil, ParseError{Path: file, Err: err}
+		}
+		attachments = append(attachments, syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
+	}
+	return attachments, nil
+}
+
 // readAttachment reads the file of one tool or skill.
 func readAttachment(fsys fs.FS, projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
 	switch kind {

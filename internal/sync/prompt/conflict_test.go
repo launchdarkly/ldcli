@@ -268,6 +268,29 @@ func TestGroupConflictsConnectsMixedChangesAcrossSharedAttachments(t *testing.T)
 	assert.Len(t, groups[0].resources, 4)
 }
 
+func TestGroupConflictsJoinsAToolRowAndTheVariationsThatUseIt(t *testing.T) {
+	description := "Search the docs"
+	local := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: &description, Schema: map[string]any{"type": "object"},
+	}}
+	server := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}}
+	toolID := local.ID("project")
+	tool := planAttachment(toolID, &local, &server, "sha256:baseline", true)
+	require.Equal(t, ActionConflict, tool.Action)
+	variation := func(lookupKey string) PlannedResource {
+		return PlannedResource{
+			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: lookupKey},
+			Action: ActionUpdateServer, changedAttachments: []ResourceID{toolID},
+		}
+	}
+
+	groups := groupConflicts(Plan{Resources: []PlannedResource{tool, variation("config/first"), variation("config/second")}})
+
+	require.Len(t, groups, 1)
+	assert.Len(t, groups[0].resources, 3)
+	assert.Equal(t, toolID, groups[0].resources[0].ID)
+}
+
 func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
 	root := t.TempDir()
 	baseline, local, server := testVariation("baseline"), testVariation("local"), testVariation("server")

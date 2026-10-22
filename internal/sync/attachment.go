@@ -76,6 +76,17 @@ func (attachment Attachment) ID(projectKey string) ResourceID {
 	return ResourceID{Kind: Kind(attachment.Kind), ProjectKey: projectKey, LookupKey: attachment.Key()}
 }
 
+// SyncedAttachment is one tool or skill file of the local workspace.
+type SyncedAttachment struct {
+	ProjectKey string
+	Attachment Attachment
+}
+
+// ID returns the identity of the tool or the skill.
+func (attachment SyncedAttachment) ID() ResourceID {
+	return attachment.Attachment.ID(attachment.ProjectKey)
+}
+
 // CanonicalAttachment removes the runtime version, local-only flags, and
 // server-owned metadata. Two attachments with the same canonical form have
 // the same content.

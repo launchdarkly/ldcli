@@ -31,7 +31,8 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		watched = &watchedSources{watcher: watcher, snapshot: snapshot, debounce: watchDebounce}
 	}
 
-	reviewed, err := workspace.loadState(client, options.syncAction().Filter)
+	target := options.syncAction()
+	reviewed, err := workspace.loadState(client, target.Scope, target.Filter)
 	if err != nil {
 		return err
 	}
@@ -67,7 +68,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	// Read both sides again, so that no action uses state from before the review.
-	current, err := workspace.loadState(client, options.syncAction().Filter)
+	current, err := workspace.loadState(client, target.Scope, target.Filter)
 	if err != nil {
 		return err
 	}
