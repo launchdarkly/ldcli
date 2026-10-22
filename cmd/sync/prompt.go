@@ -153,15 +153,23 @@ func newWatchCmd(client resources.Client, scope syncdomain.Scope, help targetFla
 func newAddCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add [project-key/config-key/variation-key...]",
-		Short: "Add prompt variations from LaunchDarkly",
+		Short: "Add prompt variations from LaunchDarkly, or create a variation",
+		Long: "Add prompt variations from LaunchDarkly, or create a variation. " +
+			"Without --content, add starts syncing variations that exist in LaunchDarkly. " +
+			"With --content, add creates the variation in an existing config. For an agent config, the content is the instructions. " +
+			"For a completion config, the content is role blocks such as <system>...</system>, or plain text for one system message. " +
+			"The project-key/config-key/variation-key form still works.",
 		Example: `  # Choose variations interactively
   ldcli sync prompts add
 
-  # Choose variations in one config
-  ldcli sync prompts add --project production --config-key support
-
   # Add variations by key without prompting
-  ldcli sync prompts add --project production --config-key support --key default --key concise --no-input`,
+  ldcli sync prompts add --project production --config-key support --key default --key concise --no-input
+
+  # Create an agent variation without prompting
+  ldcli sync prompts add --project production --config-key support --key escalation \
+    --model-config-key claude \
+    --content "Hand the conversation to a person when the customer asks for one." \
+    --yes --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
 		RunE: runCommand(client, syncdomain.ScopePrompts, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
@@ -169,12 +177,16 @@ func newAddCmd(client resources.Client) *cobra.Command {
 				return nil, err
 			}
 			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-			return syncprompt.AddAction{Resources: variations, Filter: targetFilter(cmd), DryRun: dryRun}, nil
+			return syncprompt.AddAction{Resources: variations, Filter: targetFilter(cmd), DryRun: dryRun, Create: createInput(cmd)}, nil
 		}),
 	}
 	addTargetFlags(cmd, questionFlagHelp)
+	cmd.Flags().String(contentFlag, "", "Prompt of a variation that add creates")
+	cmd.Flags().String(modelConfigKeyFlag, "", "Model config of a variation that add creates")
+	cmd.Flags().String(nameFlag, "", "Name of a variation that add creates. The default comes from the key.")
 	cmd.Flags().Bool(dryRunFlag, false, "Preview local files without creating them")
 	cmd.Flags().Bool(diffFlag, false, "Show full diffs and file content in the plan")
+	cmd.Flags().Bool(yesFlag, false, "Create without confirmation")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }

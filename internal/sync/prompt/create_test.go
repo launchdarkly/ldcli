@@ -786,6 +786,33 @@ func TestCreateVariationRemovesTheFileWhenLaunchDarklyRejectsTheCreate(t *testin
 	assert.NoDirExists(t, filepath.Join(root, syncdomain.RootDir))
 }
 
+func TestPromptsAddCreatesAVariationFromItsFlags(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{claude}}
+
+	_, stderr, err := runPrompt(t, root, api, "add", "--project", "production", "--config-key", "support", "--key", "escalation",
+		"--model-config-key", "claude", "--name", "Escalate to a person", "--content", "Hand the conversation to a person.",
+		"--yes", "--no-input")
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Note: Created .launchdarkly/production/"+escalationFile+".\n")
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "Escalate to a person", api.variation.Name)
+	assert.Equal(t, "Hand the conversation to a person.", api.variation.Instructions)
+}
+
+func TestPromptsAddRefusesASelectorWithCreateFlags(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{}
+
+	_, _, err := runPrompt(t, root, api, "add", "production/support/escalation",
+		"--model-config-key", "claude", "--content", "Escalate.", "--yes", "--no-input")
+
+	require.ErrorContains(t, err, "a variation that add creates comes from --project, --config-key, and --key, "+
+		"not from project-key/config-key/variation-key arguments")
+	assert.Empty(t, api.requests)
+}
+
 // createVariationAction is the add that creates the variation key in the
 // config "support" of the project "production".
 func createVariationAction(key string, input synccreate.Input) syncprompt.AddAction {

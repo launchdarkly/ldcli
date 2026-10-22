@@ -115,7 +115,8 @@ func selectedVariations(options Options) ([]synclocal.VariationFile, error) {
 		})
 		if index < 0 {
 			return nil, fmt.Errorf(
-				"variation %q does not exist in config %q in project %q", variationKey, configKey, selection.ProjectKey,
+				"variation %q does not exist in config %q in project %q. To create it, run %s with --model-config-key and --content.",
+				variationKey, configKey, selection.ProjectKey, AddCommand(selection),
 			)
 		}
 
