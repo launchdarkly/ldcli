@@ -216,6 +216,50 @@ func TestReviewAndConfirmPlanRejectsConfirmationWhenWatchContextIsAlreadyCancele
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestReviewAndConfirmPlanShowsPlanOnlyWhenNeeded(t *testing.T) {
+	tests := []struct {
+		name         string
+		action       Action
+		yes          bool
+		input        string
+		wantContinue bool
+		wantError    string
+		wantReview   string
+	}{
+		{name: "yes applies without the plan", action: ActionUpdateServer, yes: true, wantContinue: true},
+		{name: "a manifest-only plan applies without the plan", action: ActionUpdateManifest, wantContinue: true},
+		{
+			name: "a question shows the plan first", action: ActionUpdateServer, input: "yes\n", wantContinue: true,
+			wantReview: "1 change: 1 prompt push.\n\nPrompts\n  push   production/support/default   changed\n\nSync these changes? [y/N] ",
+		},
+		{
+			name: "a blocking row shows the plan", action: ActionError, yes: true,
+			wantError:  "cannot sync variation production/support/default: broken",
+			wantReview: "1 error.\n\nPrompts\n  error   production/support/default   broken\n",
+		},
+		{name: "a plan without changes shows its summary", action: ActionInSync, wantReview: "No changes. 1 in sync.\n"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			plan := Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: test.action, Error: "broken"}}}
+
+			continued, err := reviewAndConfirmPlan(Options{
+				Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
+			}, plan, true)
+
+			assert.Equal(t, test.wantContinue, continued)
+			if test.wantError != "" {
+				require.EqualError(t, err, test.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, test.wantReview, output.String())
+		})
+	}
+}
+
 func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 	tests := []struct {
 		name         string

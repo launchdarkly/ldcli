@@ -64,6 +64,33 @@ func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 	}
 }
 
+func TestPromptCommandsRegisterDiffFlag(t *testing.T) {
+	command := NewPromptCmd(nil)
+	tests := map[string]struct {
+		path []string
+		help string
+	}{
+		"prompts": {help: "Show full diffs in the plan"},
+		"watch":   {path: []string{"watch"}, help: "Show full diffs in the plan"},
+		"add":     {path: []string{"add"}, help: "Show full diffs and file content in the plan"},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			target := command
+			if len(test.path) != 0 {
+				var err error
+				target, _, err = command.Find(test.path)
+				require.NoError(t, err)
+			}
+
+			flag := target.Flags().Lookup(diffFlag)
+			require.NotNil(t, flag)
+			assert.Equal(t, test.help, flag.Usage)
+		})
+	}
+}
+
 func TestAttachSubcommandsAcceptOptionalKeyAndTarget(t *testing.T) {
 	command := NewPromptCmd(nil)
 	tool, _, err := command.Find([]string{"attach", "tool"})

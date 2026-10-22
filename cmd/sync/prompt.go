@@ -22,6 +22,7 @@ const (
 	archiveFlag        = "archive"
 	conflictFlag       = "conflict"
 	contentFlag        = "content"
+	diffFlag           = "diff"
 	dryRunFlag         = "dry-run"
 	formatFlag         = "format"
 	modelConfigKeyFlag = "model-config-key"
@@ -93,6 +94,7 @@ func runPrompt(client resources.Client, buildAction actionBuilder) func(*cobra.C
 		}
 		yes, _ := cmd.Flags().GetBool(yesFlag)
 		noInput, _ := cmd.Flags().GetBool(noInputFlag)
+		diff, _ := cmd.Flags().GetBool(diffFlag)
 		outputKind := cliflags.GetOutputKind(cmd)
 
 		err = syncprompt.NewRunner(client).Run(syncprompt.Options{
@@ -104,6 +106,7 @@ func runPrompt(client resources.Client, buildAction actionBuilder) func(*cobra.C
 			ConflictPolicy:   policy,
 			Yes:              yes,
 			NoInput:          noInput,
+			Diff:             diff,
 			Context:          cmd.Context(),
 			Input:            cmd.InOrStdin(),
 			Output:           cmd.OutOrStdout(),
@@ -157,6 +160,7 @@ func newAddCmd(client resources.Client) *cobra.Command {
 		}),
 	}
 	cmd.Flags().Bool(dryRunFlag, false, "Preview local files without creating them")
+	cmd.Flags().Bool(diffFlag, false, "Show full diffs and file content in the plan")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }
@@ -269,6 +273,7 @@ func addApplyFlags(cmd *cobra.Command, dryRun bool) {
 	if dryRun {
 		cmd.Flags().Bool(dryRunFlag, false, "Preview synchronization changes without applying them")
 	}
+	cmd.Flags().Bool(diffFlag, false, "Show full diffs in the plan")
 	cmd.Flags().String(conflictFlag, "", "Default conflict resolution: launchdarkly, local, or abort")
 	cmd.Flags().StringArray(resolveFlag, nil, "Resolve one variation conflict (project-key/config-key/variation-key=choice)")
 	cmd.Flags().Bool(yesFlag, false, "Apply changes without confirmation")

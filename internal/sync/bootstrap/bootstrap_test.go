@@ -111,7 +111,7 @@ func TestRunUsesExplicitVariationSelectorsWithoutTerminal(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Contains(t, output.String(), "Would create: .launchdarkly/project/configs/config/variation.prompt.md")
+	assert.Contains(t, output.String(), "  .launchdarkly/project/configs/config/variation.prompt.md   +9")
 }
 
 func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
@@ -138,20 +138,8 @@ func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		`============================================================
-File 1 of 1
-Would create: .launchdarkly/project/configs/config/variation.prompt.md
-------------------------------------------------------------
----
-formatVersion: 1
-upsert: true
-mode: agent
-key: variation
-name: Variation
----
-
-Be helpful.
-============================================================
+		`1 file to create:
+  .launchdarkly/project/configs/config/variation.prompt.md   +9
 `,
 		output.String(),
 	)
@@ -384,32 +372,32 @@ func TestWriteSummary(t *testing.T) {
 	assert.Contains(t, output.String(), "No variations added")
 }
 
-func TestWritePreviewsPrintsEveryFile(t *testing.T) {
-	var output bytes.Buffer
+func TestWritePreviewsListsEveryFileWithItsSize(t *testing.T) {
+	previews := []synclocal.RenderedFile{
+		{Path: "project/tools/search.json", Content: []byte("{\n}")},
+		{Path: "project/configs/config/first.prompt.md", Content: []byte("---\nkey: first\n---\n\nfirst\n")},
+	}
 
-	writePreviews(&output, []synclocal.RenderedFile{
-		{Path: "project/configs/config/first.prompt.md", Content: []byte("first\n")},
-		{Path: "project/configs/config/second.prompt.md", Content: []byte("second\n")},
-	})
+	var list, content bytes.Buffer
+	writePreviews(&list, previews, false)
+	writePreviews(&content, previews, true)
 
-	assert.Equal(
-		t,
-		`============================================================
-File 1 of 2
-Would create: .launchdarkly/project/configs/config/first.prompt.md
-------------------------------------------------------------
-first
-============================================================
+	assert.Equal(t, `2 files to create:
+  .launchdarkly/project/tools/search.json                +2
+  .launchdarkly/project/configs/config/first.prompt.md   +5
+`, list.String())
+	assert.Equal(t, list.String()+`
+.launchdarkly/project/tools/search.json
+    {
+    }
 
-============================================================
-File 2 of 2
-Would create: .launchdarkly/project/configs/config/second.prompt.md
-------------------------------------------------------------
-second
-============================================================
-`,
-		output.String(),
-	)
+.launchdarkly/project/configs/config/first.prompt.md
+    ---
+    key: first
+    ---
+
+    first
+`, content.String())
 }
 
 type fakeCatalog struct {

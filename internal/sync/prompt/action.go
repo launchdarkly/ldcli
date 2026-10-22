@@ -92,7 +92,10 @@ type Options struct {
 	// Yes applies the plan without a confirmation prompt.
 	Yes bool
 	// NoInput makes each prompt for missing input an error.
-	NoInput     bool
+	NoInput bool
+	// Diff shows the full diff of each planned change, and the content of
+	// each file that add creates.
+	Diff        bool
 	Context     context.Context
 	Input       io.Reader
 	Output      io.Writer
