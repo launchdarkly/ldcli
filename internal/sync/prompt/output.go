@@ -390,7 +390,8 @@ func repinReason(versions variationFieldDiff) string {
 }
 
 // shortCause returns the first clause of an error message, so that a plan
-// row stays short. The full error follows the plan.
+// row stays short. Plan.BlockingError, which follows the plan, has the full
+// error of every row.
 func shortCause(message string) string {
 	for _, separator := range []string{"; ", ". "} {
 		message, _, _ = strings.Cut(message, separator)

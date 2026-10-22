@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -257,15 +258,18 @@ func (plan Plan) HasChanges() bool {
 	})
 }
 
-// BlockingError returns an error for the first conflict or invalid resource.
+// BlockingError returns one error for each conflict or invalid resource, in
+// plan order. A plan row shows only the first clause of an error, so this
+// error carries the full message of every row.
 func (plan Plan) BlockingError() error {
+	var blocking []error
 	for _, resource := range plan.Resources {
 		switch resource.Action {
 		case ActionConflict:
-			return fmt.Errorf("cannot sync conflicted resource %s", resource.ID.Label())
+			blocking = append(blocking, fmt.Errorf("cannot sync conflicted resource %s", resource.ID.Label()))
 		case ActionError:
-			return fmt.Errorf("cannot sync %s: %s", resource.ID.Label(), resource.Error)
+			blocking = append(blocking, fmt.Errorf("cannot sync %s: %s", resource.ID.Label(), resource.Error))
 		}
 	}
-	return nil
+	return errors.Join(blocking...)
 }

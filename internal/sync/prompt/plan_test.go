@@ -133,6 +133,22 @@ func TestBuildPlanRejectsParentConfigModeMismatch(t *testing.T) {
 	require.Contains(t, plan.Resources[0].Error, "does not match config mode")
 }
 
+func TestPlanBlockingErrorHasTheFullErrorOfEveryRow(t *testing.T) {
+	conflicted, missing, broken := testResourceID(), testResourceID(), testResourceID()
+	missing.LookupKey, broken.LookupKey = "support/missing", "support/broken"
+	plan := Plan{Resources: []PlannedResource{
+		{ID: conflicted, Action: ActionConflict},
+		{ID: missing, Action: ActionError, Error: "variation does not exist in LaunchDarkly; set upsert: true to create it"},
+		{ID: testResourceID(), Action: ActionInSync},
+		{ID: broken, Action: ActionError, Error: "invalid server variation: bad mode"},
+	}}
+
+	require.EqualError(t, plan.BlockingError(), "cannot sync conflicted resource variation production/support/default\n"+
+		"cannot sync variation production/support/missing: variation does not exist in LaunchDarkly; set upsert: true to create it\n"+
+		"cannot sync variation production/support/broken: invalid server variation: bad mode")
+	require.NoError(t, Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: ActionUpdateServer}}}.BlockingError())
+}
+
 func TestPlanHasDestructiveActions(t *testing.T) {
 	tests := map[string]struct {
 		action      Action
