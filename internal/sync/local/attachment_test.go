@@ -63,12 +63,33 @@ Help the customer.
 }
 
 func TestRenderSkillIncludesReadOnlyKeyAndEditableDescription(t *testing.T) {
-	rendered, err := renderSkill(syncdomain.Skill{
-		Key: "support", Description: "Follow the standard support process.", Markdown: "Follow the support process.\n",
-	})
+	skill := syncdomain.Skill{
+		Key: "support", Name: "Support", Description: "Follow the standard support process.", Markdown: "Follow the support process.\n",
+	}
+
+	rendered, err := renderAttachment(syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &skill})
+	require.NoError(t, err)
+	assert.Equal(t, "---\nkey: support\ndescription: Follow the standard support process.\n---\n\nFollow the support process.\n", string(rendered),
+		"LaunchDarkly owns the name, so the file does not get it")
+
+	rendered, err = renderAttachment(syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Upsert: true, Skill: &skill})
+	require.NoError(t, err)
+	assert.Contains(t, string(rendered), "\nupsert: true\n")
+}
+
+func TestReadSkillReadsTheOptionalNameAndUpsert(t *testing.T) {
+	fsys := fstest.MapFS{
+		".launchdarkly/project/skills/handoff.md": {
+			Data: []byte("---\nkey: handoff\ndescription: Hand off\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n"),
+		},
+	}
+
+	attachment, err := readSkill(fsys, "project", "handoff")
 
 	require.NoError(t, err)
-	assert.Equal(t, "---\nkey: support\ndescription: Follow the standard support process.\n---\n\nFollow the support process.\n", string(rendered))
+	assert.True(t, attachment.Upsert)
+	assert.Equal(t, "Human handoff", attachment.Skill.Name)
+	assert.Equal(t, "# Handoff\n", attachment.Skill.Markdown)
 }
 
 func TestReadSkillRejectsKeyThatDoesNotMatchFilename(t *testing.T) {
@@ -144,13 +165,30 @@ func TestPreserveToolUpsertAcrossServerWrites(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	preserved, err := preserveToolUpsert("tools/search.json", original, replacement)
+	preserved, err := preserveLocalFields("tools/search.json", original, replacement)
 
 	require.NoError(t, err)
 	var file toolFile
 	require.NoError(t, json.Unmarshal(preserved, &file))
 	assert.True(t, file.Upsert)
 	assert.Equal(t, "New", *file.Description)
+}
+
+func TestPreserveSkillNameAndUpsertAcrossServerWrites(t *testing.T) {
+	original := []byte("---\nkey: handoff\ndescription: Old\nname: Human handoff\nupsert: true\n---\n\n# Old\n")
+	server := syncdomain.Skill{Key: "handoff", Name: "Renamed in LaunchDarkly", Description: "New", Markdown: "# New\n"}
+	replacement, err := renderAttachment(syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &server})
+	require.NoError(t, err)
+
+	preserved, err := preserveLocalFields("project/skills/handoff.md", original, replacement)
+
+	require.NoError(t, err)
+	assert.Equal(t, "---\nkey: handoff\ndescription: New\nname: Human handoff\nupsert: true\n---\n\n# New\n", string(preserved))
+
+	plain := []byte("---\nkey: handoff\ndescription: Old\n---\n\n# Old\n")
+	preserved, err = preserveLocalFields("project/skills/handoff.md", plain, replacement)
+	require.NoError(t, err)
+	assert.Equal(t, replacement, preserved)
 }
 
 func TestReplaceVariationsRemovesNewAttachmentWhenVariationUpdateFails(t *testing.T) {

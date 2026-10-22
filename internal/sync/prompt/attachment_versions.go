@@ -58,24 +58,32 @@ func (resolver *attachmentResolver) resolve(projectKey string, local syncdomain.
 }
 
 func (resolver *attachmentResolver) publish(projectKey string, local syncdomain.Attachment) (syncdomain.Attachment, error) {
-	remote, err := resolver.client.ReadAttachment(projectKey, local.Kind, local.Key())
+	remote, readErr := resolver.client.ReadAttachment(projectKey, local.Kind, local.Key())
 	var writeErr error
 	switch {
-	case err == nil && syncdomain.SameAttachmentContent(local, remote):
+	case readErr == nil && syncdomain.SameAttachmentContent(local, remote):
 		return remote, nil
-	case err == nil:
+	case readErr == nil:
 		writeErr = resolver.client.UpdateAttachment(projectKey, local)
-	case syncapi.IsNotFound(err) && local.Kind == syncdomain.AttachmentTool && local.Upsert:
+	case syncapi.IsNotFound(readErr) && local.Upsert:
 		writeErr = resolver.client.CreateAttachment(projectKey, local)
-	case syncapi.IsNotFound(err) && local.Kind == syncdomain.AttachmentTool:
+	case syncapi.IsNotFound(readErr) && local.Kind == syncdomain.AttachmentTool:
 		return syncdomain.Attachment{}, fmt.Errorf(
 			"tool %q does not exist in LaunchDarkly; add \"upsert\": true to its local JSON file to create it during sync",
 			local.Key(),
 		)
+	case syncapi.IsNotFound(readErr):
+		return syncdomain.Attachment{}, fmt.Errorf(
+			"skill %q does not exist in LaunchDarkly; add upsert: true to its front matter to create it during sync",
+			local.Key(),
+		)
 	default:
-		return syncdomain.Attachment{}, err
+		return syncdomain.Attachment{}, readErr
 	}
-	if writeErr != nil && !syncapi.MutationMayHaveSucceeded(writeErr) {
+	// A 409 from a create means that the attachment exists now, for example
+	// because another working copy created it. The read below decides.
+	createConflict := readErr != nil && syncapi.IsConflict(writeErr)
+	if writeErr != nil && !syncapi.MutationMayHaveSucceeded(writeErr) && !createConflict {
 		return syncdomain.Attachment{}, writeErr
 	}
 
@@ -86,8 +94,11 @@ func (resolver *attachmentResolver) publish(projectKey string, local syncdomain.
 		return syncdomain.Attachment{}, errors.Join(writeErr, err)
 	}
 	if !syncdomain.SameAttachmentContent(local, observed) {
-		if writeErr == nil {
+		switch {
+		case writeErr == nil:
 			writeErr = fmt.Errorf("%s %q changed concurrently", local.Kind, local.Key())
+		case createConflict:
+			writeErr = fmt.Errorf("%s %q changed concurrently: %w", local.Kind, local.Key(), writeErr)
 		}
 		return syncdomain.Attachment{}, writeErr
 	}

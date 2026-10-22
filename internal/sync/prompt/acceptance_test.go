@@ -111,6 +111,18 @@ func (api *directAPI) MakeRequest(
 		}
 		return json.Marshal(tool)
 	}
+	if strings.HasSuffix(path, "/ai-configs/skills") && method == http.MethodPost {
+		var skill versionedSkill
+		if err := json.Unmarshal(body, &skill.Skill); err != nil {
+			return nil, err
+		}
+		skill.Version = 1
+		if api.skills == nil {
+			api.skills = make(map[string]versionedSkill)
+		}
+		api.skills[skill.Key] = skill
+		return json.Marshal(skill)
+	}
 	if strings.Contains(path, "/ai-configs/skills/") {
 		key := path[strings.LastIndex(path, "/")+1:]
 		skill, ok := api.skills[key]
@@ -411,6 +423,33 @@ func TestPromptCreatesMissingToolWhenUpsertIsEnabled(t *testing.T) {
 	require.Contains(t, api.tools, "my-second-tool")
 	assert.Equal(t, 1, api.tools["my-second-tool"].Version)
 	require.Equal(t, []syncdomain.AttachmentRef{{Key: "my-second-tool", Version: 1}}, api.variation.Tools)
+}
+
+func TestPromptCreatesMissingSkillWhenUpsertIsEnabled(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	withSkill := baseline
+	withSkill.Skills = []syncdomain.AttachmentRef{{Key: "handoff"}}
+	_, err := synclocal.NewStore(root).ReplaceVariations([]synclocal.VariationReplacement{{
+		ProjectKey: "production", ConfigKey: "support", Variation: withSkill,
+	}})
+	require.NoError(t, err)
+	skillFile := "---\nkey: handoff\ndescription: Hand off to a person\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n"
+	writeLocalFile(t, root, "skills/handoff.md", skillFile)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, syncdomain.Skill{
+		Key: "handoff", Name: "Human handoff", Description: "Hand off to a person", Markdown: "# Handoff\n",
+	}, api.skills["handoff"].Skill)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "handoff", Version: 1}}, api.variation.Skills)
+	content, err := os.ReadFile(filepath.Join(root, syncdomain.RootDir, "production", "skills", "handoff.md"))
+	require.NoError(t, err)
+	assert.Equal(t, skillFile, string(content))
 }
 
 func TestPromptExplainsUpsertForMissingTool(t *testing.T) {

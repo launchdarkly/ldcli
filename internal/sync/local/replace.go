@@ -189,7 +189,7 @@ func (store Store) prepareLinkedFile(ref Reference, replacement VariationReplace
 }
 
 // prepareAttachmentFiles renders each tool and skill file that changed. A new
-// file is created. A tool file keeps its local upsert flag.
+// file is created. An existing file keeps its local fields.
 func (store Store) prepareAttachmentFiles(files []VariationFile) ([]stagedFile, error) {
 	rendered, err := renderAttachmentFiles(files)
 	if err != nil {
@@ -214,7 +214,7 @@ func (store Store) prepareAttachmentFiles(files []VariationFile) ([]stagedFile, 
 			if err != nil {
 				return nil, fmt.Errorf("inspect attachment %q: %w", file.Path, err)
 			}
-			if next.replacement, err = preserveToolUpsert(file.Path, original, file.Content); err != nil {
+			if next.replacement, err = preserveLocalFields(file.Path, original, file.Content); err != nil {
 				return nil, err
 			}
 			next.original, next.originalExists, next.mode = original, true, info.Mode().Perm()
