@@ -1,6 +1,6 @@
-// Package detach stops syncing selected variations. It removes their local
-// files and their baseline. LaunchDarkly keeps the variations, unless the
-// user asks to archive them.
+// Package detach stops syncing selected resources of any kind. It removes
+// their local files and their baseline. LaunchDarkly keeps the resources,
+// unless the user asks to archive the variations.
 package detach
 
 import (
@@ -18,7 +18,7 @@ import (
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
-const archiveQuestion = "\nArchive these variations in LaunchDarkly? [y/N] "
+const detachQuestion = "\nDetach these resources? [y/N] "
 
 // Archiver reads and archives a variation in LaunchDarkly.
 type Archiver interface {
@@ -35,17 +35,20 @@ type Options struct {
 	ProjectKeys []string
 	Input       io.Reader
 	Output      io.Writer
-	// Selections are the variations to detach. If it is empty, Run asks the
+	// Kind is the kind of resource that the user chooses from when
+	// Selections is empty.
+	Kind syncdomain.Kind
+	// Selections are the resources to detach. If it is empty, Run asks the
 	// user to choose from the synced resources that Filter keeps.
 	Selections []syncdomain.ResourceID
 	Filter     syncdomain.Filter
 	NoInput    bool
-	// Archive also archives each selected variation in LaunchDarkly. Without
-	// Yes, the user must confirm the archive.
+	// Archive also archives each selected variation in LaunchDarkly.
 	Archive  bool
 	Archiver Archiver
-	Yes      bool
-	// Context stops the archive confirmation and the archive when it ends.
+	// Yes detaches, and archives, without a confirmation.
+	Yes bool
+	// Context stops the confirmation and the archive when it ends.
 	Context context.Context
 
 	// isTerminal reports whether the streams are a terminal. Tests replace it.
@@ -60,7 +63,7 @@ func (options Options) context() context.Context {
 	return options.Context
 }
 
-// Run detaches the selected variations.
+// Run detaches the selected resources after the user agrees.
 func Run(options Options) error {
 	projectKeys := slices.Clone(options.ProjectKeys)
 	for _, selection := range options.Selections {
@@ -82,7 +85,9 @@ func Run(options Options) error {
 			return err
 		}
 	} else {
-		synced = slices.DeleteFunc(synced, func(id syncdomain.ResourceID) bool { return !options.Filter.Includes(id) })
+		synced = slices.DeleteFunc(synced, func(id syncdomain.ResourceID) bool {
+			return id.Kind != options.Kind || !options.Filter.Includes(id)
+		})
 		if len(synced) == 0 {
 			_ = console.Line("No resources are currently synced.")
 			return nil
@@ -92,11 +97,22 @@ func Run(options Options) error {
 			return err
 		}
 	}
+
+	// A workspace with an invalid variation file does not compile. A detach
+	// of variations still works then, so the error only stops a check that
+	// needs the variations.
+	variations, compileErr := synclocal.CompileWorkspace(options.RepositoryRoot)
+	if errors.Is(compileErr, synclocal.ErrNoDirectory) {
+		compileErr = nil
+	}
+	if err := checkUnused(selected, variations, compileErr); err != nil {
+		return err
+	}
+	confirmed, err := confirmDetach(options, baseline.Lock, variations, selected)
+	if err != nil || !confirmed {
+		return err
+	}
 	if options.Archive {
-		confirmed, err := confirmArchive(options, selected)
-		if err != nil || !confirmed {
-			return err
-		}
 		// Archive first. If a later step fails, the same command can run again,
 		// because it skips a variation that is already archived.
 		if err := archiveVariations(options.context(), options.Archiver, selected); err != nil {
@@ -113,12 +129,12 @@ func Run(options Options) error {
 		_ = console.Line("Detached resources:")
 	}
 	for _, resource := range selected {
-		_ = console.Printf("- %s %s\n", resource.Kind, resource)
+		_ = console.Printf("- %s\n", resource.Label())
 	}
 	return nil
 }
 
-// promptForResources asks the user to choose one or more synced variations.
+// promptForResources asks the user to choose one or more synced resources.
 // The bool result is true when the user cancels.
 func promptForResources(options Options, synced []syncdomain.ResourceID) ([]syncdomain.ResourceID, bool, error) {
 	arguments := "--project and --key"
@@ -141,26 +157,104 @@ func promptForResources(options Options, synced []syncdomain.ResourceID) ([]sync
 	return syncinteractive.MultiSelect(options.Input, options.Output, "Select resources to detach", description, choices)
 }
 
-// confirmArchive asks the user to agree to the archive, unless Yes is set.
-func confirmArchive(options Options, selected []syncdomain.ResourceID) (bool, error) {
+// checkUnused refuses to detach a tool or a skill that a local variation
+// still uses, unless the same detach removes that variation.
+func checkUnused(selected []syncdomain.ResourceID, variations []syncdomain.SyncedResource, compileErr error) error {
+	for _, id := range selected {
+		if id.Kind == syncdomain.KindVariation {
+			continue
+		}
+		if compileErr != nil {
+			return fmt.Errorf("find the variations that use %s: %w", id.Label(), compileErr)
+		}
+		for _, variation := range variations {
+			_, uses := variation.Variation.Attachment(syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+			if uses && variation.ProjectKey == id.ProjectKey && !slices.Contains(selected, variation.ID()) {
+				return fmt.Errorf("%s is used by variation %s. Remove it from that variation first.", id.Label(), variation.ID())
+			}
+		}
+	}
+	return nil
+}
+
+// confirmDetach lists the selected resources and asks once, unless Yes is
+// set. Without a terminal, it returns the error that suggests --yes.
+func confirmDetach(
+	options Options,
+	lock syncmanifest.Manifest,
+	variations []syncdomain.SyncedResource,
+	selected []syncdomain.ResourceID,
+) (bool, error) {
 	if options.Yes {
 		return true, nil
-	}
-	console := syncconsole.New(options.Output)
-	_ = console.Line("Variations to archive in LaunchDarkly:")
-	for _, resource := range selected {
-		_ = console.Printf("- %s\n", resource)
 	}
 	isTerminal := options.isTerminal
 	if isTerminal == nil {
 		isTerminal = syncinteractive.StreamsAreTerminal
 	}
 	interactive := !options.NoInput && isTerminal(options.Input, options.Output)
-	confirmed, err := syncinteractive.Confirm(options.context(), options.Input, options.Output, interactive, archiveQuestion)
+	if interactive {
+		console := syncconsole.New(options.Output)
+		if options.Archive {
+			_ = console.Line("Resources to detach and archive in LaunchDarkly:")
+		} else {
+			_ = console.Line("Resources to detach:")
+		}
+		changed := localChanges(options.RepositoryRoot, lock, variations, selected)
+		for _, id := range selected {
+			if changed[id] {
+				_ = console.Printf("  %s (local changes will be lost)\n", id.Label())
+			} else {
+				_ = console.Printf("  %s\n", id.Label())
+			}
+		}
+	}
+
+	confirmed, err := syncinteractive.Confirm(options.context(), options.Input, options.Output, interactive, detachQuestion)
 	if err == nil && !confirmed {
-		_ = console.Line("Detach canceled.")
+		_ = syncconsole.New(options.Output).Line("Detach canceled.")
 	}
 	return confirmed, err
+}
+
+// localChanges reports each selected resource whose local file differs from
+// its sync.lock entry, because the detach deletes that file. A file that sync
+// cannot read counts as changed. A resource without a local file loses
+// nothing.
+func localChanges(
+	repositoryRoot string,
+	lock syncmanifest.Manifest,
+	variations []syncdomain.SyncedResource,
+	selected []syncdomain.ResourceID,
+) map[syncdomain.ResourceID]bool {
+	local := make(map[syncdomain.ResourceID]string)
+	for _, variation := range variations {
+		if fingerprint, err := syncdomain.FingerprintVariation(variation.ProjectKey, variation.LookupKey, variation.Variation); err == nil {
+			local[variation.ID()] = fingerprint
+		}
+	}
+	isSelected := func(id syncdomain.ResourceID) bool { return slices.Contains(selected, id) }
+	attachments, _ := synclocal.CompileAttachments(repositoryRoot, isSelected)
+	for _, attachment := range attachments {
+		if fingerprint, err := syncdomain.FingerprintAttachment(attachment.ProjectKey, attachment.Attachment); err == nil {
+			local[attachment.ID()] = fingerprint
+		}
+	}
+	baseline := make(map[syncdomain.ResourceID]string, len(lock.Resources))
+	for _, resource := range lock.Resources {
+		baseline[resource.ID()] = resource.Fingerprint
+	}
+
+	files, _ := synclocal.SourceFiles(repositoryRoot)
+	changed := make(map[syncdomain.ResourceID]bool)
+	for _, file := range files {
+		id, ok := synclocal.ParseManagedPath(file)
+		if ok && isSelected(id) {
+			fingerprint, readable := local[id]
+			changed[id] = !readable || fingerprint != baseline[id]
+		}
+	}
+	return changed
 }
 
 // archiveVariations archives each variation that LaunchDarkly still has. It
@@ -196,17 +290,17 @@ func validateSelections(synced, selected []syncdomain.ResourceID) error {
 	seen := make(map[syncdomain.ResourceID]struct{}, len(selected))
 	for _, selection := range selected {
 		if _, duplicate := seen[selection]; duplicate {
-			return fmt.Errorf("variation %s was selected more than once", selection)
+			return fmt.Errorf("%s was selected more than once", selection.Label())
 		}
 		seen[selection] = struct{}{}
 		if !slices.Contains(synced, selection) {
-			return fmt.Errorf("variation %s is not synced", selection)
+			return fmt.Errorf("%s is not synced", selection.Label())
 		}
 	}
 	return nil
 }
 
-// loadResources returns each variation that the lock tracks or that has a
+// loadResources returns each resource that the lock tracks or that has a
 // local file, in identity order.
 func loadResources(
 	repositoryRoot string,
@@ -224,12 +318,10 @@ func loadResources(
 
 	var synced []syncdomain.ResourceID
 	for _, resource := range baseline.Lock.Resources {
-		if resource.ResourceKind == syncdomain.KindVariation {
-			synced = append(synced, resource.ID())
-		}
+		synced = append(synced, resource.ID())
 	}
 	for _, file := range files {
-		if id, ok := synclocal.ParseManagedPath(file); ok && id.Kind == syncdomain.KindVariation {
+		if id, ok := synclocal.ParseManagedPath(file); ok {
 			synced = append(synced, id)
 		}
 	}
@@ -237,24 +329,14 @@ func loadResources(
 	return slices.Compact(synced), baseline, nil
 }
 
-// detachResources removes the selected variations from the baseline, and then
-// deletes their local files. If the delete fails, it restores the baseline.
+// detachResources removes the selected resources from the baseline, and then
+// deletes their local files. Every other entry stays, also the tools and
+// skills that only the detached variations used, because they sync on their
+// own. If the delete fails, it restores the baseline.
 func detachResources(options Options, original syncmanifest.Baseline, selected []syncdomain.ResourceID) error {
-	isSelected := func(id syncdomain.ResourceID) bool { return slices.Contains(selected, id) }
-
-	next := syncmanifest.New()
-	for _, resource := range original.Lock.Resources {
-		if !isSelected(resource.ID()) {
-			next.Resources = append(next.Resources, resource)
-		}
-	}
-	// Stop tracking each tool and skill that only the detached variations use.
-	// If the workspace does not compile, keep every attachment baseline.
-	if variations, err := synclocal.CompileWorkspace(options.RepositoryRoot); err == nil {
-		remaining := slices.DeleteFunc(variations, func(variation syncdomain.SyncedResource) bool {
-			return isSelected(variation.ID())
-		})
-		next.RemoveUnusedAttachments(remaining)
+	next := original.Lock.Clone()
+	for _, id := range selected {
+		next.Remove(id)
 	}
 	saved, err := options.Baselines.Save(original, next)
 	if err != nil {
@@ -266,23 +348,45 @@ func detachResources(options Options, original syncmanifest.Baseline, selected [
 	}
 
 	var deletions []synclocal.VariationDeletion
-	for _, resource := range selected {
-		configKey, variationKey, err := resource.VariationKeys()
+	for _, id := range selected {
+		configKey, variationKey, err := id.VariationKeys()
 		if err != nil {
 			continue
 		}
-		exists, err := options.Store.VariationExists(resource.ProjectKey, configKey, variationKey)
+		exists, err := options.Store.VariationExists(id.ProjectKey, configKey, variationKey)
 		if err != nil {
 			return restoreBaseline(err)
 		}
 		if exists {
 			deletions = append(deletions, synclocal.VariationDeletion{
-				ProjectKey: resource.ProjectKey, ConfigKey: configKey, VariationKey: variationKey,
+				ProjectKey: id.ProjectKey, ConfigKey: configKey, VariationKey: variationKey,
 			})
 		}
+	}
+	attachments, err := localAttachments(options.RepositoryRoot, selected)
+	if err != nil {
+		return restoreBaseline(err)
 	}
 	if _, err := options.Store.DeleteVariations(deletions); err != nil {
 		return restoreBaseline(err)
 	}
+	if _, err := options.Store.DeleteAttachments(attachments); err != nil {
+		return restoreBaseline(err)
+	}
 	return nil
+}
+
+// localAttachments returns each selected tool and skill that has a local file.
+func localAttachments(repositoryRoot string, selected []syncdomain.ResourceID) ([]syncdomain.ResourceID, error) {
+	files, err := synclocal.SourceFiles(repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+	var attachments []syncdomain.ResourceID
+	for _, file := range files {
+		if id, ok := synclocal.ParseManagedPath(file); ok && id.Kind != syncdomain.KindVariation && slices.Contains(selected, id) {
+			attachments = append(attachments, id)
+		}
+	}
+	return attachments, nil
 }

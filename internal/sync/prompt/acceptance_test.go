@@ -611,7 +611,9 @@ func TestPromptPullsLatestToolAndAdvancesVariationPin(t *testing.T) {
 	assertManifestFingerprint(t, root, expected)
 }
 
-func TestPromptDeletesUnreferencedLocalToolWithYes(t *testing.T) {
+// A tool file that no variation uses syncs on its own, so a sync keeps the
+// file and both of its rows.
+func TestPromptKeepsUnreferencedLocalToolWithYes(t *testing.T) {
 	root := initRepository(t)
 	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
 	baseline := variation("Baseline")
@@ -639,15 +641,52 @@ func TestPromptDeletesUnreferencedLocalToolWithYes(t *testing.T) {
 	assert.Empty(t, api.variation.Tools)
 	assert.Contains(t, api.tools, "search")
 	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "tools", "search.json"))
-	require.ErrorIs(t, err, os.ErrNotExist)
-	// A sync keeps the row of a tool that no variation uses. Only a detach
-	// removes it.
+	require.NoError(t, err, "the tool file stays")
 	searchFingerprint, err := syncdomain.FingerprintAttachment("production", toolAttachment(tool, 2))
 	require.NoError(t, err)
 	assert.Equal(t, []syncmanifest.Resource{
 		{ResourceKind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search", Fingerprint: searchFingerprint},
 		{ResourceKind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default", Fingerprint: fingerprint(t, detached)},
 	}, readLock(t, root).Resources)
+	assert.Contains(t, manifestsByRoot[root].Items, syncapi.SyncManifestResource{
+		ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: searchFingerprint, Version: 1,
+	})
+}
+
+// A detach of a variation keeps the tools that it used, with their files
+// and rows. Without --yes and without a terminal, detach changes nothing.
+func TestPromptDetachKeepsToolsOfTheVariation(t *testing.T) {
+	root := initRepository(t)
+	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+	baseline := variation("Baseline")
+	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	baseline.Attachments = []syncdomain.Attachment{toolAttachment(tool, 1)}
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{"search": {Tool: tool, Version: 1}}}
+	detach := []string{"detach", "--project", "production", "--config-key", "support", "--key", "default", "--no-input"}
+	toolFile := filepath.Join(root, syncdomain.RootDir, "production", "tools", "search.json")
+
+	_, _, err := runPrompt(t, root, api, detach...)
+	require.ErrorContains(t, err, "rerun with --yes")
+	assert.Len(t, readLock(t, root).Resources, 2, "nothing changes")
+
+	stdout, _, err := runPrompt(t, root, api, append(detach, "--yes")...)
+	require.NoError(t, err)
+	assert.Equal(t, "Detached resources:\n- variation production/support/default\n", stdout)
+	_, err = os.Stat(toolFile)
+	require.NoError(t, err, "the tool file stays")
+	assert.Equal(t, []syncdomain.ResourceID{{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}},
+		lockResourceIDs(readLock(t, root)))
+	assert.Len(t, manifestsByRoot[root].Items, 1)
+}
+
+func lockResourceIDs(lock syncmanifest.Manifest) []syncdomain.ResourceID {
+	ids := make([]syncdomain.ResourceID, 0, len(lock.Resources))
+	for _, resource := range lock.Resources {
+		ids = append(ids, resource.ID())
+	}
+	return ids
 }
 
 func TestPromptUpdateResolvesOmittedModelConfigVersionToLatest(t *testing.T) {

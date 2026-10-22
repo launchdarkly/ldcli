@@ -61,9 +61,6 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		return err
 	}
 	if !proceed {
-		if !resolved.HasChanges() {
-			return cleanupOrphanedAttachments(options, workspace.local, interactive)
-		}
 		return nil
 	}
 
@@ -75,7 +72,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	if err := checkUnchanged(options, reviewed, current); err != nil {
 		return err
 	}
-	return runner.applyPlan(options, workspace, client, current, conflicts.resolutions, interactive)
+	return runner.applyPlan(options, workspace, client, current, conflicts.resolutions)
 }
 
 // checkUnchanged returns an error if the state changed after the review.
@@ -93,15 +90,13 @@ func checkUnchanged(options Options, reviewed, current workspaceState) error {
 }
 
 // applyPlan applies the conflict choices to the current plan, executes it,
-// and records the new baseline. It removes unused attachment files only when
-// every step succeeds.
+// and records the new baseline.
 func (runner Runner) applyPlan(
 	options Options,
 	workspace syncWorkspace,
 	client syncapi.Client,
 	current workspaceState,
 	resolutions map[syncdomain.ResourceID]ConflictResolution,
-	interactive bool,
 ) error {
 	plan := applyConflictResolutions(current.plan, resolutions)
 	outcomes, next, err := executePlan(workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles)
@@ -116,8 +111,5 @@ func (runner Runner) applyPlan(
 	if err := writeOutcomeOutput(options.Output, options.OutputKind, plan, outcomes); err != nil {
 		failures = append(failures, err)
 	}
-	if err := errors.Join(failures...); err != nil {
-		return err
-	}
-	return cleanupOrphanedAttachments(options, workspace.local, interactive)
+	return errors.Join(failures...)
 }

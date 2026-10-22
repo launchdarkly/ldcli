@@ -217,11 +217,14 @@ func newDetachCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "detach [project-key/config-key/variation-key...]",
 		Short: "Stop syncing local prompt variations",
+		Long: "Stop syncing local prompt variations. Detach deletes their local files and their sync.lock entries. " +
+			"LaunchDarkly keeps them, unless you pass --archive. Detach lists the variations and asks before it deletes files. " +
+			"Without a terminal, pass --yes. Tools and skills that the variation used keep syncing on their own.",
 		Example: `  # Choose variations interactively
   ldcli sync prompts detach
 
-  # Stop syncing one variation
-  ldcli sync prompts detach --project production --config-key support --key default
+  # Stop syncing one variation without prompting
+  ldcli sync prompts detach --project production --config-key support --key default --yes --no-input
 
   # Stop syncing one variation and archive it in LaunchDarkly
   ldcli sync prompts detach --project production --config-key support --key default --archive --yes --no-input`,
@@ -232,12 +235,12 @@ func newDetachCmd(client resources.Client) *cobra.Command {
 				return nil, err
 			}
 			archive, _ := cmd.Flags().GetBool(archiveFlag)
-			return syncprompt.DetachAction{Variations: variations, Filter: targetFilter(cmd), Archive: archive}, nil
+			return syncprompt.DetachAction{Resources: variations, Filter: targetFilter(cmd), Archive: archive}, nil
 		}),
 	}
 	addTargetFlags(cmd, questionFlagHelp)
 	cmd.Flags().Bool(archiveFlag, false, "Also archive the variations in LaunchDarkly")
-	cmd.Flags().Bool(yesFlag, false, "Archive without confirmation")
+	cmd.Flags().Bool(yesFlag, false, "Detach, and archive, without confirmation")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }
