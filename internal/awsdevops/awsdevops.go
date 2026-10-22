@@ -54,6 +54,8 @@ type AgentAPI interface {
 	DeregisterService(context.Context, *devopsagent.DeregisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error)
 	DisassociateService(context.Context, *devopsagent.DisassociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error)
 	EnableOperatorApp(context.Context, *devopsagent.EnableOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error)
+	GetOperatorApp(context.Context, *devopsagent.GetOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error)
+	ListTagsForResource(context.Context, *devopsagent.ListTagsForResourceInput, ...func(*devopsagent.Options)) (*devopsagent.ListTagsForResourceOutput, error)
 	GetAgentSpace(context.Context, *devopsagent.GetAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.GetAgentSpaceOutput, error)
 	ListAgentSpaces(context.Context, *devopsagent.ListAgentSpacesInput, ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error)
 	ListAssociations(context.Context, *devopsagent.ListAssociationsInput, ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error)
@@ -166,7 +168,8 @@ func noCredentialsError(profile string, cause error) error {
 	// The default profile counts only if it exists.
 	named := chosen || slices.Contains(profiles, selected)
 	// Only a cause that is not from IMDS tells what failed, for example a
-	// credential_process.
+	// credential_process. The message does not show the cause, because a
+	// cause can contain the output of a credential_process with the secret key.
 	useful := cause != nil && !fromIMDS(cause)
 	sso := SSOProfile(ConfigFilePath(), profile)
 
@@ -178,9 +181,12 @@ func noCredentialsError(profile string, cause error) error {
 			sso, sso,
 		)
 	case useful && named:
-		msg = fmt.Sprintf("unable to get AWS credentials for profile %q: %v", selected, cause)
+		msg = fmt.Sprintf(
+			"unable to get AWS credentials for profile %q. Run `aws sts get-caller-identity --profile %s` to see the cause",
+			selected, selected,
+		)
 	case useful:
-		msg = fmt.Sprintf("unable to get AWS credentials: %v", cause)
+		msg = "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause"
 	case chosen:
 		msg = fmt.Sprintf(
 			"profile %q has no AWS credentials. Add credentials to it, or pass --profile with another profile",

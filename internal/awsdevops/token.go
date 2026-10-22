@@ -17,6 +17,9 @@ var ErrInvalidAccessToken = errors.New("LaunchDarkly rejected the access token")
 
 var ldHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
+// CheckToken checks a token. Tests replace it.
+var CheckToken = ValidateAccessToken
+
 // ValidateAccessToken checks a token against the LaunchDarkly API before AWS
 // stores it. AWS keeps the token write-only, so replacing a working
 // registration with an unusable token cannot be undone.

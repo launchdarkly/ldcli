@@ -27,17 +27,37 @@ import (
 const testAccountID = "123456789012"
 
 type fakeAgent struct {
+	// tags holds tags by resource ARN.
+	tags    map[string]map[string]string
+	tagsErr error
+	// tagsErrFor fails the tag lookup of one resource ARN.
+	tagsErrFor map[string]error
+	// createdTags holds the tags of the created space.
+	createdTags map[string]string
+	// goneSpaces makes GetAgentSpace report not found.
+	goneSpaces      map[string]bool
+	getSpaceErr     error
+	afterListSpaces func()
+	// spaceLinks holds associations by space ID.
+	spaceLinks map[string][]agenttypes.Association
+	// operatorApps holds enabled apps by space.
+	operatorApps map[string]*devopsagent.GetOperatorAppOutput
+	// operatorAppErr fails every GetOperatorApp call.
+	operatorAppErr    error
 	calls             []string
 	services          []agenttypes.RegisteredService
 	associationInputs []*devopsagent.AssociateServiceInput
 	registerOutput    *devopsagent.RegisterServiceOutput
 	registerErr       error
+	deregisterErr     error
 	registerInputs    []*devopsagent.RegisterServiceInput
 	associations      []agenttypes.Association
 	agentSpaces       []agenttypes.AgentSpace
 	disassociatedIDs  []string
 	deregisteredIDs   []string
 	associateFailures int
+	// failAssociateFor fails the MCP server association of these spaces.
+	failAssociateFor map[string]bool
 	// paginate makes every list API return one item per page, so callers are
 	// exercised against the NextToken AWS sends for a long list.
 	paginate bool
@@ -66,6 +86,9 @@ func (f *fakeAgent) AssociateService(_ context.Context, in *devopsagent.Associat
 	f.calls = append(f.calls, "AssociateService")
 	f.associationInputs = append(f.associationInputs, in)
 
+	if f.failAssociateFor[aws.ToString(in.AgentSpaceId)] && aws.ToString(in.ServiceId) != "aws" {
+		return nil, errors.New("AccessDeniedException: not allowed")
+	}
 	if f.associateFailures > 0 {
 		f.associateFailures--
 
@@ -79,8 +102,9 @@ func (f *fakeAgent) AssociateService(_ context.Context, in *devopsagent.Associat
 	}, nil
 }
 
-func (f *fakeAgent) CreateAgentSpace(_ context.Context, _ *devopsagent.CreateAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.CreateAgentSpaceOutput, error) {
+func (f *fakeAgent) CreateAgentSpace(_ context.Context, in *devopsagent.CreateAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.CreateAgentSpaceOutput, error) {
 	f.calls = append(f.calls, "CreateAgentSpace")
+	f.createdTags = in.Tags
 
 	return &devopsagent.CreateAgentSpaceOutput{
 		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1")},
@@ -89,6 +113,9 @@ func (f *fakeAgent) CreateAgentSpace(_ context.Context, _ *devopsagent.CreateAge
 
 func (f *fakeAgent) DeregisterService(_ context.Context, in *devopsagent.DeregisterServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error) {
 	f.calls = append(f.calls, "DeregisterService")
+	if f.deregisterErr != nil {
+		return nil, f.deregisterErr
+	}
 	f.deregisteredIDs = append(f.deregisteredIDs, aws.ToString(in.ServiceId))
 
 	return &devopsagent.DeregisterServiceOutput{}, nil
@@ -101,6 +128,31 @@ func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.Disas
 	return &devopsagent.DisassociateServiceOutput{}, nil
 }
 
+func (f *fakeAgent) GetOperatorApp(_ context.Context, in *devopsagent.GetOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
+	f.calls = append(f.calls, "GetOperatorApp")
+	if f.operatorAppErr != nil {
+		return nil, f.operatorAppErr
+	}
+	app, ok := f.operatorApps[aws.ToString(in.AgentSpaceId)]
+	if !ok {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+
+	return app, nil
+}
+
+func (f *fakeAgent) ListTagsForResource(_ context.Context, in *devopsagent.ListTagsForResourceInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListTagsForResourceOutput, error) {
+	f.calls = append(f.calls, "ListTagsForResource")
+	if f.tagsErr != nil {
+		return nil, f.tagsErr
+	}
+	if err := f.tagsErrFor[aws.ToString(in.ResourceArn)]; err != nil {
+		return nil, err
+	}
+
+	return &devopsagent.ListTagsForResourceOutput{Tags: f.tags[aws.ToString(in.ResourceArn)]}, nil
+}
+
 func (f *fakeAgent) EnableOperatorApp(_ context.Context, _ *devopsagent.EnableOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error) {
 	f.calls = append(f.calls, "EnableOperatorApp")
 
@@ -110,11 +162,24 @@ func (f *fakeAgent) EnableOperatorApp(_ context.Context, _ *devopsagent.EnableOp
 }
 
 func (f *fakeAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetAgentSpaceOutput, error) {
+	id := aws.ToString(in.AgentSpaceId)
+	if f.goneSpaces[id] {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+	if f.getSpaceErr != nil {
+		return nil, f.getSpaceErr
+	}
+	name := "launchdarkly"
+	var description *string
+	for _, space := range f.agentSpaces {
+		if aws.ToString(space.AgentSpaceId) == id && space.Name != nil {
+			name = aws.ToString(space.Name)
+			description = space.Description
+		}
+	}
+
 	return &devopsagent.GetAgentSpaceOutput{
-		AgentSpace: &agenttypes.AgentSpace{
-			AgentSpaceId: in.AgentSpaceId,
-			Name:         aws.String("launchdarkly"),
-		},
+		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId, Name: aws.String(name), Description: description},
 	}, nil
 }
 
@@ -124,6 +189,9 @@ func (f *fakeAgent) ListAgentSpaces(_ context.Context, in *devopsagent.ListAgent
 		spaces = []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}}
 	}
 	items, next := page(spaces, in.NextToken, f.paginate)
+	if f.afterListSpaces != nil {
+		f.afterListSpaces()
+	}
 
 	return &devopsagent.ListAgentSpacesOutput{AgentSpaces: items, NextToken: next}, nil
 }
@@ -136,7 +204,11 @@ func (f *fakeAgent) ListServices(_ context.Context, in *devopsagent.ListServices
 }
 
 func (f *fakeAgent) ListAssociations(_ context.Context, in *devopsagent.ListAssociationsInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error) {
-	items, next := page(f.associations, in.NextToken, f.paginate)
+	links := f.associations
+	if f.spaceLinks != nil {
+		links = f.spaceLinks[aws.ToString(in.AgentSpaceId)]
+	}
+	items, next := page(links, in.NextToken, f.paginate)
 
 	return &devopsagent.ListAssociationsOutput{Associations: items, NextToken: next}, nil
 }
@@ -155,6 +227,11 @@ func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterS
 }
 
 type fakeIAM struct {
+	// appearOnCreate makes a role appear on CreateRole.
+	appearOnCreate map[string][]iamtypes.Tag
+	// failOn fails a call, keyed "Call role".
+	failOn         map[string]error
+	onCreateRole   func(name string)
 	existingRoles  map[string]bool
 	roleTags       map[string][]iamtypes.Tag
 	createdRoles   []string
@@ -183,6 +260,9 @@ func (f *fakeIAM) addManagedRole(name string) {
 }
 
 func (f *fakeIAM) AttachRolePolicy(_ context.Context, in *iam.AttachRolePolicyInput, _ ...func(*iam.Options)) (*iam.AttachRolePolicyOutput, error) {
+	if err := f.failOn["AttachRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
+	}
 	f.attachedPolicy[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyArn)
 
 	return &iam.AttachRolePolicyOutput{}, nil
@@ -190,6 +270,13 @@ func (f *fakeIAM) AttachRolePolicy(_ context.Context, in *iam.AttachRolePolicyIn
 
 func (f *fakeIAM) CreateRole(_ context.Context, in *iam.CreateRoleInput, _ ...func(*iam.Options)) (*iam.CreateRoleOutput, error) {
 	name := aws.ToString(in.RoleName)
+	if f.onCreateRole != nil {
+		f.onCreateRole(name)
+	}
+	if tags, ok := f.appearOnCreate[name]; ok {
+		f.existingRoles[name] = true
+		f.roleTags[name] = tags
+	}
 	if f.existingRoles[name] {
 		return nil, &iamtypes.EntityAlreadyExistsException{}
 	}
@@ -219,12 +306,18 @@ func (f *fakeIAM) ListRoleTags(_ context.Context, in *iam.ListRoleTagsInput, _ .
 }
 
 func (f *fakeIAM) UpdateAssumeRolePolicy(_ context.Context, in *iam.UpdateAssumeRolePolicyInput, _ ...func(*iam.Options)) (*iam.UpdateAssumeRolePolicyOutput, error) {
+	if err := f.failOn["UpdateAssumeRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
+	}
 	f.trustPolicies[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyDocument)
 
 	return &iam.UpdateAssumeRolePolicyOutput{}, nil
 }
 
 func (f *fakeIAM) PutRolePolicy(_ context.Context, in *iam.PutRolePolicyInput, _ ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
+	if err := f.failOn["PutRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
+	}
 	f.inlinePolicies[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyDocument)
 
 	return &iam.PutRolePolicyOutput{}, nil
@@ -263,13 +356,15 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Equal(t, "mcp-1", result.MCPServiceID)
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
 	assert.Equal(t, "https://space-1.aidevops.global.app.aws", result.OperatorAppURL)
+	assert.Equal(t, map[string]string{awsdevops.ManagedTagKey: awsdevops.ManagedTagValue}, agent.createdTags)
 	assert.Equal(t, []string{awsdevops.AgentSpaceRoleName, awsdevops.OperatorAppRoleName}, iamClient.createdRoles)
 	assert.Equal(t, awsdevops.AgentSpacePolicyARN, iamClient.attachedPolicy[awsdevops.AgentSpaceRoleName])
 	assert.Equal(t, awsdevops.OperatorAppPolicyARN, iamClient.attachedPolicy[awsdevops.OperatorAppRoleName])
 	assert.Contains(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName], "iam:CreateServiceLinkedRole")
 	assert.Equal(
 		t,
-		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
+		// Plan lookup, the pre-write check, and the check before the MCP step.
+		[]string{"ListServices", "ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
 		agent.calls,
 	)
 }
@@ -311,10 +406,7 @@ func TestSetupReusesAgentSpaceAndAssociations(t *testing.T) {
 			AgentSpaceId: aws.String("space-existing"),
 			Name:         aws.String("launchdarkly"),
 		}},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-aws"),
-			ServiceId:     aws.String("aws"),
-		}},
+		associations: []agenttypes.Association{monitorAssociation("assoc-aws", testAccountID)},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
@@ -369,7 +461,7 @@ func TestSetupLeavesARoleItDidNotCreateAlone(t *testing.T) {
 	assert.Equal(t, "customer-owned", iamClient.trustPolicies[awsdevops.AgentSpaceRoleName])
 	assert.Empty(t, iamClient.attachedPolicy[awsdevops.AgentSpaceRoleName])
 	assert.Empty(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName])
-	assert.Contains(t, strings.Join(logged, "\n"), "was not created by this CLI")
+	assert.Contains(t, strings.Join(logged, "\n"), "ldcli did not change it")
 }
 
 // launchDarklyMCPService is how AWS reports our registration: the endpoint is
@@ -576,6 +668,7 @@ func TestSetupUsesTheMCPServerItIsPointedAt(t *testing.T) {
 		AgentSpaceID: "space-1",
 		AuthFlow:     "iam",
 		MCPServiceID: "mcp-renamed",
+		MCPEndpoint:  "https://mcp.example.internal/mcp",
 	})
 	require.NoError(t, err)
 
@@ -651,6 +744,41 @@ func TestStatusReportsMissingRoles(t *testing.T) {
 	require.Len(t, status.AgentSpaces, 1)
 	assert.Equal(t, "space-1", status.AgentSpaces[0].AgentSpaceID)
 	assert.Equal(t, "aws", status.AgentSpaces[0].Associations[0].ServiceID)
+}
+
+// The primary account and another account both have the service ID "aws".
+// Only the configuration tells them apart.
+func TestStatusReadsTheAccountOfEachAWSAssociation(t *testing.T) {
+	agent := &fakeAgent{
+		associations: []agenttypes.Association{
+			{
+				AssociationId: aws.String("assoc-1"), ServiceId: aws.String("aws"),
+				Configuration: &agenttypes.ServiceConfigurationMemberAws{Value: agenttypes.AWSConfiguration{
+					AccountId: aws.String(testAccountID), AccountType: agenttypes.MonitorAccountTypeMonitor,
+				}},
+			},
+			{
+				AssociationId: aws.String("assoc-2"), ServiceId: aws.String("aws"),
+				Configuration: &agenttypes.ServiceConfigurationMemberSourceAws{Value: agenttypes.SourceAwsConfiguration{
+					AccountId: aws.String("210987654321"), AccountType: agenttypes.SourceAccountTypeSource,
+				}},
+			},
+			{AssociationId: aws.String("assoc-3"), ServiceId: aws.String("mcp-1")},
+		},
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	require.Len(t, status.AgentSpaces, 1)
+	associations := status.AgentSpaces[0].Associations
+	require.Len(t, associations, 3)
+	assert.Equal(t, testAccountID, associations[0].AccountID)
+	assert.Equal(t, "monitor", associations[0].AccountType)
+	assert.Equal(t, "210987654321", associations[1].AccountID)
+	assert.Equal(t, "source", associations[1].AccountType)
+	assert.Empty(t, associations[2].AccountID)
+	assert.Empty(t, associations[2].AccountType)
 }
 
 func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {

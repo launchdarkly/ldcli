@@ -132,5 +132,5 @@ Installed via `make install-hooks`. Checks:
 
 ## Linting
 
-- Go: `golangci-lint` (v1.63.4) via pre-commit
+- Go: `golangci-lint` (v2.9.0) via pre-commit
 - Frontend: ESLint + Prettier

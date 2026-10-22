@@ -2,12 +2,17 @@ package awsdevops
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 )
+
+// AWSServiceID identifies the AWS account association.
+const AWSServiceID = awsServiceID
 
 // Status is a read-only view of what setup has provisioned so far.
 type Status struct {
@@ -32,16 +37,27 @@ type ServiceStatus struct {
 }
 
 type AgentSpaceStatus struct {
-	AgentSpaceID   string              `json:"agentSpaceId"`
-	Name           string              `json:"name"`
-	OperatorAppURL string              `json:"operatorAppUrl"`
-	Associations   []AssociationStatus `json:"associations,omitempty"`
+	AgentSpaceID   string `json:"agentSpaceId"`
+	Name           string `json:"name"`
+	OperatorAppURL string `json:"operatorAppUrl"`
+	// OperatorAppEnabled is false if the app is off. The URL is then empty.
+	OperatorAppEnabled bool `json:"operatorAppEnabled"`
+	// OperatorAppError is set if status could not read the app, for example
+	// without aidevops:GetOperatorApp. The state of the app is then unknown,
+	// and OperatorAppEnabled is false.
+	OperatorAppError string              `json:"operatorAppError,omitempty"`
+	Associations     []AssociationStatus `json:"associations,omitempty"`
 }
 
 type AssociationStatus struct {
 	AssociationID string `json:"associationId"`
 	ServiceID     string `json:"serviceId"`
 	Status        string `json:"status,omitempty"`
+	// AccountID and AccountType are set for an AWS account association.
+	// AccountType is "monitor" for the account of the agent space, and
+	// "source" for another account that the agent space can read.
+	AccountID   string `json:"accountId,omitempty"`
+	AccountType string `json:"accountType,omitempty"`
 }
 
 // GetStatus reports the IAM roles and agent spaces in the caller's account. It
@@ -98,9 +114,21 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 			return status, fmt.Errorf("unable to read agent space %s: %w", id, err)
 		}
 		spaceStatus := AgentSpaceStatus{
-			AgentSpaceID:   id,
-			Name:           aws.ToString(space.AgentSpace.Name),
-			OperatorAppURL: OperatorAppURL(id),
+			AgentSpaceID: id,
+			Name:         aws.ToString(space.AgentSpace.Name),
+		}
+		// status is a read command. If it cannot read the app, it reports the
+		// app as unknown and shows the rest of the space.
+		app, err := appState(ctx, clients, id)
+		switch {
+		case err != nil:
+			spaceStatus.OperatorAppError = errorCode(err)
+		case app.Flow != "":
+			spaceStatus.OperatorAppEnabled = true
+			spaceStatus.OperatorAppURL = app.URL
+			if spaceStatus.OperatorAppURL == "" {
+				spaceStatus.OperatorAppURL = OperatorAppURL(id)
+			}
 		}
 
 		associations, err := listAssociations(ctx, clients, id)
@@ -108,10 +136,13 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 			return status, err
 		}
 		for _, association := range associations {
+			accountID, accountType := associationAccount(association.Configuration)
 			spaceStatus.Associations = append(spaceStatus.Associations, AssociationStatus{
 				AssociationID: aws.ToString(association.AssociationId),
 				ServiceID:     aws.ToString(association.ServiceId),
 				Status:        string(association.Status),
+				AccountID:     accountID,
+				AccountType:   accountType,
 			})
 		}
 
@@ -119,4 +150,29 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 	}
 
 	return status, nil
+}
+
+// associationAccount returns the AWS account of an association. Each AWS
+// account association has the service ID "aws", so only the configuration
+// tells the accounts apart.
+func associationAccount(configuration agenttypes.ServiceConfiguration) (accountID, accountType string) {
+	switch c := configuration.(type) {
+	case *agenttypes.ServiceConfigurationMemberAws:
+		return aws.ToString(c.Value.AccountId), string(c.Value.AccountType)
+	case *agenttypes.ServiceConfigurationMemberSourceAws:
+		return aws.ToString(c.Value.AccountId), string(c.Value.AccountType)
+	}
+
+	return "", ""
+}
+
+// errorCode gives the AWS error code, for example AccessDeniedException, or
+// the error text if the error has no code.
+func errorCode(err error) string {
+	var api interface{ ErrorCode() string }
+	if errors.As(err, &api) && api.ErrorCode() != "" {
+		return api.ErrorCode()
+	}
+
+	return err.Error()
 }
