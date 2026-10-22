@@ -3,9 +3,13 @@ package prompt
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -169,6 +173,60 @@ func TestWritePlanReviewMarkdownWritesOneTablePerKind(t *testing.T) {
 		"| push | production/support/default | instructions changed | +1 -1 |\n")
 	assert.Contains(t, rendered, "\n#### `production/support/third`\n")
 	assert.NotContains(t, rendered, "#### `production/support/default`")
+}
+
+func TestDiffSizeTextColorsEachPart(t *testing.T) {
+	useColorTerminal(t, "")
+
+	assert.Equal(t, "+3 -1", diffSizeText(3, 1, false))
+	assert.Equal(t, "\x1b[92m+3\x1b[0m \x1b[91m-1\x1b[0m", diffSizeText(3, 1, true))
+	assert.Equal(t, "\x1b[92m+2\x1b[0m", diffSizeText(2, 0, true))
+	assert.Equal(t, "\x1b[91m-4\x1b[0m", diffSizeText(0, 4, true))
+	assert.Empty(t, diffSizeText(0, 0, true))
+}
+
+func TestWritePlanReviewColorsSizesOnATerminal(t *testing.T) {
+	var plain bytes.Buffer
+	require.NoError(t, writePlanReview(&plain, "plaintext", reviewTestPlan(), 0, false))
+	useColorTerminal(t, "")
+
+	var output bytes.Buffer
+	require.NoError(t, writePlanReview(&output, "plaintext", reviewTestPlan(), 80, false))
+
+	rendered := output.String()
+	assert.Contains(t, rendered, "  push       production/support/default   instructions changed                   "+
+		"\x1b[92m+1\x1b[0m \x1b[91m-1\x1b[0m\n")
+	assert.Equal(t, 3, strings.Count(rendered, "\x1b[92m+1\x1b[0m \x1b[91m-1\x1b[0m"))
+	assert.Equal(t, plain.String(), ansi.Strip(rendered), "the colors must not change the column widths")
+}
+
+func TestWritePlanSizesHaveNoColorOffATerminal(t *testing.T) {
+	tests := map[string]struct {
+		noColor string
+		write   func(io.Writer) error
+	}{
+		"piped plain text": {write: func(out io.Writer) error {
+			return writePlanOutput(out, "plaintext", reviewTestPlan(), false)
+		}},
+		"Markdown on a terminal": {write: func(out io.Writer) error {
+			return writePlanReview(out, "markdown", reviewTestPlan(), 80, false)
+		}},
+		"JSON": {write: func(out io.Writer) error {
+			return writePlanOutput(out, "json", reviewTestPlan(), true)
+		}},
+		"NO_COLOR on a terminal": {noColor: "1", write: func(out io.Writer) error {
+			return writePlanReview(out, "plaintext", reviewTestPlan(), 80, false)
+		}},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			useColorTerminal(t, test.noColor)
+
+			var output bytes.Buffer
+			require.NoError(t, test.write(&output))
+			assert.NotContains(t, output.String(), "\x1b[")
+		})
+	}
 }
 
 func TestWritePlanReviewSummarizesPlansWithoutChanges(t *testing.T) {
@@ -409,6 +467,17 @@ func TestUnifiedDiffKeepsOneUnchangedLineAroundChanges(t *testing.T) {
 	assert.Contains(t, rendered, " after")
 	assert.NotContains(t, rendered, " first")
 	assert.NotContains(t, rendered, " last")
+}
+
+// useColorTerminal makes lipgloss render as it does for a color terminal with
+// the given NO_COLOR value, until the test ends.
+func useColorTerminal(t *testing.T, noColor string) {
+	t.Helper()
+	t.Setenv("NO_COLOR", noColor)
+	t.Setenv("CLICOLOR_FORCE", "1")
+	previous := lipgloss.DefaultRenderer()
+	lipgloss.SetDefaultRenderer(lipgloss.NewRenderer(os.Stdout))
+	t.Cleanup(func() { lipgloss.SetDefaultRenderer(previous) })
 }
 
 // reviewTestPlan has one row of each common kind of change, in plan order.

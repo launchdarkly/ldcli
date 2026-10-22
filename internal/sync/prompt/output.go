@@ -163,6 +163,7 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int, sho
 	}
 	_ = console.Line(planSummary(plan))
 
+	color := outputKind != outputMarkdown && width > 0
 	var rows []reviewRow
 	for _, resource := range plan.Resources {
 		if resource.Action == ActionInSync {
@@ -175,7 +176,7 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int, sho
 		}
 		row := reviewRow{
 			kind:  resource.ID.Kind,
-			cells: []string{actionWordFor(resource).plan, resource.ID.String(), planReason(resource), diffSizeText(added, removed)},
+			cells: []string{actionWordFor(resource).plan, resource.ID.String(), planReason(resource), diffSizeText(added, removed, color)},
 		}
 		if len(resource.Diff) != 0 && (showDiffs || resource.Action == ActionConflict) {
 			if row.diff, err = renderVariationDiff(resource.Diff, outputKind, width, presentation); err != nil {
@@ -397,14 +398,15 @@ func shortCause(message string) string {
 	return message
 }
 
-// diffSizeText formats a diff size, for example "+3 -1". A zero part is left out.
-func diffSizeText(added, removed int) string {
+// diffSizeText formats a diff size, for example "+3 -1". A zero part is left
+// out. When color is true, each part has the color of its diff lines.
+func diffSizeText(added, removed int, color bool) string {
 	var parts []string
 	if added != 0 {
-		parts = append(parts, fmt.Sprintf("+%d", added))
+		parts = append(parts, styleDiffLine(fmt.Sprintf("+%d", added), color))
 	}
 	if removed != 0 {
-		parts = append(parts, fmt.Sprintf("-%d", removed))
+		parts = append(parts, styleDiffLine(fmt.Sprintf("-%d", removed), color))
 	}
 	return strings.Join(parts, " ")
 }
