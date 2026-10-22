@@ -73,7 +73,7 @@ func variationJSON(variation *syncdomain.Variation) json.RawMessage {
 		return nil
 	}
 	withoutRefs := *variation
-	withoutRefs.Model = syncdomain.CanonicalModel(withoutRefs.Model, withoutRefs.Tools, withoutRefs.Skills)
+	withoutRefs.Model = syncdomain.CanonicalModel(withoutRefs.Model, withoutRefs.Tools)
 	withoutRefs.Tools, withoutRefs.Skills = nil, nil
 	data, _ := json.Marshal(withoutRefs)
 	return data

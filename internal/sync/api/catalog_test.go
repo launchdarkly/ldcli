@@ -178,10 +178,12 @@ func TestCatalogClientConfigRemovesExpandedToolsFromModelParameters(t *testing.T
 				"modelName": "claude",
 				"parameters": {
 					"temperature": 0.2,
-					"tools": [{"type": "function", "name": "search"}]
+					"tools": [{"type": "function", "name": "search"}],
+					"skills": [{"key": "support"}]
 				}
 			},
-			"tools": [{"key": "search", "version": 3}]
+			"tools": [{"key": "search", "version": 3}],
+			"skills": [{"key": "support", "version": 2}]
 		}]
 	}`)}}
 
@@ -193,9 +195,11 @@ func TestCatalogClientConfigRemovesExpandedToolsFromModelParameters(t *testing.T
 		"modelName": "claude",
 		"parameters": map[string]any{
 			"temperature": 0.2,
+			"skills":      []any{map[string]any{"key": "support"}},
 		},
 	}, config.Variations[0].Model)
 	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 3}}, config.Variations[0].Tools)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "support", Version: 2}}, config.Variations[0].Skills)
 }
 
 func TestCatalogClientConfigRejectsInvalidResponse(t *testing.T) {

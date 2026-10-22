@@ -76,7 +76,7 @@ func (variation Variation) canonical() Variation {
 		variation.Attachments[index] = CanonicalAttachment(variation.Attachments[index])
 	}
 	variation.SortAttachments()
-	variation.Model = CanonicalModel(variation.Model, variation.Tools, variation.Skills)
+	variation.Model = CanonicalModel(variation.Model, variation.Tools)
 
 	switch variation.Mode {
 	case VariationModeAgent:
@@ -108,18 +108,14 @@ func unversionedRefs(refs []AttachmentRef) []AttachmentRef {
 	return unversioned
 }
 
-// CanonicalModel returns a copy without defaults and expanded attachment
-// content that the variation API adds. Tool and skill references own that
-// content, so model parameters do not.
-func CanonicalModel(model map[string]any, tools, skills []AttachmentRef) map[string]any {
+// CanonicalModel returns a copy without defaults and expanded tool content
+// that the variation API adds. Tool references own that content.
+func CanonicalModel(model map[string]any, tools []AttachmentRef) map[string]any {
 	model = maps.Clone(model)
 	if parameters, ok := model["parameters"].(map[string]any); ok {
 		parameters = maps.Clone(parameters)
 		if len(tools) != 0 {
 			delete(parameters, "tools")
-		}
-		if len(skills) != 0 {
-			delete(parameters, "skills")
 		}
 		if len(parameters) == 0 {
 			delete(model, "parameters")

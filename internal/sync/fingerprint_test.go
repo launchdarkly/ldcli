@@ -137,7 +137,7 @@ func TestFingerprintVariationNormalizesModelDefaults(t *testing.T) {
 	require.Contains(t, withDefaults.Model, "custom")
 }
 
-func TestFingerprintVariationExcludesExpandedAttachmentParameters(t *testing.T) {
+func TestFingerprintVariationExcludesExpandedToolParameters(t *testing.T) {
 	base := Variation{
 		Mode: VariationModeAgent,
 		Key:  "agent",
@@ -177,6 +177,22 @@ func TestFingerprintVariationExcludesExpandedAttachmentParameters(t *testing.T) 
 	require.Equal(t, baseFingerprint, expandedFingerprint)
 	require.NotEqual(t, baseFingerprint, changedFingerprint)
 	require.Contains(t, expanded.Model["parameters"], "tools")
+
+	withoutSkillParameter := base
+	withoutSkillParameter.Skills = []AttachmentRef{{Key: "support"}}
+	withSkillParameter := withoutSkillParameter
+	withSkillParameter.Model = map[string]any{
+		"modelName": "claude",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+			"skills":      []any{map[string]any{"key": "support"}},
+		},
+	}
+	withoutSkillFingerprint, err := FingerprintVariation("project", "config/agent", withoutSkillParameter)
+	require.NoError(t, err)
+	withSkillFingerprint, err := FingerprintVariation("project", "config/agent", withSkillParameter)
+	require.NoError(t, err)
+	require.NotEqual(t, withoutSkillFingerprint, withSkillFingerprint)
 }
 
 func TestFingerprintVariationPreservesMeaningfulModelChanges(t *testing.T) {
