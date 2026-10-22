@@ -252,7 +252,7 @@ func TestPlanAttachmentExplainsHowToCreateOrStopSyncing(t *testing.T) {
 	assert.Equal(t, `tool "search" does not exist in LaunchDarkly. To create it during sync, add "upsert": true to its file. `+
 		"To stop syncing it, run ldcli sync tools detach --project production --key search.",
 		planAttachment(tool.ID("production"), &tool, nil, "", false).Error)
-	assert.Equal(t, `skill "summarize" does not exist in LaunchDarkly. To create it during sync, add upsert: true to its front matter. `+
+	assert.Equal(t, `skill "summarize" does not exist in LaunchDarkly. `+
 		"To stop syncing it, run ldcli sync skills detach --project production --key summarize.",
 		planAttachment(skill.ID("production"), &skill, nil, "", false).Error)
 }

@@ -274,16 +274,16 @@ func planAttachment(
 	return resource
 }
 
-// missingAttachmentError explains how to create a tool or skill that exists
-// only in a local file, or how to stop syncing it.
+// missingAttachmentError explains how to stop syncing a tool or skill that
+// exists only in a local file. For a tool, it also explains how to create it.
+// A skill file has no upsert key yet, so sync cannot create a skill.
 func missingAttachmentError(id ResourceID) string {
-	consent := `add "upsert": true to its file`
-	if id.Kind == syncdomain.KindSkill {
-		consent = "add upsert: true to its front matter"
+	create := ""
+	if id.Kind == syncdomain.KindTool {
+		create = `To create it during sync, add "upsert": true to its file. `
 	}
-	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. To create it during sync, %s. "+
-		"To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
-		id.Kind, id.LookupKey, consent, id.Kind, id.ProjectKey, id.LookupKey)
+	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. %sTo stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
+		id.Kind, id.LookupKey, create, id.Kind, id.ProjectKey, id.LookupKey)
 }
 
 // validateAttachmentCreate checks a new tool or skill against the create rules
