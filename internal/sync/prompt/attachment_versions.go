@@ -137,16 +137,8 @@ func (resolver *attachmentResolver) publish(projectKey string, local syncdomain.
 		writeErr = resolver.client.UpdateAttachment(projectKey, local)
 	case syncapi.IsNotFound(readErr) && local.Upsert:
 		writeErr = resolver.client.CreateAttachment(projectKey, local)
-	case syncapi.IsNotFound(readErr) && local.Kind == syncdomain.AttachmentTool:
-		return syncdomain.Attachment{}, fmt.Errorf(
-			"tool %q does not exist in LaunchDarkly; add \"upsert\": true to its local JSON file to create it during sync",
-			local.Key(),
-		)
 	case syncapi.IsNotFound(readErr):
-		return syncdomain.Attachment{}, fmt.Errorf(
-			"skill %q does not exist in LaunchDarkly; add upsert: true to its front matter to create it during sync",
-			local.Key(),
-		)
+		return syncdomain.Attachment{}, errors.New(missingAttachment(local.ID(projectKey)))
 	default:
 		return syncdomain.Attachment{}, readErr
 	}

@@ -28,11 +28,11 @@ var syncCommandFlags = map[string][]string{
 	},
 	"sync tools":         {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
 	"sync tools watch":   {"conflict", "diff", "key", "no-input", "project", "yes"},
-	"sync tools add":     {"diff", "dry-run", "key", "no-input", "project"},
+	"sync tools add":     {"description", "diff", "dry-run", "json-schema", "key", "no-input", "project", "yes"},
 	"sync tools detach":  {"key", "no-input", "project", "yes"},
 	"sync skills":        {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
 	"sync skills watch":  {"conflict", "diff", "key", "no-input", "project", "yes"},
-	"sync skills add":    {"diff", "dry-run", "key", "no-input", "project"},
+	"sync skills add":    {"content", "description", "diff", "dry-run", "key", "name", "no-input", "project", "yes"},
 	"sync skills detach": {"key", "no-input", "project", "yes"},
 }
 
@@ -65,7 +65,9 @@ func TestSyncCommandsReadSyncFlagsOnlyFromTheCommandLine(t *testing.T) {
 	for _, name := range []string{"archive", "diff", "dry-run", "no-input", "yes"} {
 		t.Setenv("LD_"+strings.ToUpper(strings.ReplaceAll(name, "-", "_")), "true")
 	}
-	for _, name := range []string{"config-key", "conflict", "content", "format", "key", "model-config-key", "name", "resolve", "to"} {
+	for _, name := range []string{
+		"config-key", "conflict", "content", "description", "format", "json-schema", "key", "model-config-key", "name", "resolve", "to",
+	} {
 		t.Setenv("LD_"+strings.ToUpper(strings.ReplaceAll(name, "-", "_")), "from-environment")
 	}
 
@@ -80,6 +82,26 @@ func TestSyncCommandsReadSyncFlagsOnlyFromTheCommandLine(t *testing.T) {
 			assert.False(t, flag.Changed, "%s --%s", command.CommandPath(), flag.Name)
 		})
 	}
+}
+
+// An add creates a resource only when the command line sets a create flag. A
+// flag set to an empty value still counts.
+func TestAddReadsTheCreateInputFromTheFlagsThatAreSet(t *testing.T) {
+	root := NewSyncCmd(nil, nil)
+	tools, _, err := root.Find([]string{"tools", "add"})
+	require.NoError(t, err)
+	require.NoError(t, tools.ParseFlags([]string{"--project", "demo"}))
+	assert.Nil(t, createInput(tools))
+
+	skills, _, err := root.Find([]string{"skills", "add"})
+	require.NoError(t, err)
+	require.NoError(t, skills.ParseFlags([]string{"--content", "Ask for a person.", "--description", ""}))
+	input := createInput(skills)
+	require.NotNil(t, input)
+	assert.Equal(t, "Ask for a person.", *input.Content)
+	assert.Equal(t, "", *input.Description)
+	assert.Nil(t, input.Name)
+	assert.Nil(t, input.JSONSchema)
 }
 
 func TestSyncCommandScopeNamesTheKindOfTheCommand(t *testing.T) {

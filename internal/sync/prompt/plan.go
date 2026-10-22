@@ -78,9 +78,19 @@ type PlannedResource struct {
 	conflictUses []conflictUse
 	// usedBy are the local variations that use the tool or skill of this row.
 	usedBy []ResourceID
+	// nameSource is where the name of a local skill comes from: a name in its
+	// file, its key, or a flag of the add that creates it.
+	nameSource string
 	// restoreRef is the link that a restored variation file keeps.
 	restoreRef *syncdomain.Reference
 }
+
+// The sources of the name of a skill that sync creates.
+const (
+	nameFromFlag        = "flag"
+	nameFromFrontMatter = "frontMatter"
+	nameFromKey         = "key"
+)
 
 // hasLocal reports whether the resource has a local file.
 func (resource PlannedResource) hasLocal() bool {
@@ -288,6 +298,12 @@ func planAttachment(
 			return fail(err.Error())
 		}
 	}
+	if local != nil && local.Skill != nil {
+		resource.nameSource = nameFromKey
+		if local.Skill.Name != "" {
+			resource.nameSource = nameFromFrontMatter
+		}
+	}
 	if server != nil {
 		if resource.ServerFingerprint, err = syncdomain.FingerprintAttachment(id.ProjectKey, *server); err != nil {
 			return fail(fmt.Sprintf("invalid server %s: %s", id.Kind, err))
@@ -311,12 +327,18 @@ func planAttachment(
 // missingAttachmentError explains how to create a tool or skill that exists
 // only in a local file, or how to stop syncing it.
 func missingAttachmentError(id ResourceID) string {
+	return fmt.Sprintf("%s To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
+		missingAttachment(id), id.Kind, id.ProjectKey, id.LookupKey)
+}
+
+// missingAttachment says that LaunchDarkly does not have the tool or skill
+// of a local file without upsert, and names the command that creates it.
+func missingAttachment(id ResourceID) string {
 	consent := `add "upsert": true to its file`
 	if id.Kind == syncdomain.KindSkill {
 		consent = "add upsert: true to its front matter"
 	}
-	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. To create it during sync, %s. "+
-		"To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
+	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. To create it, %s and run ldcli sync %ss --project %s --key %s.",
 		id.Kind, id.LookupKey, consent, id.Kind, id.ProjectKey, id.LookupKey)
 }
 

@@ -291,10 +291,12 @@ func TestPlanAttachmentIgnoresTheSkillName(t *testing.T) {
 func TestPlanAttachmentExplainsHowToCreateOrStopSyncing(t *testing.T) {
 	tool, skill := testAttachment(syncdomain.AttachmentTool, "local"), testAttachment(syncdomain.AttachmentSkill, "local")
 
-	assert.Equal(t, `tool "search" does not exist in LaunchDarkly. To create it during sync, add "upsert": true to its file. `+
+	assert.Equal(t, `tool "search" does not exist in LaunchDarkly. `+
+		`To create it, add "upsert": true to its file and run ldcli sync tools --project production --key search. `+
 		"To stop syncing it, run ldcli sync tools detach --project production --key search.",
 		planAttachment(tool.ID("production"), &tool, nil, "", false).Error)
-	assert.Equal(t, `skill "summarize" does not exist in LaunchDarkly. To create it during sync, add upsert: true to its front matter. `+
+	assert.Equal(t, `skill "summarize" does not exist in LaunchDarkly. `+
+		"To create it, add upsert: true to its front matter and run ldcli sync skills --project production --key summarize. "+
 		"To stop syncing it, run ldcli sync skills detach --project production --key summarize.",
 		planAttachment(skill.ID("production"), &skill, nil, "", false).Error)
 }
