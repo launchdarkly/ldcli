@@ -306,6 +306,7 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 			resource.Action = resolvedConflictAction(*resource, resolution)
 		}
 	}
+	checkResolvedAttachmentDeletes(resolved.Resources)
 	return resolved
 }
 

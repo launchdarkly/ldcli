@@ -230,7 +230,8 @@ func checkAttachmentBaselines(resources []PlannedResource, lock syncmanifest.Man
 
 // checkAttachmentDeletes keeps a tool or a skill that LaunchDarkly deleted
 // while a local variation still uses it. The deletion becomes an error, unless
-// the same plan pulls a version of that variation without the reference.
+// the variation row stops using it. A conflict can stop using it if
+// LaunchDarkly wins, so checkResolvedAttachmentDeletes checks the choice.
 func checkAttachmentDeletes(resources []PlannedResource, variations []syncdomain.SyncedResource) {
 	variationRows := make(map[ResourceID]PlannedResource)
 	for _, resource := range resources {
@@ -249,7 +250,7 @@ func checkAttachmentDeletes(resources []PlannedResource, variations []syncdomain
 				continue
 			}
 			row, planned := variationRows[variation.ID()]
-			if planned && row.Action == ActionUpdateLocal && !references(row.Server, resource.ID) {
+			if planned && dropsReference(row, resource.ID) {
 				continue
 			}
 			fix := "Run ldcli sync all to pull the variation first."
@@ -261,6 +262,37 @@ func checkAttachmentDeletes(resources []PlannedResource, variations []syncdomain
 				resource.ID.Label(), variation.ID().Label(), fix)
 			break
 		}
+	}
+}
+
+// checkResolvedAttachmentDeletes checks the deletions again after the conflict
+// choices. A variation whose local version wins still uses its tools and
+// skills. The plan has a row for each variation that a conflict choice
+// changes, so the check needs no other variations.
+func checkResolvedAttachmentDeletes(resources []PlannedResource) {
+	var variations []syncdomain.SyncedResource
+	for _, resource := range resources {
+		if resource.ID.Kind == syncdomain.KindVariation && resource.Local != nil {
+			variations = append(variations, syncdomain.SyncedResource{
+				Kind: resource.ID.Kind, ProjectKey: resource.ID.ProjectKey, LookupKey: resource.ID.LookupKey, Variation: *resource.Local,
+			})
+		}
+	}
+	checkAttachmentDeletes(resources, variations)
+}
+
+// dropsReference reports whether a variation row stops using a tool or a
+// skill. A deletion does, and so does a pull of a version without the
+// reference. A conflict does if LaunchDarkly wins, and the conflict blocks
+// the plan until the user chooses.
+func dropsReference(row PlannedResource, id ResourceID) bool {
+	switch row.Action {
+	case ActionDeleteLocal:
+		return true
+	case ActionUpdateLocal, ActionConflict:
+		return !references(row.Server, id)
+	default:
+		return false
 	}
 }
 

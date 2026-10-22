@@ -384,6 +384,20 @@ func TestCheckAttachmentDeletesKeepsAToolThatAVariationStillUses(t *testing.T) {
 			wantError: "tool production/search was deleted in LaunchDarkly, but variation production/support/default still uses it. " +
 				"Remove it from the variation first.",
 		},
+		"the variation is deleted": {
+			variationRow: &PlannedResource{ID: testResourceID(), Action: ActionDeleteLocal, Local: &user},
+			wantAction:   ActionDeleteLocal,
+		},
+		"the variation conflicts, and LaunchDarkly has no tool": {
+			variationRow: &PlannedResource{ID: testResourceID(), Action: ActionConflict, Local: &user, Server: &withoutTool},
+			wantAction:   ActionDeleteLocal,
+		},
+		"the variation conflicts, and LaunchDarkly keeps the tool": {
+			variationRow: &PlannedResource{ID: testResourceID(), Action: ActionConflict, Local: &user, Server: &user},
+			wantAction:   ActionError,
+			wantError: "tool production/search was deleted in LaunchDarkly, but variation production/support/default still uses it. " +
+				"Remove it from the variation first.",
+		},
 	}
 
 	for name, test := range tests {
@@ -399,6 +413,30 @@ func TestCheckAttachmentDeletesKeepsAToolThatAVariationStillUses(t *testing.T) {
 			assert.Equal(t, test.wantError, resources[0].Error)
 		})
 	}
+}
+
+func TestApplyConflictResolutionsChecksToolDeletesAgain(t *testing.T) {
+	tool := testAttachment(syncdomain.AttachmentTool, "local")
+	user := testVariation("user")
+	user.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	user.Attachments = []syncdomain.Attachment{tool}
+	withoutTool := testVariation("user")
+	plan := Plan{Resources: []PlannedResource{
+		{ID: tool.ID("production"), Action: ActionDeleteLocal},
+		{ID: testResourceID(), Action: ActionConflict, Local: &user, Server: &withoutTool},
+	}}
+
+	pulled := applyConflictResolutions(plan, map[ResourceID]ConflictResolution{testResourceID(): ConflictUseLaunchDarkly})
+	assert.Equal(t, ActionDeleteLocal, pulled.Resources[0].Action)
+	assert.Equal(t, ActionUpdateLocal, pulled.Resources[1].Action)
+	require.NoError(t, pulled.BlockingError())
+
+	pushed := applyConflictResolutions(plan, map[ResourceID]ConflictResolution{testResourceID(): ConflictUseLocal})
+	assert.Equal(t, ActionError, pushed.Resources[0].Action)
+	assert.Equal(t, ActionUpdateServer, pushed.Resources[1].Action)
+	require.EqualError(t, pushed.BlockingError(), "cannot sync tool production/search: tool production/search was deleted in LaunchDarkly, "+
+		"but variation production/support/default still uses it. Remove it from the variation first.")
+	assert.Equal(t, ActionDeleteLocal, plan.Resources[0].Action, "the reviewed plan does not change")
 }
 
 func testAttachment(kind syncdomain.AttachmentKind, description string) syncdomain.Attachment {
