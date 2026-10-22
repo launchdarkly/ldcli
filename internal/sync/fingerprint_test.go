@@ -137,6 +137,48 @@ func TestFingerprintVariationNormalizesModelDefaults(t *testing.T) {
 	require.Contains(t, withDefaults.Model, "custom")
 }
 
+func TestFingerprintVariationExcludesExpandedAttachmentParameters(t *testing.T) {
+	base := Variation{
+		Mode: VariationModeAgent,
+		Key:  "agent",
+		Name: "Agent",
+		Model: map[string]any{
+			"modelName": "claude",
+			"parameters": map[string]any{
+				"temperature": 0.2,
+			},
+		},
+		Tools: []AttachmentRef{{Key: "search"}},
+	}
+	expanded := base
+	expanded.Model = map[string]any{
+		"modelName": "claude",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+			"tools":       []any{map[string]any{"type": "function", "name": "search"}},
+		},
+	}
+	changed := expanded
+	changed.Model = map[string]any{
+		"modelName": "claude",
+		"parameters": map[string]any{
+			"temperature": 0.7,
+			"tools":       []any{map[string]any{"type": "function", "name": "search"}},
+		},
+	}
+
+	baseFingerprint, err := FingerprintVariation("project", "config/agent", base)
+	require.NoError(t, err)
+	expandedFingerprint, err := FingerprintVariation("project", "config/agent", expanded)
+	require.NoError(t, err)
+	changedFingerprint, err := FingerprintVariation("project", "config/agent", changed)
+	require.NoError(t, err)
+
+	require.Equal(t, baseFingerprint, expandedFingerprint)
+	require.NotEqual(t, baseFingerprint, changedFingerprint)
+	require.Contains(t, expanded.Model["parameters"], "tools")
+}
+
 func TestFingerprintVariationPreservesMeaningfulModelChanges(t *testing.T) {
 	base := Variation{
 		Mode: VariationModeAgent,

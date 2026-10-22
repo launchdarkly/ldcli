@@ -167,6 +167,37 @@ func TestCatalogClientConfigGetsExactConfigAndAppliesMode(t *testing.T) {
 	assert.False(t, request.IsBeta)
 }
 
+func TestCatalogClientConfigRemovesExpandedToolsFromModelParameters(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"key": "support",
+		"mode": "agent",
+		"variations": [{
+			"key": "helpful",
+			"name": "Helpful",
+			"model": {
+				"modelName": "claude",
+				"parameters": {
+					"temperature": 0.2,
+					"tools": [{"type": "function", "name": "search"}]
+				}
+			},
+			"tools": [{"key": "search", "version": 3}]
+		}]
+	}`)}}
+
+	config, err := NewClient(transport, "token", "https://example.com").Config("project", "support")
+
+	require.NoError(t, err)
+	require.Len(t, config.Variations, 1)
+	assert.Equal(t, map[string]any{
+		"modelName": "claude",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+		},
+	}, config.Variations[0].Model)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 3}}, config.Variations[0].Tools)
+}
+
 func TestCatalogClientConfigRejectsInvalidResponse(t *testing.T) {
 	client := NewClient(
 		&recordingClient{Responses: [][]byte{[]byte(`not json`)}},

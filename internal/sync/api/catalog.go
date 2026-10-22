@@ -156,7 +156,9 @@ func (config *Config) UnmarshalJSON(data []byte) error {
 	config.Variations = make([]syncdomain.Variation, 0, len(response.Variations))
 	for _, variation := range response.Variations {
 		if variation.State != "archived" {
-			config.Variations = append(config.Variations, variation.Variation)
+			canonical := variation.Variation
+			canonical.Model = syncdomain.CanonicalModel(canonical.Model, canonical.Tools, canonical.Skills)
+			config.Variations = append(config.Variations, canonical)
 		}
 	}
 	return nil

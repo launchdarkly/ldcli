@@ -272,6 +272,73 @@ func TestPromptFirstSyncAdoptsMatchingStateWithoutMutation(t *testing.T) {
 	requireOnlyReads(t, api.requests)
 }
 
+func TestPromptDiffExcludesExpandedToolsFromModelParameters(t *testing.T) {
+	root := initRepository(t)
+	description := "Search the documentation"
+	tool := syncdomain.Tool{
+		Key:         "search",
+		Description: &description,
+		Schema:      map[string]any{"type": "object"},
+	}
+	local := variation("Support")
+	local.Instructions = "Use the local instructions."
+	local.ModelConfigKey = "claude"
+	local.ModelConfigVersion = 2
+	local.Model = map[string]any{
+		"modelName": "claude-sonnet-4",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+		},
+	}
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 3}}
+	local.Attachments = []syncdomain.Attachment{toolAttachment(tool, 3)}
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, local)
+
+	server := local
+	server.Instructions = "Use the LaunchDarkly instructions."
+	server.Attachments = nil
+	server.Model = map[string]any{
+		"modelName": "claude-sonnet-4",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+			"tools": []any{map[string]any{
+				"type":        "function",
+				"name":        "search",
+				"description": description,
+				"parameters":  map[string]any{"type": "object"},
+			}},
+		},
+	}
+	api := &directAPI{
+		variation: &server,
+		tools: map[string]versionedTool{
+			"search": {Tool: tool, Version: 3},
+		},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--diff", "--output", "plaintext")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "instructions changed in LaunchDarkly")
+	assert.NotContains(t, stdout, "model changed in LaunchDarkly")
+	assert.NotContains(t, stdout, `"type": "function"`)
+	assert.NotContains(t, stdout, `Tool "search"`)
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	assert.Equal(t, map[string]any{
+		"modelName": "claude-sonnet-4",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+		},
+	}, resources[0].Variation.Model)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search"}}, resources[0].Variation.Tools)
+}
+
 func TestPromptFirstSyncCreatesUpsertVariation(t *testing.T) {
 	root := initRepository(t)
 	local := variation("New")
