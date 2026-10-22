@@ -460,8 +460,35 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	if err != nil {
 		return plan, err
 	}
+	if err := checkUnmanagedTrust(ctx, clients, plan); err != nil {
+		return plan, err
+	}
 
 	return plan, nil
+}
+
+// checkUnmanagedTrust reads the trust policy of each role that the plan leaves
+// unchanged and that the run uses.
+func checkUnmanagedTrust(ctx context.Context, clients Clients, plan SetupPlan) error {
+	for _, step := range plan.RoleSteps {
+		if step.Action != RoleLeave {
+			continue
+		}
+		var actions []string
+		switch {
+		case step.Name == AgentSpaceRoleName && !plan.Link.Exists:
+			actions = []string{"sts:AssumeRole"}
+		case step.Name == OperatorAppRoleName && plan.App.Action != AppKeep:
+			actions = []string{"sts:AssumeRole", "sts:TagSession"}
+		default:
+			continue
+		}
+		if err := checkTrust(ctx, clients.IAM, step.Name, plan.Region, plan.AccountID, plan.Space.ID, actions); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // planRole says what setup will do to a role.

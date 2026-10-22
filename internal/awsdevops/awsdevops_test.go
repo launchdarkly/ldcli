@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -296,9 +297,12 @@ func (f *fakeIAM) GetRole(_ context.Context, in *iam.GetRoleInput, _ ...func(*ia
 		return nil, &iamtypes.NoSuchEntityException{}
 	}
 
-	return &iam.GetRoleOutput{
-		Role: &iamtypes.Role{Arn: aws.String("arn:aws:iam::" + testAccountID + ":role/" + name)},
-	}, nil
+	role := &iamtypes.Role{Arn: aws.String("arn:aws:iam::" + testAccountID + ":role/" + name)}
+	if policy, ok := f.trustPolicies[name]; ok {
+		role.AssumeRolePolicyDocument = aws.String(url.QueryEscape(policy))
+	}
+
+	return &iam.GetRoleOutput{Role: role}, nil
 }
 
 func (f *fakeIAM) ListRoleTags(_ context.Context, in *iam.ListRoleTagsInput, _ ...func(*iam.Options)) (*iam.ListRoleTagsOutput, error) {

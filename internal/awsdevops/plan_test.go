@@ -470,3 +470,75 @@ func TestPlanConnectWithoutASpaceStops(t *testing.T) {
 	assert.Contains(t, err.Error(), "no agent space named missing")
 	assert.NotContains(t, agent.calls, "GetOperatorApp")
 }
+
+// trustPolicy is a trust policy for aidevops.amazonaws.com with the actions
+// and the aws:SourceArn condition region.
+func trustPolicy(region, actions string) string {
+	return `{"Version":"2012-10-17","Statement":[{"Effect":"Allow",` +
+		`"Principal":{"Service":"aidevops.amazonaws.com"},"Action":` + actions + `,` +
+		`"Condition":{"StringEquals":{"aws:SourceAccount":"` + testAccountID + `"},` +
+		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:` + region + `:` + testAccountID + `:agentspace/*"}}}]}`
+}
+
+// unmanagedRoles makes both roles exist without the tag, with the trust
+// policies that are given.
+func unmanagedRoles(agentSpacePolicy, appPolicy string) *fakeIAM {
+	iamClient := newFakeIAM()
+	iamClient.existingRoles[awsdevops.AgentSpaceRoleName] = true
+	iamClient.existingRoles[awsdevops.OperatorAppRoleName] = true
+	iamClient.trustPolicies[awsdevops.AgentSpaceRoleName] = agentSpacePolicy
+	iamClient.trustPolicies[awsdevops.OperatorAppRoleName] = appPolicy
+
+	return iamClient
+}
+
+const appActions = `["sts:AssumeRole","sts:TagSession"]`
+
+func TestPlanAcceptsUnmanagedRolesThatTrustEachRegion(t *testing.T) {
+	iamClient := unmanagedRoles(trustPolicy("*", `"sts:AssumeRole"`), trustPolicy("*", appActions))
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, iamClient), runPlanOptions(), true)
+
+	require.NoError(t, err)
+}
+
+func TestPlanStopsOnAnUnmanagedRoleThatTrustsAnotherRegion(t *testing.T) {
+	iamClient := unmanagedRoles(trustPolicy("us-west-2", `"sts:AssumeRole"`), trustPolicy("*", appActions))
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, iamClient), runPlanOptions(), true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "role "+awsdevops.AgentSpaceRoleName+" does not let agent spaces in us-east-1 assume it")
+	assert.Contains(t, err.Error(), "setup did not change AWS")
+}
+
+func TestPlanStopsOnAnUnmanagedAppRoleWithoutTagSession(t *testing.T) {
+	iamClient := unmanagedRoles(trustPolicy("*", `"sts:AssumeRole"`), trustPolicy("*", `"sts:AssumeRole"`))
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, iamClient), runPlanOptions(), true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), awsdevops.OperatorAppRoleName)
+	assert.Contains(t, err.Error(), "sts:AssumeRole and sts:TagSession")
+}
+
+// A role that the run does not use cannot stop the plan.
+func TestPlanIgnoresTheTrustOfARoleThatTheRunDoesNotUse(t *testing.T) {
+	agent := reuseWithApp(idcApp())
+	agent.associations = awsLink()
+	iamClient := unmanagedRoles(trustPolicy("us-west-2", `"sts:AssumeRole"`), trustPolicy("us-west-2", appActions))
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, iamClient), opts, true)
+
+	require.NoError(t, err)
+}
+
+func TestPlanAcceptsAnUnmanagedRoleWithAPolicyItCannotRead(t *testing.T) {
+	iamClient := unmanagedRoles("customer-owned", trustPolicy("*", appActions))
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, iamClient), runPlanOptions(), true)
+
+	require.NoError(t, err)
+}
