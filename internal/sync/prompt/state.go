@@ -191,46 +191,68 @@ func planAttachmentRows(
 // variation row would write its own copy over the other side. The row decides
 // the content, and executePlan applies it before the variation rows.
 // checkAttachmentBaselines covers the tools and skills that both sides use.
+//
+// A conflicted variation writes the side that the user chooses, so each side
+// of it counts. A row that only conflicts need records them in conflictUses,
+// and applyConflictResolutions keeps it only for the chosen side.
 func planReferencedAttachments(
 	repositoryRoot string,
 	lock syncmanifest.Manifest,
 	attachments *attachmentCache,
 	resources []PlannedResource,
 ) ([]PlannedResource, error) {
-	referenced := make(map[ResourceID]bool)
+	written := make(map[ResourceID]bool)
+	conflictUses := make(map[ResourceID][]conflictUse)
 	for _, resource := range resources {
 		for _, id := range newReferences(resource) {
-			referenced[id] = true
+			written[id] = true
+		}
+		if resource.ID.Kind == syncdomain.KindVariation && resource.Action == ActionConflict {
+			for _, id := range newAttachments(resource.ID.ProjectKey, resource.Local, resource.Server) {
+				conflictUses[id] = append(conflictUses[id], conflictUse{variation: resource.ID, local: true})
+			}
+			for _, id := range newAttachments(resource.ID.ProjectKey, resource.Server, resource.Local) {
+				conflictUses[id] = append(conflictUses[id], conflictUse{variation: resource.ID})
+			}
 		}
 	}
-	for _, resource := range resources {
-		delete(referenced, resource.ID)
-	}
-	if len(referenced) == 0 {
-		return nil, nil
+	referenced := func(id ResourceID) bool {
+		return (written[id] || len(conflictUses[id]) != 0) &&
+			!slices.ContainsFunc(resources, func(resource PlannedResource) bool { return resource.ID == id })
 	}
 
-	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, func(id ResourceID) bool { return referenced[id] })
+	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced)
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(rows, func(row PlannedResource) bool {
+	rows = slices.DeleteFunc(rows, func(row PlannedResource) bool {
 		return !row.hasLocal() || !row.hasServer() || row.LocalFingerprint == row.ServerFingerprint
-	}), nil
+	})
+	for index := range rows {
+		if !written[rows[index].ID] {
+			rows[index].conflictUses = conflictUses[rows[index].ID]
+		}
+	}
+	return rows, nil
 }
 
-// newReferences returns each tool and skill that a variation row writes to a
-// side that does not use it yet. A conflict has none, because it writes no
-// side until the user chooses one, and that choice covers only the variation.
+// newReferences returns each tool and skill that a push or a pull writes to a
+// side that does not use it yet.
 func newReferences(resource PlannedResource) []ResourceID {
 	source, target := resource.writtenSides()
+	return newAttachments(resource.ID.ProjectKey, source, target)
+}
+
+// newAttachments returns each tool and skill that source uses and target does
+// not.
+func newAttachments(projectKey string, source, target *syncdomain.Variation) []ResourceID {
 	if source == nil {
 		return nil
 	}
 	var ids []ResourceID
 	for _, attachment := range source.Attachments {
 		if target == nil || !hasAttachment(*target, attachment) {
-			ids = append(ids, attachment.ID(resource.ID.ProjectKey))
+			ids = append(ids, attachment.ID(projectKey))
 		}
 	}
 	return ids
