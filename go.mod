@@ -1,6 +1,6 @@
 module github.com/launchdarkly/ldcli
 
-go 1.25.0
+go 1.26
 
 toolchain go1.26.10
 
@@ -30,7 +30,7 @@ require (
 	github.com/ianlancetaylor/demangle v0.0.0-20260505044615-1ff4bf46051f
 	github.com/launchdarkly/api-client-go/v24 v24.0.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.6.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.18.0
+	github.com/launchdarkly/go-server-sdk/v7 v7.19.1
 	github.com/launchdarkly/sdk-meta/api v0.7.5
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/mitchellh/go-homedir v1.1.0
@@ -94,7 +94,7 @@ require (
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.2 // indirect
 	github.com/launchdarkly/go-sdk-events/v3 v3.7.0 // indirect
 	github.com/launchdarkly/go-semver v1.0.3 // indirect
-	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.1.0 // indirect
+	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.2.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

@@ -1,11 +1,15 @@
-# Cache bust: golangci-lint v2.9.0 for Go 1.26.10
+# Cache bust: golangci-lint v2.11.4 for Go 1.26.10
 repos:
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.9.0
+    rev: v2.11.4
     hooks:
       - id: golangci-lint
         entry: golangci-lint run
         language: golang
+        # Build and run the linter with the Go version in go.mod. Without a pin,
+        # pre-commit downloads the newest Go, and the linter cannot read the type
+        # data of a Go release newer than itself.
+        language_version: 1.26.0
         require_serial: true
         types: [go]
   - repo: https://github.com/pre-commit/pre-commit-hooks
