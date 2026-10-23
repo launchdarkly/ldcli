@@ -781,6 +781,29 @@ func TestStatusReadsTheAccountOfEachAWSAssociation(t *testing.T) {
 	assert.Empty(t, associations[2].AccountType)
 }
 
+func TestStatusReadsTheToolsOfTheMCPServerAssociation(t *testing.T) {
+	agent := &fakeAgent{
+		associations: []agenttypes.Association{
+			{
+				AssociationId: aws.String("assoc-1"), ServiceId: aws.String("mcp-1"),
+				Configuration: &agenttypes.ServiceConfigurationMemberMcpserver{Value: agenttypes.MCPServerConfiguration{
+					Tools: []string{"list-flags", "get-flag"},
+				}},
+			},
+			{AssociationId: aws.String("assoc-2"), ServiceId: aws.String("aws")},
+		},
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	require.Len(t, status.AgentSpaces, 1)
+	associations := status.AgentSpaces[0].Associations
+	require.Len(t, associations, 2)
+	assert.Equal(t, []string{"list-flags", "get-flag"}, associations[0].Tools)
+	assert.Empty(t, associations[1].Tools)
+}
+
 func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
 	assert.Equal(
 		t,

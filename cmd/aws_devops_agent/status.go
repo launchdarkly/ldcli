@@ -105,7 +105,7 @@ func printStatus(out io.Writer, status awsdevops.Status) {
 		}
 		for _, association := range space.Associations {
 			_, _ = fmt.Fprintf(out, "    %s: %s\n",
-				associationLabel(status, association), plainState(association.Status))
+				associationLabel(status, association), associationState(association))
 		}
 	}
 
@@ -169,6 +169,21 @@ func serviceLabel(service awsdevops.ServiceStatus) string {
 	}
 
 	return strings.TrimSpace(service.Name + " " + kind)
+}
+
+// associationState gives the state of an association and its MCP tools, if
+// it has tools. AWS does not send a state for an MCP server association, so
+// the tools tell that the association exists.
+func associationState(association awsdevops.AssociationStatus) string {
+	if len(association.Tools) == 0 {
+		return plainState(association.Status)
+	}
+	state := "connected"
+	if association.Status != "" {
+		state = plainState(association.Status)
+	}
+
+	return state + " (tools: " + strings.Join(association.Tools, ", ") + ")"
 }
 
 func plainState(status string) string {
