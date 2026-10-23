@@ -80,6 +80,9 @@ func withConfigSource(runner *agent.OpenCode, run func(*cobra.Command, []string)
 			viper.GetString(cliflags.AccessTokenFlag),
 		)
 		runner.Config = source
+		// A logged-in user's agent runs through the AI SDK, so the run is
+		// recorded against the setup-agent AI Config.
+		runner.SDK, _ = source.(*agent.AIConfigSource)
 		if closer, ok := source.(interface{ Close(context.Context) error }); ok {
 			defer func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
