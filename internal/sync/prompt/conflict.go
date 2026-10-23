@@ -200,8 +200,11 @@ func groupConflicts(plan Plan) []conflictGroup {
 		for next := 0; next < len(members); next++ {
 			for candidate := range plan.Resources {
 				row := plan.Resources[candidate]
+				// A row that only conflicts need keeps its own action, unless
+				// it is a conflict itself. applyConflictResolutions decides it.
 				if visited[candidate] ||
 					row.Action == ActionError ||
+					(len(row.conflictUses) != 0 && row.Action != ActionConflict) ||
 					(row.ID.Kind != syncdomain.KindVariation && row.Action == ActionDeleteLocal) ||
 					!sharesChangedAttachment(plan.Resources[members[next]], row) {
 					continue
@@ -305,15 +308,32 @@ func writeConflictChoice(output io.Writer, choice conflictChoice) {
 // resource has the action for its chosen side. The original plan stays as
 // the reviewed record.
 func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictResolution) Plan {
-	resolved := Plan{Resources: slices.Clone(plan.Resources)}
-	for index := range resolved.Resources {
-		resource := &resolved.Resources[index]
-		if resolution, ok := resolutions[resource.ID]; ok {
-			resource.Action = resolvedConflictAction(*resource, resolution)
+	resolved := Plan{Resources: make([]PlannedResource, 0, len(plan.Resources))}
+	for _, resource := range plan.Resources {
+		if !chosenSideUses(resource, resolutions) {
+			continue
 		}
+		if resolution, ok := resolutions[resource.ID]; ok {
+			resource.Action = resolvedConflictAction(resource, resolution)
+		}
+		resolved.Resources = append(resolved.Resources, resource)
 	}
 	checkResolvedAttachmentDeletes(resolved.Resources)
 	return resolved
+}
+
+// chosenSideUses reports whether a row stays after the conflict choices. A
+// row that only conflicts need stays when the side that the user chose for
+// one of them uses its tool or skill. Then the row keeps its own action, so
+// that the variation does not write its own copy over the other side.
+func chosenSideUses(resource PlannedResource, resolutions map[ResourceID]ConflictResolution) bool {
+	if len(resource.conflictUses) == 0 || resource.Action == ActionConflict {
+		return true
+	}
+	return slices.ContainsFunc(resource.conflictUses, func(use conflictUse) bool {
+		resolution := resolutions[use.variation]
+		return use.local && resolution == ConflictUseLocal || !use.local && resolution == ConflictUseLaunchDarkly
+	})
 }
 
 // resolvedConflictAction returns the action that makes the chosen side win.
