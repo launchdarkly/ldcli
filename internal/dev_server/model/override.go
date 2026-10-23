@@ -27,16 +27,6 @@ func getFlagStateForFlagAndProject(ctx context.Context, projectKey, flagKey stri
 		return FlagState{}, err
 	}
 
-	var flagExists bool
-	for flag := range project.AllFlagsState {
-		if flagKey == flag {
-			flagExists = true
-			break
-		}
-	}
-	if !flagExists {
-		return FlagState{}, NewErrNotFound("flag", flagKey)
-	}
 	return project.AllFlagsState[flagKey], nil
 }
 
@@ -75,11 +65,12 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 }
 
 func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
-	flagState, err := getFlagStateForFlagAndProject(ctx, projectKey, flagKey)
+	store := StoreFromContext(ctx)
+	project, err := store.GetDevProject(ctx, projectKey)
 	if err != nil {
 		return err
 	}
-	store := StoreFromContext(ctx)
+	flagState, synced := project.AllFlagsState[flagKey]
 	version, err := store.DeactivateOverride(ctx, projectKey, flagKey)
 	if err != nil {
 		return err
@@ -88,6 +79,19 @@ func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
 	newPayloadVersion, err := store.IncrementProjectPayloadVersion(ctx, projectKey)
 	if err != nil {
 		return errors.Wrap(err, "unable to increment payload version")
+	}
+
+	if !synced {
+		allFlags, err := project.GetFlagStateWithOverridesForProject(ctx)
+		if err != nil {
+			return err
+		}
+		GetObserversFromContext(ctx).Notify(SyncEvent{
+			ProjectKey:     projectKey,
+			AllFlagsState:  allFlags,
+			PayloadVersion: newPayloadVersion,
+		})
+		return nil
 	}
 
 	override := Override{
