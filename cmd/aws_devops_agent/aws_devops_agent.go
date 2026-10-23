@@ -32,6 +32,8 @@ with "aws sso login" or by exporting AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 and AWS_SESSION_TOKEN) and they fail before changing anything if no credentials
 are available.`,
 		Args: cobra.MinimumNArgs(1),
+		// The command can still change, so it is not in the help yet.
+		Hidden: true,
 	}
 
 	cmd.AddCommand(NewSetupCmd(analyticsTrackerFn))
