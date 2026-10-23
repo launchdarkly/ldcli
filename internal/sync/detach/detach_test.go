@@ -47,12 +47,14 @@ func TestLoadResourcesUnionsLocalAndManifestResources(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []syncdomain.ResourceID{
+		{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"},
 		{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/local"},
 		{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/manifest-only"},
 	}, resources)
 }
 
-func TestDetachResourcesPrunesUnreferencedAttachmentManifestEntries(t *testing.T) {
+// A tool keeps syncing on its own after the variation that used it is detached.
+func TestDetachResourcesKeepsAttachmentManifestEntries(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
 	description := "Search documentation"
@@ -89,9 +91,10 @@ func TestDetachResourcesPrunesUnreferencedAttachmentManifestEntries(t *testing.T
 
 	require.NoError(t, err)
 	baseline, err := manifestStore.Load([]string{"project"})
-	manifest := baseline.Lock
 	require.NoError(t, err)
-	assert.Empty(t, manifest.Resources)
+	assert.Equal(t, []syncmanifest.Resource{original.Resources[1]}, baseline.Lock.Resources)
+	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir, "project", "tools", "search.json"))
+	require.NoError(t, err, "the tool file stays")
 }
 
 func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testing.T) {
@@ -118,7 +121,11 @@ func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testi
 	require.NoError(t, manifestStore.Write(original))
 
 	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
-	err = detachResources(Options{Store: store, Baselines: manifestStore}, syncmanifest.Baseline{Lock: original}, []syncdomain.ResourceID{resource})
+	err = detachResources(
+		Options{RepositoryRoot: root, Store: store, Baselines: manifestStore},
+		syncmanifest.Baseline{Lock: original},
+		[]syncdomain.ResourceID{resource},
+	)
 
 	require.NoError(t, err)
 	exists, err := store.VariationExists("project", "config", "prompt")
@@ -145,7 +152,11 @@ func TestDetachResourcesRemovesManifestEntryWhenWrapperWasAlreadyDeleted(t *test
 	require.NoError(t, manifestStore.Write(original))
 
 	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/deleted"}
-	err := detachResources(Options{Store: store, Baselines: manifestStore}, syncmanifest.Baseline{Lock: original}, []syncdomain.ResourceID{resource})
+	err := detachResources(
+		Options{RepositoryRoot: root, Store: store, Baselines: manifestStore},
+		syncmanifest.Baseline{Lock: original},
+		[]syncdomain.ResourceID{resource},
+	)
 
 	require.NoError(t, err)
 	baseline, err := manifestStore.Load([]string{"project"})
@@ -165,7 +176,7 @@ func TestDetachResourcesDeletesUnreadableWrapper(t *testing.T) {
 	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/broken"}
 
 	err := detachResources(
-		Options{Store: store, Baselines: manifestStore},
+		Options{RepositoryRoot: root, Store: store, Baselines: manifestStore},
 		syncmanifest.Baseline{Lock: syncmanifest.New()},
 		[]syncdomain.ResourceID{resource},
 	)
@@ -193,6 +204,7 @@ func TestRunRequiresTerminalWhenResourcesExist(t *testing.T) {
 		Baselines:      newMemoryManifestStore(),
 		Input:          bytes.NewBuffer(nil),
 		Output:         bytes.NewBuffer(nil),
+		Kind:           syncdomain.KindVariation,
 	})
 
 	require.ErrorContains(t, err, "requires a terminal")
@@ -218,6 +230,7 @@ func TestRunUsesExplicitSelectionsWithoutTerminal(t *testing.T) {
 		Output:         bytes.NewBuffer(nil),
 		Selections:     []syncdomain.ResourceID{selection},
 		NoInput:        true,
+		Yes:            true,
 	})
 
 	require.NoError(t, err)
@@ -236,7 +249,7 @@ func TestRunListsOnlyTheResourcesThatTheFilterKeeps(t *testing.T) {
 	require.NoError(t, err)
 	options := Options{
 		RepositoryRoot: root, Store: store, Baselines: newMemoryManifestStore(),
-		Input: bytes.NewBuffer(nil), NoInput: true,
+		Input: bytes.NewBuffer(nil), NoInput: true, Kind: syncdomain.KindVariation,
 	}
 
 	var otherProject bytes.Buffer
@@ -261,6 +274,7 @@ func TestRunReportsWhenNoResourcesAreSynced(t *testing.T) {
 		Baselines:      newMemoryManifestStore(),
 		Input:          bytes.NewBuffer(nil),
 		Output:         &output,
+		Kind:           syncdomain.KindVariation,
 	})
 
 	require.NoError(t, err)
@@ -295,10 +309,11 @@ func TestRunArchive(t *testing.T) {
 		wantArchived []string
 		wantDetached bool
 	}{
-		"detach without archive keeps the variation in LaunchDarkly": {wantDetached: true},
+		"detach without archive keeps the variation in LaunchDarkly": {yes: true, wantDetached: true},
 		"archive with yes":             {archive: true, yes: true, wantArchived: []string{"project/config/prompt"}, wantDetached: true},
 		"variation already archived":   {archive: true, yes: true, archiver: recordingArchiver{preArchived: true}, wantDetached: true},
 		"config gone in LaunchDarkly":  {archive: true, yes: true, archiver: recordingArchiver{readErr: notFound}, wantDetached: true},
+		"detach needs a confirmation":  {wantError: "rerun with --yes"},
 		"archive needs a confirmation": {archive: true, wantError: "rerun with --yes"},
 		"archive failure stops detach": {
 			archive: true, yes: true, archiver: recordingArchiver{err: errors.New("forbidden")},
@@ -372,6 +387,7 @@ func TestRunArchiveCanRunAgainAfterTheDeleteFails(t *testing.T) {
 	workspace.requireTracked(t, "prompt", false)
 }
 
+// One question covers the detach and the archive.
 func TestRunArchiveAsksForConfirmation(t *testing.T) {
 	tests := map[string]struct {
 		answer       string
@@ -395,12 +411,131 @@ func TestRunArchiveAsksForConfirmation(t *testing.T) {
 
 			require.NoError(t, Run(options))
 
-			assert.Contains(t, output.String(), "Archive these variations in LaunchDarkly? [y/N]")
+			assert.Contains(t, output.String(), "Resources to detach and archive in LaunchDarkly:\n  variation project/config/prompt")
+			assert.Equal(t, 1, strings.Count(output.String(), "[y/N]"))
+			assert.Contains(t, output.String(), "Detach these resources? [y/N]")
 			assert.Contains(t, output.String(), test.wantOutput)
 			assert.Equal(t, test.wantArchived, archiver.archived)
 			workspace.requireTracked(t, "prompt", test.wantArchived == nil)
 		})
 	}
+}
+
+func TestRunDetachesToolsAndSkills(t *testing.T) {
+	workspace := newArchiveWorkspace(t, "prompt")
+	tool, skill := testTool(), testSkill()
+	workspace.addAttachments(t, tool, skill)
+	archiver := &recordingArchiver{}
+	options := workspace.options(archiver)
+	options.Selections = []syncdomain.ResourceID{tool.ID("project"), skill.ID("project")}
+	options.Yes = true
+
+	require.NoError(t, Run(options))
+
+	assert.Empty(t, archiver.archived, "LaunchDarkly keeps the tool and the skill")
+	assert.Equal(t, "Detached resources:\n- tool project/search\n- skill project/summarize\n", workspace.output(options))
+	local, err := synclocal.CompileAttachments(workspace.root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	assert.Empty(t, local)
+	assert.Equal(t, []syncdomain.ResourceID{syncdomain.VariationID("project", "config", "prompt")}, lockIDs(workspace.baselines.manifest))
+}
+
+// --archive archives only variations. LaunchDarkly keeps a detached tool or
+// skill, so a tool in the same selection must not stop the archive or the
+// detach.
+func TestRunArchiveWithAToolArchivesOnlyTheVariation(t *testing.T) {
+	workspace := newArchiveWorkspace(t, "prompt")
+	tool := testTool()
+	workspace.addAttachments(t, tool)
+	archiver := &recordingArchiver{}
+	options := workspace.options(archiver)
+	options.Selections = append(options.Selections, tool.ID("project"))
+	options.Archive, options.Yes = true, true
+
+	require.NoError(t, Run(options))
+
+	assert.Equal(t, []string{"project/config/prompt"}, archiver.archived)
+	workspace.requireTracked(t, "prompt", false)
+	assert.Empty(t, workspace.baselines.manifest.Resources)
+	local, err := synclocal.CompileAttachments(workspace.root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	assert.Empty(t, local)
+}
+
+// Detach deletes the variation, tool, and skill files in one transaction. When
+// one file cannot be deleted, every file stays, and so does the baseline.
+func TestRunKeepsEveryFileWhenOneDeleteFails(t *testing.T) {
+	workspace := newArchiveWorkspace(t, "prompt")
+	tool := testTool()
+	workspace.addAttachments(t, tool)
+	// A symbolic link in place of the tool file makes its delete fail.
+	toolFile := filepath.Join(workspace.root, syncdomain.RootDir, "project", "tools", "search.json")
+	target := filepath.Join(t.TempDir(), "search.json")
+	require.NoError(t, os.Rename(toolFile, target))
+	require.NoError(t, os.Symlink(target, toolFile))
+	options := workspace.options(&recordingArchiver{})
+	options.Selections = append(options.Selections, tool.ID("project"))
+	options.Yes = true
+
+	require.Error(t, Run(options))
+
+	workspace.requireTracked(t, "prompt", true)
+	_, err := os.Lstat(toolFile)
+	require.NoError(t, err)
+}
+
+func TestRunRefusesAToolThatAVariationStillUses(t *testing.T) {
+	workspace := newArchiveWorkspace(t)
+	tool := testTool()
+	variation := testVariation("prompt")
+	variation.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	variation.Attachments = []syncdomain.Attachment{tool}
+	_, err := workspace.store.Add([]synclocal.VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
+	require.NoError(t, err)
+	prompt := syncdomain.VariationID("project", "config", "prompt")
+	workspace.baselines.manifest.SetFingerprint(prompt, testFingerprint())
+	require.NoError(t, workspace.baselines.manifest.SetAttachments("project", variation.Attachments))
+	options := workspace.options(&recordingArchiver{})
+	options.Yes = true
+
+	options.Selections = []syncdomain.ResourceID{tool.ID("project")}
+	require.EqualError(t, Run(options),
+		"tool project/search is used by variation project/config/prompt. Remove it from that variation first.")
+	assert.Len(t, workspace.baselines.manifest.Resources, 2, "nothing changes")
+
+	options.Selections = []syncdomain.ResourceID{prompt, tool.ID("project")}
+	require.NoError(t, Run(options), "a detach of the variation too frees the tool")
+	assert.Empty(t, workspace.baselines.manifest.Resources)
+}
+
+func TestRunMarksResourcesWithLocalChanges(t *testing.T) {
+	workspace := newArchiveWorkspace(t, "edited", "synced")
+	tool := testTool()
+	workspace.addAttachments(t, tool)
+	variations, err := synclocal.CompileWorkspace(workspace.root)
+	require.NoError(t, err)
+	synced := syncdomain.VariationID("project", "config", "synced")
+	fingerprint, err := syncdomain.FingerprintVariation("project", synced.LookupKey, variations[1].Variation)
+	require.NoError(t, err)
+	workspace.baselines.manifest.SetFingerprint(synced, fingerprint)
+	lockOnly := syncdomain.VariationID("project", "config", "lock-only")
+	workspace.baselines.manifest.SetFingerprint(lockOnly, testFingerprint())
+
+	var output bytes.Buffer
+	options := workspace.options(&recordingArchiver{})
+	options.Selections = append(options.Selections, tool.ID("project"), lockOnly)
+	options.NoInput, options.Input, options.Output = false, strings.NewReader("n\n"), &output
+	options.isTerminal = func(io.Reader, io.Writer) bool { return true }
+
+	require.NoError(t, Run(options))
+
+	assert.Equal(t, "Resources to detach:\n"+
+		"  variation project/config/edited (local changes will be lost)\n"+
+		"  variation project/config/synced\n"+
+		"  tool project/search\n"+
+		"  variation project/config/lock-only\n"+
+		"\nDetach these resources? [y/N] Detach canceled.\n", output.String())
+	assert.Len(t, workspace.baselines.manifest.Resources, 4, "a no changes nothing")
 }
 
 // archiveWorkspace is a workspace whose variations have local files and
@@ -440,6 +575,47 @@ func (workspace archiveWorkspace) options(archiver Archiver) Options {
 		Selections:     selections,
 		NoInput:        true,
 		Archiver:       archiver,
+	}
+}
+
+// addAttachments writes standalone tool and skill files with baseline entries
+// that match them.
+func (workspace archiveWorkspace) addAttachments(t *testing.T, attachments ...syncdomain.Attachment) {
+	t.Helper()
+	synced := make([]syncdomain.SyncedAttachment, 0, len(attachments))
+	for _, attachment := range attachments {
+		synced = append(synced, syncdomain.SyncedAttachment{ProjectKey: "project", Attachment: attachment})
+	}
+	_, err := workspace.store.ReplaceAttachments(synced)
+	require.NoError(t, err)
+	require.NoError(t, workspace.baselines.manifest.SetAttachments("project", attachments))
+}
+
+// output returns what Run wrote to the output of options.
+func (archiveWorkspace) output(options Options) string {
+	return options.Output.(*bytes.Buffer).String()
+}
+
+func lockIDs(manifest syncmanifest.Manifest) []syncdomain.ResourceID {
+	ids := make([]syncdomain.ResourceID, 0, len(manifest.Resources))
+	for _, resource := range manifest.Resources {
+		ids = append(ids, resource.ID())
+	}
+	return ids
+}
+
+func testTool() syncdomain.Attachment {
+	description := "Search documentation"
+	return syncdomain.Attachment{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{Key: "search", Description: &description, Schema: map[string]any{"type": "object"}},
+	}
+}
+
+func testSkill() syncdomain.Attachment {
+	return syncdomain.Attachment{
+		Kind:  syncdomain.AttachmentSkill,
+		Skill: &syncdomain.Skill{Key: "summarize", Description: "Summarize", Markdown: "# Summarize\n"},
 	}
 }
 
