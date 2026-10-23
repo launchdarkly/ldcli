@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "events-query-cancellation-overhead",
+      "title": "Debug-events query adds no per-row goroutine/allocations under a request context",
+      "kind": "discriminating",
+      "rationale": "1.14.51 'Avoid per-row goroutines for query cancellation': before, SQLiteRows.Next spawned a goroutine + channel per row whenever ctx.Done() != nil. events_db.QueryEvents (dev-server /dev events API) iterates rows with the HTTP request context.",
+      "script": "events-query-cancellation-overhead.sh",
+      "timeout": 300
+    },
+    {
+      "id": "dev-server-db-guard",
+      "title": "Dev-server DB: reopen/migrations, json_each pruning, backup round trip",
+      "kind": "guard",
+      "rationale": "Driver internals changed widely (bind paths, statement cache, handle map, SQLite 3.49 -> 3.53). db.NewSqlite re-runs migrations relying on the 'duplicate column name' error text; UpdateProject prunes overrides via json_each; backup uses the driver's Backup API.",
+      "script": "dev-server-db-guard.sh",
+      "timeout": 600
+    }
+  ]
+}

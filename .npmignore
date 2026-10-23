@@ -7,3 +7,8 @@ go.sum
 Makefile
 .goreleaser.yaml
 Dockerfile.goreleaser
+.agents/
+.claude/
+.cursor/
+.verify-out/
+scripts/dependency-pr/

@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "summary": "actions/setup-go moves to v6 in go.yml (from v4) and dependency-scan.yml (from v5). Both workflows run on pull_request, and PR CI passed on the PR head with v6. The breaking changes are the node24 runtime (runner v2.327.1 or later) and new toolchain selection that reads the go.mod toolchain directive. ldcli go.mod has no toolchain directive, so the selected Go version does not change. The v4 step in go.yml declares node16, which GitHub no longer supports. The PR removes that actionlint finding.",
+  "tier": "high",
+  "changelog": [
+    {
+      "package": "actions/setup-go",
+      "range": "v4/v5..v6",
+      "notes": "v5.0.0: runtime node16 to node20. v5.1.0: architecture added to the cache key (one cold cache). v5.2 to v5.6: manifest from raw API, @actions/cache 4 (new cache service), downloads fall back to go.dev/dl. v6.0.0 breaking: node24 runtime (runner v2.327.1 or later), and toolchain handling (PR #460) that uses the go.mod 'toolchain' directive when GOTOOLCHAIN is not 'local'. Inputs that ldcli passes (go-version-file) and the outputs (none read) do not change.",
+      "breaking": true,
+      "url": "https://github.com/actions/setup-go/releases/tag/v6.0.0"
+    }
+  ],
+  "usage": [
+    ".github/workflows/go.yml (build job: setup-go@v4 to v6, go-version-file: go.mod)",
+    ".github/workflows/dependency-scan.yml (setup-go@v5 to v6, go-version-file: go.mod)"
+  ],
+  "behavior_changes_reachable": true,
+  "findings": [
+    {
+      "severity": "info",
+      "text": "Both workflows that use setup-go run on pull_request, and all 9 CI checks passed on the PR head c3c375a. No release workflow or composite action in .github/actions uses setup-go.",
+      "evidence": [
+        "result.json ci-status",
+        "rg 'setup-go' .github"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "Toolchain selection: setup-go v6 parseGoVersionFile reads '^toolchain go…' first. go.mod has 'go 1.25' and no toolchain line, so v6 installs the same Go as v4 and v5 (guard go-mod-no-toolchain-directive). If someone adds a toolchain line later, CI will install that toolchain.",
+      "evidence": [
+        "https://github.com/actions/setup-go/blob/v6/src/installer.ts",
+        "go.mod"
+      ]
+    }
+  ]
+}

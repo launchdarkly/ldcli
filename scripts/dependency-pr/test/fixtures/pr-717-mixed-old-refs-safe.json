@@ -1,0 +1,12 @@
+{
+  "pr": 717,
+  "why": "#717 moves actions/setup-go to v6 from v4 (go.yml) and v5 (dependency-scan.yml). Both workflows run on PR CI. On 2026-10-06 the verifier blocked it: the PR removes one actionlint finding, and an exact fingerprint match counted that as a change. It also asked a false question, because an empty TSV field shifted the runtime, and it compared only v5 with v6. It must be safe to merge, with v4 as the old version.",
+  "head": "c3c375a8b88c8affe8970c096ff1c70b4309c36d",
+  "base": "9197f925f3ce12da4eb7864a0644451d12977788",
+  "agent_inputs": "agent-inputs/pr-717",
+  "expect": {
+    "verdict": "safe-to-merge",
+    "checks": {"actionlint": "pre-existing", "actions-coverage": "pass"},
+    "updates": {"actions/setup-go": {"from": "v4", "to": "v6"}}
+  }
+}
