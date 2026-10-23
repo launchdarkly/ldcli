@@ -76,7 +76,7 @@ func (variation Variation) canonical() Variation {
 		variation.Attachments[index] = CanonicalAttachment(variation.Attachments[index])
 	}
 	variation.SortAttachments()
-	variation.Model = canonicalModel(variation.Model)
+	variation.Model = CanonicalModel(variation.Model, variation.Tools)
 
 	switch variation.Mode {
 	case VariationModeAgent:
@@ -108,14 +108,23 @@ func unversionedRefs(refs []AttachmentRef) []AttachmentRef {
 	return unversioned
 }
 
-// canonicalModel removes the empty "parameters" and "custom" objects that the
-// variation API adds. Other empty objects can change behavior, so they remain.
-func canonicalModel(model map[string]any) map[string]any {
+// CanonicalModel returns a copy without defaults and expanded tool content
+// that the variation API adds. Tool references own that content.
+func CanonicalModel(model map[string]any, tools []AttachmentRef) map[string]any {
 	model = maps.Clone(model)
-	for _, key := range []string{"parameters", "custom"} {
-		if value, ok := model[key].(map[string]any); ok && len(value) == 0 {
-			delete(model, key)
+	if parameters, ok := model["parameters"].(map[string]any); ok {
+		parameters = maps.Clone(parameters)
+		if len(tools) != 0 {
+			delete(parameters, "tools")
 		}
+		if len(parameters) == 0 {
+			delete(model, "parameters")
+		} else {
+			model["parameters"] = parameters
+		}
+	}
+	if custom, ok := model["custom"].(map[string]any); ok && len(custom) == 0 {
+		delete(model, "custom")
 	}
 	if len(model) == 0 {
 		return nil
