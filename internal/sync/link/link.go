@@ -17,7 +17,6 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
-	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	synccreate "github.com/launchdarkly/ldcli/internal/sync/create"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
@@ -25,17 +24,9 @@ import (
 	"github.com/launchdarkly/ldcli/internal/sync/reference/adapters"
 )
 
-// Catalog finds the project, the config, and the model config of a new variation.
-type Catalog interface {
-	syncinteractive.ProjectSearcher
-	syncinteractive.ConfigSearcher
-	Config(projectKey, configKey string) (syncapi.Config, error)
-	ModelConfigs(projectKey string) ([]syncapi.ModelConfig, error)
-}
-
 // Options are the dependencies and the input of one link.
 type Options struct {
-	Catalog          Catalog
+	Catalog          synccreate.Catalog
 	Store            synclocal.Store
 	RepositoryRoot   string
 	WorkingDirectory string
@@ -140,22 +131,16 @@ func targetSelection(options Options, prompt linkedPrompt, target Target) (Selec
 	if err != nil {
 		return Selection{}, "", err
 	}
-	modelConfigs, err := options.Catalog.ModelConfigs(projectKey)
+	modelConfig, err := synccreate.FindModelConfig(options.Catalog, projectKey, target.ModelConfigKey)
 	if err != nil {
 		return Selection{}, "", err
-	}
-	index := slices.IndexFunc(modelConfigs, func(candidate syncapi.ModelConfig) bool {
-		return candidate.Key == target.ModelConfigKey
-	})
-	if index < 0 {
-		return Selection{}, "", fmt.Errorf("model config %q was not found", target.ModelConfigKey)
 	}
 
 	name := cmp.Or(prompt.parsed.Name, target.Name, syncdomain.DisplayName(variationKey))
 	return Selection{
 		Project:     syncapi.Project{Key: projectKey},
 		Config:      config,
-		ModelConfig: modelConfigs[index],
+		ModelConfig: modelConfig,
 		Key:         variationKey,
 		Name:        name,
 	}, target.Content, nil
@@ -165,42 +150,16 @@ func targetSelection(options Options, prompt linkedPrompt, target Target) (Selec
 // that the linked file does not have. The bool result is true when the user
 // cancels.
 func promptForSelection(options Options, prompt linkedPrompt) (Selection, string, bool, error) {
-	project := syncapi.Project{Key: options.ProjectKey}
-	if project.Key == "" {
-		var canceled bool
-		var err error
-		if project, canceled, err = syncinteractive.SelectProject(options.Input, options.Output, options.Catalog); err != nil || canceled {
-			return Selection{}, "", canceled, err
-		}
-	}
+	questions := synccreate.Questions{Allowed: true, Input: options.Input, Output: options.Output}
 	var modes []syncdomain.VariationMode
 	if prompt.parsed.Mode != "" {
 		modes = []syncdomain.VariationMode{prompt.parsed.Mode}
 	}
-	config, canceled, err := syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, modes)
-	if syncapi.IsNotFound(err) && options.ProjectKey != "" {
-		// The config search is the first read in the project, so a 404 means
-		// that the project is missing.
-		return Selection{}, "", false, fmt.Errorf(
-			"project %q was not found in LaunchDarkly, or the access token cannot read it", options.ProjectKey,
-		)
-	}
+	project, config, canceled, err := synccreate.SelectConfig(questions, options.Catalog, options.ProjectKey, modes)
 	if err != nil || canceled {
 		return Selection{}, "", canceled, err
 	}
-
-	_ = syncconsole.New(options.Output).Line("Loading model configs...")
-	modelConfigs, err := options.Catalog.ModelConfigs(project.Key)
-	if err != nil {
-		return Selection{}, "", false, err
-	}
-	choices := make([]syncinteractive.Choice[syncapi.ModelConfig], 0, len(modelConfigs))
-	for _, modelConfig := range modelConfigs {
-		choices = append(choices, syncinteractive.Choice[syncapi.ModelConfig]{
-			Title: modelConfig.Name, Description: "Key: " + modelConfig.Key, Value: modelConfig,
-		})
-	}
-	modelConfig, canceled, err := syncinteractive.Select(options.Input, options.Output, "Choose a model config", choices)
+	modelConfig, canceled, err := synccreate.SelectModelConfig(questions, options.Catalog, project.Key)
 	if err != nil || canceled {
 		return Selection{}, "", canceled, err
 	}
