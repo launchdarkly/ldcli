@@ -17,7 +17,6 @@ import (
 // ssoLogin offers aws sso login on expired credentials.
 type ssoLogin struct {
 	newClients func(ctx context.Context, region, profile string) (awsdevops.Clients, error)
-	configPath string
 	in         io.Reader
 	out        io.Writer
 	tty        func() bool
@@ -39,7 +38,6 @@ func loadClients(cmd *cobra.Command) (awsdevops.Clients, error) {
 func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 	return ssoLogin{
 		newClients: awsdevops.NewClients,
-		configPath: awsdevops.ConfigFilePath(),
 		in:         sharedStdin(cmd),
 		out:        cmd.ErrOrStderr(),
 		tty:        tty,
@@ -56,7 +54,7 @@ func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevop
 	}
 
 	// A login helps only if the SSO token is expired or missing.
-	name := awsdevops.SSOProfile(l.configPath, profile)
+	name := awsdevops.SSOProfile(ctx, profile)
 	if name == "" || !awsdevops.SSOTokenInvalid(err) || !l.tty() {
 		return clients, err
 	}
