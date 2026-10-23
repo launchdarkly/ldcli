@@ -220,24 +220,18 @@ func planReferencedAttachments(
 }
 
 // newReferences returns each tool and skill that a variation row writes to a
-// side that does not use it yet. A conflict can write either side.
+// side that does not use it yet. A conflict has none, because it writes no
+// side until the user chooses one, and that choice covers only the variation.
 func newReferences(resource PlannedResource) []ResourceID {
-	var ids []ResourceID
-	add := func(source, target *syncdomain.Variation) {
-		if source == nil {
-			return
-		}
-		for _, attachment := range source.Attachments {
-			if target == nil || !hasAttachment(*target, attachment) {
-				ids = append(ids, attachment.ID(resource.ID.ProjectKey))
-			}
-		}
+	source, target := resource.writtenSides()
+	if source == nil {
+		return nil
 	}
-	if resource.ID.Kind == syncdomain.KindVariation && resource.Action == ActionConflict {
-		add(resource.Local, resource.Server)
-		add(resource.Server, resource.Local)
-	} else {
-		add(resource.writtenSides())
+	var ids []ResourceID
+	for _, attachment := range source.Attachments {
+		if target == nil || !hasAttachment(*target, attachment) {
+			ids = append(ids, attachment.ID(resource.ID.ProjectKey))
+		}
 	}
 	return ids
 }

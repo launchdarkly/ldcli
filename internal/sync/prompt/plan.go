@@ -88,9 +88,7 @@ func (resource PlannedResource) hasServer() bool {
 }
 
 // writtenSides returns the variation that a variation row writes, and the
-// variation that the write replaces. A push writes the local variation to
-// LaunchDarkly, and a pull writes the LaunchDarkly variation to the local
-// file. Both are nil for a row that writes no variation.
+// variation that it replaces. Both are nil for a row that writes none.
 func (resource PlannedResource) writtenSides() (source, target *syncdomain.Variation) {
 	switch {
 	case resource.ID.Kind != syncdomain.KindVariation:
