@@ -8,6 +8,10 @@
     {
       "name": "Teams",
       "description": "A team is a group of members in your LaunchDarkly account."
+    },
+    {
+      "name": "IP Allowlist (beta)",
+      "description": "Manage the IP allowlist for your account."
     }
   ],
   "paths": {
@@ -450,6 +454,34 @@
           }
         ],
         "operationId": "deleteTeam"
+      }
+    },
+    "/api/v2/account/ip-allowlist": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "IP allowlist response"
+          }
+        },
+        "tags": [
+          "IP Allowlist (beta)"
+        ],
+        "summary": "Get IP Allowlist",
+        "description": "Get the IP allowlist for the account.",
+        "operationId": "getIpAllowlist"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "IP allowlist entry response"
+          }
+        },
+        "tags": [
+          "IP Allowlist (beta)"
+        ],
+        "summary": "Create IP Allowlist Entry",
+        "description": "Add an entry to the IP allowlist.",
+        "operationId": "createIpAllowlistEntry"
       }
     }
   },
