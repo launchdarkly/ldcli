@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -152,25 +153,52 @@ func TestSelectAgentSpaceDefaultsToTheSpaceWithTheName(t *testing.T) {
 	assert.NotContains(t, out.String(), "named")
 }
 
-func TestSelectAgentSpaceDefaultsToANewSpaceWithAnUnusedName(t *testing.T) {
-	cmd, out := testCmd("\n")
+// A name that no space has cannot create a space, with or without a terminal.
+func TestResolveAgentSpaceStopsOnANameThatNoSpaceHas(t *testing.T) {
+	for name, clients := range map[string]awsdevops.Clients{
+		"no spaces": newStubClients(),
+		"other spaces": newStubClients(agenttypes.AgentSpace{
+			AgentSpaceId: aws.String("space-2"),
+			Name:         aws.String("platform"),
+		}),
+	} {
+		for _, interactive := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s, interactive %t", name, interactive), func(t *testing.T) {
+				cmd, out := testCmd("1\n")
+				opts := awsdevops.SetupOptions{AgentSpaceName: "test"}
 
-	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "payments")
-	require.NoError(t, err)
+				_, err := resolveAgentSpace(cmd, clients, &opts, interactive)
 
-	assert.Equal(t, spaceChoice{newSpace: true, name: "payments"}, chosen)
-	assert.Contains(t, out.String(), "3) provision a new agent space named payments")
-	assert.Contains(t, out.String(), "4) provision a new agent space\n")
-	assert.Contains(t, out.String(), "connect to? [3] ")
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "no agent space in us-east-1 is named test")
+				assert.Contains(t, err.Error(), "--new-agent-space")
+				assert.False(t, opts.NewAgentSpace)
+				assert.NotContains(t, out.String(), "connect to?")
+			})
+		}
+	}
 }
 
-func TestSelectAgentSpaceLetsYouNameANewSpaceAfterAName(t *testing.T) {
-	cmd, _ := testCmd("4\n")
+func TestResolveAgentSpaceErrorListsTheSpaces(t *testing.T) {
+	cmd, _ := testCmd("")
+	opts := awsdevops.SetupOptions{AgentSpaceName: "test"}
+	clients := newStubClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")})
 
-	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "payments")
+	_, err := resolveAgentSpace(cmd, clients, &opts, false)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "The agent spaces in us-east-1 are platform space-2")
+}
+
+func TestSelectAgentSpaceOffersOneNewSpaceChoice(t *testing.T) {
+	cmd, out := testCmd("3\n")
+
+	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "")
 	require.NoError(t, err)
 
 	assert.Equal(t, spaceChoice{newSpace: true}, chosen)
+	assert.Contains(t, out.String(), "3) provision a new agent space\n")
+	assert.NotContains(t, out.String(), "4)")
 }
 
 func TestSelectAgentSpaceMarksTheSpacesSetupMade(t *testing.T) {
@@ -250,14 +278,15 @@ func newStubClients(spaces ...agenttypes.AgentSpace) awsdevops.Clients {
 }
 
 func TestResolveAgentSpaceProvisionsWhenTheAccountHasNone(t *testing.T) {
-	cmd, _ := testCmd("")
-	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly"}
+	cmd, _ := testCmd("launchdarkly\n")
+	opts := awsdevops.SetupOptions{}
 
-	provision, err := resolveAgentSpace(cmd, newStubClients(), &opts, false)
+	provision, err := resolveAgentSpace(cmd, newStubClients(), &opts, true)
 	require.NoError(t, err)
 
 	assert.True(t, provision)
 	assert.Empty(t, opts.AgentSpaceID)
+	assert.Equal(t, "launchdarkly", opts.AgentSpaceName)
 }
 
 func TestResolveAgentSpaceTakesTheFlaggedSpace(t *testing.T) {
@@ -300,7 +329,7 @@ func TestResolveAgentSpaceFailsOnSomeoneElsesSpaceWithoutATerminal(t *testing.T)
 
 func TestResolveAgentSpaceAsksAndConnectsToTheChosenSpace(t *testing.T) {
 	cmd, _ := testCmd("1\n")
-	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly"}
+	opts := awsdevops.SetupOptions{}
 	clients := newStubClients(agenttypes.AgentSpace{
 		AgentSpaceId: aws.String("space-2"),
 		Name:         aws.String("platform"),
@@ -501,12 +530,6 @@ func TestPickWithoutAskingUsesANameBesideAHiddenSpace(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, provision)
 	assert.Equal(t, "space-1", opts.AgentSpaceID)
-
-	opts = awsdevops.SetupOptions{AgentSpaceName: "new-space"}
-	provision, err = pickWithoutAsking(spaces, &opts, "us-east-1")
-	require.NoError(t, err)
-	assert.True(t, provision)
-	assert.True(t, opts.NewAgentSpace)
 }
 
 // One failed tag lookup leaves the other spaces in the list.

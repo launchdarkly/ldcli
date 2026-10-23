@@ -340,7 +340,7 @@ func TestRunPlanNewSpaceRefusesAUsedName(t *testing.T) {
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, awsdevops.ErrPlanChanged)
 	assert.Contains(t, err.Error(), "space-7")
-	assert.Contains(t, err.Error(), "--agent-space-name")
+	assert.Contains(t, err.Error(), "--agent-space-id space-7")
 	assert.NotContains(t, agent.calls, "CreateAgentSpace")
 	assert.Empty(t, iamClient.createdRoles)
 }

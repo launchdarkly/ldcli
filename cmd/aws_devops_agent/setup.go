@@ -61,7 +61,7 @@ for --access-token.`,
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
 	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --auth-flow runs full setup on a space that setup did not make")
-	cmd.Flags().String(agentSpaceNameFlag, "", "Name of the agent space to use or create. In a terminal, setup asks for a name if it needs one")
+	cmd.Flags().String(agentSpaceNameFlag, "", "Name of an existing agent space to use. With --new-agent-space, the name of the new space")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Provision a new agent space instead of asking which existing one to use")
 	cmd.MarkFlagsMutuallyExclusive(agentSpaceIDFlag, newAgentSpaceFlag)
 	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
@@ -236,6 +236,10 @@ func resolveAgentSpace(
 	if err != nil {
 		return false, err
 	}
+	if opts.AgentSpaceName != "" && !hasSpaceNamed(spaces, opts.AgentSpaceName) {
+		// A name picks an existing space, so a wrong name cannot create one.
+		return false, noSpaceNamed(spaces, opts.AgentSpaceName, clients.Region)
+	}
 	if len(spaces) == 0 {
 		opts.NewAgentSpace = true
 
@@ -299,8 +303,8 @@ func summaryOf(spaces []awsdevops.AgentSpaceSummary, id string) awsdevops.AgentS
 }
 
 // pickWithoutAsking picks a space for a run that cannot ask. With a name, it
-// does what Enter does at the list: it uses the one space with that name, or
-// creates the space when no space has the name. Without a name, it reuses the
+// does what Enter does at the list: it uses the one space with that name.
+// Without a name, it reuses the
 // one space that setup made, so an unattended re-run stays idempotent. It never
 // guesses between spaces that setup did not make.
 //
@@ -328,12 +332,6 @@ func pickWithoutAsking(all []awsdevops.AgentSpaceSummary, opts *awsdevops.SetupO
 
 			return opts.AuthFlowSet || spaces[i].ManagedByLDCLI, nil
 		}
-		if !hasSpaceNamed(spaces, name) {
-			opts.NewAgentSpace = true
-
-			return true, nil
-		}
-
 		var named []awsdevops.AgentSpaceSummary
 		for _, space := range spaces {
 			if strings.EqualFold(space.Name, name) {
@@ -354,12 +352,26 @@ func pickWithoutAsking(all []awsdevops.AgentSpaceSummary, opts *awsdevops.SetupO
 	}
 
 	return false, fmt.Errorf(
-		"this AWS account already has agent spaces in %s (%s); pass --%s to connect "+
-			"LaunchDarkly to one of them, or --%s to use or create a space by name",
+		"this AWS account already has agent spaces in %s (%s); pass --%s or --%s to connect "+
+			"LaunchDarkly to one of them, or --%s to provision a new space",
 		region,
 		strings.Join(agentSpaceLabels(spaces), ", "),
 		agentSpaceIDFlag,
 		agentSpaceNameFlag,
+		newAgentSpaceFlag,
+	)
+}
+
+// noSpaceNamed is the error for a name that no space in the region has.
+func noSpaceNamed(spaces []awsdevops.AgentSpaceSummary, name, region string) error {
+	listing := ""
+	if len(spaces) > 0 {
+		listing = fmt.Sprintf(". The agent spaces in %s are %s", region, strings.Join(agentSpaceLabels(spaces), ", "))
+	}
+
+	return fmt.Errorf(
+		"no agent space in %s is named %s%s. To provision a new agent space with that name, also pass --%s",
+		region, name, listing, newAgentSpaceFlag,
 	)
 }
 
@@ -559,11 +571,6 @@ func selectAgentSpace(
 	}
 	if hasSpaceNamed(unread, name) {
 		defaultIndex = -1
-	}
-	if name != "" && !hasSpaceNamed(all, name) {
-		defaultIndex = len(choices)
-		choices = append(choices, spaceChoice{newSpace: true, name: name})
-		labels = append(labels, "provision a new agent space named "+name)
 	}
 	choices = append(choices, spaceChoice{newSpace: true})
 	labels = append(labels, "provision a new agent space")

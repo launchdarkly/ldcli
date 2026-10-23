@@ -155,7 +155,17 @@ func setupTestCmd(t *testing.T, stdin string) (*cobra.Command, *bytes.Buffer) {
 }
 
 func newSpaceOptions() awsdevops.SetupOptions {
-	return awsdevops.SetupOptions{AgentSpaceName: "ld-devops-agent", AuthFlow: "iam", LDAccessToken: "api-token"}
+	return awsdevops.SetupOptions{AgentSpaceName: "ld-devops-agent", NewAgentSpace: true, AuthFlow: "iam", LDAccessToken: "api-token"}
+}
+
+// existingSpaceOptions picks the space with this name. An empty name lets
+// setup ask, or pick the space that setup made.
+func existingSpaceOptions(name string) awsdevops.SetupOptions {
+	opts := newSpaceOptions()
+	opts.NewAgentSpace = false
+	opts.AgentSpaceName = name
+
+	return opts
 }
 
 // A json run in a terminal asks too, because the question goes to stderr.
@@ -289,7 +299,7 @@ func TestSetupConfirmsAfterTheSpaceChoice(t *testing.T) {
 		Name:         aws.String("platform"),
 	})
 
-	err := setupWith(cmd, clients, newSpaceOptions(), true, true)
+	err := setupWith(cmd, clients, existingSpaceOptions(""), true, true)
 
 	require.Error(t, err)
 	assert.Contains(t, strings.ToLower(err.Error()), "cancel")
@@ -328,7 +338,7 @@ func TestSetupPromptsGoToStderr(t *testing.T) {
 		Name:         aws.String("platform"),
 	})
 
-	_ = setupWith(cmd, clients, newSpaceOptions(), true, true)
+	_ = setupWith(cmd, clients, existingSpaceOptions(""), true, true)
 
 	assert.Contains(t, stderrOf(cmd), "Which one should LaunchDarkly connect to?")
 	assert.Contains(t, stderrOf(cmd), "Continue? [y/N]")

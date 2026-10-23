@@ -121,7 +121,10 @@ func TestSetupConnectWithoutATokenStops(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "2\n\n")
 	clients, w := twoSimilarSpaces()
 
-	err := setupWith(cmd, clients, noTokenOptions(), true, true)
+	opts := existingSpaceOptions("")
+	opts.LDAccessToken = ""
+
+	err := setupWith(cmd, clients, opts, true, true)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nothing to do on agent space LaunchDarkly (space-2)")
@@ -229,8 +232,7 @@ func TestSetupWithYesSkipsSpaceChoice(t *testing.T) {
 	cmd.SetIn(noReadStdin{t})
 	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
 	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")})
-	opts := newSpaceOptions()
-	opts.AgentSpaceName = ""
+	opts := existingSpaceOptions("")
 
 	err := setupWith(cmd, clients, opts, true, true)
 
@@ -262,7 +264,7 @@ func TestSetupWithYesStopsOnTwoSpacesWithTheName(t *testing.T) {
 		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("LD-DevOps-Agent")},
 	)
 
-	err := setupWith(cmd, clients, newSpaceOptions(), true, true)
+	err := setupWith(cmd, clients, existingSpaceOptions("ld-devops-agent"), true, true)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "space-1")
@@ -277,7 +279,7 @@ func TestSetupWithYesReusesMatchingSpace(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
 	clients, w := countingClients(ldcliSpace("space-2", "ld-devops-agent"))
 
-	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+	require.NoError(t, setupWith(cmd, clients, existingSpaceOptions("ld-devops-agent"), true, true))
 
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
@@ -298,7 +300,7 @@ func TestSetupWithYesConnectsToANamedSpaceItDidNotMake(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
 	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("ld-devops-agent")})
 
-	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+	require.NoError(t, setupWith(cmd, clients, existingSpaceOptions("ld-devops-agent"), true, true))
 
 	assert.Contains(t, stderrOf(cmd), "Connect to agent space ld-devops-agent (space-2)")
 	assert.Contains(t, w.calls, "AssociateService")
@@ -315,7 +317,7 @@ func TestSetupEnterGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {
 		ldcliSpace("space-2", "ld-devops-agent"),
 	)
 
-	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+	require.NoError(t, setupWith(cmd, clients, existingSpaceOptions("ld-devops-agent"), true, true))
 
 	assert.Contains(t, out.String(), "connect to? [2] ")
 	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
@@ -331,8 +333,7 @@ func TestSetupEnterWithoutANamePicksTheSpaceSetupMade(t *testing.T) {
 		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")},
 		ldcliSpace("space-2", "ld-devops-agent"),
 	)
-	opts := newSpaceOptions()
-	opts.AgentSpaceName = ""
+	opts := existingSpaceOptions("")
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
@@ -382,7 +383,7 @@ func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "2\ny\n")
 	clients, w := twoSimilarSpaces()
 
-	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+	require.NoError(t, setupWith(cmd, clients, existingSpaceOptions(""), true, true))
 
 	assert.NotContains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateRole")
@@ -399,7 +400,7 @@ func TestSetupNewSpaceChoiceAsksForAnUnusedName(t *testing.T) {
 	cmd, out := setupTestCmd(t, "2\nld-devops-agent\nfresh\ny\n")
 	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("ld-devops-agent")})
 
-	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+	require.NoError(t, setupWith(cmd, clients, existingSpaceOptions(""), true, true))
 
 	assert.Contains(t, out.String(), "An agent space named ld-devops-agent already exists")
 	assert.Contains(t, out.String(), "Create agent space fresh")
