@@ -164,7 +164,7 @@ func checkOutputKind(outputKind string) (string, error) {
 func writePlanReview(out io.Writer, outputKind string, plan Plan, width int, showDiffs bool) error {
 	console := syncconsole.New(out)
 	if len(plan.Resources) == 0 {
-		_ = console.Line("No prompt variations are synced in this repository. To start, run ldcli sync prompts add.")
+		_ = console.Line(emptyPlanMessage(plan.Scope))
 		return nil
 	}
 	_ = console.Line(planSummary(plan))
@@ -198,8 +198,21 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int, sho
 	return nil
 }
 
+// emptyPlanMessage tells the user how to start syncing the kinds of a scope.
+func emptyPlanMessage(scope syncdomain.Scope) string {
+	switch scope {
+	case syncdomain.ScopeAll:
+		return nothingToSync
+	case syncdomain.ScopeTools, syncdomain.ScopeSkills:
+		return fmt.Sprintf("No %s are synced in this repository. To start, run ldcli sync %s add.", scope, scope)
+	default:
+		return "No prompt variations are synced in this repository. To start, run ldcli sync prompts add."
+	}
+}
+
 // writePlanNotes writes one line for each resource that another working copy
-// synced after this working copy wrote its sync.lock file.
+// synced after this working copy wrote its sync.lock file, and one line for
+// the standalone tool and skill files that a prompts plan leaves out.
 func writePlanNotes(out io.Writer, plan Plan) {
 	console := syncconsole.New(out)
 	for _, resource := range plan.Resources {
@@ -207,6 +220,41 @@ func writePlanNotes(out io.Writer, plan Plan) {
 			_ = console.Printf(
 				"Note: Another working copy synced %s after your sync.lock. %s\n", resource.ID.Label(), staleSuggestion(resource),
 			)
+		}
+	}
+
+	var counts []string
+	total := 0
+	for _, kind := range []syncdomain.Kind{syncdomain.KindSkill, syncdomain.KindTool} {
+		if count := plan.standalone[kind]; count != 0 {
+			counts = append(counts, countOf(count, "standalone "+kindNoun(kind)))
+			total += count
+		}
+	}
+	if total != 0 {
+		verb := "are"
+		if total == 1 {
+			verb = "is"
+		}
+		_ = console.Printf("Note: %s %s not in this plan. Run ldcli sync all to include them.\n", strings.Join(counts, " and "), verb)
+	}
+}
+
+// writeRepinNotes writes one line for each local variation that uses a tool or
+// a skill that a sync of tools or skills pushed. That sync does not write
+// variations, so the variation repins on the next sync of prompts.
+func writeRepinNotes(out io.Writer, plan Plan, outcomes []ResourceOutcome) {
+	if plan.Scope.Includes(syncdomain.KindVariation) {
+		return
+	}
+	console := syncconsole.New(out)
+	for index, outcome := range outcomes {
+		if outcome.Status != OutcomeSucceeded || !outcome.Action.changesServer() {
+			continue
+		}
+		for _, variation := range plan.Resources[index].usedBy {
+			_ = console.Printf("Note: Prompt %s uses %s %s. It repins on the next ldcli sync prompts or ldcli sync all.\n",
+				variation, outcome.ID.Kind, outcome.ID.LookupKey)
 		}
 	}
 }
