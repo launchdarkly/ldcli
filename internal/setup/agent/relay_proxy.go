@@ -24,8 +24,13 @@ const (
 	// that prefix, because its private auth headers use it.
 	RelayTokenHeader = "LD-CLI-Token"
 	// RelayPlaceholderKey is the SDK key that the CLI gives the AI SDK. The
-	// relay replaces it with the real key on the way to catfood.
+	// relay replaces it with the real key on the way to catfood. OpenCode
+	// also gets it as its Bedrock bearer token, which the proxy removes.
 	RelayPlaceholderKey = "ldcli-placeholder"
+	// BedrockRelayPath is the path of the model relay in gonfalon, under the
+	// user's base URI. It takes Bedrock Runtime requests and signs them with
+	// LaunchDarkly's AWS credentials.
+	BedrockRelayPath = "/internal/ldcli-setup-agent/bedrock"
 )
 
 // relayProxy is a loopback HTTP server between the AI SDK and the relay. It
@@ -34,14 +39,18 @@ const (
 // add a header to its trace exports, which is the other reason for the proxy.
 //
 // The proxy accepts requests only under a random path, so another process on
-// the machine, such as OpenCode, cannot use it to call the relay with the
-// user's token.
+// the machine cannot use it to call the relay with the user's token.
+// OpenCode gets a second random path for its model calls. That path reaches
+// only the model relay, so OpenCode cannot reach the SDK routes.
 type relayProxy struct {
 	server   *http.Server
 	listener net.Listener
 	// baseURL is the proxy address with the random path, for example
 	// http://127.0.0.1:52011/3f9a....
 	baseURL string
+	// bedrockURL is the address for OpenCode's Bedrock provider, with its own
+	// random path.
+	bedrockURL string
 }
 
 // startRelayProxy starts the proxy. relayBase is the user's base URI, for
@@ -51,7 +60,13 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 	if err != nil || target.Scheme == "" || target.Host == "" {
 		return nil, fmt.Errorf("the base URI %q is not a valid URL", relayBase)
 	}
+	modelTarget := *target
+	modelTarget.Path = strings.TrimSuffix(target.Path, RelayPath) + BedrockRelayPath
 	secret, err := randomHex(16)
+	if err != nil {
+		return nil, err
+	}
+	bedrockSecret, err := randomHex(16)
 	if err != nil {
 		return nil, err
 	}
@@ -61,14 +76,21 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 	}
 
 	prefix := "/" + secret
+	bedrockPrefix := "/" + bedrockSecret
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
-			rest := strings.TrimPrefix(r.In.URL.Path, prefix)
-			r.Out.URL.Scheme = target.Scheme
-			r.Out.URL.Host = target.Host
-			r.Out.URL.Path = target.Path + rest
+			to, rest := target, strings.TrimPrefix(r.In.URL.Path, prefix)
+			if hasPathPrefix(r.In.URL.Path, bedrockPrefix) {
+				// OpenCode sends the placeholder as a bearer token. The relay
+				// signs the request itself, so the token must not reach it.
+				to, rest = &modelTarget, strings.TrimPrefix(r.In.URL.Path, bedrockPrefix)
+				r.Out.Header.Del("Authorization")
+			}
+			r.Out.URL.Scheme = to.Scheme
+			r.Out.URL.Host = to.Host
+			r.Out.URL.Path = to.Path + rest
 			r.Out.URL.RawPath = ""
-			r.Out.Host = target.Host
+			r.Out.Host = to.Host
 			r.Out.Header.Set(RelayTokenHeader, accessToken)
 		},
 		// Send each part of a response as it arrives. The flag stream is a
@@ -79,7 +101,15 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 		ErrorLog: log.New(io.Discard, "", 0),
 	}
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != prefix && !strings.HasPrefix(r.URL.Path, prefix+"/") {
+		switch {
+		case hasPathPrefix(r.URL.Path, prefix):
+		case hasPathPrefix(r.URL.Path, bedrockPrefix):
+			// OpenCode calls only the Bedrock model routes, with POST.
+			if r.Method != http.MethodPost || !isModelPath(strings.TrimPrefix(r.URL.Path, bedrockPrefix)) {
+				http.NotFound(w, r)
+				return
+			}
+		default:
 			http.NotFound(w, r)
 			return
 		}
@@ -92,8 +122,9 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 			ReadHeaderTimeout: 10 * time.Second,
 			ErrorLog:          log.New(io.Discard, "", 0),
 		},
-		listener: listener,
-		baseURL:  "http://" + listener.Addr().String() + prefix,
+		listener:   listener,
+		baseURL:    "http://" + listener.Addr().String() + prefix,
+		bedrockURL: "http://" + listener.Addr().String() + bedrockPrefix,
 	}
 	go func() {
 		if err := p.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -101,6 +132,28 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 		}
 	}()
 	return p, nil
+}
+
+// isModelPath reports whether path is /model/{modelId}/{operation}, with no
+// empty, "." or ".." segment. The check stops a path such as
+// /model/../../sdk/... from leaving the model relay with the user's token.
+// URL.Path is already decoded, so an encoded "%2e%2e" is also refused.
+func isModelPath(path string) bool {
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(parts) != 3 || parts[0] != "model" {
+		return false
+	}
+	for _, p := range parts {
+		if p == "" || p == "." || p == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// hasPathPrefix reports whether path is prefix or is under it.
+func hasPathPrefix(path, prefix string) bool {
+	return path == prefix || strings.HasPrefix(path, prefix+"/")
 }
 
 // close stops the proxy and ends open connections, including the flag

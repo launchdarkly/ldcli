@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-ai-sdk/aiserver"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 )
 
 // MinOpenCodeVersion is the oldest OpenCode version that the adapter was
@@ -75,7 +76,10 @@ func (o *OpenCode) Check(ctx context.Context) error {
 }
 
 func (o *OpenCode) Start(ctx context.Context, task Task) (Run, error) {
-	if o.SDK != nil && o.SDK.Ready(ctx) == nil {
+	// A logged-in user's agent uses the model that LaunchDarkly runs. If that
+	// model is not available, setup stops, and it does not use the user's
+	// own OpenCode provider.
+	if o.SDK != nil {
 		return o.startWithSDK(ctx, task)
 	}
 	source := o.Config
@@ -86,11 +90,11 @@ func (o *OpenCode) Start(ctx context.Context, task Task) (Run, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not get the setup agent configuration: %w", err)
 	}
-	config, err := openCodeConfig()
+	config, err := openCodeConfig(nil)
 	if err != nil {
 		return nil, err
 	}
-	srv, err := startServer(ctx, o.binary(), task.Dir, config)
+	srv, err := startServer(ctx, o.binary(), task.Dir, config, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -117,11 +121,20 @@ func (o *OpenCode) Start(ctx context.Context, task Task) (Run, error) {
 // example because the config is off or is not in agent mode, the run uses the
 // built-in instructions and task.
 func (o *OpenCode) startWithSDK(ctx context.Context, task Task) (Run, error) {
-	config, err := openCodeConfig()
+	// OpenCode reads its configuration once, at start, so the model must be
+	// known before OpenCode starts.
+	// One context for the whole run: its key is random, and percentage
+	// targeting must pick the same variation for the model and the stream.
+	runCtx := setupContext(task)
+	model, err := o.SDK.managedModel(ctx, runCtx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get the LaunchDarkly model for the setup agent: %w", err)
+	}
+	config, err := openCodeConfig(model)
 	if err != nil {
 		return nil, err
 	}
-	srv, err := startServer(ctx, o.binary(), task.Dir, config)
+	srv, err := startServer(ctx, o.binary(), task.Dir, config, map[string]string{bedrockTokenEnv: RelayPlaceholderKey})
 	if err != nil {
 		return nil, err
 	}
@@ -135,14 +148,14 @@ func (o *OpenCode) startWithSDK(ctx context.Context, task Task) (Run, error) {
 	sdkCtx, cancel := context.WithCancel(context.Background())
 	run.cancelSDK = cancel
 	run.sdkDone = make(chan struct{})
-	go run.driveWithSDK(sdkCtx, o.SDK, task)
+	go run.driveWithSDK(sdkCtx, o.SDK, task, runCtx)
 	return run, nil
 }
 
 // driveWithSDK runs the AI SDK stream for the run. The run's own event channel
 // still gets every event, so the wizard shows the same progress as without the
 // SDK.
-func (r *openCodeRun) driveWithSDK(ctx context.Context, sdk *AIConfigSource, task Task) {
+func (r *openCodeRun) driveWithSDK(ctx context.Context, sdk *AIConfigSource, task Task, runCtx ldcontext.Context) {
 	if r.sdkDone != nil {
 		defer close(r.sdkDone)
 	}
@@ -167,7 +180,7 @@ func (r *openCodeRun) driveWithSDK(ctx context.Context, sdk *AIConfigSource, tas
 		Key:        sdk.key(),
 		Handlers:   []*aiserver.ProviderHandler{handler},
 		SkipJudges: true,
-	}).Stream(ctx, BuildFacts(task), setupContext(task)) {
+	}).Stream(ctx, BuildFacts(task), runCtx) {
 		if err == nil {
 			continue
 		}

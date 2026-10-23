@@ -137,7 +137,8 @@ func TestRun_ThroughTheAISDK(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	run.cancelSDK = cancel
 	run.sdkDone = make(chan struct{})
-	go run.driveWithSDK(ctx, sdk, Task{SDKID: "python-server-sdk", FlagKey: "my-new-flag"})
+	task := Task{SDKID: "python-server-sdk", FlagKey: "my-new-flag"}
+	go run.driveWithSDK(ctx, sdk, task, setupContext(task))
 
 	require.Eventually(t, func() bool {
 		oc.mu.Lock()

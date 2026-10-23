@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -208,6 +209,29 @@ func (s *AIConfigSource) Resolve(ctx context.Context, task Task) (Config, error)
 		return s.fallback(ctx, task)
 	}
 	return configFromAI(res.Config, task), nil
+}
+
+// managedModel resolves the model for a run that LaunchDarkly pays for. It
+// does not fall back: the config must be on and must name a Bedrock model.
+// runCtx must be the same context that the run's AI SDK stream uses, so that
+// percentage targeting picks the same variation in both evaluations.
+func (s *AIConfigSource) managedModel(ctx context.Context, runCtx ldcontext.Context) (*managedModel, error) {
+	if err := s.Ready(ctx); err != nil {
+		return nil, err
+	}
+	inspect := s.inspect
+	if inspect == nil {
+		inspect = aiserver.InspectConfig
+	}
+	res := inspect(ctx, s.key(), runCtx)
+	if !res.Enabled || res.Config == nil {
+		return nil, errors.New("the setup agent configuration is off")
+	}
+	provider, modelID := openCodeModel(*res.Config)
+	if provider != bedrockProviderID {
+		return nil, fmt.Errorf("the setup agent configuration must use a Bedrock model, not %q", res.Config.Provider.Name+"/"+res.Config.Model.Name)
+	}
+	return &managedModel{Endpoint: s.proxy.bedrockURL, ModelID: modelID}, nil
 }
 
 func (s *AIConfigSource) fallback(ctx context.Context, task Task) (Config, error) {

@@ -36,7 +36,9 @@ type server struct {
 // startServer starts OpenCode in dir and waits until its API answers. The
 // server listens on the loopback interface only, and it requires a password
 // that is random for each run.
-func startServer(ctx context.Context, binary, dir string, config []byte) (*server, error) {
+// env holds extra variables for OpenCode. If it sets the Bedrock bearer
+// token, the user's own AWS variables do not reach OpenCode.
+func startServer(ctx context.Context, binary, dir string, config []byte, env map[string]string) (*server, error) {
 	port, err := freePort()
 	if err != nil {
 		return nil, err
@@ -53,6 +55,13 @@ func startServer(ctx context.Context, binary, dir string, config []byte) (*serve
 		"OPENCODE_SERVER_USERNAME": serverUsername,
 		"OPENCODE_CONFIG_CONTENT":  string(config),
 	}
+	for name, value := range env {
+		set[name] = value
+	}
+	parent := os.Environ()
+	if _, ok := env[bedrockTokenEnv]; ok {
+		parent = withoutPrefix(parent, "AWS_")
+	}
 	box, err := sandboxCommand(binary, []string{"serve", "--hostname", "127.0.0.1", "--port", strconv.Itoa(port)}, dir, os.Environ())
 	if err != nil {
 		return nil, err
@@ -68,7 +77,7 @@ func startServer(ctx context.Context, binary, dir string, config []byte) (*serve
 	procCtx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(procCtx, box.Name, box.Args...)
 	cmd.Dir = dir
-	cmd.Env = childEnv(os.Environ(), set)
+	cmd.Env = childEnv(parent, set)
 	// Ask OpenCode to stop so it can end its own child processes, and kill it if
 	// it does not stop in time.
 	cmd.Cancel = func() error {
@@ -186,4 +195,16 @@ func (t *tailBuffer) String() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return strings.TrimSpace(string(t.buf))
+}
+
+// withoutPrefix returns env without the variables whose names start with
+// prefix.
+func withoutPrefix(env []string, prefix string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if !strings.HasPrefix(kv, prefix) {
+			out = append(out, kv)
+		}
+	}
+	return out
 }

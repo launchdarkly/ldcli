@@ -70,7 +70,7 @@ func TestChildEnv_RemovesLDVariablesAndSetsOwn(t *testing.T) {
 }
 
 func TestOpenCodeConfig_RunsCommandsWithoutApprovals(t *testing.T) {
-	data, err := openCodeConfig()
+	data, err := openCodeConfig(nil)
 	require.NoError(t, err)
 
 	var cfg struct {
@@ -452,7 +452,7 @@ func TestBuildPrompt_HasTheSameFactsAsBuildFacts(t *testing.T) {
 }
 
 func TestOpenCodeConfig_ReadAndEditRefuseEnvFiles(t *testing.T) {
-	data, err := openCodeConfig()
+	data, err := openCodeConfig(nil)
 	require.NoError(t, err)
 	var cfg struct {
 		Permission map[string]json.RawMessage `json:"permission"`
