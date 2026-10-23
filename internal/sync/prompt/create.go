@@ -57,7 +57,9 @@ func (runner Runner) runCreate(options Options, workspace syncWorkspace, action 
 	if created, err = input.Attachment(id); err != nil {
 		return err
 	}
-	return runner.createAttachment(options, workspace, client, syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: created})
+	return runner.createAttachment(options, workspace, client, syncdomain.SyncedAttachment{
+		ProjectKey: id.ProjectKey, Attachment: created,
+	}, input.Name != nil)
 }
 
 // adoptAttachment starts syncing a tool or skill that LaunchDarkly already
@@ -72,7 +74,7 @@ func (runner Runner) adoptAttachment(
 ) error {
 	if !action.Create.Matches(created, existing) {
 		return fmt.Errorf("%s already exists in LaunchDarkly with different content, and add does not change it. "+
-			"To sync the LaunchDarkly version, run %s, then edit the file and run ldcli sync %ss or ldcli sync all.", id.Label(), addCommand(id), id.Kind)
+			"To sync the LaunchDarkly version, run %s, then edit the file and run ldcli sync %ss or ldcli sync all.", id.Label(), syncbootstrap.AddCommand(id), id.Kind)
 	}
 	adopt := AddAction{Filter: syncdomain.Filter{Project: id.ProjectKey, Keys: []string{id.LookupKey}}, DryRun: action.DryRun}
 	if err := runner.runAdd(options, workspace, adopt); err != nil {
@@ -94,18 +96,19 @@ func (runner Runner) adoptAttachment(
 // createAttachment creates a tool or skill that LaunchDarkly does not have. It
 // plans the create in memory and asks before it writes the file, so that a
 // cancel leaves nothing and a watch cannot create the resource before the
-// answer.
+// answer. named is true when the user chose the name of a skill.
 func (runner Runner) createAttachment(
 	options Options,
 	workspace syncWorkspace,
 	client syncapi.Client,
 	created syncdomain.SyncedAttachment,
+	named bool,
 ) error {
 	path, err := synclocal.AttachmentPath(created.ID())
 	if err != nil {
 		return err
 	}
-	reviewed := reviewedCreate(options.Scope, created)
+	reviewed := reviewedCreate(options.Scope, created, named)
 	if options.dryRun() {
 		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan, options.Diff); err != nil {
 			return err
@@ -130,9 +133,15 @@ func (runner Runner) createAttachment(
 
 // reviewedCreate is the state that the user reviews before a create: the
 // create row of the new resource, with no file yet.
-func reviewedCreate(scope syncdomain.Scope, created syncdomain.SyncedAttachment) workspaceState {
+func reviewedCreate(scope syncdomain.Scope, created syncdomain.SyncedAttachment, named bool) workspaceState {
 	id := created.ID()
 	row := planAttachment(id, &created.Attachment, nil, "", false)
+	if id.Kind == syncdomain.KindSkill {
+		row.nameSource = nameFromKey
+		if named {
+			row.nameSource = nameFromFlag
+		}
+	}
 	return workspaceState{projectKeys: []string{id.ProjectKey}, plan: Plan{Scope: scope, Resources: []PlannedResource{row}}}
 }
 
@@ -167,6 +176,9 @@ func (runner Runner) applyCreate(
 	if err != nil {
 		return remove(err)
 	}
+	// The new file has the name of the skill, but only the reviewed row knows
+	// where the name came from.
+	current.plan.Resources[0].nameSource = reviewed.plan.Resources[0].nameSource
 
 	outcomes, err := runner.applyPlan(options, workspace, client, current, nil)
 	switch {

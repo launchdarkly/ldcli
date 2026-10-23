@@ -8,6 +8,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
@@ -551,7 +552,7 @@ func checkFilter(scope syncdomain.Scope, filter syncdomain.Filter, synced []Reso
 	}
 	for _, id := range filter.IDs(scope.KeyKind()) {
 		if !slices.Contains(synced, id) {
-			return fmt.Errorf("%s is not synced in this repository. To start syncing it, run %s.", id.Label(), addCommand(id))
+			return fmt.Errorf("%s is not synced in this repository. To start syncing it, run %s.", id.Label(), syncbootstrap.AddCommand(id))
 		}
 	}
 	if !slices.ContainsFunc(synced, filter.Includes) {
@@ -560,14 +561,6 @@ func checkFilter(scope syncdomain.Scope, filter syncdomain.Filter, synced []Reso
 			filter.ConfigKey, filter.Project, filter.Project, filter.ConfigKey)
 	}
 	return nil
-}
-
-// addCommand is the command that starts syncing one resource.
-func addCommand(id ResourceID) string {
-	if configKey, variationKey, err := id.VariationKeys(); err == nil {
-		return fmt.Sprintf("ldcli sync prompts add --project %s --config-key %s --key %s", id.ProjectKey, configKey, variationKey)
-	}
-	return fmt.Sprintf("ldcli sync %ss add --project %s --key %s", id.Kind, id.ProjectKey, id.LookupKey)
 }
 
 // compileWorkspace reads the local variations. A workspace without a managed

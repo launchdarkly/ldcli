@@ -61,11 +61,12 @@ func TestCreateMakesAToolFromFlags(t *testing.T) {
 
 func TestCreateMakesASkillFromFlags(t *testing.T) {
 	tests := map[string]struct {
-		name     *string
-		wantName string
+		name       *string
+		wantName   string
+		wantSource string
 	}{
-		"name from the key": {wantName: "Incident triage"},
-		"name from --name":  {name: pointer("Triage"), wantName: "Triage"},
+		"name from the key": {wantName: "Incident triage", wantSource: "key"},
+		"name from --name":  {name: pointer("Triage"), wantName: "Triage", wantSource: "flag"},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -79,8 +80,9 @@ func TestCreateMakesASkillFromFlags(t *testing.T) {
 			stdout, notes, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopeSkills, Action: action, Yes: true})
 
 			require.NoError(t, err)
-			assert.JSONEq(t, `{"resources": [{"resourceKind": "skill", "projectKey": "production",
-				"lookupKey": "incident-triage", "action": "create_server", "status": "succeeded", "version": 1}]}`, stdout)
+			assert.JSONEq(t, fmt.Sprintf(`{"resources": [{"resourceKind": "skill", "projectKey": "production",
+				"lookupKey": "incident-triage", "action": "create_server", "status": "succeeded", "version": 1,
+				"create": {"name": %q, "nameSource": %q}}]}`, test.wantName, test.wantSource), stdout)
 			assert.Equal(t, "Note: Created .launchdarkly/production/skills/incident-triage.md.\n", notes)
 			assert.Equal(t, "---\nkey: incident-triage\ndescription: Sort incidents\nname: "+test.wantName+"\nupsert: true\n---\n\n"+
 				"Sort incidents by severity.\n", readLocalFile(t, root, "skills/incident-triage.md"))
@@ -91,6 +93,31 @@ func TestCreateMakesASkillFromFlags(t *testing.T) {
 			stdout, err = runSyncAction(t, root, api, syncdomain.ScopeSkills, syncprompt.SyncAction{DryRun: true}, false)
 			require.NoError(t, err)
 			assert.Equal(t, []string{"skill incident-triage in_sync"}, planRows(t, stdout))
+		})
+	}
+}
+
+// A sync that creates a skill from a hand-written file reports the name in
+// the same way as add.
+func TestSyncReportsTheNameOfASkillThatItCreatesFromAFile(t *testing.T) {
+	tests := map[string]struct {
+		frontMatter string
+		want        string
+	}{
+		"name in the file":  {frontMatter: "name: Human handoff\n", want: `{"name": "Human handoff", "nameSource": "frontMatter"}`},
+		"name from the key": {want: `{"name": "Handoff", "nameSource": "key"}`},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			writeLocalFile(t, root, "skills/handoff.md",
+				"---\nkey: handoff\ndescription: Hand off\n"+test.frontMatter+"upsert: true\n---\n\nAsk for a person.\n")
+
+			stdout, err := runSyncAction(t, root, &directAPI{}, syncdomain.ScopeSkills, syncprompt.SyncAction{}, true)
+
+			require.NoError(t, err)
+			assert.JSONEq(t, `{"resources": [{"resourceKind": "skill", "projectKey": "production", "lookupKey": "handoff",
+				"action": "create_server", "status": "succeeded", "version": 1, "create": `+test.want+`}]}`, stdout)
 		})
 	}
 }
@@ -209,7 +236,8 @@ func TestAddWithoutAContentFlagNeverCreates(t *testing.T) {
 
 	_, _, err := runScoped(t, root, api, syncprompt.Options{Scope: syncdomain.ScopeTools, Action: action, Yes: true})
 
-	require.EqualError(t, err, "tool production/refund does not exist in LaunchDarkly.")
+	require.EqualError(t, err, "tool production/refund does not exist in LaunchDarkly. "+
+		"To create it, run ldcli sync tools add --project production --key refund with --json-schema, and optionally --description.")
 	requireOnlyReads(t, api.requests)
 	assert.NoDirExists(t, filepath.Join(root, syncdomain.RootDir))
 }

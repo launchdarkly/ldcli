@@ -62,7 +62,10 @@ func TestRunRefusesAToolBeforeAnyWrite(t *testing.T) {
 		launchDarkly []syncdomain.Attachment
 		want         string
 	}{
-		"missing in LaunchDarkly": {want: "tool project/search does not exist in LaunchDarkly."},
+		"missing in LaunchDarkly": {
+			want: "tool project/search does not exist in LaunchDarkly. " +
+				"To create it, run ldcli sync tools add --project project --key search with --json-schema, and optionally --description.",
+		},
 		"already synced": {
 			local: true, launchDarkly: []syncdomain.Attachment{search},
 			want: "tool project/search is already synced. Edit .launchdarkly/project/tools/search.json and run ldcli sync tools or ldcli sync all.",
@@ -103,6 +106,18 @@ func TestRunRefusesAToolBeforeAnyWrite(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunNamesTheCreateFlagsOfAMissingSkill(t *testing.T) {
+	id := syncdomain.ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "handoff"}
+
+	err := Run(Options{
+		Kind: syncdomain.KindSkill, Attachments: &fakeAttachments{}, Store: synclocal.NewStore(t.TempDir()),
+		Baselines: &memoryManifestStore{manifest: syncmanifest.New()}, Output: &bytes.Buffer{}, Selections: []syncdomain.ResourceID{id},
+	})
+
+	require.EqualError(t, err, "skill project/handoff does not exist in LaunchDarkly. "+
+		"To create it, run ldcli sync skills add --project project --key handoff with --content, and optionally --name and --description.")
 }
 
 func TestRunPreviewsToolsAndSkillsInADryRun(t *testing.T) {

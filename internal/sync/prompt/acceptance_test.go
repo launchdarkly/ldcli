@@ -545,8 +545,9 @@ func TestPromptExplainsUpsertForMissingTool(t *testing.T) {
 
 	output, _, err := runPrompt(t, root, api, "--yes")
 
-	require.ErrorContains(t, err, `add "upsert": true`)
-	assert.Contains(t, output, `add "upsert": true`)
+	fix := `To create it, add "upsert": true to its file and run ldcli sync tools --project production --key my-second-tool.`
+	require.ErrorContains(t, err, fix)
+	assert.Contains(t, output, fix)
 	assert.NotContains(t, err.Error(), "unknown error")
 }
 
