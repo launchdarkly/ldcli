@@ -18,6 +18,7 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
+	synccreate "github.com/launchdarkly/ldcli/internal/sync/create"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
@@ -213,11 +214,11 @@ func promptForSelection(options Options, prompt linkedPrompt) (Selection, string
 	}
 	if name == "" {
 		name = syncdomain.DisplayName(key)
-		fields = append(fields, huh.NewInput().Title("Variation name").Value(&name).Validate(requiredValue("variation name")))
+		fields = append(fields, huh.NewInput().Title("Variation name").Value(&name).Validate(synccreate.RequiredValue("variation name")))
 	}
 	if len(prompt.parsed.Messages) == 0 {
 		fields = append(fields, huh.NewText().Title("Prompt content").Lines(8).Value(&content).
-			Validate(requiredValue("prompt content")))
+			Validate(synccreate.RequiredValue("prompt content")))
 	}
 	if len(fields) != 0 {
 		if canceled, err := syncinteractive.RunForm(options.Input, options.Output, fields...); err != nil || canceled {
@@ -354,14 +355,4 @@ func validateDerivedKey(key string) error {
 		return fmt.Errorf("linked filename produces invalid variation key %q", key)
 	}
 	return nil
-}
-
-// requiredValue returns a form validator that rejects a blank value.
-func requiredValue(label string) func(string) error {
-	return func(value string) error {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%s is required", label)
-		}
-		return nil
-	}
 }
