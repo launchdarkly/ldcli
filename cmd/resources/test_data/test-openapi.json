@@ -479,6 +479,29 @@
         "tags": [
           "IP Allowlist (beta)"
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "singleAddress": {
+                  "summary": "Allow one address",
+                  "value": {
+                    "ipAddress": "203.0.113.7",
+                    "description": "Office"
+                  }
+                },
+                "cidrRange": {
+                  "summary": "Allow a CIDR range",
+                  "value": {
+                    "ipAddress": "198.51.100.0/24",
+                    "description": "VPN"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
         "summary": "Create IP Allowlist Entry",
         "description": "Add an entry to the IP allowlist.",
         "operationId": "createIpAllowlistEntry"
