@@ -80,13 +80,14 @@ func (action AddAction) validate(scope syncdomain.Scope) error {
 	if action.Create == nil {
 		return nil
 	}
-	if !syncdomain.AttachmentKind(kind).Valid() {
-		return errors.New("add creates only tools and skills")
+	if len(action.Resources) != 0 {
+		return errors.New("a variation that add creates comes from --project, --config-key, and --key, " +
+			"not from project-key/config-key/variation-key arguments")
 	}
-	if len(selections(action.Resources, action.Filter, kind)) > 1 {
+	if len(action.Filter.Keys) > 1 {
 		return fmt.Errorf("add creates one %s at a time. Pass at most one --key.", kind)
 	}
-	return action.Create.Check(syncdomain.AttachmentKind(kind))
+	return action.Create.Check(kind)
 }
 
 func (action DetachAction) validate(scope syncdomain.Scope) error {

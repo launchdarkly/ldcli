@@ -3,6 +3,7 @@ package prompt
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -12,18 +13,20 @@ import (
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
-// runCreate creates one tool or skill from the create flags of add. Add never
+// runCreate creates one resource from the create flags of add. Add never
 // changes a resource that LaunchDarkly has. It starts syncing one that has the
 // content of the flags, and refuses one with other content.
 func (runner Runner) runCreate(options Options, workspace syncWorkspace, action AddAction) error {
-	client := runner.api(options)
-	questions := synccreate.Questions{
-		// The forms write to the output stream, so check that stream.
-		Allowed:  !options.NoInput && runner.isTerminal(options.Input, options.Output),
-		Input:    options.Input,
-		Output:   options.Output,
-		Projects: client,
+	if options.Scope.KeyKind() == syncdomain.KindVariation {
+		return runner.createVariation(options, workspace, action)
 	}
+	return runner.createAttachment(options, workspace, action)
+}
+
+// createAttachment creates a tool or a skill.
+func (runner Runner) createAttachment(options Options, workspace syncWorkspace, action AddAction) error {
+	client := runner.api(options)
+	questions := runner.createQuestions(options, client)
 	var key string
 	if len(action.Filter.Keys) == 1 {
 		key = action.Filter.Keys[0]
@@ -45,7 +48,13 @@ func (runner Runner) runCreate(options Options, workspace syncWorkspace, action 
 	existing, err := client.ReadAttachment(id.ProjectKey, created.Kind, id.LookupKey)
 	switch {
 	case err == nil:
-		return runner.adoptAttachment(options, workspace, action, id, created, existing)
+		if err := runner.adopt(options, workspace, action, id, input.Matches(created, existing)); err != nil {
+			return err
+		}
+		if name := input.Name; name != nil && existing.Skill != nil && *name != existing.Skill.Name {
+			_ = syncconsole.New(options.ErrorOutput).Printf("Note: %s keeps its LaunchDarkly name %q.\n", id.Label(), existing.Skill.Name)
+		}
+		return nil
 	case !syncapi.IsNotFound(err):
 		return err
 	}
@@ -57,58 +66,117 @@ func (runner Runner) runCreate(options Options, workspace syncWorkspace, action 
 	if created, err = input.Attachment(id); err != nil {
 		return err
 	}
-	return runner.createAttachment(options, workspace, client, syncdomain.SyncedAttachment{
-		ProjectKey: id.ProjectKey, Attachment: created,
-	}, input.Name != nil)
+	file := syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: created}
+	row := planAttachment(id, &file.Attachment, nil, "", false)
+	if id.Kind == syncdomain.KindSkill {
+		row.nameSource = nameFromKey
+		if input.Name != nil {
+			row.nameSource = nameFromFlag
+		}
+	}
+	return runner.createResource(options, workspace, client, row, func() (synclocal.Creation, error) {
+		paths, err := workspace.local.ReplaceAttachments([]syncdomain.SyncedAttachment{file})
+		return synclocal.Creation{CreatedPaths: paths}, err
+	})
 }
 
-// adoptAttachment starts syncing a tool or skill that LaunchDarkly already
-// has, with the add of a resource that exists. It refuses when a flag that the
-// user passed differs from LaunchDarkly.
-func (runner Runner) adoptAttachment(
-	options Options,
-	workspace syncWorkspace,
-	action AddAction,
-	id ResourceID,
-	created, existing syncdomain.Attachment,
-) error {
-	if !action.Create.Matches(created, existing) {
-		return fmt.Errorf("%s already exists in LaunchDarkly with different content, and add does not change it. "+
-			"To sync the LaunchDarkly version, run %s, then edit the file and run ldcli sync %ss or ldcli sync all.", id.Label(), syncbootstrap.AddCommand(id), id.Kind)
+// createVariation creates a prompt variation in a config that exists.
+func (runner Runner) createVariation(options Options, workspace syncWorkspace, action AddAction) error {
+	client := runner.api(options)
+	questions := runner.createQuestions(options, client)
+	input := *action.Create
+	id, canceled, err := input.VariationTarget(client, action.Filter, questions)
+	if err != nil || canceled {
+		return err
 	}
-	adopt := AddAction{Filter: syncdomain.Filter{Project: id.ProjectKey, Keys: []string{id.LookupKey}}, DryRun: action.DryRun}
-	if err := runner.runAdd(options, workspace, adopt); err != nil {
+	if err := syncbootstrap.CheckNotSynced(workspace.local, []ResourceID{id}); err != nil {
 		return err
 	}
 
-	notes := syncconsole.New(options.ErrorOutput)
+	configKey, variationKey, err := id.VariationKeys()
+	if err != nil {
+		return err
+	}
+	config, err := client.Config(id.ProjectKey, configKey)
+	if err != nil {
+		return err
+	}
+	if index := slices.IndexFunc(config.Variations, func(existing syncdomain.Variation) bool { return existing.Key == variationKey }); index >= 0 {
+		matches, err := input.MatchesVariation(id, config.Variations[index])
+		if err != nil {
+			return err
+		}
+		return runner.adopt(options, workspace, action, id, matches)
+	}
+	if slices.Contains(config.ArchivedVariationKeys, variationKey) {
+		return fmt.Errorf("%s is archived in LaunchDarkly, and a new variation cannot use its key. Pass another --key.", id.Label())
+	}
+
+	variation, canceled, err := input.Variation(client, id, config, questions)
+	if err != nil || canceled {
+		return err
+	}
+	file := syncdomain.SyncedResource{
+		Kind: syncdomain.KindVariation, ProjectKey: id.ProjectKey, LookupKey: id.LookupKey, Upsert: true, Variation: variation,
+	}
+	row := planResource(id, &file, ServerResource{ConfigMode: config.Mode}, "", false)
+	return runner.createResource(options, workspace, client, row, func() (synclocal.Creation, error) {
+		return workspace.local.Add([]synclocal.VariationFile{{
+			ProjectKey: id.ProjectKey, ConfigKey: configKey, Upsert: true, Variation: variation,
+		}})
+	})
+}
+
+// createQuestions are the questions of a create. The forms write to the
+// output stream, so the check for a terminal uses that stream.
+func (runner Runner) createQuestions(options Options, client syncapi.Client) synccreate.Questions {
+	return synccreate.Questions{
+		Allowed:  !options.NoInput && runner.isTerminal(options.Input, options.Output),
+		Input:    options.Input,
+		Output:   options.Output,
+		Projects: client,
+	}
+}
+
+// adopt starts syncing a resource that LaunchDarkly already has, with the add
+// of a resource that exists. matches is false when a flag that the user passed
+// differs from LaunchDarkly, and then adopt refuses.
+func (runner Runner) adopt(options Options, workspace syncWorkspace, action AddAction, id ResourceID, matches bool) error {
+	if !matches {
+		return fmt.Errorf("%s already exists in LaunchDarkly with different content, and add does not change it. "+
+			"To sync the LaunchDarkly version, run %s, then edit the file and run %s or ldcli sync all.",
+			id.Label(), syncbootstrap.AddCommand(id), syncbootstrap.SyncCommand(id.Kind))
+	}
+	if err := runner.runAdd(options, workspace, AddAction{Filter: resourceFilter(id), DryRun: action.DryRun}); err != nil {
+		return err
+	}
+
 	started := "started"
 	if action.DryRun {
 		started = "will start"
 	}
-	_ = notes.Printf("Note: %s already exists in LaunchDarkly with this content, so add %s syncing it.\n", id.Label(), started)
-	if name := action.Create.Name; name != nil && existing.Skill != nil && *name != existing.Skill.Name {
-		_ = notes.Printf("Note: %s keeps its LaunchDarkly name %q.\n", id.Label(), existing.Skill.Name)
-	}
+	_ = syncconsole.New(options.ErrorOutput).Printf(
+		"Note: %s already exists in LaunchDarkly with this content, so add %s syncing it.\n", id.Label(), started,
+	)
 	return nil
 }
 
-// createAttachment creates a tool or skill that LaunchDarkly does not have. It
-// plans the create in memory and asks before it writes the file, so that a
-// cancel leaves nothing and a watch cannot create the resource before the
-// answer. named is true when the user chose the name of a skill.
-func (runner Runner) createAttachment(
+// createResource creates a resource that LaunchDarkly does not have. row is
+// the create row of the resource, and write writes its file. It plans the
+// create in memory and asks before it writes the file, so that a cancel
+// leaves nothing and a watch cannot create the resource before the answer.
+func (runner Runner) createResource(
 	options Options,
 	workspace syncWorkspace,
 	client syncapi.Client,
-	created syncdomain.SyncedAttachment,
-	named bool,
+	row PlannedResource,
+	write func() (synclocal.Creation, error),
 ) error {
-	path, err := synclocal.ResourcePath(created.ID())
+	path, err := synclocal.ResourcePath(row.ID)
 	if err != nil {
 		return err
 	}
-	reviewed := reviewedCreate(options.Scope, created, named)
+	reviewed := workspaceState{projectKeys: []string{row.ID.ProjectKey}, plan: Plan{Scope: options.Scope, Resources: []PlannedResource{row}}}
 	if options.dryRun() {
 		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan, options.Diff); err != nil {
 			return err
@@ -121,28 +189,14 @@ func (runner Runner) createAttachment(
 	}
 
 	// A file can appear while the question waits.
-	if err := syncbootstrap.CheckNotSynced(workspace.local, []ResourceID{created.ID()}); err != nil {
+	if err := syncbootstrap.CheckNotSynced(workspace.local, []ResourceID{row.ID}); err != nil {
 		return err
 	}
-	written, err := workspace.local.ReplaceAttachments([]syncdomain.SyncedAttachment{created})
+	creation, err := write()
 	if err != nil {
 		return err
 	}
-	return runner.applyCreate(options, workspace, client, reviewed, path, synclocal.Creation{CreatedPaths: written})
-}
-
-// reviewedCreate is the state that the user reviews before a create: the
-// create row of the new resource, with no file yet.
-func reviewedCreate(scope syncdomain.Scope, created syncdomain.SyncedAttachment, named bool) workspaceState {
-	id := created.ID()
-	row := planAttachment(id, &created.Attachment, nil, "", false)
-	if id.Kind == syncdomain.KindSkill {
-		row.nameSource = nameFromKey
-		if named {
-			row.nameSource = nameFromFlag
-		}
-	}
-	return workspaceState{projectKeys: []string{id.ProjectKey}, plan: Plan{Scope: scope, Resources: []PlannedResource{row}}}
+	return runner.applyCreate(options, workspace, client, reviewed, path, creation)
 }
 
 // applyCreate applies the reviewed create after it wrote the new file at path.
@@ -169,14 +223,14 @@ func (runner Runner) applyCreate(
 	}
 
 	id := reviewed.plan.Resources[0].ID
-	current, err := workspace.loadState(client, options.Scope, syncdomain.Filter{Project: id.ProjectKey, Keys: []string{id.LookupKey}})
+	current, err := workspace.loadState(client, options.Scope, resourceFilter(id))
 	if err == nil {
 		err = checkUnchanged(options, reviewed, current)
 	}
 	if err != nil {
 		return remove(err)
 	}
-	// The new file has the name of the skill, but only the reviewed row knows
+	// The new file of a skill has its name, but only the reviewed row knows
 	// where the name came from.
 	current.plan.Resources[0].nameSource = reviewed.plan.Resources[0].nameSource
 
@@ -188,4 +242,12 @@ func (runner Runner) applyCreate(
 		return remove(err)
 	}
 	return err
+}
+
+// resourceFilter is the filter that keeps only one resource.
+func resourceFilter(id ResourceID) syncdomain.Filter {
+	if configKey, variationKey, err := id.VariationKeys(); err == nil {
+		return syncdomain.Filter{Project: id.ProjectKey, ConfigKey: configKey, Keys: []string{variationKey}}
+	}
+	return syncdomain.Filter{Project: id.ProjectKey, Keys: []string{id.LookupKey}}
 }

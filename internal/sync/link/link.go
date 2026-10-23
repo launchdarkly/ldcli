@@ -217,14 +217,7 @@ func addMissingPromptContent(
 // linked file, and creates the variation file. If the variation file fails,
 // it restores the linked file.
 func createLinkedPrompt(options Options, selection Selection, prompt linkedPrompt) (string, error) {
-	variation := syncdomain.Variation{
-		Mode:               selection.Config.Mode,
-		Key:                selection.Key,
-		Name:               selection.Name,
-		ModelConfigKey:     selection.ModelConfig.Key,
-		ModelConfigVersion: selection.ModelConfig.Version,
-		Model:              selection.ModelConfig.VariationModel(),
-	}
+	variation := synccreate.NewVariation(selection.Config, selection.Key, selection.Name, selection.ModelConfig)
 	if err := syncreference.ApplyToVariation(prompt.reference.Format, prompt.content, &variation); err != nil {
 		return "", err
 	}
