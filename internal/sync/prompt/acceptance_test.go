@@ -881,6 +881,33 @@ func TestPromptNewToolReferenceWithTwoChangesIsAConflict(t *testing.T) {
 	requireOnlyReads(t, api.requests)
 }
 
+// A conflict choice covers only the conflicted variation. A tool that only its
+// local version newly uses gets no row, so a choice of LaunchDarkly, which
+// does not use the tool, does not pull the tool over its local edit.
+func TestPromptConflictChoiceDoesNotPullAToolThatOnlyTheLocalVersionUses(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeManifest(t, root, baseline)
+	trackTool(t, root, searchTool("old"))
+	local := variation("Local")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{toolAttachment(searchTool("edited"), 0)}
+	writeVariation(t, root, local, true)
+	server := variation("LaunchDarkly")
+	api := &directAPI{variation: &server, tools: map[string]versionedTool{"search": {Tool: searchTool("old"), Version: 1}}}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.ErrorContains(t, err, "cannot sync conflicted resource variation production/support/default")
+	assert.Equal(t, []string{"variation support/default conflict"}, planRows(t, stdout))
+
+	stdout, _, err = runPrompt(t, root, api, "--conflict", "launchdarkly", "--yes", "--no-input", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default update_local"}, planRows(t, stdout), "the choice does not pull the tool")
+	assert.Equal(t, "old", *api.tools["search"].Description)
+	assert.Zero(t, countRequests(api.requests, "PATCH", "/ai-tools/search"))
+}
+
 // A newly referenced tool whose two sides are equal cannot be overwritten, so
 // the plan has no row for it.
 func TestPromptNewToolReferenceWithEqualSidesPlansNoToolRow(t *testing.T) {
