@@ -264,6 +264,10 @@ func localChanges(
 // before the next archive when ctx ends.
 func archiveVariations(ctx context.Context, archiver Archiver, selected []syncdomain.ResourceID) error {
 	for _, resource := range selected {
+		// LaunchDarkly keeps a detached tool or skill.
+		if resource.Kind != syncdomain.KindVariation {
+			continue
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -330,9 +334,10 @@ func loadResources(
 }
 
 // detachResources removes the selected resources from the baseline, and then
-// deletes their local files. Every other entry stays, also the tools and
-// skills that only the detached variations used, because they sync on their
-// own. If the delete fails, it restores the baseline.
+// deletes their local files in one transaction. Every other entry stays, also
+// the tools and skills that only the detached variations used, because they
+// sync on their own. If the delete fails, it keeps every file and restores the
+// baseline.
 func detachResources(options Options, original syncmanifest.Baseline, selected []syncdomain.ResourceID) error {
 	next := original.Lock.Clone()
 	for _, id := range selected {
@@ -347,7 +352,10 @@ func detachResources(options Options, original syncmanifest.Baseline, selected [
 		return errors.Join(cause, restoreErr)
 	}
 
-	var deletions []synclocal.VariationDeletion
+	deletions, err := localAttachments(options.RepositoryRoot, selected)
+	if err != nil {
+		return restoreBaseline(err)
+	}
 	for _, id := range selected {
 		configKey, variationKey, err := id.VariationKeys()
 		if err != nil {
@@ -358,19 +366,10 @@ func detachResources(options Options, original syncmanifest.Baseline, selected [
 			return restoreBaseline(err)
 		}
 		if exists {
-			deletions = append(deletions, synclocal.VariationDeletion{
-				ProjectKey: id.ProjectKey, ConfigKey: configKey, VariationKey: variationKey,
-			})
+			deletions = append(deletions, id)
 		}
 	}
-	attachments, err := localAttachments(options.RepositoryRoot, selected)
-	if err != nil {
-		return restoreBaseline(err)
-	}
-	if _, err := options.Store.DeleteVariations(deletions); err != nil {
-		return restoreBaseline(err)
-	}
-	if _, err := options.Store.DeleteAttachments(attachments); err != nil {
+	if _, err := options.Store.DeleteResources(deletions); err != nil {
 		return restoreBaseline(err)
 	}
 	return nil

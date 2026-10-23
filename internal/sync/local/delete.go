@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
 // stagedDeletion is one file in a delete transaction. The file first moves to
@@ -20,6 +22,20 @@ func (store Store) DeleteVariations(deletions []VariationDeletion) ([]string, er
 	paths := make([]string, 0, len(deletions))
 	for _, deletion := range deletions {
 		relativePath, err := variationPath(deletion.ProjectKey, deletion.ConfigKey, deletion.VariationKey)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, relativePath)
+	}
+	return store.deleteFiles(paths)
+}
+
+// DeleteResources deletes the files of variations, tools, and skills in one
+// transaction, so that a failure deletes none of them. It returns their paths.
+func (store Store) DeleteResources(ids []syncdomain.ResourceID) ([]string, error) {
+	paths := make([]string, 0, len(ids))
+	for _, id := range ids {
+		relativePath, err := resourcePath(id)
 		if err != nil {
 			return nil, err
 		}

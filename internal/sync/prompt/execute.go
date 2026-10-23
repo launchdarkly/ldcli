@@ -286,7 +286,7 @@ func applyAttachmentChange(
 		}); index >= 0 {
 			return 0, fmt.Errorf("%s still uses it", variations[index].ID().Label())
 		}
-		if _, err := localStore.DeleteAttachments([]syncdomain.ResourceID{resource.ID}); err != nil {
+		if _, err := localStore.DeleteResources([]syncdomain.ResourceID{resource.ID}); err != nil {
 			return 0, err
 		}
 		return 0, verifyLocalResult(repositoryRoot, resource)

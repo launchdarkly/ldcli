@@ -241,24 +241,26 @@ func TestReplaceVariationsLeavesAttachmentUnchangedWhenPreflightFails(t *testing
 	assert.Equal(t, oldDescription, *attachment.Tool.Description)
 }
 
-func TestDeleteAttachmentsDeletesToolAndSkillFilesByID(t *testing.T) {
+func TestDeleteResourcesDeletesTheFilesOfEveryKindByID(t *testing.T) {
 	root := t.TempDir()
 	store := NewStore(root)
 	toolPath := filepath.Join(root, ".launchdarkly", "project", "tools", "search.json")
 	skillPath := filepath.Join(root, ".launchdarkly", "project", "skills", "support.md")
-	for _, file := range []string{toolPath, skillPath} {
+	variationPath := filepath.Join(root, ".launchdarkly", "project", "configs", "config", "default.prompt.md")
+	for _, file := range []string{toolPath, skillPath, variationPath} {
 		require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
 		require.NoError(t, os.WriteFile(file, []byte("content\n"), 0o644))
 	}
 
-	deleted, err := store.DeleteAttachments([]syncdomain.ResourceID{
+	deleted, err := store.DeleteResources([]syncdomain.ResourceID{
 		{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"},
 		{Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "support"},
+		syncdomain.VariationID("project", "config", "default"),
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"project/tools/search.json", "project/skills/support.md"}, deleted)
-	for _, file := range []string{toolPath, skillPath} {
+	assert.Equal(t, []string{"project/tools/search.json", "project/skills/support.md", "project/configs/config/default.prompt.md"}, deleted)
+	for _, file := range []string{toolPath, skillPath, variationPath} {
 		_, statErr := os.Stat(file)
 		require.ErrorIs(t, statErr, os.ErrNotExist)
 	}
