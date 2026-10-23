@@ -423,6 +423,7 @@ func TestWriteSummary(t *testing.T) {
 		&output,
 		true,
 		2,
+		"variation",
 	)
 	assert.Equal(
 		t,

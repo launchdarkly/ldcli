@@ -62,6 +62,16 @@ func ParseManagedPath(file string) (syncdomain.ResourceID, bool) {
 	return id, true
 }
 
+// AttachmentPath returns the path of a tool or skill file relative to the
+// repository root, in the form that ParseManagedPath reads.
+func AttachmentPath(id syncdomain.ResourceID) (string, error) {
+	relativePath, err := attachmentPath(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+	if err != nil {
+		return "", err
+	}
+	return path.Join(syncdomain.RootDir, relativePath), nil
+}
+
 // variationPath returns the path of a variation file relative to the managed
 // directory. It makes sure that each key is a safe path segment.
 func variationPath(projectKey, configKey, variationKey string) (string, error) {

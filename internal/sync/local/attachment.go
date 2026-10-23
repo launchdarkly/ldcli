@@ -204,6 +204,16 @@ func renderAttachmentFiles(files []VariationFile) ([]RenderedFile, error) {
 	return rendered, nil
 }
 
+// RenderAttachment renders the file of one tool or skill without writing it.
+func RenderAttachment(attachment syncdomain.SyncedAttachment) (RenderedFile, error) {
+	filePath, err := attachmentPath(attachment.ProjectKey, attachment.Attachment.Kind, attachment.Attachment.Key())
+	if err != nil {
+		return RenderedFile{}, err
+	}
+	content, err := renderAttachment(attachment.Attachment)
+	return RenderedFile{Path: filePath, Content: content}, err
+}
+
 func renderAttachment(attachment syncdomain.Attachment) ([]byte, error) {
 	switch {
 	case attachment.Kind == syncdomain.AttachmentTool && attachment.Tool != nil:
