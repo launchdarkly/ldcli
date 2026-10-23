@@ -108,6 +108,27 @@ func TestRunRefusesAToolBeforeAnyWrite(t *testing.T) {
 	}
 }
 
+func TestCheckNotSyncedRefusesAVariationWithAFileOrALockEntry(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	id := syncdomain.VariationID("project", "support", "default")
+	variation := syncdomain.Variation{Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Default", Instructions: "Be helpful."}
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "project", ConfigKey: "support", Variation: variation}})
+	require.NoError(t, err)
+
+	require.EqualError(t, CheckNotSynced(store, []syncdomain.ResourceID{id}), "variation project/support/default is already synced. "+
+		"Edit .launchdarkly/project/configs/support/default.prompt.md and run ldcli sync prompts or ldcli sync all.")
+
+	require.NoError(t, os.Remove(filepath.Join(root, syncdomain.RootDir, "project", "configs", "support", "default.prompt.md")))
+	fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, variation)
+	require.NoError(t, err)
+	lock := syncmanifest.New()
+	lock.SetFingerprint(id, fingerprint)
+	require.NoError(t, syncmanifest.WriteLock(store, lock))
+	require.EqualError(t, CheckNotSynced(store, []syncdomain.ResourceID{id}),
+		"variation project/support/default has a sync.lock entry but no local file. Run ldcli sync prompts or ldcli sync all to restore it.")
+}
+
 func TestRunNamesTheCreateFlagsOfAMissingSkill(t *testing.T) {
 	id := syncdomain.ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "handoff"}
 
