@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 )
@@ -20,13 +21,21 @@ import (
 
 const sandboxExec = "/usr/bin/sandbox-exec"
 
-// sandboxPaths are the folders under the home folder that the sandbox opens.
+// sandboxPaths are the folders that the sandbox closes and opens.
 type sandboxPaths struct {
 	Home string
+	// Temp is the shared temporary folder, /private/tmp. Other programs keep
+	// files there, so the sandbox closes it. RunTemp is the run's own
+	// temporary folder inside it, and it stays open.
+	Temp    string
+	RunTemp string
 	// ReadWrite are folders that the agent and its commands can change.
 	ReadWrite []string
 	// ReadOnly are folders that commands must read but not change.
 	ReadOnly []string
+	// Project is the project folder. Its .env files stay closed, because they
+	// hold the user's keys and the agent's model must never see them.
+	Project string
 }
 
 // readWriteUnderHome are package caches and OpenCode's own folders, relative to
@@ -35,6 +44,8 @@ type sandboxPaths struct {
 var readWriteUnderHome = []string{
 	".local/share/opencode",
 	".local/state/opencode",
+	// uv writes here when it inspects or installs a managed Python.
+	".local/share/uv",
 	".cache/opencode",
 	".cache/uv",
 	".cache/pip",
@@ -59,7 +70,6 @@ var readWriteUnderHome = []string{
 var readOnlyUnderHome = []string{
 	".config/opencode",
 	".local/bin",
-	".local/share/uv",
 	".local/share/mise",
 	".pyenv",
 	".rbenv",
@@ -114,19 +124,28 @@ func buildSandboxPaths(home, dir, opencodeDir string, env []string) sandboxPaths
 }
 
 // seatbeltProfile returns the sandbox profile. Later rules take precedence,
-// so the allow rules for the open folders come after the deny rule for the
-// home folder.
+// so the allow rules for the open folders come after the deny rules.
 func seatbeltProfile(p sandboxPaths) string {
 	var b strings.Builder
 	b.WriteString("(version 1)\n(allow default)\n")
 	fmt.Fprintf(&b, "(deny file-read* file-write* (subpath %s))\n", sbString(p.Home))
-	// Tools read the metadata of the home folder itself, for example to
-	// resolve a path, without reading what is in it.
-	fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", sbString(p.Home))
+	if p.Temp != "" {
+		fmt.Fprintf(&b, "(deny file-read* file-write* (subpath %s))\n", sbString(p.Temp))
+		fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", sbString(p.Temp))
+	}
+	// Resolving a path, as realpath, uv, and git do, reads the metadata of
+	// every parent folder. So the parents of each open folder allow metadata
+	// reads, but not their contents.
+	for _, parent := range parentFolders(p) {
+		fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", sbString(parent))
+	}
 	// A cache or OpenCode folder can be missing on first use. Commands can
 	// create its missing parent folders, but cannot write anything else there.
 	for _, parent := range writeParents(p) {
-		fmt.Fprintf(&b, "(allow file-read-metadata file-write-create (literal %s))\n", sbString(parent))
+		fmt.Fprintf(&b, "(allow file-write-create (literal %s))\n", sbString(parent))
+	}
+	if p.RunTemp != "" {
+		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", sbString(p.RunTemp))
 	}
 	for _, path := range p.ReadOnly {
 		fmt.Fprintf(&b, "(allow file-read* (subpath %s))\n", sbString(path))
@@ -134,7 +153,46 @@ func seatbeltProfile(p sandboxPaths) string {
 	for _, path := range p.ReadWrite {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", sbString(path))
 	}
+	// These rules come last, so they apply inside the open project folder.
+	// The sandbox closes every .env and .env.* file in each project
+	// subfolder. Example files hold no keys, so they stay open. The regex is
+	// a quoted profile string, so sbString escapes a quote in the path.
+	if p.Project != "" {
+		root := regexp.QuoteMeta(p.Project)
+		fmt.Fprintf(&b, "(deny file-read* file-write* (regex %s))\n", sbString("^"+root+`/(.*/)?\.env(\.[^/]*)?$`))
+		fmt.Fprintf(&b, "(allow file-read* file-write* (regex %s))\n", sbString("^"+root+`/(.*/)?\.env\.(example|sample|template)$`))
+	}
 	return b.String()
+}
+
+// parentFolders returns the closed folders between each open folder and the
+// closed folder that holds it, the home folder or the shared temporary folder.
+// It includes those two folders and has no repeats.
+func parentFolders(p sandboxPaths) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(path string) {
+		if !seen[path] {
+			seen[path] = true
+			out = append(out, path)
+		}
+	}
+	open := append(append([]string{p.RunTemp}, p.ReadWrite...), p.ReadOnly...)
+	for _, root := range []string{p.Home, p.Temp} {
+		if root == "" {
+			continue
+		}
+		add(root)
+		for _, path := range open {
+			if path == "" || !strings.HasPrefix(path, root+"/") {
+				continue
+			}
+			for dir := filepath.Dir(path); dir != root && strings.HasPrefix(dir, root+"/"); dir = filepath.Dir(dir) {
+				add(dir)
+			}
+		}
+	}
+	return out
 }
 
 // writeParents returns the folders between each read-write folder and the
@@ -215,20 +273,31 @@ func mapPaths(paths []string, f func(string) string) []string {
 	return out
 }
 
-// sandboxCommand returns the program and arguments that run binary with args
-// in the sandbox, and a function that removes the profile file. If the
-// sandbox is not available, it returns binary and args unchanged.
-func sandboxCommand(binary string, args []string, dir string, env []string) (string, []string, func(), error) {
-	noop := func() {}
+// sandbox is how one run starts OpenCode.
+type sandbox struct {
+	// Name and Args start the program.
+	Name string
+	Args []string
+	// TempDir, if set, is the run's own temporary folder. OpenCode must get
+	// it as TMPDIR, because the shared temporary folder is closed.
+	TempDir string
+	// Cleanup removes the profile and the run's temporary folder.
+	Cleanup func()
+}
+
+// sandboxCommand returns how to run binary with args in the sandbox. If the
+// sandbox is not available, it runs binary and args unchanged.
+func sandboxCommand(binary string, args []string, dir string, env []string) (sandbox, error) {
+	plain := sandbox{Name: binary, Args: args, Cleanup: func() {}}
 	if runtime.GOOS != "darwin" {
-		return binary, args, noop, nil
+		return plain, nil
 	}
 	if _, err := os.Stat(sandboxExec); err != nil {
-		return binary, args, noop, nil
+		return plain, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", nil, noop, fmt.Errorf("could not find the home folder for the agent sandbox: %w", err)
+		return sandbox{}, fmt.Errorf("could not find the home folder for the agent sandbox: %w", err)
 	}
 	// Resolve the home folder first, so installDir compares it with the
 	// resolved program path.
@@ -244,17 +313,35 @@ func sandboxCommand(binary string, args []string, dir string, env []string) (str
 	paths := buildSandboxPaths(home, realPath(dir), opencodeDir, env)
 	paths.ReadWrite = mapPaths(paths.ReadWrite, realPath)
 	paths.ReadOnly = mapPaths(paths.ReadOnly, realPath)
-	profile := seatbeltProfile(paths)
+	runTemp, err := os.MkdirTemp(sharedTemp, "ldcli-agent-run-")
+	if err != nil {
+		return sandbox{}, fmt.Errorf("could not create the agent's temporary folder: %w", err)
+	}
+	paths.Temp, paths.RunTemp = realPath(sharedTemp), realPath(runTemp)
+	paths.Project = realPath(dir)
+	removeTemp := func() { _ = os.RemoveAll(runTemp) }
 	f, err := os.CreateTemp("", "ldcli-agent-*.sb")
 	if err != nil {
-		return "", nil, noop, err
+		removeTemp()
+		return sandbox{}, err
 	}
-	if _, err := f.WriteString(profile); err != nil {
+	if _, err := f.WriteString(seatbeltProfile(paths)); err != nil {
 		f.Close()
 		os.Remove(f.Name())
-		return "", nil, noop, err
+		removeTemp()
+		return sandbox{}, err
 	}
 	f.Close()
-	cleanup := func() { _ = os.Remove(f.Name()) }
-	return sandboxExec, append([]string{"-f", f.Name(), binary}, args...), cleanup, nil
+	return sandbox{
+		Name:    sandboxExec,
+		Args:    append([]string{"-f", f.Name(), binary}, args...),
+		TempDir: runTemp,
+		Cleanup: func() {
+			_ = os.Remove(f.Name())
+			removeTemp()
+		},
+	}, nil
 }
+
+// sharedTemp is the shared temporary folder on macOS. /tmp points to it.
+const sharedTemp = "/private/tmp"

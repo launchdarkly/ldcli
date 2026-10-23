@@ -113,7 +113,9 @@ func startedAgent(t *testing.T, run *fakeRun) wizardModel {
 
 func TestWizard_StartsAgentWithTheTask(t *testing.T) {
 	runner := &fakeRunner{run: newFakeRun()}
-	m, cmd := update(t, agentWizard(runner), flagCreatedMsg{key: "my-new-flag"})
+	w := agentWizard(runner)
+	w.selectedProject, w.selectedEnv = "proj", "prod"
+	m, cmd := update(t, w, flagCreatedMsg{key: "my-new-flag"})
 	require.Equal(t, stepAgent, m.step)
 
 	msg := cmd()
@@ -123,6 +125,8 @@ func TestWizard_StartsAgentWithTheTask(t *testing.T) {
 	assert.Equal(t, "node-server", runner.tasks[0].SDKID)
 	assert.Equal(t, "index.js", runner.tasks[0].EntryPoint)
 	assert.Equal(t, "my-new-flag", runner.tasks[0].FlagKey)
+	assert.Equal(t, "proj", runner.tasks[0].ProjectKey)
+	assert.Equal(t, "prod", runner.tasks[0].EnvironmentKey)
 	assert.NotEmpty(t, runner.tasks[0].Dir)
 	assert.Contains(t, m.View(), "Starting the agent")
 }

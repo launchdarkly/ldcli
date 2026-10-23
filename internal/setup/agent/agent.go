@@ -23,6 +23,13 @@ type Task struct {
 	// SDKInstalled reports that the install step added the SDK package, so the
 	// agent does not need to install it.
 	SDKInstalled bool
+	// ProjectKey and EnvironmentKey are where setup created the flag. They
+	// are empty when they are not known.
+	ProjectKey     string
+	EnvironmentKey string
+	// ProviderKeys are the names of the model provider keys that are set. The
+	// values never reach the agent.
+	ProviderKeys []string
 }
 
 // Config is how the agent behaves for one run: the model and the instructions.

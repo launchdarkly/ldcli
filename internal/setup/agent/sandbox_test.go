@@ -32,6 +32,7 @@ func TestBuildSandboxPaths_OpensOnlyOpenCodesXDGFolders(t *testing.T) {
 
 	assert.Contains(t, p.ReadWrite, "/Users/me/app")
 	assert.Contains(t, p.ReadWrite, "/Users/me/.local/share/opencode")
+	assert.Contains(t, p.ReadWrite, "/Users/me/.local/share/uv", "uv writes when it inspects a managed Python")
 	assert.Contains(t, p.ReadOnly, "/Users/me/.ldcli-local/opencode")
 	assert.NotContains(t, p.ReadOnly, "/Users/me/.ldcli-local", "the ldcli configuration next to it stays closed")
 	for _, path := range append(p.ReadOnly, p.ReadWrite...) {
@@ -92,30 +93,77 @@ func TestSandboxCommand_ConfinesReadsToTheProject(t *testing.T) {
 		write(filepath.Join(home, "code", "other-repo", "main.py"), "other"),
 	}
 
-	run := func(path string) (string, error) {
-		name, args, cleanup, err := sandboxCommand("/bin/cat", []string{path}, project, os.Environ())
+	run := func(name string, args ...string) (string, error) {
+		box, err := sandboxCommand(name, args, project, os.Environ())
 		require.NoError(t, err)
-		defer cleanup()
-		require.Equal(t, sandboxExec, name)
-		out, err := exec.Command(name, args...).CombinedOutput()
+		defer box.Cleanup()
+		require.Equal(t, sandboxExec, box.Name)
+		cmd := exec.Command(box.Name, box.Args...)
+		cmd.Env = append(os.Environ(), "TMPDIR="+box.TempDir)
+		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
 
-	out, err := run(inside)
+	out, err := run("/bin/cat", inside)
 	require.NoError(t, err, out)
 	assert.Equal(t, "inside", out)
 	for _, path := range secrets {
-		out, err := run(path)
+		out, err := run("/bin/cat", path)
 		assert.Error(t, err, "read %s", path)
 		assert.Contains(t, out, "Operation not permitted", path)
 	}
 
-	name, args, cleanup, err := sandboxCommand("/usr/bin/touch", []string{filepath.Join(project, "new.txt")}, project, os.Environ())
-	require.NoError(t, err)
-	defer cleanup()
-	out2, err := exec.Command(name, args...).CombinedOutput()
-	require.NoError(t, err, string(out2))
+	out, err = run("/usr/bin/touch", filepath.Join(project, "new.txt"))
+	require.NoError(t, err, out)
 	assert.FileExists(t, filepath.Join(project, "new.txt"), "the project stays writable")
+
+	// Resolving a path reads the metadata of each parent folder, which uv and
+	// git need.
+	out, err = run("/bin/realpath", inside)
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "main.py")
+
+	// The shared temporary folder is closed, and the run's own one is open.
+	other, err := os.MkdirTemp(sharedTemp, "ldcli-sandbox-test-")
+	require.NoError(t, err)
+	defer os.RemoveAll(other)
+	otherFile := write(filepath.Join(other, "notes.txt"), "another program's file")
+	out, err = run("/bin/cat", otherFile)
+	assert.Error(t, err)
+	assert.Contains(t, out, "Operation not permitted")
+	out, err = run("/bin/sh", "-c", `echo ok > "$TMPDIR/scratch" && cat "$TMPDIR/scratch"`)
+	require.NoError(t, err, out)
+	assert.Equal(t, "ok\n", out)
+}
+
+func TestSandboxCommand_RemovesTheRunTempFolder(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	box, err := sandboxCommand("/bin/true", nil, t.TempDir(), os.Environ())
+	require.NoError(t, err)
+	require.DirExists(t, box.TempDir)
+
+	box.Cleanup()
+
+	assert.NoDirExists(t, box.TempDir)
+}
+
+func TestSeatbeltProfile_OpensParentMetadataOnly(t *testing.T) {
+	profile := seatbeltProfile(sandboxPaths{
+		Home:      "/Users/me",
+		Temp:      "/private/tmp",
+		RunTemp:   "/private/tmp/ldcli-agent-run-1",
+		ReadWrite: []string{"/Users/me/code/app"},
+	})
+
+	assert.Contains(t, profile, `(allow file-read-metadata (literal "/Users/me/code"))`)
+	assert.NotContains(t, profile, `(allow file-read* (subpath "/Users/me/code"))`, "the parent's contents stay closed")
+	assert.Contains(t, profile, `(deny file-read* file-write* (subpath "/private/tmp"))`)
+	assert.Contains(t, profile, `(allow file-read* file-write* (subpath "/private/tmp/ldcli-agent-run-1"))`)
 }
 
 func TestSandboxCommand_CreatesMissingCacheFolders(t *testing.T) {
@@ -133,10 +181,10 @@ func TestSandboxCommand_CreatesMissingCacheFolders(t *testing.T) {
 	require.NoError(t, err)
 
 	sandboxed := func(binary string, args ...string) (string, error) {
-		name, sbArgs, cleanup, err := sandboxCommand(binary, args, project, os.Environ())
+		box, err := sandboxCommand(binary, args, project, os.Environ())
 		require.NoError(t, err)
-		defer cleanup()
-		out, err := exec.Command(name, sbArgs...).CombinedOutput()
+		defer box.Cleanup()
+		out, err := exec.Command(box.Name, box.Args...).CombinedOutput()
 		return string(out), err
 	}
 
@@ -147,6 +195,43 @@ func TestSandboxCommand_CreatesMissingCacheFolders(t *testing.T) {
 	out, err = sandboxed("/usr/bin/touch", filepath.Join(realHome, ".local", "notes.txt"))
 	assert.Error(t, err, "a parent folder opens for the create only")
 	assert.Contains(t, out, "Operation not permitted")
+}
+
+func TestParentFolders_CoversFoldersUnderTheTemporaryFolder(t *testing.T) {
+	p := sandboxPaths{
+		Home:      "/Users/me",
+		Temp:      "/private/tmp",
+		RunTemp:   "/private/tmp/ldcli-agent-run-1",
+		ReadWrite: []string{"/private/tmp/work/demo/app", "/Users/me/.cache/uv"},
+	}
+
+	got := parentFolders(p)
+
+	assert.Subset(t, got, []string{"/Users/me", "/Users/me/.cache", "/private/tmp", "/private/tmp/work", "/private/tmp/work/demo"})
+	assert.NotContains(t, got, "/private/tmp/work/demo/app", "an open folder is not a parent")
+}
+
+func TestSandboxCommand_ResolvesAProjectUnderTheTemporaryFolder(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	t.Setenv("HOME", t.TempDir())
+	base, err := os.MkdirTemp(sharedTemp, "ldcli-sandbox-test-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(base) })
+	project := filepath.Join(base, "nested", "app")
+	require.NoError(t, os.MkdirAll(project, 0o700))
+
+	box, err := sandboxCommand("/bin/realpath", []string{project}, project, os.Environ())
+	require.NoError(t, err)
+	defer box.Cleanup()
+	out, err := exec.Command(box.Name, box.Args...).CombinedOutput()
+
+	require.NoError(t, err, string(out))
+	assert.Equal(t, project, strings.TrimSpace(string(out)))
 }
 
 func TestSandboxCommand_SymlinkedHomeKeepsSharedBinFolderClosed(t *testing.T) {
@@ -169,12 +254,60 @@ func TestSandboxCommand_SymlinkedHomeKeepsSharedBinFolderClosed(t *testing.T) {
 	project := filepath.Join(home, "app")
 	require.NoError(t, os.MkdirAll(project, 0o700))
 
-	_, args, cleanup, err := sandboxCommand(bin, nil, project, os.Environ())
+	box, err := sandboxCommand(bin, nil, project, os.Environ())
 	require.NoError(t, err)
-	defer cleanup()
-	profile, err := os.ReadFile(args[1])
+	defer box.Cleanup()
+	profile, err := os.ReadFile(box.Args[1])
 	require.NoError(t, err)
 
 	assert.NotContains(t, string(profile), "(subpath "+sbString(filepath.Join(realHome, ".local"))+")", "the shared ~/.local folder stays closed")
 	assert.Contains(t, string(profile), "(subpath "+sbString(filepath.Join(realHome, ".local", "bin"))+")")
+}
+
+func TestSandboxCommand_ClosesTheProjectsEnvFiles(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	t.Setenv("HOME", t.TempDir())
+	// The quote checks that the profile escapes the path in its regex.
+	project := filepath.Join(t.TempDir(), `app"demo`)
+	write := func(rel, content string) string {
+		path := filepath.Join(project, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		return path
+	}
+	closed := []string{
+		write(".env", "ANTHROPIC_API_KEY=secret"),
+		write(".env.local", "LD_SDK_KEY=secret"),
+		write(filepath.Join("services", "api", ".env"), "OPENAI_API_KEY=secret"),
+	}
+	example := write(".env.example", "ANTHROPIC_API_KEY=")
+	source := write("main.py", "print('hi')")
+
+	sandboxed := func(binary string, args ...string) (string, error) {
+		box, err := sandboxCommand(binary, args, project, os.Environ())
+		require.NoError(t, err)
+		defer box.Cleanup()
+		out, err := exec.Command(box.Name, box.Args...).CombinedOutput()
+		return string(out), err
+	}
+
+	for _, path := range closed {
+		out, err := sandboxed("/bin/cat", path)
+		assert.Error(t, err, "read %s", path)
+		assert.Contains(t, out, "Operation not permitted", path)
+		assert.NotContains(t, out, "secret", path)
+	}
+	out, err := sandboxed("/bin/sh", "-c", `echo X=1 >> "$1"`, "sh", closed[0])
+	assert.Error(t, err, "the agent cannot write .env either")
+	assert.Contains(t, out, "Operation not permitted")
+
+	out, err = sandboxed("/bin/sh", "-c", `echo LAUNCHDARKLY_SDK_KEY= >> "$1" && cat "$1" "$2"`, "sh", example, source)
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "LAUNCHDARKLY_SDK_KEY=", "example files stay open")
+	assert.Contains(t, out, "print('hi')", "other project files stay open")
 }

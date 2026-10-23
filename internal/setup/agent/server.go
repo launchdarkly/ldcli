@@ -46,22 +46,29 @@ func startServer(ctx context.Context, binary, dir string, config []byte) (*serve
 		return nil, err
 	}
 
-	env := childEnv(os.Environ(), map[string]string{
+	set := map[string]string{
 		"OPENCODE_SERVER_PASSWORD": password,
 		// Set the user name too. A shell value then cannot make OpenCode
 		// refuse the client's basic auth.
 		"OPENCODE_SERVER_USERNAME": serverUsername,
 		"OPENCODE_CONFIG_CONTENT":  string(config),
-	})
-	name, args, cleanup, err := sandboxCommand(binary, []string{"serve", "--hostname", "127.0.0.1", "--port", strconv.Itoa(port)}, dir, env)
+	}
+	box, err := sandboxCommand(binary, []string{"serve", "--hostname", "127.0.0.1", "--port", strconv.Itoa(port)}, dir, os.Environ())
 	if err != nil {
 		return nil, err
 	}
+	// The prompt tells the agent to use $TMPDIR, so OpenCode always gets it.
+	if box.TempDir != "" {
+		set["TMPDIR"] = box.TempDir
+	} else if os.Getenv("TMPDIR") == "" {
+		set["TMPDIR"] = os.TempDir()
+	}
+	cleanup := box.Cleanup
 
 	procCtx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(procCtx, name, args...)
+	cmd := exec.CommandContext(procCtx, box.Name, box.Args...)
 	cmd.Dir = dir
-	cmd.Env = env
+	cmd.Env = childEnv(os.Environ(), set)
 	// Ask OpenCode to stop so it can end its own child processes, and kill it if
 	// it does not stop in time.
 	cmd.Cancel = func() error {

@@ -15,14 +15,22 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/setup"
 	"github.com/launchdarkly/ldcli/internal/setup/agent"
 )
 
 // agentTask builds the agent task from the wizard's detection result.
-func agentTask(dir string, detection *setup.DetectResult, flagKey string, sdkInstalled bool) agent.Task {
-	t := agent.Task{Dir: dir, FlagKey: flagKey, SDKInstalled: sdkInstalled}
+func agentTask(dir string, detection *setup.DetectResult, flagKey string, sdkInstalled bool, projectKey, envKey string) agent.Task {
+	t := agent.Task{
+		Dir:            dir,
+		FlagKey:        flagKey,
+		SDKInstalled:   sdkInstalled,
+		ProjectKey:     projectKey,
+		EnvironmentKey: envKey,
+		ProviderKeys:   agent.ProviderKeys(dir, os.Environ()),
+	}
 	if detection != nil {
 		t.SDKID = detection.SDKID
 		t.Language = detection.Language
@@ -95,6 +103,8 @@ variables.`,
 	_ = cmd.MarkFlagRequired(sdkIDFlag)
 	cmd.Flags().String(flagKeyFlag, "", "Feature flag key that the new code evaluates")
 	_ = cmd.MarkFlagRequired(flagKeyFlag)
+	cmd.Flags().String(cliflags.ProjectFlag, "", "LaunchDarkly project key, given to the agent as a fact")
+	cmd.Flags().String(cliflags.EnvironmentFlag, "", "LaunchDarkly environment key, given to the agent as a fact")
 	cmd.Flags().String(sdkKeyFlag, "", "Server-side SDK key, shown in the closing instructions only")
 	cmd.Flags().String(clientIDFlag, "", "Client-side environment ID, shown in the closing instructions only")
 	cmd.Flags().String(mobileFlag, "", "Mobile SDK key, shown in the closing instructions only")
@@ -123,7 +133,8 @@ func runAgent(svc setup.Service, runner agent.Runner) func(*cobra.Command, []str
 			detection.EntryPoint, detection.EntryPointExists = setup.EntryPointFor(dir, sdkID)
 			detection.PackageManager = setup.PackageManagerFor(dir, sdkID)
 		}
-		task := agentTask(dir, detection, getFlag(cmd, flagKeyFlag), setup.IsInstalled(dir, sdkID))
+		task := agentTask(dir, detection, getFlag(cmd, flagKeyFlag), setup.IsInstalled(dir, sdkID),
+			getFlag(cmd, cliflags.ProjectFlag), getFlag(cmd, cliflags.EnvironmentFlag))
 
 		// Stop OpenCode on Ctrl-C, on kill, and when the terminal closes.
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
