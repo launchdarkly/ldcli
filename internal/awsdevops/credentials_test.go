@@ -315,8 +315,8 @@ func TestCredentialErrorPointsToTheCauseWithoutAProfile(t *testing.T) {
 	assert.Equal(t, "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause", err.Error())
 }
 
-// An expired default profile from aws login hides a profile from aws sso
-// login, so the error tells how to pick that profile.
+// If the SDK falls back to the default profile and it fails, the error tells
+// how to select another profile and lists the other profiles.
 func TestCredentialErrorNamesOtherProfilesWhenTheDefaultFails(t *testing.T) {
 	writeConfig(t, "[default]\nlogin_session = arn:aws:iam::123456789012:user/me\n\n"+
 		"[profile dev]\nsso_start_url = https://corp.awsapps.com/start\n")

@@ -842,8 +842,9 @@ func TestNewClientsSuggestsSelectingAProfile(t *testing.T) {
 	assert.NotContains(t, err.Error(), "corp")
 }
 
-// Without a region, a missing profile is the cause, because the profile can
-// give the region.
+// With no region and no profile selected, the error reports the missing
+// profile first. Many profiles have a region, so selecting one often fixes
+// both.
 func TestNewClientsReportsMissingProfileBeforeRegion(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config")
