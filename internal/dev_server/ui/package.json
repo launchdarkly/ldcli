@@ -49,6 +49,9 @@
   },
   "overrides": {
     "react-router-dom": "6.30.1",
-    "@remix-run/router": "1.23.3"
+    "@remix-run/router": "1.23.3",
+    "launchdarkly-js-sdk-common": {
+      "uuid": "11.1.1"
+    }
   }
 }
