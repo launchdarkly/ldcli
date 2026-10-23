@@ -100,35 +100,44 @@ var createFlags = map[syncdomain.Kind]string{
 	syncdomain.KindSkill: "--content, and optionally --name and --description",
 }
 
+// SyncCommand is the command that syncs the resources of kind, for example
+// "ldcli sync tools".
+func SyncCommand(kind syncdomain.Kind) string {
+	if kind == syncdomain.KindVariation {
+		return "ldcli sync prompts"
+	}
+	return fmt.Sprintf("ldcli sync %ss", kind)
+}
+
 // AddCommand is the command that starts syncing one resource.
 func AddCommand(id syncdomain.ResourceID) string {
 	if configKey, variationKey, err := id.VariationKeys(); err == nil {
-		return fmt.Sprintf("ldcli sync prompts add --project %s --config-key %s --key %s", id.ProjectKey, configKey, variationKey)
+		return fmt.Sprintf("%s add --project %s --config-key %s --key %s", SyncCommand(id.Kind), id.ProjectKey, configKey, variationKey)
 	}
-	return fmt.Sprintf("ldcli sync %ss add --project %s --key %s", id.Kind, id.ProjectKey, id.LookupKey)
+	return fmt.Sprintf("%s add --project %s --key %s", SyncCommand(id.Kind), id.ProjectKey, id.LookupKey)
 }
 
-// CheckNotSynced returns an error for a tool or skill that this repository
-// already syncs, because it has a local file or a sync.lock entry. It reads
-// only local files.
+// CheckNotSynced returns an error for a resource that this repository already
+// syncs, because it has a local file or a sync.lock entry. It reads only local
+// files.
 func CheckNotSynced(store synclocal.Store, ids []syncdomain.ResourceID) error {
 	lock, err := syncmanifest.ReadLock(store)
 	if err != nil {
 		return err
 	}
 	for _, id := range ids {
-		exists, err := store.AttachmentExists(id)
+		exists, err := store.ResourceExists(id)
 		switch {
 		case err != nil:
 			return err
 		case exists:
-			path, err := synclocal.AttachmentPath(id)
+			path, err := synclocal.ResourcePath(id)
 			if err != nil {
 				return err
 			}
-			return fmt.Errorf("%s is already synced. Edit %s and run ldcli sync %ss or ldcli sync all.", id.Label(), path, id.Kind)
+			return fmt.Errorf("%s is already synced. Edit %s and run %s or ldcli sync all.", id.Label(), path, SyncCommand(id.Kind))
 		case slices.ContainsFunc(lock.Resources, func(resource syncmanifest.Resource) bool { return resource.ID() == id }):
-			return fmt.Errorf("%s has a sync.lock entry but no local file. Run ldcli sync %ss or ldcli sync all to restore it.", id.Label(), id.Kind)
+			return fmt.Errorf("%s has a sync.lock entry but no local file. Run %s or ldcli sync all to restore it.", id.Label(), SyncCommand(id.Kind))
 		}
 	}
 	return nil

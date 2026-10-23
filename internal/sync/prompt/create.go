@@ -104,7 +104,7 @@ func (runner Runner) createAttachment(
 	created syncdomain.SyncedAttachment,
 	named bool,
 ) error {
-	path, err := synclocal.AttachmentPath(created.ID())
+	path, err := synclocal.ResourcePath(created.ID())
 	if err != nil {
 		return err
 	}
