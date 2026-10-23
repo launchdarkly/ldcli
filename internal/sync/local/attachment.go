@@ -282,16 +282,3 @@ func preserveLocalFields(filePath string, original, replacement []byte) ([]byte,
 	updated.Name, updated.Upsert = local.Name, updated.Upsert || local.Upsert
 	return renderSkillFile(updated, string(markdown))
 }
-
-// DeleteAttachments deletes the files of tools and skills in one transaction.
-func (store Store) DeleteAttachments(ids []syncdomain.ResourceID) ([]string, error) {
-	paths := make([]string, 0, len(ids))
-	for _, id := range ids {
-		relativePath, err := attachmentPath(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
-		if err != nil {
-			return nil, err
-		}
-		paths = append(paths, relativePath)
-	}
-	return store.deleteFiles(paths)
-}

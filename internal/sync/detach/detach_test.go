@@ -440,6 +440,50 @@ func TestRunDetachesToolsAndSkills(t *testing.T) {
 	assert.Equal(t, []syncdomain.ResourceID{syncdomain.VariationID("project", "config", "prompt")}, lockIDs(workspace.baselines.manifest))
 }
 
+// --archive archives only variations. LaunchDarkly keeps a detached tool or
+// skill, so a tool in the same selection must not stop the archive or the
+// detach.
+func TestRunArchiveWithAToolArchivesOnlyTheVariation(t *testing.T) {
+	workspace := newArchiveWorkspace(t, "prompt")
+	tool := testTool()
+	workspace.addAttachments(t, tool)
+	archiver := &recordingArchiver{}
+	options := workspace.options(archiver)
+	options.Selections = append(options.Selections, tool.ID("project"))
+	options.Archive, options.Yes = true, true
+
+	require.NoError(t, Run(options))
+
+	assert.Equal(t, []string{"project/config/prompt"}, archiver.archived)
+	workspace.requireTracked(t, "prompt", false)
+	assert.Empty(t, workspace.baselines.manifest.Resources)
+	local, err := synclocal.CompileAttachments(workspace.root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	assert.Empty(t, local)
+}
+
+// Detach deletes the variation, tool, and skill files in one transaction. When
+// one file cannot be deleted, every file stays, and so does the baseline.
+func TestRunKeepsEveryFileWhenOneDeleteFails(t *testing.T) {
+	workspace := newArchiveWorkspace(t, "prompt")
+	tool := testTool()
+	workspace.addAttachments(t, tool)
+	// A symbolic link in place of the tool file makes its delete fail.
+	toolFile := filepath.Join(workspace.root, syncdomain.RootDir, "project", "tools", "search.json")
+	target := filepath.Join(t.TempDir(), "search.json")
+	require.NoError(t, os.Rename(toolFile, target))
+	require.NoError(t, os.Symlink(target, toolFile))
+	options := workspace.options(&recordingArchiver{})
+	options.Selections = append(options.Selections, tool.ID("project"))
+	options.Yes = true
+
+	require.Error(t, Run(options))
+
+	workspace.requireTracked(t, "prompt", true)
+	_, err := os.Lstat(toolFile)
+	require.NoError(t, err)
+}
+
 func TestRunRefusesAToolThatAVariationStillUses(t *testing.T) {
 	workspace := newArchiveWorkspace(t)
 	tool := testTool()
