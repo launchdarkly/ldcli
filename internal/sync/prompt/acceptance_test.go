@@ -783,8 +783,9 @@ func TestPromptUpdateResolvesOmittedModelConfigVersionToLatest(t *testing.T) {
 }
 
 // A push of a variation that newly attaches a tracked tool must not publish
-// the local copy over a change in LaunchDarkly. The plan pulls the tool, and
-// the variation pins the pulled version.
+// the local copy over a change in LaunchDarkly. A dry run plans a pull of the
+// tool and changes nothing. The sync then pulls the tool, and the variation
+// pins the pulled version.
 func TestPromptPushOfANewToolReferenceKeepsTheLaunchDarklyChange(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
@@ -799,6 +800,8 @@ func TestPromptPushOfANewToolReferenceKeepsTheLaunchDarklyChange(t *testing.T) {
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tool search update_local", "variation support/default update_server"}, planRows(t, stdout))
+	requireOnlyReads(t, api.requests)
+	assert.Contains(t, readLocalFile(t, root, "tools/search.json"), `"description": "old"`)
 
 	_, _, err = runPrompt(t, root, api, "--yes")
 
@@ -810,8 +813,9 @@ func TestPromptPushOfANewToolReferenceKeepsTheLaunchDarklyChange(t *testing.T) {
 }
 
 // A pull of a variation that newly references a tracked tool must not write
-// the LaunchDarkly copy over a local edit. The plan pushes the tool, and the
-// file keeps the edit. The next sync only repins the variation.
+// the LaunchDarkly copy over a local edit. A dry run plans a push of the tool
+// and changes nothing. The sync then pushes the tool, and the file keeps the
+// edit. The next sync only repins the variation.
 func TestPromptPullOfANewToolReferenceKeepsTheLocalEdit(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
@@ -827,6 +831,8 @@ func TestPromptPullOfANewToolReferenceKeepsTheLocalEdit(t *testing.T) {
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tool search update_server", "variation support/default update_local"}, planRows(t, stdout))
+	requireOnlyReads(t, api.requests)
+	assert.Contains(t, readLocalFile(t, root, "tools/search.json"), `"description": "edited"`)
 
 	_, _, err = runPrompt(t, root, api, "--yes")
 
