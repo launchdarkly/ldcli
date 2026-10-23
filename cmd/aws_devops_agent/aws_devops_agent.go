@@ -33,9 +33,7 @@ AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN.
 
 The commands use the profile from --profile, then AWS_PROFILE, then the
 default profile. They use the region from --region, then AWS_REGION, then the
-profile. "aws sso login" does not select a profile, so pass the same --profile
-to these commands. Without credentials, the commands stop before they change
-anything.`,
+profile.`,
 		Args: cobra.MinimumNArgs(1),
 		// The command can still change, so it is not in the help yet.
 		Hidden: true,

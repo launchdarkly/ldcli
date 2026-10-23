@@ -861,6 +861,7 @@ func TestNewClientsReportsMissingProfileBeforeRegion(t *testing.T) {
 
 	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
 	assert.ErrorContains(t, err, "no AWS profile selected")
+	assert.ErrorContains(t, err, "`export AWS_PROFILE=<name>`")
 }
 
 func TestNewClientsNamesTheSelectedProfile(t *testing.T) {

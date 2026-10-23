@@ -44,7 +44,7 @@ var (
 	// noCredentialsError with the detail that fits the situation (named
 	// profile not usable, no profile selected, nothing configured at all).
 	ErrNoCredentials = errors.New("no AWS credentials found")
-	ErrNoRegion      = errors.New("no AWS region found. Add a region to the AWS profile, set AWS_REGION, or pass --region")
+	ErrNoRegion      = errors.New("no AWS region found. Add a region to the AWS profile, run `export AWS_REGION=<region>`, or pass --region")
 )
 
 // AgentAPI is the subset of the AWS DevOps Agent API this package uses.
@@ -187,7 +187,7 @@ func noCredentialsError(profile string, cause error) error {
 			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again",
 			sso, sso,
 		) + otherProfiles(selected, chosen, profiles)
-	case login:
+	case login && LoginTokenInvalid(cause):
 		msg = fmt.Sprintf(
 			"no AWS credentials for profile %q. Run `aws login --profile %s`, then run this command again",
 			selected, selected,
@@ -206,11 +206,11 @@ func noCredentialsError(profile string, cause error) error {
 		)
 	case len(profiles) > 0:
 		msg = fmt.Sprintf(
-			"no AWS profile selected. Pass --profile <name> or set AWS_PROFILE. Profiles: %s. Run `aws configure list-profiles` to see all",
+			"no AWS profile selected. Pass --profile <name> or run `export AWS_PROFILE=<name>`. Profiles: %s. Run `aws configure list-profiles` to see all",
 			summarizeProfiles(profiles),
 		)
 	default:
-		msg = "no AWS credentials found. Run `aws sso login --profile <name>` or set AWS_ACCESS_KEY_ID"
+		msg = "no AWS credentials found. Run `aws sso login --profile <name>`, or run `export AWS_ACCESS_KEY_ID=<id> AWS_SECRET_ACCESS_KEY=<secret>`"
 	}
 
 	return &noCredsErr{msg: msg, cause: cause}
@@ -228,7 +228,7 @@ func otherProfiles(selected string, chosen bool, profiles []string) string {
 		return ""
 	}
 
-	return fmt.Sprintf(". To use another profile, pass --profile <name> or set AWS_PROFILE. Profiles: %s",
+	return fmt.Sprintf(". To use another profile, pass --profile <name> or run `export AWS_PROFILE=<name>`. Profiles: %s",
 		summarizeProfiles(others))
 }
 
