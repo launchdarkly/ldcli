@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.15.0](https://github.com/launchdarkly/ldcli/compare/v3.14.0...v3.15.0) (2026-10-23)
+
+
+### Features
+
+* add target flags to sync prompts and read sync flags only from the command line ([#938](https://github.com/launchdarkly/ldcli/issues/938)) ([4118820](https://github.com/launchdarkly/ldcli/commit/411882050117948829ea6f5526fbd0521189a7d3))
+* apply tool and skill rows in a sync ([#941](https://github.com/launchdarkly/ldcli/issues/941)) ([1f87d67](https://github.com/launchdarkly/ldcli/commit/1f87d67c1c09d7d8d13a58e33a846abc4d22a96e))
+* create skills during sync, and read again after a 409 on create ([#940](https://github.com/launchdarkly/ldcli/issues/940)) ([af1a2fa](https://github.com/launchdarkly/ldcli/commit/af1a2fa15bf9856f5db2f3713b02d47caa1b0119))
+* plan standalone tool and skill rows by sync scope ([#939](https://github.com/launchdarkly/ldcli/issues/939)) ([6ebe04f](https://github.com/launchdarkly/ldcli/commit/6ebe04f45c8936a5efba3af0ba6cfc7ec4269690))
+* show a compact sync plan and add a --diff flag ([#937](https://github.com/launchdarkly/ldcli/issues/937)) ([0dab833](https://github.com/launchdarkly/ldcli/commit/0dab8330c0ab5330c7f3d53bd9efadd41bb374c8))
+
+
+### Bug Fixes
+
+* hide the aws-devops-agent command ([#958](https://github.com/launchdarkly/ldcli/issues/958)) ([a6d1132](https://github.com/launchdarkly/ldcli/commit/a6d1132d52813281360806a6a9318d73bb7267ff))
+* remove only the Beta suffix from resource names in generated command names ([#964](https://github.com/launchdarkly/ldcli/issues/964)) ([ea45797](https://github.com/launchdarkly/ldcli/commit/ea4579735d9682166a0be7a825ebf6b686cdb297))
+
 ## [3.14.0](https://github.com/launchdarkly/ldcli/compare/v3.13.0...v3.14.0) (2026-10-21)
 
 
