@@ -1,0 +1,180 @@
+package agent
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSeatbeltProfile_DeniesHomeThenOpensFolders(t *testing.T) {
+	profile := seatbeltProfile(sandboxPaths{
+		Home:      "/Users/me",
+		ReadWrite: []string{"/Users/me/app"},
+		ReadOnly:  []string{`/Users/me/odd "name"`},
+	})
+
+	deny := strings.Index(profile, `(deny file-read* file-write* (subpath "/Users/me"))`)
+	allow := strings.Index(profile, `(allow file-read* file-write* (subpath "/Users/me/app"))`)
+	require.NotEqual(t, -1, deny)
+	require.NotEqual(t, -1, allow)
+	assert.Less(t, deny, allow, "later rules win, so the allows must follow the deny")
+	assert.Contains(t, profile, `(allow file-read* (subpath "/Users/me/odd \"name\""))`, "paths are quoted")
+}
+
+func TestBuildSandboxPaths_OpensOnlyOpenCodesXDGFolders(t *testing.T) {
+	p := buildSandboxPaths("/Users/me", "/Users/me/app", "", []string{"XDG_CONFIG_HOME=/Users/me/.ldcli-local"})
+
+	assert.Contains(t, p.ReadWrite, "/Users/me/app")
+	assert.Contains(t, p.ReadWrite, "/Users/me/.local/share/opencode")
+	assert.Contains(t, p.ReadOnly, "/Users/me/.ldcli-local/opencode")
+	assert.NotContains(t, p.ReadOnly, "/Users/me/.ldcli-local", "the ldcli configuration next to it stays closed")
+	for _, path := range append(p.ReadOnly, p.ReadWrite...) {
+		assert.NotEqual(t, "/Users/me/.config", path)
+		assert.NotEqual(t, "/Users/me/.config/ldcli", path)
+	}
+}
+
+func TestBuildSandboxPaths_OpensTheGoSettingsFile(t *testing.T) {
+	p := buildSandboxPaths("/Users/me", "/Users/me/app", "", nil)
+	assert.Contains(t, p.ReadOnly, "/Users/me/Library/Application Support/go/env")
+
+	p = buildSandboxPaths("/Users/me", "/Users/me/app", "", []string{"GOENV=/Users/me/goenv"})
+	assert.Contains(t, p.ReadOnly, "/Users/me/goenv")
+
+	p = buildSandboxPaths("/Users/me", "/Users/me/app", "", []string{"GOENV=off"})
+	assert.NotContains(t, p.ReadOnly, "off")
+}
+
+func TestInstallDir(t *testing.T) {
+	assert.Equal(t, "/opt/homebrew/lib/node_modules/opencode-ai", installDir("/Users/me", "/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode.exe"))
+	assert.Equal(t, "/Users/me/.opencode", installDir("/Users/me", "/Users/me/.opencode/bin/opencode"))
+	assert.Equal(t, "/Users/me/.local/bin", installDir("/Users/me", "/Users/me/.local/bin/opencode"), "a shared bin folder opens only itself")
+	assert.Equal(t, "/usr/local/bin", installDir("/Users/me", "/usr/local/bin/opencode"))
+	assert.Equal(t, "/bin", installDir("/Users/me", "/bin/opencode"), "never open / or another folder that holds the home folder")
+	assert.Equal(t, "/Users/bin", installDir("/Users/me", "/Users/bin/opencode"))
+}
+
+func TestOpenCodeConfig_DeniesLDCLIAndSkillsInstalls(t *testing.T) {
+	data, err := openCodeConfig()
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"ldcli*":"deny"`)
+	assert.Contains(t, string(data), `"npx skills*":"deny"`)
+}
+
+// TestSandboxCommand_ConfinesReadsToTheProject runs a real sandboxed command on
+// macOS, with a fake home folder.
+func TestSandboxCommand_ConfinesReadsToTheProject(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := filepath.Join(home, "code", "app")
+	write := func(path, content string) string {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		return path
+	}
+	inside := write(filepath.Join(project, "main.py"), "inside")
+	secrets := []string{
+		write(filepath.Join(home, ".config", "ldcli", "config.yml"), "access-token: api-secret"),
+		write(filepath.Join(home, ".ssh", "id_ed25519"), "key"),
+		write(filepath.Join(home, "code", "other-repo", "main.py"), "other"),
+	}
+
+	run := func(path string) (string, error) {
+		name, args, cleanup, err := sandboxCommand("/bin/cat", []string{path}, project, os.Environ())
+		require.NoError(t, err)
+		defer cleanup()
+		require.Equal(t, sandboxExec, name)
+		out, err := exec.Command(name, args...).CombinedOutput()
+		return string(out), err
+	}
+
+	out, err := run(inside)
+	require.NoError(t, err, out)
+	assert.Equal(t, "inside", out)
+	for _, path := range secrets {
+		out, err := run(path)
+		assert.Error(t, err, "read %s", path)
+		assert.Contains(t, out, "Operation not permitted", path)
+	}
+
+	name, args, cleanup, err := sandboxCommand("/usr/bin/touch", []string{filepath.Join(project, "new.txt")}, project, os.Environ())
+	require.NoError(t, err)
+	defer cleanup()
+	out2, err := exec.Command(name, args...).CombinedOutput()
+	require.NoError(t, err, string(out2))
+	assert.FileExists(t, filepath.Join(project, "new.txt"), "the project stays writable")
+}
+
+func TestSandboxCommand_CreatesMissingCacheFolders(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := filepath.Join(home, "app")
+	require.NoError(t, os.MkdirAll(project, 0o700))
+	realHome, err := filepath.EvalSymlinks(home)
+	require.NoError(t, err)
+
+	sandboxed := func(binary string, args ...string) (string, error) {
+		name, sbArgs, cleanup, err := sandboxCommand(binary, args, project, os.Environ())
+		require.NoError(t, err)
+		defer cleanup()
+		out, err := exec.Command(name, sbArgs...).CombinedOutput()
+		return string(out), err
+	}
+
+	out, err := sandboxed("/bin/mkdir", "-p", filepath.Join(realHome, ".local", "share", "opencode"))
+	require.NoError(t, err, out)
+	assert.DirExists(t, filepath.Join(home, ".local", "share", "opencode"), "a missing OpenCode folder and its parents can be created")
+
+	out, err = sandboxed("/usr/bin/touch", filepath.Join(realHome, ".local", "notes.txt"))
+	assert.Error(t, err, "a parent folder opens for the create only")
+	assert.Contains(t, out, "Operation not permitted")
+}
+
+func TestSandboxCommand_SymlinkedHomeKeepsSharedBinFolderClosed(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	// On macOS, t.TempDir is under /var, which is a symlink to /private/var.
+	home := t.TempDir()
+	realHome, err := filepath.EvalSymlinks(home)
+	require.NoError(t, err)
+	require.NotEqual(t, home, realHome, "the test needs a home path with a symlink")
+	t.Setenv("HOME", home)
+	bin := filepath.Join(home, ".local", "bin", "opencode")
+	require.NoError(t, os.MkdirAll(filepath.Dir(bin), 0o700))
+	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o700))
+
+	project := filepath.Join(home, "app")
+	require.NoError(t, os.MkdirAll(project, 0o700))
+
+	_, args, cleanup, err := sandboxCommand(bin, nil, project, os.Environ())
+	require.NoError(t, err)
+	defer cleanup()
+	profile, err := os.ReadFile(args[1])
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(profile), "(subpath "+sbString(filepath.Join(realHome, ".local"))+")", "the shared ~/.local folder stays closed")
+	assert.Contains(t, string(profile), "(subpath "+sbString(filepath.Join(realHome, ".local", "bin"))+")")
+}
