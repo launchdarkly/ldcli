@@ -22,7 +22,7 @@ func NewStatusCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 		RunE:   runStatus,
 	}
 
-	cmd.Flags().String(regionFlag, "", "AWS region to inspect. Defaults to the region of the current AWS session")
+	cmd.Flags().String(regionFlag, "", "AWS region to inspect. Defaults to the region of the AWS profile")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
 	cmd.Flags().String(agentSpaceIDFlag, "", "Inspect a single agent space instead of every agent space")
 

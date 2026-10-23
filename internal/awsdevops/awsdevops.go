@@ -44,7 +44,7 @@ var (
 	// noCredentialsError with the detail that fits the situation (named
 	// profile not usable, no profile selected, nothing configured at all).
 	ErrNoCredentials = errors.New("no AWS credentials found")
-	ErrNoRegion      = errors.New("no AWS region found. Set AWS_REGION or pass --region")
+	ErrNoRegion      = errors.New("no AWS region found. Add a region to the AWS profile, set AWS_REGION, or pass --region")
 )
 
 // AgentAPI is the subset of the AWS DevOps Agent API this package uses.
@@ -107,6 +107,12 @@ func NewClients(ctx context.Context, region, profile string) (Clients, error) {
 		return Clients{}, fmt.Errorf("unable to load AWS configuration: %w", err)
 	}
 	if cfg.Region == "" {
+		// A selected profile can give the region, so report the missing
+		// profile first.
+		if NoProfileSelected(profile) && len(knownProfiles()) > 0 {
+			return Clients{}, noCredentialsError(profile, nil)
+		}
+
 		return Clients{}, ErrNoRegion
 	}
 	if !slices.Contains(SupportedRegions, cfg.Region) {
@@ -172,6 +178,7 @@ func noCredentialsError(profile string, cause error) error {
 	// cause can contain the output of a credential_process with the secret key.
 	useful := cause != nil && !fromIMDS(cause)
 	sso := SSOProfile(ConfigFilePath(), profile)
+	login := HasLoginSession(ConfigFilePath(), selected)
 
 	var msg string
 	switch {
@@ -179,12 +186,17 @@ func noCredentialsError(profile string, cause error) error {
 		msg = fmt.Sprintf(
 			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again",
 			sso, sso,
-		)
+		) + otherProfiles(selected, chosen, profiles)
+	case login:
+		msg = fmt.Sprintf(
+			"no AWS credentials for profile %q. Run `aws login --profile %s`, then run this command again",
+			selected, selected,
+		) + otherProfiles(selected, chosen, profiles)
 	case useful && named:
 		msg = fmt.Sprintf(
 			"unable to get AWS credentials for profile %q. Run `aws sts get-caller-identity --profile %s` to see the cause",
 			selected, selected,
-		)
+		) + otherProfiles(selected, chosen, profiles)
 	case useful:
 		msg = "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause"
 	case chosen:
@@ -202,6 +214,22 @@ func noCredentialsError(profile string, cause error) error {
 	}
 
 	return &noCredsErr{msg: msg, cause: cause}
+}
+
+// otherProfiles tells how to use another profile when the SDK fell back to
+// the default profile. The user can expect a profile from aws sso login, but
+// the SDK does not use it without --profile or AWS_PROFILE.
+func otherProfiles(selected string, chosen bool, profiles []string) string {
+	if chosen {
+		return ""
+	}
+	others := slices.DeleteFunc(slices.Clone(profiles), func(name string) bool { return name == selected })
+	if len(others) == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf(". To use another profile, pass --profile <name> or set AWS_PROFILE. Profiles: %s",
+		summarizeProfiles(others))
 }
 
 // fromIMDS reports a cause from the EC2 metadata service. The SDK tries it

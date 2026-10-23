@@ -842,6 +842,27 @@ func TestNewClientsSuggestsSelectingAProfile(t *testing.T) {
 	assert.NotContains(t, err.Error(), "corp")
 }
 
+// Without a region, a missing profile is the cause, because the profile can
+// give the region.
+func TestNewClientsReportsMissingProfileBeforeRegion(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config")
+	require.NoError(t, os.WriteFile(configPath, []byte("[profile dev]\nregion = us-east-1\n"), 0o600))
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_DEFAULT_PROFILE", "")
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_DEFAULT_REGION", "")
+	t.Setenv("AWS_CONFIG_FILE", configPath)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+
+	_, err := awsdevops.NewClients(context.Background(), "", "")
+
+	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
+	assert.ErrorContains(t, err, "no AWS profile selected")
+}
+
 func TestNewClientsNamesTheSelectedProfile(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config")

@@ -58,7 +58,7 @@ for --access-token.`,
 		RunE:   runSetup,
 	}
 
-	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
+	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the AWS profile")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
 	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --auth-flow runs full setup on a space that setup did not make")
 	cmd.Flags().String(agentSpaceNameFlag, "", "Name of the agent space to use or create. In a terminal, setup asks for a name if it needs one")

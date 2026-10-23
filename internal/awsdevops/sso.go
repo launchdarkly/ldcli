@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
@@ -74,8 +75,28 @@ func SSOTokenInvalid(err error) bool {
 	return false
 }
 
+// NoProfileSelected reports that the SDK has no profile and no credentials
+// from the environment, and that the default profile does not exist.
+func NoProfileSelected(profile string) bool {
+	if _, chosen := SelectedProfile(profile); chosen || os.Getenv("AWS_ACCESS_KEY_ID") != "" {
+		return false
+	}
+
+	return !slices.Contains(knownProfiles(), "default")
+}
+
 // HasSSOConfig reports whether the profile uses SSO.
 func HasSSOConfig(path, profile string) bool {
+	return hasProfileKey(path, profile, "sso_session", "sso_start_url")
+}
+
+// HasLoginSession reports whether the profile uses credentials from aws login.
+func HasLoginSession(path, profile string) bool {
+	return hasProfileKey(path, profile, "login_session")
+}
+
+// hasProfileKey reports whether the profile sets one of the keys.
+func hasProfileKey(path, profile string, keys ...string) bool {
 	file, err := os.Open(path)
 	if err != nil {
 		return false
@@ -100,8 +121,7 @@ func HasSSOConfig(path, profile string) bool {
 		if !ok || strings.TrimSpace(value) == "" {
 			continue
 		}
-		switch strings.TrimSpace(key) {
-		case "sso_session", "sso_start_url":
+		if slices.Contains(keys, strings.TrimSpace(key)) {
 			return true
 		}
 	}

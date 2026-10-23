@@ -27,10 +27,15 @@ func NewAWSDevOpsAgentCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command
 		Short: "Set up the AWS DevOps Agent",
 		Long: `Provision the AWS DevOps Agent integration in your own AWS account.
 
-These commands use your existing AWS session: authenticate first (for example
-with "aws sso login" or by exporting AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-and AWS_SESSION_TOKEN) and they fail before changing anything if no credentials
-are available.`,
+These commands use your AWS credentials. Sign in first, for example with
+"aws sso login --profile <name>", or export AWS_ACCESS_KEY_ID,
+AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN.
+
+The commands use the profile from --profile, then AWS_PROFILE, then the
+default profile. They use the region from --region, then AWS_REGION, then the
+profile. "aws sso login" does not select a profile, so pass the same --profile
+to these commands. Without credentials, the commands stop before they change
+anything.`,
 		Args: cobra.MinimumNArgs(1),
 		// The command can still change, so it is not in the help yet.
 		Hidden: true,

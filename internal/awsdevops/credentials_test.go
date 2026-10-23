@@ -314,3 +314,63 @@ func TestCredentialErrorPointsToTheCauseWithoutAProfile(t *testing.T) {
 
 	assert.Equal(t, "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause", err.Error())
 }
+
+func TestCredentialErrorNamesAWSLoginForALoginSessionProfile(t *testing.T) {
+	writeConfig(t, "[profile console]\nlogin_session = arn:aws:iam::123456789012:user/me\n")
+
+	err := noCredentialsError("console", errors.New("unable to load login session token"))
+
+	assert.Contains(t, err.Error(), "aws login --profile console")
+	assert.NotContains(t, err.Error(), "sso login")
+	assert.NotContains(t, err.Error(), "To use another profile")
+}
+
+// An expired default profile from aws login hides a profile from aws sso
+// login, so the error tells how to pick that profile.
+func TestCredentialErrorNamesOtherProfilesWhenTheDefaultFails(t *testing.T) {
+	writeConfig(t, "[default]\nlogin_session = arn:aws:iam::123456789012:user/me\n\n"+
+		"[profile dev]\nsso_start_url = https://corp.awsapps.com/start\n")
+
+	err := noCredentialsError("", errors.New("unable to load login session token"))
+
+	assert.Contains(t, err.Error(), "aws login --profile default")
+	assert.Contains(t, err.Error(), "To use another profile, pass --profile <name> or set AWS_PROFILE. Profiles: dev")
+	assert.NotContains(t, err.Error(), "Profiles: default")
+}
+
+func TestCredentialErrorNamesOtherProfilesWhenTheDefaultCauseIsUnknown(t *testing.T) {
+	writeConfig(t, "[default]\ncredential_process = /usr/local/bin/get-creds\n\n[profile dev]\nregion = us-east-1\n")
+
+	err := noCredentialsError("", errors.New("process provider error: exit status 1"))
+
+	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile default")
+	assert.Contains(t, err.Error(), "Profiles: dev")
+}
+
+func TestCredentialErrorDoesNotNameOtherProfilesForASelectedProfile(t *testing.T) {
+	writeConfig(t, "[profile dev]\nsso_session = corp\n\n[profile prod]\nsso_session = corp\n")
+
+	err := noCredentialsError("dev", expiredSSO())
+
+	assert.Contains(t, err.Error(), "aws sso login --profile dev")
+	assert.NotContains(t, err.Error(), "To use another profile")
+}
+
+func TestNoProfileSelected(t *testing.T) {
+	writeConfig(t, "[profile dev]\nregion = us-east-1\n")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+
+	assert.True(t, NoProfileSelected(""))
+	assert.False(t, NoProfileSelected("dev"))
+
+	t.Setenv("AWS_PROFILE", "dev")
+	assert.False(t, NoProfileSelected(""))
+
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKIA")
+	assert.False(t, NoProfileSelected(""))
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	writeConfig(t, "[default]\nregion = us-east-1\n")
+	assert.False(t, NoProfileSelected(""))
+}

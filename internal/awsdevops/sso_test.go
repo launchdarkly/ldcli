@@ -96,3 +96,11 @@ func TestConfigFilePathDefaultsToHome(t *testing.T) {
 
 	assert.Equal(t, filepath.Join(home, ".aws", "config"), awsdevops.ConfigFilePath())
 }
+
+func TestHasLoginSession(t *testing.T) {
+	path := writeConfig(t, "[default]\nlogin_session = arn:aws:iam::1:user/me\n\n[profile dev]\nsso_session = corp\n")
+
+	assert.True(t, awsdevops.HasLoginSession(path, "default"))
+	assert.False(t, awsdevops.HasLoginSession(path, "dev"))
+	assert.False(t, awsdevops.HasSSOConfig(path, "default"))
+}
