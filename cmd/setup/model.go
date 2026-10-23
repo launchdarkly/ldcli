@@ -2,6 +2,11 @@ package setup
 
 import (
 	"io"
+	"os"
+	"os/signal"
+	"strings"
+	"sync"
+	"syscall"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
@@ -14,6 +19,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/setup"
+	"github.com/launchdarkly/ldcli/internal/setup/agent"
 )
 
 // copyState records how the visible snippet was copied, so the view can confirm a
@@ -39,7 +45,8 @@ const (
 	stepPlan
 	stepInstall
 	stepCreateFlag
-	stepInit
+	// stepAgent runs the setup agent, which adds the initialization code.
+	stepAgent
 	stepWaitForApp
 	stepVerify
 	stepDone
@@ -98,6 +105,32 @@ type wizardModel struct {
 	flagKey        string
 	initResult     *setup.InitResult
 	verifyResult   *setup.VerifyResult
+
+	// presetProject and presetEnv come from --project and --environment. The
+	// wizard selects them when their list loads, and then clears them.
+	presetProject string
+	presetEnv     string
+
+	agentRunner agent.Runner
+	// agentRuns records every run that starts, so setup can close a run whose
+	// start finished after the user quit.
+	agentRuns *runTracker
+	agentRun  agent.Run
+	// agentLog holds one line per finished tool call, newest last.
+	agentLog []string
+	// agentFiles are the files that the agent changed.
+	agentFiles []string
+	// agentPermissions are the requests that wait for the user's answer, oldest
+	// first. OpenCode can ask for several tool calls at once, and each one
+	// waits until it gets its own answer.
+	agentPermissions []agent.PermissionRequest
+	// agentQuestions are the agent's question requests that wait for answers,
+	// oldest first. agentAnswers holds the answers to the first request so far,
+	// one for each of its questions that the user answered.
+	agentQuestions []agent.QuestionRequest
+	agentAnswers   [][]string
+	agentUsage     *agent.Usage
+	agentDone      bool
 
 	// nativeCopy puts content on the operating system's clipboard, and clipboard
 	// receives the OSC 52 sequence used when that is not available. Both are fields
@@ -185,14 +218,23 @@ type detectDoneMsg struct{ result *setup.DetectResult }
 type detectFailedMsg struct{}
 type installDoneMsg struct{ result *setup.InstallResult }
 type flagCreatedMsg struct{ key string }
-type initDoneMsg struct{ result *setup.InitResult }
 type copiedMsg struct{ viaTerminal bool }
 type verifyDoneMsg struct{ result *setup.VerifyResult }
+type agentStartedMsg struct{ run agent.Run }
+type agentFailedMsg struct{ err error }
+type agentEventMsg struct {
+	run agent.Run
+	ev  agent.Event
+	// closed reports that the run's event channel closed without a last event.
+	closed bool
+}
+type agentRepliedMsg struct{ err error }
 type wizardErrMsg struct{ err error }
 
 func runSetupWizard(
 	analyticsTrackerFn analytics.TrackerFn,
 	svc setup.Service,
+	runner agent.Runner,
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// Pre-flight: the wizard's first action is an authenticated API call, so
@@ -216,12 +258,59 @@ func runSetupWizard(
 			clipboard:     terminalWriter(),
 			nativeCopy:    clipboard.WriteAll,
 			remoteSession: isRemoteSession(),
+			presetProject: strings.TrimSpace(getFlag(cmd, cliflags.ProjectFlag)),
+			presetEnv:     strings.TrimSpace(getFlag(cmd, cliflags.EnvironmentFlag)),
+			agentRunner:   runner,
+			agentRuns:     &runTracker{},
 		}
 
 		p := tea.NewProgram(m, tea.WithAltScreen())
+		// Bubble Tea quits on SIGINT and SIGTERM. A closed terminal sends
+		// SIGHUP, which would end ldcli at once and leave OpenCode running, so
+		// it quits the wizard the same way.
+		hangup := make(chan os.Signal, 1)
+		signal.Notify(hangup, syscall.SIGHUP)
+		defer signal.Stop(hangup)
+		go func() {
+			if _, ok := <-hangup; ok {
+				p.Quit()
+			}
+		}()
 		_, err := p.Run()
+		// The wizard closes a run when the user quits, but a run can finish
+		// starting after that. OpenCode must not outlive setup.
+		m.agentRuns.closeAll()
 		return err
 	}
+}
+
+// runTracker records agent runs. It is a pointer in the model, so every copy
+// of the model shares one tracker.
+type runTracker struct {
+	mu     sync.Mutex
+	runs   []agent.Run
+	closed bool
+}
+
+// add records a run. If the tracker is already closed, it closes the run.
+func (t *runTracker) add(run agent.Run) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		_ = run.Close()
+		return
+	}
+	t.runs = append(t.runs, run)
+}
+
+func (t *runTracker) closeAll() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.closed = true
+	for _, r := range t.runs {
+		_ = r.Close()
+	}
+	t.runs = nil
 }
 
 func (m wizardModel) Init() tea.Cmd {

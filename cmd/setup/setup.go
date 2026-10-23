@@ -10,6 +10,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/setup"
+	"github.com/launchdarkly/ldcli/internal/setup/agent"
 )
 
 // NewSetupCmd creates the top-level setup command and registers its hidden subcommands.
@@ -25,6 +26,7 @@ func NewSetupCmd(
 		Installer:   installer,
 		Initializer: setup.Initializer{},
 	}
+	runner := agent.NewOpenCode()
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Set up LaunchDarkly in your project",
@@ -32,7 +34,10 @@ func NewSetupCmd(
 
 Detects your project's language and framework, installs the correct SDK,
 initializes it with your environment's SDK key, creates a feature flag,
-and verifies the connection.`,
+and verifies the connection.
+
+The setup agent adds the initialization code. It needs OpenCode. To skip the
+project and environment screens, pass --project and --environment.`,
 		PreRun: func(cmd *cobra.Command, args []string) {
 			// Dim the notice and set it off with a blank line so it reads as a
 			// transitional notice, visually distinct from command output.
@@ -46,12 +51,15 @@ and verifies the connection.`,
 				viper.GetBool(cliflags.AnalyticsOptOut),
 			).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, "setup", nil))
 		},
-		RunE: runSetupWizard(analyticsTrackerFn, svc),
+		RunE: runSetupWizard(analyticsTrackerFn, svc, runner),
 	}
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key. Setup skips the project screen.")
+	cmd.Flags().String(cliflags.EnvironmentFlag, "", "The environment key. Setup skips the environment screen.")
 
 	cmd.AddCommand(newDetectCmd(svc))
 	cmd.AddCommand(newInstallCmd(svc))
 	cmd.AddCommand(newInitCmd(svc))
+	cmd.AddCommand(newAgentCmd(svc, runner))
 
 	return cmd
 }

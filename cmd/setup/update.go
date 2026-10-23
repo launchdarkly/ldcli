@@ -1,7 +1,10 @@
 package setup
 
 import (
+	"errors"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -10,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/launchdarkly/ldcli/internal/setup"
+	"github.com/launchdarkly/ldcli/internal/setup/agent"
 )
 
 func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -37,6 +41,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			m.quitting = true
+			m.closeAgent()
 			return m, tea.Quit
 		// esc is not used due to arrow keys becoming the escape sequence.
 		case "q":
@@ -44,7 +49,18 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break // let the list receive 'q' as filter input
 			}
 			m.quitting = true
+			m.closeAgent()
 			return m, tea.Quit
+		case "y", "n":
+			if m.step == stepAgent && len(m.agentPermissions) > 0 && m.agentRun != nil {
+				req := m.agentPermissions[0]
+				m.agentPermissions = m.agentPermissions[1:]
+				return m, replyAgent(m.agentRun, req, msg.String() == "y")
+			}
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9", "s":
+			if m.step == stepAgent && len(m.agentPermissions) == 0 && len(m.agentQuestions) > 0 && m.agentRun != nil {
+				return m.answerAgentQuestion(msg.String())
+			}
 		case "left", "h":
 			if m.isFiltering() {
 				break // let the list receive the key as filter input
@@ -83,6 +99,17 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectList.SetShowStatusBar(false)
 		keepEscFromQuitting(&m.projectList)
 		m.projectList.AdditionalShortHelpKeys = listHints(false)
+		if preset := m.presetProject; preset != "" && m.step == stepSelectProject {
+			m.presetProject = ""
+			if !slices.ContainsFunc(msg.projects, func(p projectItem) bool { return p.key == preset }) {
+				m.err = errors.New("Setup could not find the project " + strconv.Quote(preset) + ". Check the --project value.")
+				return m, nil
+			}
+			m.selectedProject = preset
+			m.resetEnvSelection()
+			m.step = stepSelectEnvironment
+			return m, m.fetchEnvironments()
+		}
 		return m, nil
 
 	case envsFetchedMsg:
@@ -101,6 +128,15 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.envList.SetShowStatusBar(false)
 		keepEscFromQuitting(&m.envList)
 		m.envList.AdditionalShortHelpKeys = listHints(true)
+		if preset := m.presetEnv; preset != "" && m.step == stepSelectEnvironment {
+			m.presetEnv = ""
+			if !slices.ContainsFunc(msg.environments, func(e envItem) bool { return e.key == preset }) {
+				m.err = errors.New("Setup could not find the environment " + strconv.Quote(preset) + " in the project " + strconv.Quote(m.selectedProject) + ". Check the --environment value.")
+				return m, nil
+			}
+			m.selectedEnv = preset
+			return m, m.fetchEnvDetails()
+		}
 		return m, nil
 
 	case envDetailsFetchedMsg:
@@ -143,19 +179,24 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case flagCreatedMsg:
 		m.flagKey = msg.key
-		m.step = stepInit
-		return m, m.runInit()
+		m.step = stepAgent
+		return m, m.startAgent()
 
-	case initDoneMsg:
-		m.initResult = msg.result
-		// Skip the live verify if init didn't inject runnable code, or if the SDK
-		// wasn't actually installed (auto-install failed) — the app can't connect.
-		if !msg.result.Success || (m.installResult != nil && m.installResult.Failed) {
-			m.step = stepDone
-			return m, nil
+	case agentStartedMsg:
+		m.agentRun = msg.run
+		return m, waitForAgentEvent(msg.run)
+
+	case agentFailedMsg:
+		return m.agentFailed(msg.err)
+
+	case agentRepliedMsg:
+		if msg.err != nil {
+			return m.agentFailed(msg.err)
 		}
-		m.step = stepWaitForApp
 		return m, nil
+
+	case agentEventMsg:
+		return m.handleAgentEvent(msg)
 
 	case verifyDoneMsg:
 		m.verifyResult = msg.result
@@ -215,6 +256,94 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, cmd
+}
+
+// handleAgentEvent applies one event of the agent run and asks for the next.
+func (m wizardModel) handleAgentEvent(msg agentEventMsg) (tea.Model, tea.Cmd) {
+	// An event of a run that already ended, for example after a fallback, has
+	// nothing left to change.
+	if m.agentRun == nil || msg.run != m.agentRun {
+		return m, nil
+	}
+	if msg.closed {
+		return m.agentFailed(errors.New("the setup agent stopped without a result"))
+	}
+	ev := msg.ev
+	switch ev.Kind {
+	case agent.EventTool:
+		if ev.Tool.Status != "running" {
+			m.agentLog = append(m.agentLog, describeTool(ev.Tool))
+		}
+	case agent.EventFileEdited:
+		if !slices.Contains(m.agentFiles, ev.File) {
+			m.agentFiles = append(m.agentFiles, ev.File)
+		}
+	case agent.EventUsage:
+		u := ev.Usage
+		m.agentUsage = &u
+	case agent.EventPermission:
+		req := ev.Permission
+		m.agentPermissions = append(m.agentPermissions, req)
+	case agent.EventQuestion:
+		m.agentQuestions = append(m.agentQuestions, ev.Question)
+	case agent.EventDone:
+		m.agentDone = true
+		m.closeAgent()
+		// As after init: without an installed SDK, the app cannot connect.
+		if m.installResult != nil && m.installResult.Failed {
+			m.step = stepDone
+			return m, nil
+		}
+		m.step = stepWaitForApp
+		return m, nil
+	case agent.EventError:
+		return m.agentFailed(errors.New(ev.Text))
+	}
+	return m, waitForAgentEvent(m.agentRun)
+}
+
+// agentFailed ends the agent run and stops setup with the error.
+func (m wizardModel) agentFailed(err error) (tea.Model, tea.Cmd) {
+	m.closeAgent()
+	m.agentRun = nil
+	m.agentPermissions = nil
+	m.agentQuestions = nil
+	m.agentAnswers = nil
+	m.err = errors.New("The setup agent failed: " + err.Error())
+	return m, nil
+}
+
+// answerAgentQuestion records the user's choice for the current question. A
+// number picks an option, and s skips the whole request, so the agent goes on
+// without answers. When every question of the request has an answer, the
+// wizard sends them.
+func (m wizardModel) answerAgentQuestion(key string) (tea.Model, tea.Cmd) {
+	req := m.agentQuestions[0]
+	if key == "s" {
+		m.agentQuestions = m.agentQuestions[1:]
+		m.agentAnswers = nil
+		return m, answerAgent(m.agentRun, req, nil)
+	}
+	question := req.Questions[len(m.agentAnswers)]
+	choice := int(key[0] - '1')
+	if choice >= len(question.Options) {
+		return m, nil
+	}
+	m.agentAnswers = append(m.agentAnswers, []string{question.Options[choice].Label})
+	if len(m.agentAnswers) < len(req.Questions) {
+		return m, nil
+	}
+	answers := m.agentAnswers
+	m.agentQuestions = m.agentQuestions[1:]
+	m.agentAnswers = nil
+	return m, answerAgent(m.agentRun, req, answers)
+}
+
+// closeAgent stops OpenCode if a run is active.
+func (m wizardModel) closeAgent() {
+	if m.agentRun != nil {
+		_ = m.agentRun.Close()
+	}
 }
 
 // keepEscFromQuitting rebinds a list's quit key to q alone. bubbles binds it to

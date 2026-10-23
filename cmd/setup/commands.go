@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/launchdarkly/ldcli/internal/setup"
+	"github.com/launchdarkly/ldcli/internal/setup/agent"
 )
 
 func (m wizardModel) fetchProjects() tea.Cmd {
@@ -107,22 +109,6 @@ func (m wizardModel) runCreateFlag() tea.Cmd {
 	}
 }
 
-func (m wizardModel) runInit() tea.Cmd {
-	return func() tea.Msg {
-		cfg := setup.InitConfig{
-			SDKKey:       m.sdkKey,
-			ClientSideID: m.clientSideID,
-			MobileKey:    m.mobileKey,
-			FlagKey:      m.flagKey,
-		}
-		result, err := m.svc.Inject(m.detectResult.SDKID, m.detectResult.EntryPoint, cfg)
-		if err != nil {
-			return wizardErrMsg{err: err}
-		}
-		return initDoneMsg{result: result}
-	}
-}
-
 func (m wizardModel) runVerify() tea.Cmd {
 	return func() tea.Msg {
 		result, err := m.svc.Verify(m.auth, m.selectedProject, m.selectedEnv, m.detectResult.SDKID)
@@ -198,4 +184,54 @@ func isRemoteSession() bool {
 		}
 	}
 	return false
+}
+
+// startAgent checks that the agent can run and starts it.
+func (m wizardModel) startAgent() tea.Cmd {
+	runner, tracker := m.agentRunner, m.agentRuns
+	sdkInstalled := m.installResult != nil && !m.installResult.Failed
+	task := agentTask("", m.detectResult, m.flagKey, sdkInstalled)
+	return func() tea.Msg {
+		dir, err := os.Getwd()
+		if err != nil {
+			return agentFailedMsg{err: err}
+		}
+		task.Dir = dir
+		ctx := context.Background()
+		if err := runner.Check(ctx); err != nil {
+			return agentFailedMsg{err: err}
+		}
+		run, err := runner.Start(ctx, task)
+		if err != nil {
+			return agentFailedMsg{err: err}
+		}
+		if tracker != nil {
+			tracker.add(run)
+		}
+		return agentStartedMsg{run: run}
+	}
+}
+
+// waitForAgentEvent returns the run's next event. Update calls it again after
+// each event, so the wizard reads the events one at a time.
+func waitForAgentEvent(run agent.Run) tea.Cmd {
+	return func() tea.Msg {
+		ev, ok := <-run.Events()
+		if !ok {
+			return agentEventMsg{run: run, closed: true}
+		}
+		return agentEventMsg{run: run, ev: ev}
+	}
+}
+
+func answerAgent(run agent.Run, req agent.QuestionRequest, answers [][]string) tea.Cmd {
+	return func() tea.Msg {
+		return agentRepliedMsg{err: run.Answer(context.Background(), req, answers)}
+	}
+}
+
+func replyAgent(run agent.Run, req agent.PermissionRequest, allow bool) tea.Cmd {
+	return func() tea.Msg {
+		return agentRepliedMsg{err: run.Reply(context.Background(), req, allow)}
+	}
 }
