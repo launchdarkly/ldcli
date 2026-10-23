@@ -73,6 +73,9 @@ type PlannedResource struct {
 	// changedAttachments are the tools and skills whose content differs
 	// between the local file and LaunchDarkly.
 	changedAttachments []ResourceID
+	// conflictUses are the conflicted variations that newly use the tool or
+	// skill of this row on one side, when no push or pull needs the row.
+	conflictUses []conflictUse
 	// restoreRef is the link that a restored variation file keeps.
 	restoreRef *syncdomain.Reference
 }
@@ -100,6 +103,13 @@ func (resource PlannedResource) writtenSides() (source, target *syncdomain.Varia
 	default:
 		return nil, nil
 	}
+}
+
+// conflictUse is a conflicted variation that newly uses a tool or skill on one
+// side. local is true when that side is the local file.
+type conflictUse struct {
+	variation ResourceID
+	local     bool
 }
 
 // Plan is the sync decision for each resource, in identity order.
