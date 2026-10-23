@@ -85,32 +85,8 @@ func NoProfileSelected(profile string) bool {
 	return !slices.Contains(knownProfiles(), "default")
 }
 
-// LoginTokenInvalid reports an aws login token that is expired, not in the
-// cache, or not valid after a password change. Only then does aws login help.
-// The SDK has no error type for these cases, but each message asks the user
-// to authenticate again.
-func LoginTokenInvalid(err error) bool {
-	for ; err != nil; err = errors.Unwrap(err) {
-		if strings.Contains(err.Error(), "please reauthenticate") {
-			return true
-		}
-	}
-
-	return false
-}
-
 // HasSSOConfig reports whether the profile uses SSO.
 func HasSSOConfig(path, profile string) bool {
-	return hasProfileKey(path, profile, "sso_session", "sso_start_url")
-}
-
-// HasLoginSession reports whether the profile uses credentials from aws login.
-func HasLoginSession(path, profile string) bool {
-	return hasProfileKey(path, profile, "login_session")
-}
-
-// hasProfileKey reports whether the profile sets one of the keys.
-func hasProfileKey(path, profile string, keys ...string) bool {
 	file, err := os.Open(path)
 	if err != nil {
 		return false
@@ -135,7 +111,8 @@ func hasProfileKey(path, profile string, keys ...string) bool {
 		if !ok || strings.TrimSpace(value) == "" {
 			continue
 		}
-		if slices.Contains(keys, strings.TrimSpace(key)) {
+		switch strings.TrimSpace(key) {
+		case "sso_session", "sso_start_url":
 			return true
 		}
 	}

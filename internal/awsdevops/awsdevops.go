@@ -178,7 +178,6 @@ func noCredentialsError(profile string, cause error) error {
 	// cause can contain the output of a credential_process with the secret key.
 	useful := cause != nil && !fromIMDS(cause)
 	sso := SSOProfile(ConfigFilePath(), profile)
-	login := HasLoginSession(ConfigFilePath(), selected)
 
 	var msg string
 	switch {
@@ -186,11 +185,6 @@ func noCredentialsError(profile string, cause error) error {
 		msg = fmt.Sprintf(
 			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again",
 			sso, sso,
-		) + otherProfiles(selected, chosen, profiles)
-	case login && LoginTokenInvalid(cause):
-		msg = fmt.Sprintf(
-			"no AWS credentials for profile %q. Run `aws login --profile %s`, then run this command again",
-			selected, selected,
 		) + otherProfiles(selected, chosen, profiles)
 	case useful && named:
 		msg = fmt.Sprintf(

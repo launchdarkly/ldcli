@@ -315,54 +315,17 @@ func TestCredentialErrorPointsToTheCauseWithoutAProfile(t *testing.T) {
 	assert.Equal(t, "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause", err.Error())
 }
 
-// loginExpired acts like the SDK error for an expired aws login session.
-func loginExpired() error {
-	return fmt.Errorf("failed to refresh cached credentials, create oauth2 token: %w",
-		errors.New("login session has expired, please reauthenticate"))
-}
-
-// A login does not fix an aws login error with another cause.
-func TestCredentialErrorPointsToTheCauseOfOtherLoginErrors(t *testing.T) {
-	writeConfig(t, "[profile console]\nlogin_session = arn:aws:iam::123456789012:user/me\n")
-	cause := errors.New("create oauth2 token: insufficient permissions")
-
-	err := noCredentialsError("console", cause)
-
-	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile console")
-	assert.NotContains(t, err.Error(), "aws login")
-	assert.NotContains(t, err.Error(), "insufficient permissions")
-}
-
-func TestCredentialErrorNamesAWSLoginForALoginSessionProfile(t *testing.T) {
-	writeConfig(t, "[profile console]\nlogin_session = arn:aws:iam::123456789012:user/me\n")
-
-	err := noCredentialsError("console", loginExpired())
-
-	assert.Contains(t, err.Error(), "aws login --profile console")
-	assert.NotContains(t, err.Error(), "sso login")
-	assert.NotContains(t, err.Error(), "To use another profile")
-}
-
 // An expired default profile from aws login hides a profile from aws sso
 // login, so the error tells how to pick that profile.
 func TestCredentialErrorNamesOtherProfilesWhenTheDefaultFails(t *testing.T) {
 	writeConfig(t, "[default]\nlogin_session = arn:aws:iam::123456789012:user/me\n\n"+
 		"[profile dev]\nsso_start_url = https://corp.awsapps.com/start\n")
 
-	err := noCredentialsError("", loginExpired())
-
-	assert.Contains(t, err.Error(), "aws login --profile default")
-	assert.Contains(t, err.Error(), "To use another profile, pass --profile <name> or run `export AWS_PROFILE=<name>`. Profiles: dev")
-	assert.NotContains(t, err.Error(), "Profiles: default")
-}
-
-func TestCredentialErrorNamesOtherProfilesWhenTheDefaultCauseIsUnknown(t *testing.T) {
-	writeConfig(t, "[default]\ncredential_process = /usr/local/bin/get-creds\n\n[profile dev]\nregion = us-east-1\n")
-
-	err := noCredentialsError("", errors.New("process provider error: exit status 1"))
+	err := noCredentialsError("", errors.New("login session has expired, please reauthenticate"))
 
 	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile default")
-	assert.Contains(t, err.Error(), "Profiles: dev")
+	assert.Contains(t, err.Error(), "To use another profile, pass --profile <name> or run `export AWS_PROFILE=<name>`. Profiles: dev")
+	assert.NotContains(t, err.Error(), "Profiles: default")
 }
 
 func TestCredentialErrorDoesNotNameOtherProfilesForASelectedProfile(t *testing.T) {
