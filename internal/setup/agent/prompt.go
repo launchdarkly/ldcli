@@ -70,6 +70,29 @@ Follow these rules:
 - Follow the code style of the project.
 - When you finish, list the files that you changed and say in one sentence how the user can see the flag value.`
 
+// BuildFacts returns the first user message when the instructions come from
+// the AI Config. It gives only the facts that the CLI detected and the choices
+// that it made earlier in setup. It gives no task, so the config's
+// instructions decide what the agent does.
+func BuildFacts(t Task) string {
+	var b strings.Builder
+	b.WriteString("Follow your instructions to set up LaunchDarkly in the project in the current directory.\n\n")
+	b.WriteString("Facts from ldcli setup:\n")
+	writeFact(&b, "SDK", t.SDKID)
+	writeFact(&b, "Language", t.Language)
+	writeFact(&b, "Framework", t.Framework)
+	writeFact(&b, "Package manager", t.PackageManager)
+	writeFact(&b, "Entry point", t.EntryPoint)
+	installed := "no"
+	if t.SDKInstalled {
+		installed = "yes"
+	}
+	writeFact(&b, "SDK package installed", installed)
+	writeFact(&b, "Flag created by setup", t.FlagKey)
+	writeFact(&b, "Environment variable for the SDK credential", CredentialEnvVar(t.SDKID))
+	return b.String()
+}
+
 // BuildPrompt returns the task message for one run.
 func BuildPrompt(t Task) string {
 	var b strings.Builder
