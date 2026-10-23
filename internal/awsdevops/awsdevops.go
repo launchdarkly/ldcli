@@ -44,7 +44,9 @@ var (
 	// noCredentialsError with the detail that fits the situation (named
 	// profile not usable, no profile selected, nothing configured at all).
 	ErrNoCredentials = errors.New("no AWS credentials found")
-	ErrNoRegion      = errors.New("no AWS region found. Add a region to the AWS profile, run `export AWS_REGION=<region>`, or pass --region")
+	ErrNoRegion      = errors.New("no AWS region found." +
+		"\n\nTo fix this, pass --region <region>, OR run `export AWS_REGION=<region>`, " +
+		"OR add a region to the AWS profile with `aws configure set region <region> --profile <name>`.")
 )
 
 // AgentAPI is the subset of the AWS DevOps Agent API this package uses.
@@ -103,6 +105,11 @@ func NewClients(ctx context.Context, region, profile string) (Clients, error) {
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
+	var missing awsconfig.SharedConfigProfileNotExistError
+	if errors.As(err, &missing) {
+		// The selected profile is not in the files, for example after a typo.
+		return Clients{}, noCredentialsError(profile, nil)
+	}
 	if err != nil {
 		return Clients{}, fmt.Errorf("unable to load AWS configuration: %w", err)
 	}
@@ -171,8 +178,9 @@ const maxListedProfiles = 5
 func noCredentialsError(profile string, cause error) error {
 	selected, chosen := SelectedProfile(profile)
 	profiles := knownProfiles()
+	exists := slices.ContainsFunc(profiles, func(p awsProfile) bool { return p.name == selected })
 	// The default profile counts only if it exists.
-	named := chosen || slices.Contains(profiles, selected)
+	named := chosen || exists
 	// Only a cause that is not from IMDS tells what failed, for example a
 	// credential_process. The message does not show the cause, because a
 	// cause can contain the output of a credential_process with the secret key.
@@ -183,47 +191,83 @@ func noCredentialsError(profile string, cause error) error {
 	switch {
 	case sso != "" && (cause == nil || SSOTokenInvalid(cause)):
 		msg = fmt.Sprintf(
-			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again",
+			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again.",
 			sso, sso,
 		) + otherProfiles(selected, chosen, profiles)
 	case useful && named:
 		msg = fmt.Sprintf(
-			"unable to get AWS credentials for profile %q. Run `aws sts get-caller-identity --profile %s` to see the cause",
+			"unable to get AWS credentials for profile %q. Run `aws sts get-caller-identity --profile %s` to see the cause.",
 			selected, selected,
 		) + otherProfiles(selected, chosen, profiles)
 	case useful:
-		msg = "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause"
+		msg = "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause."
+	case chosen && !exists && len(profiles) > 0:
+		msg = fmt.Sprintf("profile %q is not in your AWS config.", selected) + fixes(
+			"pass --profile <name> with a profile from the list below",
+			"run `export AWS_PROFILE=<name>`",
+			addProfile(selected),
+		) + listProfiles(profiles)
+	case chosen && !exists:
+		msg = fmt.Sprintf("profile %q is not in your AWS config.", selected) + fixes(addProfile(selected))
 	case chosen:
-		msg = fmt.Sprintf(
-			"profile %q has no AWS credentials. Add credentials to it, or pass --profile with another profile",
-			selected,
-		)
+		others := otherThan(selected, profiles)
+		options := []string{addProfile(selected)}
+		if len(others) > 0 {
+			options = append([]string{"pass --profile <name> with another profile from the list below"}, options...)
+		}
+		msg = fmt.Sprintf("profile %q has no AWS credentials.", selected) + fixes(options...) + listProfiles(others)
 	case len(profiles) > 0:
-		msg = fmt.Sprintf(
-			"no AWS profile selected. Pass --profile <name> or run `export AWS_PROFILE=<name>`. Profiles: %s. Run `aws configure list-profiles` to see all",
-			summarizeProfiles(profiles),
-		)
+		msg = "no AWS profile selected." + fixes(
+			"pass --profile <name> with a profile from the list below",
+			"run `export AWS_PROFILE=<name>`",
+			addProfile(""),
+		) + listProfiles(profiles)
 	default:
-		msg = "no AWS credentials found. Run `aws sso login --profile <name>`, or run `export AWS_ACCESS_KEY_ID=<id> AWS_SECRET_ACCESS_KEY=<secret>`"
+		msg = "no AWS credentials found." + fixes(addProfile("default"))
 	}
 
 	return &noCredsErr{msg: msg, cause: cause}
 }
 
+// fixes joins the ways to fix an error, easiest first, in one sentence. The
+// uppercase OR shows that the user does only one of them.
+func fixes(options ...string) string {
+	return "\n\nTo fix this, " + strings.Join(options, ", OR ") + "."
+}
+
+// addProfile tells how to add the named profile with SSO or an AWS console
+// session. With no name, it tells how to add a profile.
+func addProfile(name string) string {
+	add, flag := "a profile", "<name>"
+	if name != "" {
+		add, flag = "the "+name+" profile", name
+	}
+
+	return fmt.Sprintf(
+		"add %s with `aws configure sso --profile %s` for SSO, or `aws login --profile %s` for an AWS console session",
+		add, flag, flag,
+	)
+}
+
 // otherProfiles tells how to use another profile when the SDK fell back to
 // the default profile. The user can expect a profile from aws sso login, but
 // the SDK does not use it without --profile or AWS_PROFILE.
-func otherProfiles(selected string, chosen bool, profiles []string) string {
+func otherProfiles(selected string, chosen bool, profiles []awsProfile) string {
 	if chosen {
 		return ""
 	}
-	others := slices.DeleteFunc(slices.Clone(profiles), func(name string) bool { return name == selected })
+	others := otherThan(selected, profiles)
 	if len(others) == 0 {
 		return ""
 	}
 
-	return fmt.Sprintf(". To use another profile, pass --profile <name> or run `export AWS_PROFILE=<name>`. Profiles: %s",
-		summarizeProfiles(others))
+	return "\n\nTo use another profile, pass --profile <name> with a profile from the list below, " +
+		"OR run `export AWS_PROFILE=<name>`." + listProfiles(others)
+}
+
+// otherThan returns the profiles without the named one.
+func otherThan(name string, profiles []awsProfile) []awsProfile {
+	return slices.DeleteFunc(slices.Clone(profiles), func(p awsProfile) bool { return p.name == name })
 }
 
 // fromIMDS reports a cause from the EC2 metadata service. The SDK tries it
@@ -234,31 +278,60 @@ func fromIMDS(err error) bool {
 	return errors.As(err, &op) && op.Service() == "ec2imds"
 }
 
-// summarizeProfiles lists the first few names.
-func summarizeProfiles(profiles []string) string {
-	if len(profiles) <= maxListedProfiles {
-		return strings.Join(profiles, ", ")
-	}
-
-	return fmt.Sprintf(
-		"%s and %d more",
-		strings.Join(profiles[:maxListedProfiles], ", "),
-		len(profiles)-maxListedProfiles,
-	)
+// awsProfile is a profile in the shared AWS files. account and role are
+// empty if the profile does not name them.
+type awsProfile struct {
+	name    string
+	account string
+	role    string
 }
 
-// knownProfiles returns the profile names configured in the shared AWS
-// config and credentials files. It is best-effort: unreadable files are
-// silently skipped so a diagnostic path never masks the original error.
-func knownProfiles() []string {
-	var profiles []string
-	seen := map[string]bool{}
+// listProfiles lists the first few profiles, one per line, with the account
+// and role of each. If it does not show them all, it names the command that
+// does.
+func listProfiles(profiles []awsProfile) string {
+	if len(profiles) == 0 {
+		return ""
+	}
+	shown := profiles[:min(len(profiles), maxListedProfiles)]
+	nameWidth, accountWidth := 0, 0
+	for _, p := range shown {
+		nameWidth = max(nameWidth, len(p.name))
+		accountWidth = max(accountWidth, len(p.account))
+	}
+
+	var b strings.Builder
+	b.WriteString("\n\nProfiles:")
+	for _, p := range shown {
+		line := fmt.Sprintf("  %-*s  %-*s  %s", nameWidth, p.name, accountWidth, p.account, p.role)
+		b.WriteString("\n" + strings.TrimRight(line, " "))
+	}
+	if more := len(profiles) - len(shown); more > 0 {
+		fmt.Fprintf(&b, "\n  and %d more. Run `aws configure list-profiles` to see all of them", more)
+	}
+
+	return b.String()
+}
+
+// knownProfiles returns the profiles configured in the shared AWS config and
+// credentials files. It is best-effort: unreadable files are silently skipped
+// so a diagnostic path never masks the original error.
+func knownProfiles() []awsProfile {
+	var profiles []awsProfile
+	index := map[string]int{}
+	current := -1
 	add := func(name string) {
-		if name == "" || seen[name] {
+		if name == "" {
+			current = -1
 			return
 		}
-		seen[name] = true
-		profiles = append(profiles, name)
+		i, ok := index[name]
+		if !ok {
+			i = len(profiles)
+			index[name] = i
+			profiles = append(profiles, awsProfile{name: name})
+		}
+		current = i
 	}
 
 	for _, path := range sharedConfigPaths() {
@@ -270,6 +343,9 @@ func knownProfiles() []string {
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
 			if !strings.HasPrefix(line, "[") || !strings.HasSuffix(line, "]") {
+				if current >= 0 {
+					setProfileField(&profiles[current], line)
+				}
 				continue
 			}
 			name := strings.TrimSpace(line[1 : len(line)-1])
@@ -280,6 +356,7 @@ func knownProfiles() []string {
 				add(strings.TrimSpace(strings.TrimPrefix(name, "profile ")))
 			case strings.ContainsRune(name, ' '):
 				// sso-session, services, etc. — skip
+				add("")
 			default:
 				// credentials file lists bare names
 				add(name)
@@ -289,6 +366,32 @@ func knownProfiles() []string {
 	}
 
 	return profiles
+}
+
+// setProfileField reads the account and role from an SSO or role_arn line.
+func setProfileField(p *awsProfile, line string) {
+	key, value, ok := strings.Cut(line, "=")
+	if !ok {
+		return
+	}
+	value = strings.TrimSpace(value)
+	switch strings.TrimSpace(key) {
+	case "sso_account_id":
+		p.account = value
+	case "sso_role_name":
+		p.role = value
+	case "role_arn":
+		// arn:aws:iam::<account>:role/<path/><name>
+		parts := strings.SplitN(value, ":", 6)
+		if len(parts) == 6 && strings.HasPrefix(parts[5], "role/") {
+			if p.account == "" {
+				p.account = parts[4]
+			}
+			if p.role == "" {
+				p.role = parts[5][strings.LastIndex(parts[5], "/")+1:]
+			}
+		}
+	}
 }
 
 // sharedConfigPaths returns the paths the AWS SDK reads profiles from,

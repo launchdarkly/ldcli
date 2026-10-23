@@ -813,7 +813,8 @@ func TestNewClientsRequiresCredentials(t *testing.T) {
 	_, err := awsdevops.NewClients(context.Background(), "us-east-1", "")
 
 	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
-	assert.ErrorContains(t, err, "aws sso login")
+	assert.ErrorContains(t, err, "To fix this, add the default profile with `aws configure sso --profile default` for SSO, "+
+		"or `aws login --profile default` for an AWS console session.")
 }
 
 func TestNewClientsSuggestsSelectingAProfile(t *testing.T) {

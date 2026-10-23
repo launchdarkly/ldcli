@@ -312,7 +312,7 @@ func TestCredentialErrorPointsToTheCauseWithoutAProfile(t *testing.T) {
 
 	err := noCredentialsError("", errors.New("process provider error: exit status 1"))
 
-	assert.Equal(t, "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause", err.Error())
+	assert.Equal(t, "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause.", err.Error())
 }
 
 // If the SDK falls back to the default profile and it fails, the error tells
@@ -324,8 +324,9 @@ func TestCredentialErrorNamesOtherProfilesWhenTheDefaultFails(t *testing.T) {
 	err := noCredentialsError("", errors.New("login session has expired, please reauthenticate"))
 
 	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile default")
-	assert.Contains(t, err.Error(), "To use another profile, pass --profile <name> or run `export AWS_PROFILE=<name>`. Profiles: dev")
-	assert.NotContains(t, err.Error(), "Profiles: default")
+	assert.Contains(t, err.Error(), "\n\nTo use another profile, pass --profile <name> with a profile from the list below, "+
+		"OR run `export AWS_PROFILE=<name>`.\n\nProfiles:\n  dev")
+	assert.NotContains(t, err.Error(), "\n  default")
 }
 
 func TestCredentialErrorDoesNotNameOtherProfilesForASelectedProfile(t *testing.T) {
@@ -354,4 +355,101 @@ func TestNoProfileSelected(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
 	writeConfig(t, "[default]\nregion = us-east-1\n")
 	assert.False(t, NoProfileSelected(""))
+}
+
+func TestCredentialErrorListsAccountAndRole(t *testing.T) {
+	writeConfig(t, "[profile dev-admin]\nsso_session = corp\nsso_account_id = 506919356135\nsso_role_name = Administrator\n\n"+
+		"[sso-session corp]\nsso_start_url = https://corp.awsapps.com/start\nsso_account_id = 999999999999\n\n"+
+		"[profile ops]\nrole_arn = arn:aws:iam::123456789012:role/team/Operator\nsource_profile = dev-admin\n\n"+
+		"[profile keys]\nregion = us-east-1\n")
+
+	msg := noCredentialsError("", nil).Error()
+
+	assert.True(t, strings.HasSuffix(msg, "\n\nProfiles:\n"+
+		"  dev-admin  506919356135  Administrator\n"+
+		"  ops        123456789012  Operator\n"+
+		"  keys"), msg)
+	assert.NotContains(t, msg, "list-profiles")
+}
+
+func TestCredentialErrorNamesListProfilesWhenItShowsSome(t *testing.T) {
+	writeProfiles(t, "a", "b", "c", "d", "e", "f", "g")
+
+	msg := noCredentialsError("", nil).Error()
+
+	assert.Contains(t, msg, "\n  e\n  and 2 more. Run `aws configure list-profiles` to see all of them")
+	assert.NotContains(t, msg, "\n  f")
+}
+
+func TestCredentialErrorReadsRoleFromTheCredentialsFile(t *testing.T) {
+	writeConfig(t, "")
+	creds := filepath.Join(t.TempDir(), "credentials")
+	require.NoError(t, os.WriteFile(creds, []byte("[static]\naws_access_key_id = AKIA\naws_secret_access_key = wJalrXUtnFEMI\n"), 0o600))
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", creds)
+
+	msg := noCredentialsError("", nil).Error()
+
+	assert.Contains(t, msg, "\n  static")
+	assert.NotContains(t, msg, "AKIA")
+	assert.NotContains(t, msg, "wJalrXUtnFEMI")
+}
+
+func TestCredentialErrorNamesAMissingProfile(t *testing.T) {
+	writeProfiles(t, "dev")
+
+	msg := noCredentialsError("dve", nil).Error()
+
+	assert.Contains(t, msg, `profile "dve" is not in your AWS config`)
+	assert.Contains(t, msg, "\n\nTo fix this, pass --profile <name> with a profile from the list below, "+
+		"OR run `export AWS_PROFILE=<name>`, OR add the dve profile with")
+	assert.Contains(t, msg, "`aws login --profile dve` for an AWS console session.\n\nProfiles:\n  dev")
+}
+
+func TestCredentialErrorNamesAMissingProfileWithNoOtherProfiles(t *testing.T) {
+	writeConfig(t, "")
+
+	msg := noCredentialsError("dev", nil).Error()
+
+	assert.Equal(t, "profile \"dev\" is not in your AWS config.\n\n"+
+		"To fix this, add the dev profile with `aws configure sso --profile dev` for SSO, "+
+		"or `aws login --profile dev` for an AWS console session.", msg)
+}
+
+// The SDK fails to load a profile that is not in the files.
+func TestNewClientsNamesAMissingProfile(t *testing.T) {
+	writeProfiles(t, "dev")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+
+	_, err := NewClients(context.Background(), "us-east-1", "dve")
+
+	require.ErrorIs(t, err, ErrNoCredentials)
+	assert.Contains(t, err.Error(), `profile "dve" is not in your AWS config`)
+}
+
+// The fixes come first, easiest first, and the profiles come last.
+func TestCredentialErrorRanksTheFixesForNoProfile(t *testing.T) {
+	writeProfiles(t, "dev")
+
+	msg := noCredentialsError("", nil).Error()
+
+	assert.Equal(t, "no AWS profile selected.\n\n"+
+		"To fix this, pass --profile <name> with a profile from the list below, "+
+		"OR run `export AWS_PROFILE=<name>`, "+
+		"OR add a profile with `aws configure sso --profile <name>` for SSO, "+
+		"or `aws login --profile <name>` for an AWS console session.\n\n"+
+		"Profiles:\n"+
+		"  dev", msg)
+}
+
+func TestCredentialErrorRanksTheFixesForAProfileWithNoCredentials(t *testing.T) {
+	writeProfiles(t, "dev", "prod")
+
+	msg := noCredentialsError("dev", nil).Error()
+
+	assert.Equal(t, "profile \"dev\" has no AWS credentials.\n\n"+
+		"To fix this, pass --profile <name> with another profile from the list below, "+
+		"OR add the dev profile with `aws configure sso --profile dev` for SSO, "+
+		"or `aws login --profile dev` for an AWS console session.\n\n"+
+		"Profiles:\n"+
+		"  prod", msg)
 }

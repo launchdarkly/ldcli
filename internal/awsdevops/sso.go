@@ -82,7 +82,7 @@ func NoProfileSelected(profile string) bool {
 		return false
 	}
 
-	return !slices.Contains(knownProfiles(), "default")
+	return !slices.ContainsFunc(knownProfiles(), func(p awsProfile) bool { return p.name == "default" })
 }
 
 // HasSSOConfig reports whether the profile uses SSO.
