@@ -169,8 +169,9 @@ func (e *noCredsErr) Error() string        { return e.msg }
 func (e *noCredsErr) Unwrap() error        { return e.cause }
 func (e *noCredsErr) Is(target error) bool { return target == ErrNoCredentials }
 
-// maxListedProfiles caps the profile names in an error.
-const maxListedProfiles = 5
+// maxListedProfiles caps the profile names in an error. Up to this many,
+// the error lists every profile.
+const maxListedProfiles = 10
 
 // noCredentialsError builds the surfaced message for a credential-resolution
 // failure. profile is the value passed via --profile; cause is the underlying

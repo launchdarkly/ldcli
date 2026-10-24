@@ -162,7 +162,7 @@ func TestCredentialErrorSaysAProfileHasNoCredentials(t *testing.T) {
 	}
 }
 
-func TestCredentialErrorShowsFiveProfilesAtMost(t *testing.T) {
+func TestCredentialErrorShowsTenProfilesAtMost(t *testing.T) {
 	var names []string
 	for i := 0; i < 50; i++ {
 		names = append(names, fmt.Sprintf("profile-%02d", i))
@@ -177,13 +177,13 @@ func TestCredentialErrorShowsFiveProfilesAtMost(t *testing.T) {
 			shown++
 		}
 	}
-	assert.Equal(t, 5, shown)
-	assert.Contains(t, msg, "and 45 more")
+	assert.Equal(t, 10, shown)
+	assert.Contains(t, msg, "and 40 more")
 	assert.Contains(t, msg, "aws configure list-profiles")
 }
 
-func TestCredentialErrorWithExactlyFiveProfiles(t *testing.T) {
-	names := []string{"a1", "b2", "c3", "d4", "e5"}
+func TestCredentialErrorWithExactlyTenProfiles(t *testing.T) {
+	names := []string{"a1", "b2", "c3", "d4", "e5", "f6", "g7", "h8", "i9", "j10"}
 	writeProfiles(t, names...)
 
 	msg := noCredentialsError("", nil).Error()
@@ -196,7 +196,7 @@ func TestCredentialErrorWithExactlyFiveProfiles(t *testing.T) {
 
 func TestCredentialErrorCountsPrefixProfilesSeparately(t *testing.T) {
 	// dev is a prefix of dev-admin.
-	writeProfiles(t, "a1", "b2", "c3", "dev-admin", "e5", "dev")
+	writeProfiles(t, "a1", "b2", "c3", "dev-admin", "e5", "f6", "g7", "h8", "i9", "j10", "dev")
 
 	msg := noCredentialsError("", nil).Error()
 
@@ -207,9 +207,9 @@ func TestCredentialErrorCountsPrefixProfilesSeparately(t *testing.T) {
 }
 
 func TestCredentialErrorCountsDuplicateProfilesOnce(t *testing.T) {
-	writeProfiles(t, "a1", "b2", "c3", "d4", "e5", "f6")
+	writeProfiles(t, "a1", "b2", "c3", "d4", "e5", "f6", "g7", "h8", "i9", "j10", "k11")
 	creds := filepath.Join(t.TempDir(), "credentials")
-	require.NoError(t, os.WriteFile(creds, []byte("[a1]\n[f6]\n"), 0o600))
+	require.NoError(t, os.WriteFile(creds, []byte("[a1]\n[k11]\n"), 0o600))
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", creds)
 
 	msg := noCredentialsError("", nil).Error()
@@ -373,12 +373,12 @@ func TestCredentialErrorListsAccountAndRole(t *testing.T) {
 }
 
 func TestCredentialErrorNamesListProfilesWhenItShowsSome(t *testing.T) {
-	writeProfiles(t, "a", "b", "c", "d", "e", "f", "g")
+	writeProfiles(t, "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l")
 
 	msg := noCredentialsError("", nil).Error()
 
-	assert.Contains(t, msg, "\n  e\n  and 2 more. Run `aws configure list-profiles` to see all of them")
-	assert.NotContains(t, msg, "\n  f")
+	assert.Contains(t, msg, "\n  j\n  and 2 more. Run `aws configure list-profiles` to see all of them")
+	assert.NotContains(t, msg, "\n  k")
 }
 
 func TestCredentialErrorReadsRoleFromTheCredentialsFile(t *testing.T) {
