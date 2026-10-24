@@ -435,8 +435,8 @@ func TestCredentialErrorRanksTheFixesForNoProfile(t *testing.T) {
 	assert.Equal(t, "no AWS profile selected.\n\n"+
 		"To fix this, pass --profile <name> with a profile from the list below, "+
 		"OR run `export AWS_PROFILE=<name>`, "+
-		"OR add a profile with `aws configure sso --profile <name>` for SSO, "+
-		"or `aws login --profile <name>` for an AWS console session.\n\n"+
+		"OR add the default profile with `aws configure sso --profile default` for SSO, "+
+		"or `aws login --profile default` for an AWS console session.\n\n"+
 		"Profiles:\n"+
 		"  dev", msg)
 }

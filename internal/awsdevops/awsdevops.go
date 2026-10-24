@@ -220,7 +220,9 @@ func noCredentialsError(profile string, cause error) error {
 		msg = "no AWS profile selected." + fixes(
 			"pass --profile <name> with a profile from the list below",
 			"run `export AWS_PROFILE=<name>`",
-			addProfile(""),
+			// The SDK uses the default profile with no flag, so the next
+			// run works.
+			addProfile("default"),
 		) + listProfiles(profiles)
 	default:
 		msg = "no AWS credentials found." + fixes(addProfile("default"))
@@ -236,16 +238,11 @@ func fixes(options ...string) string {
 }
 
 // addProfile tells how to add the named profile with SSO or an AWS console
-// session. With no name, it tells how to add a profile.
+// session.
 func addProfile(name string) string {
-	add, flag := "a profile", "<name>"
-	if name != "" {
-		add, flag = "the "+name+" profile", name
-	}
-
 	return fmt.Sprintf(
-		"add %s with `aws configure sso --profile %s` for SSO, or `aws login --profile %s` for an AWS console session",
-		add, flag, flag,
+		"add the %s profile with `aws configure sso --profile %s` for SSO, or `aws login --profile %s` for an AWS console session",
+		name, name, name,
 	)
 }
 
