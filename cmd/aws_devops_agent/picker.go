@@ -3,16 +3,13 @@ package awsdevopsagent
 import (
 	"errors"
 	"fmt"
-	"io"
 	"strings"
-
-	"github.com/charmbracelet/huh"
 
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-// pickerRows is the number of options that a picker shows. A longer list
-// scrolls in place, so the picker never takes more lines than this.
+// pickerRows is the number of rows that a picker shows. A longer list scrolls
+// in place, so the picker never takes more lines than this.
 const pickerRows = 10
 
 // errPickCanceled is the result of a picker that the user closed.
@@ -21,43 +18,6 @@ var errPickCanceled = errors.New("canceled")
 // chooser asks the user to choose one label. It returns the index of the
 // label, or errPickCanceled.
 type chooser func(title, description string, labels []string) (int, error)
-
-// huhChooser asks below the current output, so the text above the picker
-// stays on the screen. Press / to search the labels.
-func huhChooser(in io.Reader, out io.Writer) chooser {
-	return func(title, description string, labels []string) (int, error) {
-		selected := 0
-		err := huh.NewForm(huh.NewGroup(pickerField(title, description, labels, &selected))).
-			WithInput(in).
-			WithOutput(out).
-			WithAccessible(false).
-			Run()
-		if errors.Is(err, huh.ErrUserAborted) {
-			return 0, errPickCanceled
-		}
-
-		return selected, err
-	}
-}
-
-// pickerField is a select field that shows pickerRows labels at most.
-func pickerField(title, description string, labels []string, selected *int) *huh.Select[int] {
-	options := make([]huh.Option[int], len(labels))
-	for i, label := range labels {
-		options[i] = huh.NewOption(label, i)
-	}
-	field := huh.NewSelect[int]().
-		Title(title).
-		Description(description).
-		Options(options...).
-		Value(selected)
-	if len(labels) > pickerRows {
-		// The height includes the title and the description.
-		field.Height(pickerRows + 2)
-	}
-
-	return field
-}
 
 // pickProfile asks which profile to use. The signed-in SSO profiles come
 // first, so Enter picks one of them. With --yes, it uses the one signed-in
@@ -84,7 +44,7 @@ func (l ssoLogin) pickProfile() (string, error) {
 	choice, err := l.choose(
 		"Which AWS profile should ldcli use?",
 		// The picker cuts a line wider than the terminal, so this fits 80 columns.
-		"The default credentials did not work. ✓ means signed in. Press / to search.",
+		"The default credentials did not work. ✓ means signed in. Type to search.",
 		profileLabels(profiles),
 	)
 	if errors.Is(err, errPickCanceled) {
@@ -106,7 +66,7 @@ func (l ssoLogin) pickProfile() (string, error) {
 func (l ssoLogin) pickRegion() (string, error) {
 	choice, err := l.choose(
 		"Which AWS region should ldcli use?",
-		"No AWS region is set. Press / to search.",
+		"No AWS region is set. Type to search.",
 		awsdevops.SupportedRegions,
 	)
 	if errors.Is(err, errPickCanceled) {

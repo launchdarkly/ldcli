@@ -84,7 +84,7 @@ func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 		yes:        yesSet(cmd),
 		lookPath:   exec.LookPath,
 		run:        runAttached,
-		choose:     huhChooser(sharedStdin(cmd), cmd.ErrOrStderr()),
+		choose:     teaChooser(sharedStdin(cmd), cmd.ErrOrStderr()),
 		tokenPath:  ssocreds.StandardCachedTokenFilepath,
 		now:        time.Now,
 	}

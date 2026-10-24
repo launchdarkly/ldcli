@@ -11,6 +11,8 @@ import (
 	"testing/iotest"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -202,40 +204,179 @@ func TestLoadReportsAClosedPicker(t *testing.T) {
 	assert.Contains(t, err.Error(), "no AWS profile was chosen")
 }
 
-// The real picker searches with / and picks the first match.
-func TestHuhChooserSearchesBySubstring(t *testing.T) {
+func numbered(n int) []string {
+	labels := make([]string, n)
+	for i := range labels {
+		labels[i] = fmt.Sprintf("profile-%02d", i)
+	}
+
+	return labels
+}
+
+func press(p picker, keys ...tea.KeyMsg) picker {
+	for _, k := range keys {
+		model, _ := p.Update(k)
+		p = model.(picker)
+	}
+
+	return p
+}
+
+func typed(text string) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(text)}
+}
+
+var down = tea.KeyMsg{Type: tea.KeyDown}
+
+// rows returns the list rows on the screen, and the highlighted one.
+func rows(p picker) (shown []string, highlighted string) {
+	for _, line := range strings.Split(p.View(), "\n") {
+		line = ansi.Strip(line)
+		switch {
+		case strings.HasPrefix(line, "> "):
+			highlighted = strings.TrimPrefix(line, "> ")
+			shown = append(shown, highlighted)
+		case strings.HasPrefix(line, "  profile-"):
+			shown = append(shown, strings.TrimPrefix(line, "  "))
+		}
+	}
+
+	return shown, highlighted
+}
+
+func TestPickerShowsAllRowsOfAShortList(t *testing.T) {
+	p := newPicker("Pick", "", numbered(pickerRows))
+
+	shown, highlighted := rows(p)
+
+	assert.Equal(t, numbered(pickerRows), shown)
+	assert.Equal(t, "profile-00", highlighted)
+}
+
+// The highlight moves down to the last row. Then the list scrolls, and the
+// highlight stays on the last row.
+func TestPickerHighlightMovesDownAndStaysOnTheLastRow(t *testing.T) {
+	p := newPicker("Pick", "", numbered(40))
+
+	p = press(p, down, down, down)
+	shown, highlighted := rows(p)
+	assert.Equal(t, numbered(pickerRows), shown)
+	assert.Equal(t, "profile-03", highlighted)
+
+	for range pickerRows {
+		p = press(p, down)
+	}
+	shown, highlighted = rows(p)
+	assert.Len(t, shown, pickerRows)
+	assert.Equal(t, "profile-13", highlighted)
+	assert.Equal(t, "profile-13", shown[pickerRows-1])
+	assert.Equal(t, "profile-04", shown[0])
+}
+
+// Moving up past the first row scrolls back, with the highlight on top.
+func TestPickerScrollsBackUp(t *testing.T) {
+	p := newPicker("Pick", "", numbered(40))
+	for range 15 {
+		p = press(p, down)
+	}
+
+	for range pickerRows {
+		p = press(p, tea.KeyMsg{Type: tea.KeyUp})
+	}
+	shown, highlighted := rows(p)
+
+	assert.Equal(t, "profile-05", highlighted)
+	assert.Equal(t, "profile-05", shown[0])
+}
+
+func TestPickerStopsAtTheEnds(t *testing.T) {
+	p := newPicker("Pick", "", numbered(3))
+
+	p = press(p, tea.KeyMsg{Type: tea.KeyUp})
+	_, highlighted := rows(p)
+	assert.Equal(t, "profile-00", highlighted)
+
+	p = press(p, down, down, down, down)
+	_, highlighted = rows(p)
+	assert.Equal(t, "profile-02", highlighted)
+}
+
+func TestPickerSearchesBySubstringAndShowsAllMatches(t *testing.T) {
+	p := newPicker("Pick", "", numbered(40))
+
+	p = press(p, typed("1"))
+	shown, highlighted := rows(p)
+
+	// 01, 10 to 19, 21, and 31 contain "1".
+	assert.Len(t, shown, pickerRows)
+	assert.Equal(t, "profile-01", highlighted)
+	assert.Contains(t, ansi.Strip(p.View()), "13 of 40")
+
+	p = press(p, typed("7"))
+	shown, highlighted = rows(p)
+	assert.Equal(t, []string{"profile-17"}, shown)
+	assert.Equal(t, "profile-17", highlighted)
+}
+
+func TestPickerSearchIgnoresCase(t *testing.T) {
+	p := newPicker("Pick", "", []string{"dev  Admin", "prod  Viewer"})
+
+	p = press(p, typed("VIEW"), tea.KeyMsg{Type: tea.KeyEnter})
+
+	assert.True(t, p.done)
+	assert.Equal(t, 1, p.chosen)
+}
+
+func TestPickerEnterDoesNothingWithNoMatch(t *testing.T) {
+	p := newPicker("Pick", "", numbered(3))
+
+	p = press(p, typed("zzz"), tea.KeyMsg{Type: tea.KeyEnter})
+
+	assert.False(t, p.done)
+	assert.Contains(t, p.View(), "No match")
+}
+
+func TestPickerEscClearsTheSearchAndThenCancels(t *testing.T) {
+	p := newPicker("Pick", "", numbered(3))
+	esc := tea.KeyMsg{Type: tea.KeyEsc}
+
+	p = press(p, typed("02"), esc)
+	shown, _ := rows(p)
+	assert.Len(t, shown, 3)
+	assert.False(t, p.done)
+
+	p = press(p, esc)
+	assert.True(t, p.canceled)
+}
+
+func TestPickerCutsLinesToTheTerminalWidth(t *testing.T) {
+	p := newPicker("Pick", "", []string{strings.Repeat("x", 200)})
+	model, _ := p.Update(tea.WindowSizeMsg{Width: 40, Height: 20})
+
+	for _, line := range strings.Split(model.View(), "\n") {
+		assert.LessOrEqual(t, ansi.StringWidth(line), 40)
+	}
+}
+
+// The real program reads the keys from the input.
+func TestTeaChooserPicksASearchedRow(t *testing.T) {
 	labels := profileLabels([]awsdevops.Profile{
 		{Name: "dev", Account: "111111111111", Role: "Admin"},
 		{Name: "prod", Account: "222222222222", Role: "Viewer"},
 		{Name: "staging", Account: "333333333333", Role: "Admin"},
 	})
-	choose := huhChooser(iotest.OneByteReader(strings.NewReader("/2222\r\r")), &bytes.Buffer{})
+	choose := teaChooser(iotest.OneByteReader(strings.NewReader("2222\r")), &bytes.Buffer{})
 
-	choice, err := choose("Which AWS profile should ldcli use?", "Press / to search.", labels)
+	choice, err := choose("Which AWS profile should ldcli use?", "Type to search.", labels)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, choice)
 }
 
-// A long list scrolls in place, so the picker shows pickerRows options.
-func TestPickerFieldShowsAFixedNumberOfRows(t *testing.T) {
-	labels := make([]string, 40)
-	for i := range labels {
-		labels[i] = fmt.Sprintf("profile-%02d", i)
-	}
-	selected := 0
+func TestTeaChooserReportsCtrlC(t *testing.T) {
+	choose := teaChooser(strings.NewReader("\x03"), &bytes.Buffer{})
 
-	view := pickerField("Which AWS profile should ldcli use?", "Press / to search.", labels, &selected).View()
+	_, err := choose("Pick", "", numbered(3))
 
-	assert.Contains(t, view, fmt.Sprintf("profile-%02d", pickerRows-1))
-	assert.NotContains(t, view, fmt.Sprintf("profile-%02d", pickerRows))
-}
-
-func TestPickerFieldFitsAShortList(t *testing.T) {
-	selected := 0
-
-	view := pickerField("Which AWS region should ldcli use?", "", []string{"us-east-1", "us-west-2"}, &selected).View()
-
-	assert.Contains(t, view, "us-west-2")
-	assert.LessOrEqual(t, strings.Count(view, "\n"), 3)
+	require.ErrorIs(t, err, errPickCanceled)
 }

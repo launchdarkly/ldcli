@@ -34,7 +34,7 @@ are available.
 
 The commands use the profile from --profile, then AWS_PROFILE, then the
 default profile. If none of these works, a command in a terminal asks which
-profile to use. The profiles with an SSO session come first. Press / to
+profile to use. The profiles with an SSO session come first. Type to
 search. If the profile has no region, the command asks for one.`,
 		Args: cobra.MinimumNArgs(1),
 		// The command can still change, so it is not in the help yet.
