@@ -8,13 +8,16 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
 	"github.com/spf13/cobra"
 
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-// ssoLogin offers aws sso login on expired credentials.
+// ssoLogin offers aws sso login on expired credentials. In a terminal, it
+// also asks for a profile and a region that are missing.
 type ssoLogin struct {
 	newClients func(ctx context.Context, region, profile string) (awsdevops.Clients, error)
 	configPath string
@@ -24,13 +27,48 @@ type ssoLogin struct {
 	yes        bool
 	lookPath   func(string) (string, error)
 	run        func(ctx context.Context, name string, args ...string) error
+	choose     chooser
+	tokenPath  func(key string) (string, error)
+	now        func() time.Time
 }
 
-// loadClients builds AWS clients from the command flags.
+// loadClients builds AWS clients from the command flags. It sets --profile
+// to a profile that the user picks, so the output names it.
 func loadClients(cmd *cobra.Command) (awsdevops.Clients, error) {
 	l := newSSOLogin(cmd, canPrompt)
+	setProfile := func(name string) { _ = cmd.Flags().Set(profileFlag, name) }
 
-	return l.clients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
+	return l.load(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag), setProfile)
+}
+
+// load builds clients. If no profile is selected and the default
+// credentials do not work, it asks for a profile. setProfile gets the
+// profile that the user picks.
+func (l ssoLogin) load(ctx context.Context, region, profile string, setProfile func(string)) (awsdevops.Clients, error) {
+	if !awsdevops.DefaultFallback(profile) {
+		return l.clients(ctx, region, profile)
+	}
+
+	clients, err := l.newClients(ctx, region, profile)
+	// NewClients looks for the region before the credentials. If there is no
+	// default profile, a missing region also means that no profile is
+	// selected, and the profile can give the region.
+	noProfile := errors.Is(err, awsdevops.ErrNoCredentials) ||
+		errors.Is(err, awsdevops.ErrNoRegion) && !awsdevops.HasProfile("default")
+	if !noProfile {
+		return l.clientsAfter(ctx, region, profile, clients, err)
+	}
+
+	name, pickErr := l.pickProfile()
+	if pickErr != nil {
+		return awsdevops.Clients{}, pickErr
+	}
+	if name == "" {
+		return l.clientsAfter(ctx, region, profile, clients, err)
+	}
+	setProfile(name)
+
+	return l.clients(ctx, region, name)
 }
 
 // newSSOLogin logs in only in a terminal, because aws sso login needs a
@@ -46,11 +84,38 @@ func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 		yes:        yesSet(cmd),
 		lookPath:   exec.LookPath,
 		run:        runAttached,
+		choose:     huhChooser(sharedStdin(cmd), cmd.ErrOrStderr()),
+		tokenPath:  ssocreds.StandardCachedTokenFilepath,
+		now:        time.Now,
 	}
 }
 
 func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevops.Clients, error) {
 	clients, err := l.newClients(ctx, region, profile)
+
+	return l.clientsAfter(ctx, region, profile, clients, err)
+}
+
+// clientsAfter handles the result of a newClients call. In a terminal, it
+// asks for a missing region, and it offers aws sso login on an expired SSO
+// token.
+func (l ssoLogin) clientsAfter(
+	ctx context.Context,
+	region, profile string,
+	clients awsdevops.Clients,
+	err error,
+) (awsdevops.Clients, error) {
+	if errors.Is(err, awsdevops.ErrNoRegion) && l.tty() && !l.yes {
+		picked, pickErr := l.pickRegion()
+		if pickErr != nil {
+			return awsdevops.Clients{}, pickErr
+		}
+		if picked == "" {
+			return clients, err
+		}
+		region = picked
+		clients, err = l.newClients(ctx, region, profile)
+	}
 	if !errors.Is(err, awsdevops.ErrNoCredentials) {
 		return clients, err
 	}

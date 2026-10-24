@@ -30,7 +30,12 @@ func NewAWSDevOpsAgentCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command
 These commands use your existing AWS session: authenticate first (for example
 with "aws sso login" or by exporting AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 and AWS_SESSION_TOKEN) and they fail before changing anything if no credentials
-are available.`,
+are available.
+
+The commands use the profile from --profile, then AWS_PROFILE, then the
+default profile. If none of these works, a command in a terminal asks which
+profile to use. The profiles with an SSO session come first. Press / to
+search. If the profile has no region, the command asks for one.`,
 		Args: cobra.MinimumNArgs(1),
 		// The command can still change, so it is not in the help yet.
 		Hidden: true,
