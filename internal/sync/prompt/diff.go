@@ -23,16 +23,40 @@ func variationDiff(before, after *syncdomain.Variation) variationDiffFields {
 	if before == nil && after == nil {
 		return nil
 	}
+	var beforeAttachments, afterAttachments []syncdomain.Attachment
+	if before != nil {
+		beforeAttachments = before.Attachments
+	}
+	if after != nil {
+		afterAttachments = after.Attachments
+	}
+	return diffParts(variationJSON(before), variationJSON(after), beforeAttachments, afterAttachments)
+}
 
+// attachmentDiff returns the "tools" or the "skills" part of one tool or skill
+// row, so that the review shows it like the attachment of a variation.
+func attachmentDiff(before, after *syncdomain.Attachment) variationDiffFields {
+	var beforeAttachments, afterAttachments []syncdomain.Attachment
+	if before != nil {
+		beforeAttachments = []syncdomain.Attachment{*before}
+	}
+	if after != nil {
+		afterAttachments = []syncdomain.Attachment{*after}
+	}
+	return diffParts(nil, nil, beforeAttachments, afterAttachments)
+}
+
+// diffParts returns each part that differs, or nil.
+func diffParts(beforeVariation, afterVariation json.RawMessage, beforeAttachments, afterAttachments []syncdomain.Attachment) variationDiffFields {
 	fields := variationDiffFields{}
 	addField := func(name string, before, after json.RawMessage) {
 		if string(before) != string(after) {
 			fields[name] = variationFieldDiff{Before: before, After: after}
 		}
 	}
-	addField("variation", variationJSON(before), variationJSON(after))
-	beforeTools, beforeSkills := attachmentJSON(before)
-	afterTools, afterSkills := attachmentJSON(after)
+	addField("variation", beforeVariation, afterVariation)
+	beforeTools, beforeSkills := attachmentJSON(beforeAttachments)
+	afterTools, afterSkills := attachmentJSON(afterAttachments)
 	addField("tools", beforeTools, afterTools)
 	addField("skills", beforeSkills, afterSkills)
 
@@ -55,13 +79,10 @@ func variationJSON(variation *syncdomain.Variation) json.RawMessage {
 }
 
 // attachmentJSON returns the canonical content of the tools and of the skills.
-func attachmentJSON(variation *syncdomain.Variation) (tools, skills json.RawMessage) {
-	if variation == nil {
-		return nil, nil
-	}
+func attachmentJSON(attachments []syncdomain.Attachment) (tools, skills json.RawMessage) {
 	var toolContent []syncdomain.Tool
 	var skillContent []syncdomain.Skill
-	for _, attachment := range variation.Attachments {
+	for _, attachment := range attachments {
 		canonical := syncdomain.CanonicalAttachment(attachment)
 		switch {
 		case canonical.Tool != nil:
@@ -106,8 +127,16 @@ func attachmentPinDiff(variation *syncdomain.Variation) (current, latest json.Ra
 }
 
 // changedAttachmentIDs returns the tools and skills whose content differs
-// between the server and the local variation.
+// between the server and the local variation. A tool or skill row returns its
+// own identity when its two sides differ, so that a conflict choice for it
+// also covers each variation that changes the same content.
 func changedAttachmentIDs(resource PlannedResource) []ResourceID {
+	if resource.ID.Kind != syncdomain.KindVariation {
+		if resource.LocalFingerprint != resource.ServerFingerprint {
+			return []ResourceID{resource.ID}
+		}
+		return nil
+	}
 	before := attachmentsByID(resource.ID.ProjectKey, resource.Server)
 	after := attachmentsByID(resource.ID.ProjectKey, resource.Local)
 

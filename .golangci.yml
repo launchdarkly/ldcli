@@ -1,0 +1,30 @@
+# golangci-lint v2 config reproducing the v1 defaults this repo linted with
+# before the Go 1.26 bump (golangci-lint v1 cannot read Go 1.26 export data).
+# Generated with `golangci-lint migrate` from an empty v1 config.
+version: "2"
+linters:
+  settings:
+    staticcheck:
+      # v1 ran staticcheck (SA) and gosimple (S1) by default; v2 merges
+      # stylecheck (ST) and quickfix (QF) into staticcheck. Keep the v1 set.
+      checks:
+        - "SA*"
+        - "S1*"
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

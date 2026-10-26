@@ -115,6 +115,37 @@
           "SupportsSemanticPatch":false
         }
       }
+    },
+    "ip-allowlist-beta":{
+      "GoName":"IpAllowlistBeta",
+      "DisplayName":"ip allowlist beta",
+      "Description":"\"Manage the IP allowlist for your account.\"",
+      "Operations":{
+        "createIpAllowlistEntry":{
+          "Short":"\"Create IP Allowlist Entry\"",
+          "Long":"\"Add an entry to the IP allowlist.\"",
+          "Use":"create-entry",
+          "Params":[],
+          "HTTPMethod":"POST",
+          "HasBody":false,
+          "IsBeta":true,
+          "RequiresBody":false,
+          "Path":"/api/v2/account/ip-allowlist",
+          "SupportsSemanticPatch":false
+        },
+        "getIpAllowlist":{
+          "Short":"\"Get IP Allowlist\"",
+          "Long":"\"Get the IP allowlist for the account.\"",
+          "Use":"get",
+          "Params":[],
+          "HTTPMethod":"GET",
+          "HasBody":false,
+          "IsBeta":true,
+          "RequiresBody":false,
+          "Path":"/api/v2/account/ip-allowlist",
+          "SupportsSemanticPatch":false
+        }
+      }
     }
   }
 }
