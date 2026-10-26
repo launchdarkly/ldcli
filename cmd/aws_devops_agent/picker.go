@@ -30,10 +30,13 @@ var newChooser = func(cmd *cobra.Command) chooser {
 }
 
 // pickProfile asks which profile to use. The signed-in SSO profiles come
-// first, so Enter picks one of them. With --yes, it uses the one signed-in
-// profile. It returns an empty name if it cannot ask, so the caller reports
-// the usual error.
+// first, so Enter picks one of them. With --yes in a terminal, it uses the
+// one signed-in profile. It returns an empty name if it cannot ask, so the
+// caller reports the usual error.
 func (l ssoLogin) pickProfile() (string, error) {
+	if !l.tty() {
+		return "", nil
+	}
 	profiles := awsdevops.Profiles(l.tokenPath, l.now())
 	if len(profiles) == 0 {
 		return "", nil
@@ -46,9 +49,6 @@ func (l ssoLogin) pickProfile() (string, error) {
 		_, _ = fmt.Fprintf(l.out, "Using AWS profile %s, which has an SSO session\n", profiles[0].Name)
 
 		return profiles[0].Name, nil
-	}
-	if !l.tty() {
-		return "", nil
 	}
 
 	choice, err := l.choose(

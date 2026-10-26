@@ -15,7 +15,11 @@ import (
 // stays on the screen. Type to search the labels.
 func teaChooser(in io.Reader, out io.Writer) chooser {
 	return func(title, description string, labels []string, start int) (int, error) {
-		final, err := tea.NewProgram(newPicker(title, description, labels, start), tea.WithInput(in), tea.WithOutput(out)).Run()
+		p := newPicker(title, description, labels, start)
+		// The default renderer checks stdout for color support, but the
+		// picker draws on out.
+		p.highlight = lipgloss.NewRenderer(out).NewStyle().Inherit(pickerHighlight)
+		final, err := tea.NewProgram(p, tea.WithInput(in), tea.WithOutput(out)).Run()
 		if err != nil {
 			return 0, err
 		}
@@ -37,6 +41,8 @@ type picker struct {
 	// lower has the labels in lowercase, for the search.
 	lower  []string
 	search textinput.Model
+	// highlight styles the title and the highlighted row.
+	highlight lipgloss.Style
 	// matches are the indexes of the labels that contain the search text.
 	matches []int
 	// cursor is the highlighted position in matches, and offset is the
@@ -62,7 +68,14 @@ func newPicker(title, description string, labels []string, start int) picker {
 	for i, label := range labels {
 		lower[i] = strings.ToLower(label)
 	}
-	p := picker{title: title, description: description, labels: labels, lower: lower, search: search}
+	p := picker{
+		title:       title,
+		description: description,
+		labels:      labels,
+		lower:       lower,
+		search:      search,
+		highlight:   pickerHighlight,
+	}
 	p.filter()
 	p.move(start)
 
@@ -159,7 +172,7 @@ func (p picker) View() string {
 	}
 
 	var b strings.Builder
-	p.line(&b, pickerHighlight.Render(p.title))
+	p.line(&b, p.highlight.Render(p.title))
 	if p.description != "" {
 		p.line(&b, p.description)
 	}
@@ -171,7 +184,7 @@ func (p picker) View() string {
 	for row := p.offset; row < end; row++ {
 		label := p.labels[p.matches[row]]
 		if row == p.cursor {
-			p.line(&b, pickerHighlight.Render("> "+label))
+			p.line(&b, p.highlight.Render("> "+label))
 		} else {
 			p.line(&b, "  "+label)
 		}

@@ -41,15 +41,16 @@ func loadClients(cmd *cobra.Command) (awsdevops.Clients, error) {
 }
 
 // load builds clients. If no profile is selected and the default
-// credentials do not work, it asks for a profile. setProfile gets the
-// profile that the user picks.
+// credentials do not work, it asks for a profile. If the default profile uses
+// SSO, it offers aws sso login for that profile instead, so the run does not
+// move to another account. setProfile gets the profile that the user picks.
 func (l ssoLogin) load(ctx context.Context, region, profile string, setProfile func(string)) (awsdevops.Clients, error) {
 	if !awsdevops.DefaultFallback(profile) {
 		return l.clients(ctx, region, profile)
 	}
 
 	clients, err := l.newClients(ctx, region, profile)
-	if !l.defaultCredentialsFail(ctx, profile, err) {
+	if !l.defaultCredentialsFail(ctx, profile, err) || awsdevops.SSOProfile(l.configPath, profile) != "" {
 		return l.clientsAfter(ctx, region, profile, clients, err)
 	}
 

@@ -203,6 +203,32 @@ func TestLoadWithYesUsesTheOneSignedInProfile(t *testing.T) {
 	assert.Empty(t, *calls)
 }
 
+// An expired default SSO profile gets aws sso login, not a picker that can
+// move the run to another account.
+func TestLoadOffersLoginForAnExpiredDefaultSSOProfile(t *testing.T) {
+	f, l := newLoginTest(t, "\n", errCreds, nil)
+	l, calls := pickerTest(t, l, "[default]\nsso_session = corp\nregion = us-east-1\n\n"+pickerConfig)
+
+	_, err := l.load(context.Background(), "", "", func(string) { t.Fatal("picked a profile") })
+
+	require.NoError(t, err)
+	assert.Empty(t, *calls)
+	assert.Equal(t, [][]string{{"aws", "sso", "login", "--profile", "default"}}, f.runs)
+}
+
+func TestLoadWithYesWithoutATerminalDoesNotPickAProfile(t *testing.T) {
+	_, l := newLoginTest(t, "")
+	l, calls := pickerTest(t, l, "[profile static]\nregion = us-east-1\n\n[profile dev]\nsso_session = corp\nregion = us-west-2\n")
+	l.yes = true
+	l.tty = func() bool { return false }
+	l.newClients = byProfile(map[string]string{"dev": "us-west-2"})
+
+	_, err := l.load(context.Background(), "", "", func(string) { t.Fatal("picked a profile") })
+
+	require.ErrorIs(t, err, awsdevops.ErrNoCredentials)
+	assert.Empty(t, *calls)
+}
+
 func TestLoadWithYesAndSeveralSignedInProfilesReturnsTheError(t *testing.T) {
 	_, l := newLoginTest(t, "")
 	l, calls := pickerTest(t, l, pickerConfig)

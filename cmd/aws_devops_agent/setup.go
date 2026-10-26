@@ -526,7 +526,9 @@ type spaceChoice struct {
 // selectAgentSpace asks which agent space to connect LaunchDarkly to. With a
 // name, the highlight starts on the space with that name, or on a new space
 // with that name when no space has it. Without a name, the highlight starts
-// on the one space that setup made, or else on the first row.
+// on the one space that setup made. If the space is not clear, the highlight
+// starts on a new space, so Enter does not connect to a space of another
+// owner.
 //
 // The list leaves out a space whose tags setup could not read, because its
 // owner is unknown. A note names each of those spaces. The name checks still
@@ -565,6 +567,10 @@ func selectAgentSpace(
 	}
 	choices = append(choices, spaceChoice{newSpace: true})
 	labels = append(labels, "provision a new agent space")
+	start := defaultIndex
+	if start < 0 {
+		start = len(choices) - 1
+	}
 
 	out := cmd.ErrOrStderr()
 	_, _ = fmt.Fprintln(out)
@@ -578,7 +584,7 @@ func selectAgentSpace(
 		"Which agent space should LaunchDarkly connect to?",
 		fmt.Sprintf("This AWS account already runs the DevOps Agent in %s. Type to search.", region),
 		labels,
-		max(defaultIndex, 0),
+		start,
 	)
 	if errors.Is(err, errPickCanceled) {
 		return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
