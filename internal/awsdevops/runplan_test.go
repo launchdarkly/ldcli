@@ -1018,7 +1018,7 @@ func TestRunPlanReplaceNameClashKeepsTheSharedServer(t *testing.T) {
 	_, err := replaceRun(t, agent)
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "Rename that server in the AWS console")
+	assert.ErrorContains(t, err, "rename it in the AWS console")
 	assert.NotContains(t, err.Error(), "have no LaunchDarkly MCP server")
 	assert.Empty(t, agent.disassociatedIDs)
 	assert.Empty(t, agent.deregisteredIDs)
@@ -1033,7 +1033,7 @@ func TestRunPlanReplaceNameClashNamesTheDisconnectedSpace(t *testing.T) {
 	_, err := replaceRun(t, agent)
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "Rename that server in the AWS console")
+	assert.ErrorContains(t, err, "rename it in the AWS console")
 	assert.ErrorContains(t, err, "agent spaces space-1 have no LaunchDarkly MCP server")
 	assert.ErrorContains(t, err, "--agent-space-id <id>")
 }
@@ -1165,4 +1165,120 @@ func linkedSpace(serviceID string) *fakeAgent {
 		services:     []agenttypes.RegisteredService{launchDarklyMCPService(serviceID)},
 		associations: mcpLink(serviceID),
 	}
+}
+
+// A replace on a shared server registers the new server first. If the old
+// server then cannot be disconnected, setup removes the new server, so the
+// space stays as it was and a run again plans the same steps.
+func TestReplaceRemovesTheNewServerWhenTheDisconnectFails(t *testing.T) {
+	agent := replaceAcrossSpaces()
+	agent.disassociateErr = errors.New("InternalServerException")
+
+	result, err := replaceRun(t, agent)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "unable to disconnect MCP server mcp-old from agent space space-1")
+	assert.ErrorContains(t, err, "still uses MCP server mcp-old with its old token")
+	assert.Equal(t, []string{"mcp-1"}, agent.deregisteredIDs)
+	assert.Empty(t, result.MCPServiceID)
+}
+
+// If the new server cannot be removed either, the error names it.
+func TestReplaceNamesTheNewServerItCouldNotRemove(t *testing.T) {
+	agent := replaceAcrossSpaces()
+	agent.disassociateErr = errors.New("InternalServerException")
+	agent.deregisterErr = errors.New("ThrottlingException")
+
+	_, err := replaceRun(t, agent)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "could not remove the new MCP server mcp-1")
+	assert.ErrorContains(t, err, "--replace-mcp-token")
+}
+
+// A run after such a failure removes the unused server with the name of the
+// space, so the new registration does not fail on the name.
+func TestReplaceRemovesAnUnusedServerWithTheNameOfTheSpace(t *testing.T) {
+	agent := replaceAcrossSpaces()
+	agent.services = append(agent.services,
+		mcpService("mcp-left", awsdevops.MCPServerNameFor("space-1"), awsdevops.MCPServerEndpoint))
+	clients := newTestClients(agent, newFakeIAM())
+	opts := rejectingOptions(t, http.StatusOK)
+	opts.ReplaceMCPToken = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+
+	assert.Contains(t, plan.Text().MCPServer, "Remove MCP server "+awsdevops.MCPServerNameFor("space-1")+" (mcp-left)")
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mcp-left"}, agent.deregisteredIDs)
+	assert.Less(t, indexOf(agent.calls, "DeregisterService"), indexOf(agent.calls, "RegisterService"))
+}
+
+// A replace on a server that only this space uses keeps the name of the
+// server, as the plan says.
+func TestRunPlanReplaceKeepsTheNameOfAnUnsharedServer(t *testing.T) {
+	agent := replaceOnOneSpace()
+	agent.services = []agenttypes.RegisteredService{mcpService("mcp-old", "Prod LD", awsdevops.MCPServerEndpoint)}
+
+	_, err := replaceRun(t, agent)
+
+	require.NoError(t, err)
+	require.Len(t, agent.registerInputs, 1)
+	details, ok := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver)
+	require.True(t, ok)
+	assert.Equal(t, "Prod LD", aws.ToString(details.Value.Name))
+}
+
+// --mcp-service-id must not give a space a second LaunchDarkly server.
+func TestPlanStopsWhenMCPServiceIDIsNotTheServerOfTheSpace(t *testing.T) {
+	for name, replace := range map[string]bool{"reuse": false, "replace": true} {
+		t.Run(name, func(t *testing.T) {
+			agent := linkedSpace("mcp-own")
+			agent.services = append(agent.services, launchDarklyMCPService("mcp-chosen"))
+			opts := runPlanOptions()
+			opts.MCPServiceID = "mcp-chosen"
+			opts.ReplaceMCPToken = replace
+
+			_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "agent space space-1 already uses MCP server LaunchDarkly (mcp-own)")
+		})
+	}
+}
+
+// Setup cannot pick between two LaunchDarkly servers on one space.
+func TestPlanStopsOnASpaceWithTwoLaunchDarklyServers(t *testing.T) {
+	agent := linkedSpace("mcp-a")
+	agent.services = append(agent.services, launchDarklyMCPService("mcp-b"))
+	agent.associations = append(agent.associations, mcpLink("mcp-b")...)
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), runPlanOptions(), true)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "connected to 2 LaunchDarkly MCP servers")
+}
+
+// A space that shares a server with other spaces acts as the account of its
+// token, so the plan says so.
+func TestPlanWarnsWhenTheReusedServerIsShared(t *testing.T) {
+	opts := runPlanOptions()
+	opts.LDAccessToken = ""
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(replaceAcrossSpaces(), newFakeIAM()), opts, true)
+
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	assert.Equal(t,
+		"Reuse MCP server LaunchDarkly (mcp-old). Agent spaces space-3 also use it and its token. "+
+			"To give this agent space its own server, pass --access-token and --replace-mcp-token",
+		plan.Text().MCPServer)
+}
+
+// AWS allows only letters, digits, "_" and "-" in an MCP server name.
+func TestMCPServerNameForHasOnlyAllowedCharacters(t *testing.T) {
+	name := awsdevops.MCPServerNameFor("0b9f6c3e-5d7a-4c1e-9a2b-3f4e5d6c7b8a")
+
+	assert.Regexp(t, `^[a-zA-Z0-9_-]{1,128}$`, name)
 }

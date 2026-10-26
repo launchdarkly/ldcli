@@ -54,7 +54,7 @@ func TestSetupProgressLinesHaveNoARNs(t *testing.T) {
 			},
 			iam: newFakeIAM(),
 			opts: awsdevops.SetupOptions{
-				AgentSpaceName:  "launchdarkly",
+				AgentSpaceID:    "space-1",
 				AuthFlow:        "iam",
 				LDAccessToken:   "api-token",
 				ReplaceMCPToken: true,

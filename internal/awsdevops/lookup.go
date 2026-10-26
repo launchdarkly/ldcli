@@ -198,49 +198,65 @@ func agentSpaceARN(region, accountID, spaceID string) string {
 }
 
 // MCPServerNameFor is the name of the MCP server that setup registers for an
-// agent space. AWS needs a unique name, and the ID ties the server to the space.
+// agent space. AWS needs a unique name of letters, digits, "_" and "-", and
+// the ID ties the server to the space.
 func MCPServerNameFor(agentSpaceID string) string {
-	return MCPServerName + " " + agentSpaceID
+	return MCPServerName + "-" + agentSpaceID
 }
 
-// spaceMCPService returns the ID and the name of the MCP server of an agent
-// space. That is the server at endpoint that the space is connected to. If
-// there is none, it is the server at endpoint that setup registered for the
-// space. AWS keeps MCP servers at the account level, and each one has the token
-// of one LaunchDarkly account, so the server of another space is never a match.
-func spaceMCPService(ctx context.Context, clients Clients, agentSpaceID, endpoint string) (id, name string, err error) {
+// mcpRef identifies a registered MCP server.
+type mcpRef struct {
+	ID   string
+	Name string
+}
+
+// spaceMCPServers finds the LaunchDarkly MCP servers at endpoint of an agent
+// space. linked is the server that the space is connected to. own is the
+// server with the name that setup gives the space, which can be the same
+// server. AWS keeps MCP servers at the account level, and each one has the
+// token of one LaunchDarkly account, so the server of another space is never
+// a match. A space connected to more than one server is an error, because
+// setup cannot tell which one to use.
+func spaceMCPServers(ctx context.Context, clients Clients, agentSpaceID, endpoint string) (linked, own mcpRef, err error) {
 	// A new space has no ID and no server yet.
 	if agentSpaceID == "" {
-		return "", "", nil
+		return mcpRef{}, mcpRef{}, nil
 	}
 	associations, err := listAssociations(ctx, clients, agentSpaceID)
 	if err != nil {
-		return "", "", err
+		return mcpRef{}, mcpRef{}, err
 	}
-	linked := make(map[string]bool, len(associations))
+	links := make(map[string]bool, len(associations))
 	for _, association := range associations {
-		linked[aws.ToString(association.ServiceId)] = true
+		links[aws.ToString(association.ServiceId)] = true
 	}
 	services, err := listServices(ctx, clients)
 	if err != nil {
-		return "", "", err
+		return mcpRef{}, mcpRef{}, err
 	}
+	var all []string
 	for _, service := range services {
 		if mcpEndpointOf(service) != endpoint {
 			continue
 		}
-		serviceID := aws.ToString(service.ServiceId)
-		if linked[serviceID] {
-			return serviceID, serviceName(service), nil
+		ref := mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}
+		if links[ref.ID] {
+			linked = ref
+			all = append(all, fmt.Sprintf("%s (%s)", ref.Name, ref.ID))
 		}
-		// A run that registered the server and then failed to connect it
-		// leaves a server with the name of the space.
-		if id == "" && serviceName(service) == MCPServerNameFor(agentSpaceID) {
-			id, name = serviceID, serviceName(service)
+		if own.ID == "" && ref.Name == MCPServerNameFor(agentSpaceID) {
+			own = ref
 		}
 	}
+	if len(all) > 1 {
+		return mcpRef{}, mcpRef{}, fmt.Errorf(
+			"agent space %s is connected to %d LaunchDarkly MCP servers: %s. "+
+				"Disconnect all but one in the AWS console, then run setup again",
+			agentSpaceID, len(all), strings.Join(all, ", "),
+		)
+	}
 
-	return id, name, nil
+	return linked, own, nil
 }
 
 // spacesNamed lists IDs of spaces named name.

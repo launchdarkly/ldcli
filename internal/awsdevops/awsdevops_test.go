@@ -50,6 +50,7 @@ type fakeAgent struct {
 	registerOutput    *devopsagent.RegisterServiceOutput
 	registerErr       error
 	deregisterErr     error
+	disassociateErr   error
 	registerInputs    []*devopsagent.RegisterServiceInput
 	associations      []agenttypes.Association
 	agentSpaces       []agenttypes.AgentSpace
@@ -123,6 +124,9 @@ func (f *fakeAgent) DeregisterService(_ context.Context, in *devopsagent.Deregis
 
 func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.DisassociateServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error) {
 	f.calls = append(f.calls, "DisassociateService")
+	if f.disassociateErr != nil {
+		return nil, f.disassociateErr
+	}
 	f.disassociatedIDs = append(f.disassociatedIDs, aws.ToString(in.AssociationId))
 
 	return &devopsagent.DisassociateServiceOutput{}, nil
@@ -363,8 +367,9 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Contains(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName], "iam:CreateServiceLinkedRole")
 	assert.Equal(
 		t,
-		// A new space has no MCP server, so setup does not look for one.
-		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "RegisterService", "AssociateService"},
+		// The plan does not look for the server of a new space. The check
+		// before the MCP step looks, because the space exists by then.
+		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
 		agent.calls,
 	)
 }

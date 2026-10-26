@@ -319,6 +319,15 @@ type MCPStep struct {
 	Spaces []string
 	// SpaceID is the agent space of the step. It is empty for a new space.
 	SpaceID string
+	// Unused is a server with the name that setup gives the space, which no
+	// space uses. A replace on a shared server removes it first, so that the
+	// new server can have the name. An earlier run that failed leaves one.
+	Unused string
+}
+
+// shared reports whether other spaces use the server.
+func (m MCPStep) shared() bool {
+	return len(m.otherSpaces()) > 0
 }
 
 // otherSpaces lists the spaces, other than the space of the step, that use
@@ -585,16 +594,31 @@ func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions, spaceI
 }
 
 func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions, spaceID string) (MCPStep, error) {
-	existing := opts.MCPServiceID
-	var name string
-	var err error
-	if existing != "" {
-		name, err = checkMCPServiceID(ctx, clients, existing, opts.mcpEndpoint())
-	} else {
-		existing, name, err = spaceMCPService(ctx, clients, spaceID, opts.mcpEndpoint())
-	}
+	linked, own, err := spaceMCPServers(ctx, clients, spaceID, opts.mcpEndpoint())
 	if err != nil {
 		return MCPStep{}, err
+	}
+	existing, name := linked.ID, linked.Name
+	switch {
+	case opts.MCPServiceID != "":
+		name, err = checkMCPServiceID(ctx, clients, opts.MCPServiceID, opts.mcpEndpoint())
+		if err != nil {
+			return MCPStep{}, err
+		}
+		// A space with two LaunchDarkly servers makes the next run unable to
+		// pick one.
+		if linked.ID != "" && linked.ID != opts.MCPServiceID {
+			return MCPStep{}, fmt.Errorf(
+				"agent space %s already uses MCP server %s (%s). To use MCP server %s instead, "+
+					"disconnect %s from the agent space in the AWS console, then run setup again",
+				spaceID, linked.Name, linked.ID, opts.MCPServiceID, linked.ID,
+			)
+		}
+		existing = opts.MCPServiceID
+	case existing == "":
+		// A run that registered the server and then failed to connect it
+		// leaves a server with the name of the space.
+		existing, name = own.ID, own.Name
 	}
 
 	switch {
@@ -603,10 +627,32 @@ func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions, spac
 		if err != nil {
 			return MCPStep{}, err
 		}
+		step := MCPStep{Action: MCPReplace, ServiceID: existing, Name: name, Spaces: spaces, SpaceID: spaceID}
+		if step.shared() && own.ID != "" && own.ID != existing {
+			users, err := spacesWith(ctx, clients, own.ID)
+			if err != nil {
+				return MCPStep{}, err
+			}
+			if len(users) > 0 {
+				return MCPStep{}, fmt.Errorf(
+					"MCP server %s (%s) has the name that setup gives agent space %s, but agent spaces %s use it. "+
+						"Rename it in the AWS console, then run setup again",
+					own.Name, own.ID, spaceID, strings.Join(users, ", "),
+				)
+			}
+			step.Unused = own.ID
+		}
 
-		return MCPStep{Action: MCPReplace, ServiceID: existing, Name: name, Spaces: spaces}, nil
+		return step, nil
 	case existing != "":
-		return MCPStep{Action: MCPReuse, ServiceID: existing, Name: name}, nil
+		// The other spaces are only for the plan text, which warns that the
+		// space shares a token.
+		spaces, err := spacesWith(ctx, clients, existing)
+		if err != nil {
+			return MCPStep{}, err
+		}
+
+		return MCPStep{Action: MCPReuse, ServiceID: existing, Name: name, Spaces: spaces}, nil
 	case opts.LDAccessToken != "":
 		return MCPStep{Action: MCPRegister}, nil
 	default:
@@ -654,17 +700,30 @@ func (m MCPStep) name() string {
 func (m MCPStep) describe() string {
 	switch m.Action {
 	case MCPReplace:
-		others := m.otherSpaces()
-		if len(others) == 0 {
+		if !m.shared() {
 			return fmt.Sprintf("Replace the token of MCP server %s (%s)", m.name(), m.ServiceID)
 		}
-
-		return fmt.Sprintf(
+		line := fmt.Sprintf(
 			"Register a new MCP server for this agent space at %s. MCP server %s (%s) keeps its token for %s",
-			m.Endpoint, m.name(), m.ServiceID, strings.Join(others, ", "),
+			m.Endpoint, m.name(), m.ServiceID, strings.Join(m.otherSpaces(), ", "),
 		)
+		if m.Unused != "" {
+			line = fmt.Sprintf("Remove MCP server %s (%s), which no agent space uses. %s",
+				MCPServerNameFor(m.SpaceID), m.Unused, line)
+		}
+
+		return line
 	case MCPReuse:
-		return fmt.Sprintf("Reuse MCP server %s (%s)", m.name(), m.ServiceID)
+		line := fmt.Sprintf("Reuse MCP server %s (%s)", m.name(), m.ServiceID)
+		if m.shared() {
+			line += fmt.Sprintf(
+				". Agent spaces %s also use it and its token. "+
+					"To give this agent space its own server, pass --access-token and --replace-mcp-token",
+				strings.Join(m.otherSpaces(), ", "),
+			)
+		}
+
+		return line
 	case MCPRegister:
 		return fmt.Sprintf("Register a new MCP server for this agent space at %s", m.Endpoint)
 	case MCPSkip:
@@ -715,11 +774,11 @@ func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPS
 		return nil
 	}
 
-	found, _, err := spaceMCPService(ctx, clients, spaceID, opts.mcpEndpoint())
+	linked, own, err := spaceMCPServers(ctx, clients, spaceID, opts.mcpEndpoint())
 	if err != nil {
 		return err
 	}
-	if found != "" {
+	if linked.ID != "" || own.ID != "" {
 		return planChanged("agent space %s got an MCP server at %s after the plan", spaceID, opts.mcpEndpoint())
 	}
 
@@ -851,8 +910,9 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 
 	// The role and association steps can take minutes. A server that appeared
 	// or went in that time makes AWS reject the step with an error that does
-	// not say that the plan changed, so check the server again.
-	if err := checkMCP(ctx, clients, opts, plan.MCP, plan.Space.ID); err != nil {
+	// not say that the plan changed, so check the server again. A new space
+	// has its ID by now.
+	if err := checkMCP(ctx, clients, opts, plan.MCP, result.AgentSpaceID); err != nil {
 		return result, err
 	}
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
@@ -1071,8 +1131,12 @@ func registerMCPServer(
 		return associateMCPServer(ctx, clients, result, logf)
 	}
 	name := MCPServerNameFor(result.AgentSpaceID)
+	if existing != "" && !step.shared() {
+		// The new server takes the place of the old one, so it keeps its
+		// name, as the plan says.
+		name = step.name()
+	}
 	var detached []string
-	shared := false
 	if existing != "" {
 		// Narrow the window after other writes.
 		now, err := spacesWith(ctx, clients, existing)
@@ -1082,11 +1146,15 @@ func registerMCPServer(
 		if !slices.Equal(now, step.Spaces) {
 			return planChanged("the spaces using MCP server %s changed", existing)
 		}
-		// Other spaces keep a shared server with its token. Only a server that
-		// no other space uses is removed.
-		shared = len(step.otherSpaces()) > 0
 	}
-	if existing != "" && !shared {
+	if step.Unused != "" {
+		if err := removeUnused(ctx, clients, step.Unused, logf); err != nil {
+			return err
+		}
+	}
+	// Other spaces keep a shared server with its token. Only a server that no
+	// other space uses is removed.
+	if existing != "" && !step.shared() {
 		var err error
 		detached, err = disassociateEverywhere(ctx, clients, existing, logf)
 		if err != nil {
@@ -1130,11 +1198,12 @@ func registerMCPServer(
 	registration, err := registerWithRetry(ctx, clients, input, logf, endpoint)
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
-			// Another server at another endpoint has the name. It is not a
-			// LaunchDarkly server at this endpoint, so setup cannot use it.
+			// The plan finds a server at this endpoint with the name, so the
+			// server is at another endpoint, or it appeared after the plan.
 			err = fmt.Errorf(
-				"an MCP server named %s is already registered on this account at another endpoint, "+
-					"so %s cannot be registered. Rename that server in the AWS console: %w",
+				"an MCP server named %s is already registered on this account, so setup cannot register "+
+					"one at %s with that name. If that server is at another endpoint, rename it in the AWS console. "+
+					"Otherwise, run setup again: %w",
 				name, endpoint, err,
 			)
 		}
@@ -1145,26 +1214,72 @@ func registerMCPServer(
 	result.MCPServiceID = aws.ToString(registration.ServiceId)
 	logf("Registered MCP server %s (%s)", name, result.MCPServiceID)
 
-	if shared {
-		// Disconnect the shared server from this space only. The other spaces
-		// keep it with its token.
-		link, err := FindAssociation(ctx, clients, result.AgentSpaceID, existing)
-		if err != nil {
+	if existing != "" && step.shared() {
+		if err := leaveSharedServer(ctx, clients, step, result, logf); err != nil {
 			return err
-		}
-		if link != "" {
-			if _, err := clients.Agent.DisassociateService(ctx, &devopsagent.DisassociateServiceInput{
-				AgentSpaceId:  aws.String(result.AgentSpaceID),
-				AssociationId: aws.String(link),
-			}); err != nil {
-				return fmt.Errorf("unable to disconnect MCP server %s from agent space %s: %w", existing, result.AgentSpaceID, err)
-			}
-			logf("Disconnected MCP server %s (%s) from the agent space. Agent spaces %s keep it",
-				step.name(), existing, strings.Join(step.otherSpaces(), ", "))
 		}
 	}
 
 	return associateMCPServer(ctx, clients, result, logf)
+}
+
+// leaveSharedServer disconnects a shared server from this space only, after
+// the new server is registered. The other spaces keep it with its token. If
+// the disconnect fails, it removes the new server, so that the space stays as
+// it was and a run again plans the same steps.
+func leaveSharedServer(ctx context.Context, clients Clients, step MCPStep, result *SetupResult, logf func(string, ...any)) error {
+	link, err := FindAssociation(ctx, clients, result.AgentSpaceID, step.ServiceID)
+	if err == nil && link != "" {
+		_, err = clients.Agent.DisassociateService(ctx, &devopsagent.DisassociateServiceInput{
+			AgentSpaceId:  aws.String(result.AgentSpaceID),
+			AssociationId: aws.String(link),
+		})
+	}
+	if err == nil {
+		if link != "" {
+			logf("Disconnected MCP server %s (%s) from the agent space. Agent spaces %s keep it",
+				step.name(), step.ServiceID, strings.Join(step.otherSpaces(), ", "))
+		}
+
+		return nil
+	}
+
+	err = fmt.Errorf("unable to disconnect MCP server %s from agent space %s: %w", step.ServiceID, result.AgentSpaceID, err)
+	created := result.MCPServiceID
+	result.MCPServiceID = ""
+	if _, removeErr := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
+		ServiceId: aws.String(created),
+	}); removeErr != nil {
+		// A run again removes the new server, because no space uses it.
+		return fmt.Errorf(
+			"%w. Setup also could not remove the new MCP server %s, which no agent space uses. "+
+				"Run setup again with --replace-mcp-token: %w",
+			err, created, removeErr,
+		)
+	}
+	logf("Removed the new MCP server (%s), because the agent space still uses MCP server %s", created, step.ServiceID)
+
+	return fmt.Errorf("%w. The agent space still uses MCP server %s with its old token", err, step.ServiceID)
+}
+
+// removeUnused removes a server that no space uses, after a check that this
+// is still true.
+func removeUnused(ctx context.Context, clients Clients, serviceID string, logf func(string, ...any)) error {
+	users, err := spacesWith(ctx, clients, serviceID)
+	if err != nil {
+		return err
+	}
+	if len(users) > 0 {
+		return planChanged("agent spaces %s started to use MCP server %s after the plan", strings.Join(users, ", "), serviceID)
+	}
+	if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
+		ServiceId: aws.String(serviceID),
+	}); err != nil {
+		return fmt.Errorf("unable to remove MCP server %s, which no agent space uses: %w", serviceID, err)
+	}
+	logf("Removed MCP server (%s), which no agent space used", serviceID)
+
+	return nil
 }
 
 // spacesWith lists spaces associated with serviceID.
