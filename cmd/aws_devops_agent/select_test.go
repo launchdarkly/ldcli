@@ -126,18 +126,17 @@ func TestSelectAgentSpaceTakesTheChosenSpace(t *testing.T) {
 	assert.Contains(t, out.String(), "2) platform (space-2)")
 }
 
-// Without a name, Enter picks nothing.
-func TestSelectAgentSpaceWithoutANameHasNoDefault(t *testing.T) {
-	cmd, out := testCmd("\n3\n")
+// Without a name, Enter does not pick a space of another owner.
+func TestSelectAgentSpaceWithoutANameStartsOnANewSpace(t *testing.T) {
+	cmd, out := testCmd("\n")
 
 	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "")
 	require.NoError(t, err)
 
 	assert.Equal(t, spaceChoice{newSpace: true}, chosen)
 	assert.Contains(t, out.String(), "3) provision a new agent space\n")
+	assert.Contains(t, out.String(), "start 3\n")
 	assert.NotContains(t, out.String(), "named")
-	assert.NotContains(t, out.String(), "[")
-	assert.Equal(t, 1, strings.Count(out.String(), "Enter a number between 1 and 3"))
 }
 
 func TestSelectAgentSpaceDefaultsToTheSpaceWithTheName(t *testing.T) {
@@ -147,7 +146,7 @@ func TestSelectAgentSpaceDefaultsToTheSpaceWithTheName(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, spaceChoice{id: "space-2"}, chosen)
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "start 2\n")
 	assert.Contains(t, out.String(), "3) provision a new agent space\n")
 	assert.NotContains(t, out.String(), "named")
 }
@@ -161,7 +160,7 @@ func TestSelectAgentSpaceDefaultsToANewSpaceWithAnUnusedName(t *testing.T) {
 	assert.Equal(t, spaceChoice{newSpace: true, name: "payments"}, chosen)
 	assert.Contains(t, out.String(), "3) provision a new agent space named payments")
 	assert.Contains(t, out.String(), "4) provision a new agent space\n")
-	assert.Contains(t, out.String(), "connect to? [3] ")
+	assert.Contains(t, out.String(), "start 3\n")
 }
 
 func TestSelectAgentSpaceLetsYouNameANewSpaceAfterAName(t *testing.T) {
@@ -183,16 +182,6 @@ func TestSelectAgentSpaceMarksTheSpacesSetupMade(t *testing.T) {
 
 	assert.Contains(t, out.String(), "1) launchdarkly (space-1), made by ldcli")
 	assert.Contains(t, out.String(), "2) platform (space-2)\n")
-}
-
-func TestSelectAgentSpaceAsksAgainAfterAnInvalidAnswer(t *testing.T) {
-	cmd, out := testCmd("9\nnope\n1\n")
-
-	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "")
-	require.NoError(t, err)
-
-	assert.Equal(t, spaceChoice{id: "space-1"}, chosen)
-	assert.Equal(t, 2, strings.Count(out.String(), "Enter a number between 1 and 3"))
 }
 
 func TestSelectAgentSpaceFailsWithoutAnAnswer(t *testing.T) {
@@ -455,13 +444,14 @@ func TestSelectAgentSpaceDoesNotOfferTheNameOfAHiddenSpace(t *testing.T) {
 
 // A hidden space with the same name makes the name ambiguous.
 func TestSelectAgentSpaceHasNoDefaultIfAHiddenSpaceSharesTheName(t *testing.T) {
-	cmd, out := testCmd("1\n")
+	cmd, out := testCmd("\n")
 	spaces := append(testSpaces(), unreadSpace("space-3", "platform"))
 
-	_, err := selectAgentSpace(cmd, spaces, "us-east-1", "platform")
+	chosen, err := selectAgentSpace(cmd, spaces, "us-east-1", "platform")
 	require.NoError(t, err)
 
-	assert.NotContains(t, out.String(), "[")
+	assert.Equal(t, spaceChoice{newSpace: true}, chosen)
+	assert.Contains(t, out.String(), "start 3\n")
 }
 
 func TestPickWithoutAskingStopsAroundAHiddenSpace(t *testing.T) {
@@ -565,11 +555,12 @@ func TestSelectAgentSpaceWithoutANameDefaultsToTheSpaceSetupMade(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, spaceChoice{id: "space-2"}, chosen)
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "start 2\n")
 }
 
-// Two spaces that setup made, or a hidden space, leave no default.
-func TestSelectAgentSpaceWithoutANameHasNoDefaultWhenItIsNotClear(t *testing.T) {
+// With two spaces that setup made, or a hidden space, the highlight starts
+// on a new space.
+func TestSelectAgentSpaceWithoutANameStartsOnANewSpaceWhenItIsNotClear(t *testing.T) {
 	cases := map[string][]awsdevops.AgentSpaceSummary{
 		"two spaces setup made": {
 			{AgentSpaceID: "space-1", Name: "a", ManagedByLDCLI: true},
@@ -582,12 +573,13 @@ func TestSelectAgentSpaceWithoutANameHasNoDefaultWhenItIsNotClear(t *testing.T) 
 	}
 	for name, spaces := range cases {
 		t.Run(name, func(t *testing.T) {
-			cmd, out := testCmd("1\n")
+			cmd, out := testCmd("\n")
 
-			_, err := selectAgentSpace(cmd, spaces, "us-east-1", "")
+			chosen, err := selectAgentSpace(cmd, spaces, "us-east-1", "")
 			require.NoError(t, err)
 
-			assert.NotContains(t, out.String(), "[")
+			assert.Equal(t, spaceChoice{newSpace: true}, chosen)
+			assert.Contains(t, out.String(), "provision a new agent space\nstart")
 		})
 	}
 }

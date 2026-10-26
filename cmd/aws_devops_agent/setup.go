@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
@@ -498,10 +497,8 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	if !ask {
 		return nil
 	}
-	_, _ = fmt.Fprint(out, "Continue? [y/N]: ")
-
-	switch strings.ToLower(readLine(sharedStdin(cmd))) {
-	case "y", "yes":
+	_, _ = fmt.Fprint(out, "Continue? [Y/n]: ")
+	if readYes(sharedStdin(cmd)) {
 		return nil
 	}
 	_, _ = fmt.Fprintln(out)
@@ -527,8 +524,11 @@ type spaceChoice struct {
 }
 
 // selectAgentSpace asks which agent space to connect LaunchDarkly to. With a
-// name, Enter picks the space with that name, or a new space with that name
-// when no space has it. Without a name, there is no default.
+// name, the highlight starts on the space with that name, or on a new space
+// with that name when no space has it. Without a name, the highlight starts
+// on the one space that setup made. If the space is not clear, the highlight
+// starts on a new space, so Enter does not connect to a space of another
+// owner.
 //
 // The list leaves out a space whose tags setup could not read, because its
 // owner is unknown. A note names each of those spaces. The name checks still
@@ -553,7 +553,7 @@ func selectAgentSpace(
 
 	defaultIndex := spaceNamed(spaces, name)
 	if name == "" && len(unread) == 0 {
-		// Enter does what a run that cannot ask does: it picks the one
+		// The highlight starts where a run that cannot ask picks: the one
 		// space that setup made.
 		defaultIndex = ownSpace(spaces)
 	}
@@ -567,12 +567,12 @@ func selectAgentSpace(
 	}
 	choices = append(choices, spaceChoice{newSpace: true})
 	labels = append(labels, "provision a new agent space")
+	start := defaultIndex
+	if start < 0 {
+		start = len(choices) - 1
+	}
 
 	out := cmd.ErrOrStderr()
-	_, _ = fmt.Fprintf(out, "\nThis AWS account already runs the DevOps Agent in %s:\n\n", region)
-	for i, label := range labels {
-		_, _ = fmt.Fprintf(out, "  %d) %s\n", i+1, label)
-	}
 	_, _ = fmt.Fprintln(out)
 	if len(unread) > 0 {
 		_, _ = fmt.Fprintf(out,
@@ -580,33 +580,20 @@ func selectAgentSpace(
 			notListed(len(unread)), strings.Join(agentSpaceLabels(unread), ", "), agentSpaceIDFlag)
 	}
 
-	question := "Which one should LaunchDarkly connect to? "
-	if defaultIndex >= 0 {
-		question += fmt.Sprintf("[%d] ", defaultIndex+1)
+	choice, err := newChooser(cmd)(
+		"Which agent space should LaunchDarkly connect to?",
+		fmt.Sprintf("This AWS account already runs the DevOps Agent in %s. Type to search.", region),
+		labels,
+		start,
+	)
+	if errors.Is(err, errPickCanceled) {
+		return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
+	}
+	if err != nil {
+		return spaceChoice{}, err
 	}
 
-	in := sharedStdin(cmd)
-	for {
-		_, _ = fmt.Fprint(out, question)
-		line, err := nextLine(in)
-		if err != nil && line == "" {
-			return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
-		}
-
-		answer := strings.TrimSpace(line)
-		if answer == "" && defaultIndex >= 0 {
-			return choices[defaultIndex], nil
-		}
-
-		choice, err := strconv.Atoi(answer)
-		if err != nil || choice < 1 || choice > len(choices) {
-			_, _ = fmt.Fprintf(out, "Enter a number between 1 and %d\n", len(choices))
-
-			continue
-		}
-
-		return choices[choice-1], nil
-	}
+	return choices[choice], nil
 }
 
 func agentSpaceLabels(spaces []awsdevops.AgentSpaceSummary) []string {
