@@ -112,7 +112,7 @@ func (s SkillStep) describe() string {
 	case SkillReplace:
 		return fmt.Sprintf("Overwrite skill %s, which is not the ldcli version because %s", label, why)
 	case SkillSkip:
-		return skillFailure(fmt.Errorf("skip skill %s: %w", ExperimentSkillName, s.Err))
+		return skillFailure(fmt.Errorf("Skip skill %s: %w", ExperimentSkillName, s.Err))
 	default:
 		return fmt.Sprintf("Create skill %s for every agent type in the space", ExperimentSkillName)
 	}
@@ -142,6 +142,19 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 	}
 	step := SkillStep{AssetID: aws.ToString(asset.AssetId), Version: aws.ToInt32(asset.Version)}
 	text, found, err := skillText(ctx, clients, space.ID, step.AssetID)
+	if err == nil && !found {
+		// AWS also sends ResourceNotFoundException for an asset that someone
+		// deleted after the list. A deleted skill gets a new one.
+		asset, err = findSkill(ctx, clients, space.ID, ExperimentSkillName)
+		switch {
+		case err != nil:
+			return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Err: err}
+		case asset == nil:
+			return SkillStep{Action: SkillCreate}
+		case aws.ToString(asset.AssetId) != step.AssetID:
+			return SkillStep{Action: SkillSkip, Err: planChanged("skill %s changed during the plan", ExperimentSkillName)}
+		}
+	}
 	step.NoFile = !found
 	switch {
 	case err != nil:
@@ -210,7 +223,8 @@ func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (t
 	case errors.As(err, &missing):
 		return "", false, nil
 	case err != nil:
-		return "", false, fmt.Errorf("unable to read skill %s (%s): %w", ExperimentSkillName, assetID, err)
+		// The caller names the skill.
+		return "", false, fmt.Errorf("unable to read %s of asset %s: %w", skillFilePath, assetID, err)
 	case file.File == nil:
 		return "", false, nil
 	}
@@ -270,7 +284,9 @@ func installSkill(
 	result.SkillAction = action
 	if err != nil {
 		result.SkillAction = SkillFailed
-		if step.Action == SkillSkip {
+		// A plan change stops the step before the write, so setup tried
+		// nothing.
+		if step.Action == SkillSkip || errors.Is(err, ErrPlanChanged) {
 			result.SkillAction = SkillSkipped
 		}
 		result.SkillError = skillFailure(err)

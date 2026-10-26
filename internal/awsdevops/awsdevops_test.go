@@ -70,8 +70,11 @@ type fakeAgent struct {
 	// skillFiles holds the SKILL.md text by asset ID.
 	skillFiles map[string]string
 	// skillBytes holds a SKILL.md that AWS sends as bytes, by asset ID.
-	skillBytes     map[string][]byte
-	listAssetsErr  error
+	skillBytes    map[string][]byte
+	listAssetsErr error
+	getFileErr    error
+	// onGetFile runs at the start of each GetAssetFile call.
+	onGetFile      func()
 	createAssetErr error
 	createAssets   []*devopsagent.CreateAssetInput
 	updateAssets   []*devopsagent.UpdateAssetInput
@@ -100,6 +103,12 @@ func (f *fakeAgent) CreateAsset(_ context.Context, in *devopsagent.CreateAssetIn
 
 func (f *fakeAgent) GetAssetFile(_ context.Context, in *devopsagent.GetAssetFileInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetAssetFileOutput, error) {
 	f.calls = append(f.calls, "GetAssetFile")
+	if f.onGetFile != nil {
+		f.onGetFile()
+	}
+	if f.getFileErr != nil {
+		return nil, f.getFileErr
+	}
 	if aws.ToString(in.Path) != "SKILL.md" {
 		return nil, &agenttypes.ResourceNotFoundException{}
 	}

@@ -492,3 +492,17 @@ func TestSetupWarnsWhenSkillFails(t *testing.T) {
 	// The warning shows one time.
 	assert.Equal(t, 1, strings.Count(errOut.String()+stdoutOf(cmd), "unable to create skill"))
 }
+
+// stdout holds only the JSON, so the warning goes to stderr.
+func TestSetupJSONWarnsOnStderrWhenSkillFails(t *testing.T) {
+	cmd, errOut := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, _ := countingClients()
+	clients.Agent = failingSkillAgent{clients.Agent.(countingAgent)}
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), false, false))
+
+	assert.True(t, json.Valid([]byte(stdoutOf(cmd))), "stdout is not JSON: %s", stdoutOf(cmd))
+	assert.Contains(t, stdoutOf(cmd), `"skillAction": "failed"`)
+	assert.Contains(t, errOut.String(), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
+}

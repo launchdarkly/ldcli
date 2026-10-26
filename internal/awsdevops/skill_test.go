@@ -255,6 +255,7 @@ func TestRunPlanSkipsSkillThatAppears(t *testing.T) {
 	assert.Empty(t, agent.createAssets)
 	assert.Contains(t, agent.calls, "RegisterService")
 	assert.Contains(t, result.SkillError, "appeared after the plan")
+	assert.Equal(t, awsdevops.SkillSkipped, result.SkillAction)
 }
 
 func TestRunPlanSkipsSkillThatIsGone(t *testing.T) {
@@ -298,7 +299,8 @@ func TestRunPlanSkipsSkillEditedAfterPlan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, agent.updateAssets)
 	assert.Contains(t, result.SkillError, "changed after the plan")
-	assert.Equal(t, awsdevops.SkillFailed, result.SkillAction)
+	// The step stopped before the write.
+	assert.Equal(t, awsdevops.SkillSkipped, result.SkillAction)
 }
 
 func accessDenied(action string) error {
@@ -317,6 +319,7 @@ func TestSetupSkipsSkillWhenAssetsCannotBeListed(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseOptions(), true)
 	require.NoError(t, err)
 	assert.Equal(t, awsdevops.SkillSkip, plan.Skill.Action)
+	assert.True(t, strings.HasPrefix(plan.Text().Skill, "Skip skill experiment-orchestration: "), plan.Text().Skill)
 	assert.Contains(t, plan.Text().Skill, "not authorized to perform: aidevops:ListAssets")
 	assert.Contains(t, plan.Text().Skill, "The skill step needs")
 
@@ -326,6 +329,33 @@ func TestSetupSkipsSkillWhenAssetsCannotBeListed(t *testing.T) {
 	assert.Equal(t, awsdevops.SkillSkipped, result.SkillAction)
 	assert.Contains(t, result.SkillError, "not authorized to perform: aidevops:ListAssets")
 	assert.Equal(t, 1, strings.Count(result.SkillError, awsdevops.ExperimentSkillName))
+}
+
+func TestSetupSkipsSkillWhenFileCannotBeRead(t *testing.T) {
+	agent := &fakeAgent{
+		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
+		getFileErr: accessDenied("aidevops:GetAssetFile"),
+	}
+
+	result, err := awsdevops.ConnectExisting(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
+
+	require.NoError(t, err)
+	assert.Equal(t, awsdevops.SkillSkipped, result.SkillAction)
+	assert.Contains(t, result.SkillError, "not authorized to perform: aidevops:GetAssetFile")
+	assert.Contains(t, result.SkillError, "ki-ours")
+	assert.Equal(t, 1, strings.Count(result.SkillError, awsdevops.ExperimentSkillName))
+}
+
+// AWS sends ResourceNotFoundException also for a skill that someone deleted
+// after the list. That skill does not exist, so the plan creates one.
+func TestPlanSetupCreatesSkillDeletedDuringPlan(t *testing.T) {
+	agent := &fakeAgent{assets: []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")}}
+	agent.onGetFile = func() { agent.assets = nil }
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
+	require.NoError(t, err)
+
+	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillCreate}, plan.Skill)
 }
 
 func TestSetupWarnsOnSkillCreateFailure(t *testing.T) {

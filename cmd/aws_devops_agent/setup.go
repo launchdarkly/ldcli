@@ -173,6 +173,11 @@ func setupWith(
 	}
 
 	if !plaintext {
+		// stdout holds only the JSON, so a CI log shows the warning on stderr.
+		if result.SkillError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.SkillError)
+		}
+
 		return printJSON(cmd, result)
 	}
 
