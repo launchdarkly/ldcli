@@ -1288,11 +1288,14 @@ func leaveSharedServer(ctx context.Context, clients Clients, step MCPStep, resul
 			err, created, removeErr,
 		)
 	}
-	logf("Removed the new MCP server (%s), because the agent space still uses MCP server %s", created, step.ServiceID)
 	if checkErr != nil {
+		logf("Removed the new MCP server (%s)", created)
+
 		return fmt.Errorf("%w. Setup could not check if the agent space still uses MCP server %s: %w",
 			err, step.ServiceID, checkErr)
 	}
+
+	logf("Removed the new MCP server (%s), because the agent space still uses MCP server %s", created, step.ServiceID)
 
 	return fmt.Errorf("%w. The agent space still uses MCP server %s with its old token", err, step.ServiceID)
 }
