@@ -65,6 +65,7 @@ type AgentAPI interface {
 	ListServices(context.Context, *devopsagent.ListServicesInput, ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error)
 	RegisterService(context.Context, *devopsagent.RegisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.RegisterServiceOutput, error)
 	UpdateAsset(context.Context, *devopsagent.UpdateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error)
+	UpdateAssociation(context.Context, *devopsagent.UpdateAssociationInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssociationOutput, error)
 }
 
 // IAMAPI is the subset of the IAM API this package uses.

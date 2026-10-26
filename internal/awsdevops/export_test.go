@@ -1,6 +1,9 @@
 package awsdevops
 
-import "context"
+import (
+	"context"
+	"slices"
+)
 
 // Setup plans a full setup and runs it, for tests.
 func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
@@ -35,3 +38,6 @@ func ShippedSkillHashes() []string { return shippedSkillHashes }
 
 // SkillHash is the hash that setup compares.
 func SkillHash(text string) string { return skillHash(text) }
+
+// AllowedTools are the tools that setup allows on the MCP server.
+func AllowedTools() []string { return slices.Concat(mcpReadOnlyTools, mcpMutativeTools) }

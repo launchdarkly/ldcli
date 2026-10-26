@@ -31,7 +31,7 @@ The next chat may be with another person, and you have no memory of this one. Ke
 - Project and environment keys
 - Goal: metric, direction, target, and baseline
 - Hypothesis, and the change that the person implements
-- Current step, for example "waiting for deployment", "experiment running", "guarded rollout running", or "report produced"
+- Current step, for example "waiting for deployment", "experiment running", "won, guarded rollout pending", "guarded rollout running", or "report produced"
 - Deployment: who confirmed that the change is deployed, and when
 
 Read everything else (the experiment key, dates, results, and rollout stages) from LaunchDarkly.
@@ -110,22 +110,26 @@ If the person asks about an experiment on a flag without the tag, read it and re
 
 - **A guardrail regressed, at any time:** end without a win (below).
 - **Less than 2 full weeks of data:** keep it running, even if the primary metric looks significant. Report progress only.
-- **2 weeks or more, significant positive lift:** the experiment is proven. Stop the iteration with the treatment as the winner, then start the guarded rollout (below).
+- **2 weeks or more, significant positive lift:** the experiment is proven. First set the record to "won, guarded rollout pending", so that a later check-in can tell the win apart from a loss. Then stop the iteration with control as the winner, and a reason that says that the treatment won, with its lift. Stopping serves the winner to everyone that the default rule matches, so a treatment winner would reach 100% of users at once and skip the guarded rollout. Then start the guarded rollout (below), which ramps the treatment.
 - **2 weeks or more, significant negative lift:** a loser. End without a win.
 - **2 to 4 weeks, not significant:** keep it running. Report progress only.
 - **No significance after 4 weeks:** inconclusive, need more traffic. End without a win.
 
 Never declare a winner off a single data point, or before the stats engine confirms significance.
 
-**Ending without a win:** stop the iteration with control as the winner and a reason that says why, because stopping an iteration requires a winning treatment. Stopping does not change targeting, so then turn the flag off so that everyone gets control. Do not archive the flag, because the code still evaluates it. Go to Step 6.
+**Ending without a win:** stop the iteration with control as the winner and a reason that says why, because stopping an iteration requires a winning treatment. Stopping serves control to everyone that the default rule matches. Then turn the flag off, so that its state shows that it is not in use. Do not archive the flag, because the code still evaluates it. Go to Step 6.
 
 **Starting the guarded rollout:**
+
+Before you start it, read the flag's default rule. It must serve control (false) to everyone. If it still has the experiment's split, set it to serve control first.
 
 - The winning ("on") variation as the test, the original as control, and the same randomization unit as the experiment.
 - Exactly 3 monitored stages, none above 50% (for example 10% → 25% → 50%), with about 24 hours of monitoring each. LaunchDarkly rejects any step above 50%, and it promotes the rollout to 100% itself after the last stage, so do not add a 100% stage.
 - The same primary and guardrail metrics as the experiment, each set to notify and roll back on regression.
 
 Set the record to "guarded rollout running". LaunchDarkly advances the stages and rolls back on its own, so later check-ins only read its status.
+
+**Won, guarded rollout pending:** the iteration is stopped and the treatment won. Start the guarded rollout (above).
 
 **Guarded rollout running:**
 

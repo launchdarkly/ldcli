@@ -28,6 +28,7 @@ const (
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
 	replaceSkillFlag    = "replace-skill"
+	addMCPToolsFlag     = "add-mcp-tools"
 	yesFlag             = "yes"
 )
 
@@ -57,6 +58,11 @@ If it has none, setup asks for a service token in a terminal and checks it
 before it changes AWS. Without a terminal, or with --yes, it stops and asks
 for --access-token.
 
+A space that reuses a server keeps its tool allowlist. If the allowlist misses
+tools that this ldcli version allows, setup warns. To add them, pass
+--add-mcp-tools. AWS does not send back the classification of each tool, so
+the rewrite gives every tool the ldcli classification.
+
 The experiment-orchestration skill tells the agent how to run an experiment
 from a goal to a report. Every agent type in the space can load it. If the
 skill has the text of an older ldcli version, setup updates it. If someone
@@ -83,6 +89,8 @@ does the other steps.`,
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the agent space")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
 	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
+	cmd.Flags().Bool(addMCPToolsFlag, false, "Add the ldcli tools that the MCP server allowlist of an existing agent space misses. "+
+		"Every tool gets the ldcli classification")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -174,6 +182,9 @@ func setupWith(
 
 	if !plaintext {
 		// stdout holds only the JSON, so a CI log shows the warning on stderr.
+		if result.MCPToolsError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.MCPToolsError)
+		}
 		if result.SkillError != "" {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.SkillError)
 		}
@@ -188,6 +199,9 @@ func setupWith(
 			awsdevops.AccessTokenURL(opts.LDBaseURI))
 	}
 
+	if result.MCPToolsError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.MCPToolsError)
+	}
 	if result.SkillError != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.SkillError)
 	}
@@ -702,6 +716,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
 		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
+		AddMCPTools:     mustBool(cmd, addMCPToolsFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""

@@ -77,7 +77,10 @@ type fakeAgent struct {
 	onGetFile      func()
 	createAssetErr error
 	createAssets   []*devopsagent.CreateAssetInput
-	updateAssets   []*devopsagent.UpdateAssetInput
+	// updateAssociations holds the allowlist updates.
+	updateAssociations   []*devopsagent.UpdateAssociationInput
+	updateAssociationErr error
+	updateAssets         []*devopsagent.UpdateAssetInput
 }
 
 // skillAsset is a skill asset named name.
@@ -300,6 +303,16 @@ func (f *fakeAgent) ListAssociations(_ context.Context, in *devopsagent.ListAsso
 	items, next := page(links, in.NextToken, f.paginate)
 
 	return &devopsagent.ListAssociationsOutput{Associations: items, NextToken: next}, nil
+}
+
+func (f *fakeAgent) UpdateAssociation(_ context.Context, in *devopsagent.UpdateAssociationInput, _ ...func(*devopsagent.Options)) (*devopsagent.UpdateAssociationOutput, error) {
+	f.calls = append(f.calls, "UpdateAssociation")
+	f.updateAssociations = append(f.updateAssociations, in)
+	if f.updateAssociationErr != nil {
+		return nil, f.updateAssociationErr
+	}
+
+	return &devopsagent.UpdateAssociationOutput{}, nil
 }
 
 func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.RegisterServiceOutput, error) {

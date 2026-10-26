@@ -109,6 +109,10 @@ func (s stubAgent) ListAssociations(context.Context, *devopsagent.ListAssociatio
 	return &devopsagent.ListAssociationsOutput{Associations: s.associations}, nil
 }
 
+func (s stubAgent) UpdateAssociation(context.Context, *devopsagent.UpdateAssociationInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssociationOutput, error) {
+	return &devopsagent.UpdateAssociationOutput{}, nil
+}
+
 func (s stubAgent) ListServices(context.Context, *devopsagent.ListServicesInput, ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error) {
 	return &devopsagent.ListServicesOutput{Services: s.services}, nil
 }
