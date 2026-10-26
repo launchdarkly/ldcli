@@ -63,12 +63,33 @@ Help the customer.
 }
 
 func TestRenderSkillIncludesReadOnlyKeyAndEditableDescription(t *testing.T) {
-	rendered, err := renderSkill(syncdomain.Skill{
-		Key: "support", Description: "Follow the standard support process.", Markdown: "Follow the support process.\n",
-	})
+	skill := syncdomain.Skill{
+		Key: "support", Name: "Support", Description: "Follow the standard support process.", Markdown: "Follow the support process.\n",
+	}
+
+	rendered, err := renderAttachment(syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &skill})
+	require.NoError(t, err)
+	assert.Equal(t, "---\nkey: support\ndescription: Follow the standard support process.\n---\n\nFollow the support process.\n", string(rendered),
+		"LaunchDarkly owns the name, so the file does not get it")
+
+	rendered, err = renderAttachment(syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Upsert: true, Skill: &skill})
+	require.NoError(t, err)
+	assert.Contains(t, string(rendered), "\nupsert: true\n")
+}
+
+func TestReadSkillReadsTheOptionalNameAndUpsert(t *testing.T) {
+	fsys := fstest.MapFS{
+		".launchdarkly/project/skills/handoff.md": {
+			Data: []byte("---\nkey: handoff\ndescription: Hand off\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n"),
+		},
+	}
+
+	attachment, err := readSkill(fsys, "project", "handoff")
 
 	require.NoError(t, err)
-	assert.Equal(t, "---\nkey: support\ndescription: Follow the standard support process.\n---\n\nFollow the support process.\n", string(rendered))
+	assert.True(t, attachment.Upsert)
+	assert.Equal(t, "Human handoff", attachment.Skill.Name)
+	assert.Equal(t, "# Handoff\n", attachment.Skill.Markdown)
 }
 
 func TestReadSkillRejectsKeyThatDoesNotMatchFilename(t *testing.T) {
@@ -144,13 +165,30 @@ func TestPreserveToolUpsertAcrossServerWrites(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	preserved, err := preserveToolUpsert("tools/search.json", original, replacement)
+	preserved, err := preserveLocalFields("tools/search.json", original, replacement)
 
 	require.NoError(t, err)
 	var file toolFile
 	require.NoError(t, json.Unmarshal(preserved, &file))
 	assert.True(t, file.Upsert)
 	assert.Equal(t, "New", *file.Description)
+}
+
+func TestPreserveSkillNameAndUpsertAcrossServerWrites(t *testing.T) {
+	original := []byte("---\nkey: handoff\ndescription: Old\nname: Human handoff\nupsert: true\n---\n\n# Old\n")
+	server := syncdomain.Skill{Key: "handoff", Name: "Renamed in LaunchDarkly", Description: "New", Markdown: "# New\n"}
+	replacement, err := renderAttachment(syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &server})
+	require.NoError(t, err)
+
+	preserved, err := preserveLocalFields("project/skills/handoff.md", original, replacement)
+
+	require.NoError(t, err)
+	assert.Equal(t, "---\nkey: handoff\ndescription: New\nname: Human handoff\nupsert: true\n---\n\n# New\n", string(preserved))
+
+	plain := []byte("---\nkey: handoff\ndescription: Old\n---\n\n# Old\n")
+	preserved, err = preserveLocalFields("project/skills/handoff.md", plain, replacement)
+	require.NoError(t, err)
+	assert.Equal(t, replacement, preserved)
 }
 
 func TestReplaceVariationsRemovesNewAttachmentWhenVariationUpdateFails(t *testing.T) {
@@ -239,7 +277,7 @@ func TestOrphanedAttachmentsRequireEveryLocalReferenceToBeRemoved(t *testing.T) 
 		ProjectKey: "project", Kind: syncdomain.AttachmentTool, Key: "search", Path: "project/tools/search.json",
 	}}, orphaned)
 
-	deleted, err := store.DeleteAttachments(orphaned)
+	deleted, err := store.DeleteAttachments([]syncdomain.ResourceID{{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"project/tools/search.json"}, deleted)
 	_, statErr := os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
@@ -260,11 +298,94 @@ func TestOrphanedAttachmentsFindsFlatSkillFile(t *testing.T) {
 		ProjectKey: "project", Kind: syncdomain.AttachmentSkill, Key: "support", Path: "project/skills/support.md",
 	}}, orphaned)
 
-	deleted, err := store.DeleteAttachments(orphaned)
+	deleted, err := store.DeleteAttachments([]syncdomain.ResourceID{{Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "support"}})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"project/skills/support.md"}, deleted)
 	_, statErr := os.Stat(skillPath)
 	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+func TestCompileAttachmentsReadsStandaloneAndReferencedFiles(t *testing.T) {
+	root := t.TempDir()
+	search := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+	variation := syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Default", Instructions: "Help.",
+		Tools:       []syncdomain.AttachmentRef{{Key: "search"}},
+		Attachments: []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &search}},
+	}
+	_, err := NewStore(root).Add([]VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
+	require.NoError(t, err)
+	writeManagedFile(t, root, "project/tools/refund.json", `{"formatVersion": 1, "upsert": true, "key": "refund", "schema": {}}`)
+	writeManagedFile(t, root, "project/skills/triage.md", "---\nkey: triage\ndescription: Triage\n---\n\nPick a queue.\n")
+	writeManagedFile(t, root, "other/tools/broken.json", "not json")
+
+	attachments, err := CompileAttachments(root, func(id syncdomain.ResourceID) bool { return id.ProjectKey == "project" })
+
+	require.NoError(t, err)
+	var ids []string
+	for _, attachment := range attachments {
+		ids = append(ids, attachment.ID().Label())
+	}
+	assert.Equal(t, []string{"skill project/triage", "tool project/refund", "tool project/search"}, ids)
+	assert.True(t, attachments[1].Attachment.Upsert)
+}
+
+func TestCompileAttachmentsReportsTheInvalidFile(t *testing.T) {
+	root := t.TempDir()
+	writeManagedFile(t, root, "project/tools/broken.json", "not json")
+
+	_, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+
+	var parseErr ParseError
+	require.ErrorAs(t, err, &parseErr)
+	assert.Equal(t, ".launchdarkly/project/tools/broken.json", parseErr.Path)
+	assert.ErrorContains(t, err, `parse tool "broken"`)
+}
+
+func TestCompileAttachmentsRejectsSymlink(t *testing.T) {
+	root := t.TempDir()
+	external := filepath.Join(root, "external.json")
+	require.NoError(t, os.WriteFile(external, []byte(`{"formatVersion":1,"key":"search","schema":{}}`), 0o644))
+	toolPath := filepath.Join(root, ".launchdarkly", "project", "tools", "search.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(toolPath), 0o755))
+	require.NoError(t, os.Symlink(external, toolPath))
+
+	_, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+
+	require.ErrorContains(t, err, "symbolic links are not supported")
+}
+
+func TestReplaceAttachmentsWritesStandaloneFilesAndKeepsLocalFields(t *testing.T) {
+	root := t.TempDir()
+	writeManagedFile(t, root, "project/tools/search.json", `{"formatVersion": 1, "upsert": true, "key": "search", "schema": {}}`)
+	description := "Search the docs"
+	search := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Version: 4, Tool: &syncdomain.Tool{
+		Key: "search", Description: &description, Schema: map[string]any{"type": "object"},
+	}}
+	triage := syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{
+		Key: "triage", Name: "Triage", Description: "Triage", Markdown: "Pick a queue.\n",
+	}}
+
+	written, err := NewStore(root).ReplaceAttachments([]syncdomain.SyncedAttachment{
+		{ProjectKey: "project", Attachment: search}, {ProjectKey: "project", Attachment: triage},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"project/tools/search.json", "project/skills/triage.md"}, written)
+	attachments, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	require.Len(t, attachments, 2)
+	assert.Equal(t, "Pick a queue.\n", attachments[0].Attachment.Skill.Markdown)
+	assert.Empty(t, attachments[0].Attachment.Skill.Name, "the file does not get the LaunchDarkly name")
+	assert.Equal(t, "Search the docs", *attachments[1].Attachment.Tool.Description)
+	assert.True(t, attachments[1].Attachment.Upsert, "the file keeps its upsert flag")
+}
+
+func writeManagedFile(t *testing.T, root, relativePath, content string) {
+	t.Helper()
+	path := filepath.Join(root, syncdomain.RootDir, filepath.FromSlash(relativePath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 }
 
 func TestCompileWorkspaceRejectsAttachmentSymlink(t *testing.T) {

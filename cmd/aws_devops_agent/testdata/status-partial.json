@@ -1,0 +1,27 @@
+{
+  "accountId": "123456789012",
+  "region": "us-east-1",
+  "roles": [
+    {
+      "name": "DevOpsAgentRole-AgentSpace",
+      "arn": "arn:aws:iam::123456789012:role/DevOpsAgentRole-AgentSpace",
+      "exists": true
+    },
+    {
+      "name": "DevOpsAgentRole-WebappAdmin",
+      "exists": false
+    }
+  ],
+  "agentSpaces": [
+    {
+      "agentSpaceId": "as-prod01",
+      "name": "Production",
+      "operatorAppUrl": "",
+      "operatorAppEnabled": false,
+      "operatorAppError": "AccessDeniedException"
+    }
+  ],
+  "missingSetup": [
+    "IAM role DevOpsAgentRole-WebappAdmin does not exist"
+  ]
+}

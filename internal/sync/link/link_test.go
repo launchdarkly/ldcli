@@ -1,6 +1,8 @@
 package link
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -216,6 +218,35 @@ func TestCreateDoesNotOverwriteLinkedFileChangedAfterRead(t *testing.T) {
 	content, readErr := os.ReadFile(sourcePath)
 	require.NoError(t, readErr)
 	require.Equal(t, "newer content from the editor", string(content))
+}
+
+func TestPromptForSelectionSkipsTheProjectQuestionAndNamesAMissingProject(t *testing.T) {
+	catalog := &missingProjectCatalog{}
+
+	_, _, _, err := promptForSelection(Options{
+		Catalog: catalog, Input: bytes.NewBuffer(nil), Output: bytes.NewBuffer(nil), ProjectKey: "demo",
+	}, linkedPrompt{})
+
+	require.EqualError(t, err, `project "demo" was not found in LaunchDarkly, or the access token cannot read it`)
+	require.Equal(t, []string{"demo"}, catalog.configSearches)
+}
+
+// missingProjectCatalog fails a project search, and answers a config search
+// with a 404 as LaunchDarkly does for a project that does not exist.
+type missingProjectCatalog struct {
+	fakeCatalog
+	configSearches []string
+}
+
+func (*missingProjectCatalog) SearchProjects(string, int, int) (syncapi.Page[syncapi.Project], error) {
+	return syncapi.Page[syncapi.Project]{}, errors.New("asked for the project")
+}
+
+func (catalog *missingProjectCatalog) SearchConfigs(
+	projectKey, _ string, _ []syncdomain.VariationMode, _, _ int,
+) (syncapi.Page[syncapi.Config], error) {
+	catalog.configSearches = append(catalog.configSearches, projectKey)
+	return syncapi.Page[syncapi.Config]{}, errors.New(`{"code":"not_found","statusCode":404}`)
 }
 
 func TestRequiredValueRejectsBlankInput(t *testing.T) {

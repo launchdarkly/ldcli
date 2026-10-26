@@ -82,7 +82,7 @@ func TestBaselineStoreUsesLockFileAsBaselineAndReportsStaleness(t *testing.T) {
 	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("b"), 5)}}
 	lock := lockWith(t, fingerprint("a"), 4)
 
-	baseline, err := NewBaselineStore(NewStore(client, testSource), lock).Load(nil)
+	baseline, err := NewBaselineStore(NewStore(client, testSource), lock).Load([]string{"production"})
 
 	require.NoError(t, err)
 	assert.Equal(t, fingerprint("a"), baseline.Lock.Resources[0].Fingerprint)
@@ -103,7 +103,7 @@ func TestBaselineStaleComparesFingerprints(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			client := &manifestClient{manifests: map[string]syncapi.SyncManifest{"production": test.remote}}
-			baseline, err := NewBaselineStore(NewStore(client, testSource), lockWith(t, fingerprint("a"), 4)).Load(nil)
+			baseline, err := NewBaselineStore(NewStore(client, testSource), lockWith(t, fingerprint("a"), 4)).Load([]string{"production"})
 
 			require.NoError(t, err)
 			assert.Equal(t, test.stale, baseline.Stale(variationID()))
@@ -126,7 +126,7 @@ func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLockWithoutThem(t *testing
 	}
 	lock := lockWith(t, fingerprint("a"), 4)
 	store := NewBaselineStore(NewStore(client, testSource), lock)
-	baseline, err := store.Load(nil)
+	baseline, err := store.Load([]string{"production"})
 	require.NoError(t, err)
 
 	next := baseline.Lock.Clone()
@@ -151,7 +151,7 @@ func TestBaselineStoreSaveKeepsRemoteEntryThatThisCopyDidNotChange(t *testing.T)
 	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("b"), 5)}}
 	lock := lockWith(t, fingerprint("a"), 4)
 	store := NewBaselineStore(NewStore(client, testSource), lock)
-	baseline, err := store.Load(nil)
+	baseline, err := store.Load([]string{"production"})
 	require.NoError(t, err)
 
 	_, err = store.Save(baseline, baseline.Lock)
@@ -168,7 +168,7 @@ func TestBaselineStoreSaveDoesNotWriteLockWhenRemoteSaveFails(t *testing.T) {
 	lock := lockWith(t, fingerprint("a"), 4)
 	before := string(lock.content)
 	store := NewBaselineStore(NewStore(client, testSource), lock)
-	baseline, err := store.Load(nil)
+	baseline, err := store.Load([]string{"production"})
 	require.NoError(t, err)
 
 	next := baseline.Lock.Clone()
@@ -186,7 +186,7 @@ func TestBaselineStoreSaveRemovesEmptyLock(t *testing.T) {
 	}
 	lock := lockWith(t, fingerprint("a"), 4)
 	store := NewBaselineStore(NewStore(client, testSource), lock)
-	baseline, err := store.Load(nil)
+	baseline, err := store.Load([]string{"production"})
 	require.NoError(t, err)
 
 	_, err = store.Save(baseline, New())
@@ -196,6 +196,49 @@ func TestBaselineStoreSaveRemovesEmptyLock(t *testing.T) {
 	assert.Equal(t, []syncapi.SyncManifestDeletion{{
 		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Version: 4,
 	}}, client.patches[0].deletions)
+}
+
+// A filtered sync loads only its own project. The lock entries of every other
+// project must stay as they are, and their remote manifests are not read.
+func TestBaselineStoreLoadsOnlyTheNamedProjects(t *testing.T) {
+	client := &readRecordingClient{manifestClient: &manifestClient{
+		manifests:      map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("a"), 4)},
+		patchResponses: []syncapi.SyncManifest{remoteManifest(fingerprint("c"), 5)},
+	}}
+	other := Resource{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "other", LookupKey: "chat/default", Fingerprint: fingerprint("e"),
+	}
+	content, err := encodeLock(Manifest{Resources: []Resource{
+		{ResourceKind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default", Fingerprint: fingerprint("a")},
+		other,
+	}})
+	require.NoError(t, err)
+	lock := &memoryLock{content: content}
+	store := NewBaselineStore(NewStore(client, testSource), lock)
+
+	baseline, err := store.Load([]string{"production"})
+	require.NoError(t, err)
+	next := baseline.Lock.Clone()
+	next.SetFingerprint(variationID(), fingerprint("c"))
+	_, err = store.Save(baseline, next)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"production"}, client.reads)
+	require.Len(t, client.patches, 1)
+	assert.Equal(t, "production", client.patches[0].projectKey)
+	written, err := ReadLock(lock)
+	require.NoError(t, err)
+	assert.Contains(t, written.Resources, other)
+}
+
+type readRecordingClient struct {
+	*manifestClient
+	reads []string
+}
+
+func (client *readRecordingClient) GetSyncManifest(projectKey, source string) (syncapi.SyncManifest, error) {
+	client.reads = append(client.reads, projectKey)
+	return client.manifestClient.GetSyncManifest(projectKey, source)
 }
 
 func variationID() syncdomain.ResourceID {

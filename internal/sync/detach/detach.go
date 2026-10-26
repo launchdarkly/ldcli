@@ -35,8 +35,10 @@ type Options struct {
 	ProjectKeys []string
 	Input       io.Reader
 	Output      io.Writer
-	// Selections are the variations to detach. If it is empty, Run asks the user.
+	// Selections are the variations to detach. If it is empty, Run asks the
+	// user to choose from the synced resources that Filter keeps.
 	Selections []syncdomain.ResourceID
+	Filter     syncdomain.Filter
 	NoInput    bool
 	// Archive also archives each selected variation in LaunchDarkly. Without
 	// Yes, the user must confirm the archive.
@@ -80,6 +82,7 @@ func Run(options Options) error {
 			return err
 		}
 	} else {
+		synced = slices.DeleteFunc(synced, func(id syncdomain.ResourceID) bool { return !options.Filter.Includes(id) })
 		if len(synced) == 0 {
 			_ = console.Line("No resources are currently synced.")
 			return nil
@@ -118,9 +121,11 @@ func Run(options Options) error {
 // promptForResources asks the user to choose one or more synced variations.
 // The bool result is true when the user cancels.
 func promptForResources(options Options, synced []syncdomain.ResourceID) ([]syncdomain.ResourceID, bool, error) {
-	if err := syncinteractive.RequireTerminal(
-		options.Input, options.Output, options.NoInput, "variation selectors", "resource selection",
-	); err != nil {
+	arguments := "--project and --key"
+	if options.Filter.Project != "" {
+		arguments = "--key values"
+	}
+	if err := syncinteractive.RequireTerminal(options.Input, options.Output, options.NoInput, arguments, "resource selection"); err != nil {
 		return nil, false, err
 	}
 	choices := make([]syncinteractive.Choice[syncdomain.ResourceID], 0, len(synced))

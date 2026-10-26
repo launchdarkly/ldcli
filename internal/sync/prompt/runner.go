@@ -100,18 +100,20 @@ func (runner Runner) Run(options Options) error {
 }
 
 // runSync syncs once, or watches the workspace. A workspace without any sync
-// files starts with an add, so that the user can choose the first variations.
+// files starts with an add in the filter project, so that the user can choose
+// the first variations.
 func (runner Runner) runSync(options Options, workspace syncWorkspace, action SyncAction) error {
 	exists, err := workspace.local.Exists()
 	if err != nil {
 		return err
 	}
-	projectKeys, err := workspace.projectKeys()
+	synced, err := workspace.syncedResources()
 	if err != nil {
 		return err
 	}
-	if !exists && len(projectKeys) == 0 {
-		if err := runner.bootstrap(runner.bootstrapOptions(options, workspace, true, action.DryRun, nil)); err != nil {
+	if !exists && len(synced) == 0 {
+		add := AddAction{Filter: action.Filter, DryRun: action.DryRun}
+		if err := runner.bootstrap(runner.bootstrapOptions(options, workspace, true, add)); err != nil {
 			return err
 		}
 		if !action.Watch {
@@ -138,11 +140,11 @@ func (runner Runner) runAdd(options Options, workspace syncWorkspace, action Add
 	if err != nil {
 		return err
 	}
-	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action.DryRun, action.Variations))
+	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action))
 }
 
 func (runner Runner) runDetach(options Options, workspace syncWorkspace, action DetachAction) error {
-	projectKeys, err := workspace.projectKeys()
+	synced, err := workspace.syncedResources()
 	if err != nil {
 		return err
 	}
@@ -150,10 +152,11 @@ func (runner Runner) runDetach(options Options, workspace syncWorkspace, action 
 		RepositoryRoot: workspace.root,
 		Store:          workspace.local,
 		Baselines:      workspace.baselines,
-		ProjectKeys:    projectKeys,
+		ProjectKeys:    projectKeys(synced, syncdomain.Filter{}),
 		Input:          options.Input,
 		Output:         options.Output,
-		Selections:     action.Variations,
+		Filter:         action.Filter,
+		Selections:     selections(action.Variations, action.Filter),
 		NoInput:        options.NoInput,
 		Archive:        action.Archive,
 		Archiver:       runner.api(options),
@@ -174,6 +177,7 @@ func (runner Runner) runLink(options Options, workspace syncWorkspace, action Li
 		Format:           action.Format,
 		Input:            options.Input,
 		Output:           options.Output,
+		ProjectKey:       action.ProjectKey,
 		Target:           action.Target,
 		NoInput:          options.NoInput,
 	})
@@ -197,6 +201,7 @@ func (runner Runner) runAttach(options Options, workspace syncWorkspace, action 
 
 	attach := attachOptions{
 		RepositoryRoot: workspace.root,
+		ProjectKey:     action.ProjectKey,
 		Kind:           action.Kind,
 		Key:            action.Key,
 		// The attach forms write to the output stream, so check that stream.
@@ -214,12 +219,7 @@ func (runner Runner) runAttach(options Options, workspace syncWorkspace, action 
 	return err == nil, err
 }
 
-func (runner Runner) bootstrapOptions(
-	options Options,
-	workspace syncWorkspace,
-	initial, dryRun bool,
-	selections []syncdomain.ResourceID,
-) syncbootstrap.Options {
+func (runner Runner) bootstrapOptions(options Options, workspace syncWorkspace, initial bool, action AddAction) syncbootstrap.Options {
 	api := runner.api(options)
 	return syncbootstrap.Options{
 		Catalog:     api,
@@ -229,9 +229,12 @@ func (runner Runner) bootstrapOptions(
 		Input:       options.Input,
 		Output:      options.Output,
 		Initial:     initial,
-		DryRun:      dryRun,
-		Selections:  selections,
+		DryRun:      action.DryRun,
+		ProjectKey:  action.Filter.Project,
+		ConfigKey:   action.Filter.ConfigKey,
+		Selections:  selections(action.Variations, action.Filter),
 		NoInput:     options.NoInput,
+		Diff:        options.Diff,
 	}
 }
 
