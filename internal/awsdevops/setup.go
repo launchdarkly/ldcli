@@ -49,6 +49,8 @@ const (
 // that changes LaunchDarkly state has to be classified explicitly. The lists
 // cover the steps of the experiment-orchestration skill: find a flag, create
 // it, run an experiment, read its results, and ramp or clean up the flag.
+// They also cover incident work: turn a change off for one segment or
+// context, and ask for approval where an environment needs it.
 var (
 	mcpReadOnlyTools = []string{
 		"list-projects",
@@ -65,6 +67,11 @@ var (
 		"get-experiment",
 		"get-experiment-results",
 		"get-experiment-metric-results",
+		"list-segments",
+		"get-segment",
+		"list-approval-requests",
+		"list-release-policies",
+		"match-release-policies",
 	}
 	mcpMutativeTools = []string{
 		"toggle-flag",
@@ -76,6 +83,9 @@ var (
 		"stop-experiment-iteration",
 		"start-guarded-rollout",
 		"stop-guarded-rollout",
+		"update-targeting-rules",
+		"update-individual-targets",
+		"create-approval-request",
 	}
 )
 
