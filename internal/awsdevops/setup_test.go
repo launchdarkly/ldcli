@@ -162,6 +162,9 @@ func TestPlanSetupRefusesANewSpaceWithAUsedName(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "an agent space named launchdarkly already exists (space-existing)")
+	// A re-run of the command that created the space gets here.
+	assert.Contains(t, err.Error(), "remove --new-agent-space and run setup again. To pick the space by its ID, also replace --agent-space-name with --agent-space-id space-existing")
+	assert.NotContains(t, err.Error(), "another name")
 	assert.Equal(t, awsdevops.SpaceStep{}, plan.Space)
 }
 

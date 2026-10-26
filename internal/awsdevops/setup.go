@@ -494,10 +494,17 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 		case err != nil:
 			return SpaceStep{}, err
 		case len(seen) > 0 && opts.NewAgentSpace && provision:
-			// Two spaces with one name make the next run unable to pick.
+			// Two spaces with one name make the next run unable to pick. A
+			// re-run after a failed run gets here, so name how to use the space.
+			id := "<id>"
+			if len(seen) == 1 {
+				id = seen[0]
+			}
+
 			return SpaceStep{}, fmt.Errorf(
-				"an agent space named %s already exists (%s). Pass --agent-space-name with another name",
-				opts.AgentSpaceName, strings.Join(seen, ", "),
+				"an agent space named %s already exists (%s). To use it, remove --new-agent-space and run setup again. "+
+					"To pick the space by its ID, also replace --agent-space-name with --agent-space-id %s",
+				opts.AgentSpaceName, strings.Join(seen, ", "), id,
 			)
 		case len(seen) > 1:
 			return SpaceStep{}, fmt.Errorf(
