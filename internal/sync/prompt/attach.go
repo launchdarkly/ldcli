@@ -12,8 +12,6 @@ import (
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
-const attachmentSearchPageSize = 25
-
 var errAttachmentCanceled = errors.New("attachment selection canceled")
 
 // attachOptions are the input of one attach. An empty field means that the
@@ -177,20 +175,7 @@ func selectAttachment(client syncapi.Client, projectKey string, options attachOp
 		return syncdomain.Attachment{}, fmt.Errorf("%s key is required without interactive input", options.Kind)
 	}
 
-	kind := string(options.Kind)
-	attachment, canceled, err := syncinteractive.SearchSelect(syncinteractive.SearchOptions[syncdomain.Attachment]{
-		Input:             options.Input,
-		Output:            options.Output,
-		SearchTitle:       "Search " + kind + "s",
-		SearchPlaceholder: "Name or key",
-		SelectTitle:       "Choose a " + kind,
-		ItemName:          kind + "s",
-		PageSize:          attachmentSearchPageSize,
-		Fetch: func(query string, limit, offset int) ([]syncdomain.Attachment, int, error) {
-			return searchAttachmentPage(client, projectKey, options.Kind, query, limit, offset)
-		},
-		Choice: attachmentChoice,
-	})
+	attachment, canceled, err := syncinteractive.SelectAttachment(options.Input, options.Output, client, projectKey, options.Kind)
 	if err != nil {
 		return syncdomain.Attachment{}, err
 	}
@@ -198,31 +183,4 @@ func selectAttachment(client syncapi.Client, projectKey string, options attachOp
 		return syncdomain.Attachment{}, errAttachmentCanceled
 	}
 	return client.ReadAttachment(projectKey, options.Kind, attachment.Key())
-}
-
-func searchAttachmentPage(
-	client syncapi.Client,
-	projectKey string,
-	kind syncdomain.AttachmentKind,
-	query string,
-	limit, offset int,
-) ([]syncdomain.Attachment, int, error) {
-	page, err := client.SearchAttachments(projectKey, kind, query, limit, offset)
-	return page.Items, page.TotalCount, err
-}
-
-// attachmentChoice shows the name of a skill, or the key of a tool, which has no name.
-func attachmentChoice(attachment syncdomain.Attachment) syncinteractive.Choice[syncdomain.Attachment] {
-	if attachment.Skill != nil {
-		return syncinteractive.Choice[syncdomain.Attachment]{
-			Title:       attachment.Skill.Name,
-			Description: fmt.Sprintf("Key: %s · Latest version: %d", attachment.Key(), attachment.Version),
-			Value:       attachment,
-		}
-	}
-	return syncinteractive.Choice[syncdomain.Attachment]{
-		Title:       "Key: " + attachment.Key(),
-		Description: fmt.Sprintf("Latest version: %d", attachment.Version),
-		Value:       attachment,
-	}
 }

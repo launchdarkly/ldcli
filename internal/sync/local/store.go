@@ -83,14 +83,29 @@ func (store Store) VariationExists(projectKey, configKey, variationKey string) (
 	if err != nil {
 		return false, err
 	}
-	_, err = os.Stat(store.absolute(relativePath))
+	return store.fileExists(relativePath, "variation "+variationKey)
+}
+
+// AttachmentExists reports whether the file of a tool or a skill exists.
+func (store Store) AttachmentExists(id syncdomain.ResourceID) (bool, error) {
+	relativePath, err := attachmentPath(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+	if err != nil {
+		return false, err
+	}
+	return store.fileExists(relativePath, id.Label())
+}
+
+// fileExists reports whether a managed file exists. label names the file in
+// an error.
+func (store Store) fileExists(relativePath, label string) (bool, error) {
+	_, err := os.Stat(store.absolute(relativePath))
 	switch {
 	case err == nil:
 		return true, nil
 	case errors.Is(err, os.ErrNotExist):
 		return false, nil
 	default:
-		return false, fmt.Errorf("inspect variation %s: %w", variationKey, err)
+		return false, fmt.Errorf("inspect %s: %w", label, err)
 	}
 }
 
