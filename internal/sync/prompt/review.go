@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"errors"
 	"slices"
 	"strings"
 
@@ -12,29 +13,35 @@ import (
 
 const applyQuestion = "\nSync these changes? [y/N] "
 
-// reviewAndConfirmPlan shows the plan and reports whether to apply it.
+// reviewAndConfirmPlan reports whether to apply the plan. It shows the plan
+// only when the plan has nothing to apply, when a row blocks the sync, or
+// before it asks the user.
 //
 // A plan that changes only the manifest applies without a question. With
 // --yes, every plan applies. In watch mode, a plan without a deletion or an
 // archive applies. Every other plan needs the user to agree.
 func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, error) {
-	if err := writePlanReview(options.ErrorOutput, "plaintext", plan, terminalWidth(options.ErrorOutput)); err != nil {
-		return false, err
+	writePlanNotes(options.ErrorOutput, plan)
+	review := func() error {
+		return writePlanReview(options.ErrorOutput, outputPlaintext, plan, terminalWidth(options.ErrorOutput), options.Diff)
 	}
 	if err := plan.BlockingError(); err != nil {
-		return false, err
+		return false, errors.Join(review(), err)
 	}
 	if !plan.HasChanges() {
-		if options.OutputKind != "" && options.OutputKind != "plaintext" {
-			return false, writePlanOutput(options.Output, options.OutputKind, plan)
+		if options.OutputKind != "" && options.OutputKind != outputPlaintext {
+			return false, writePlanOutput(options.Output, options.OutputKind, plan, options.Diff)
 		}
-		return false, nil
+		return false, review()
 	}
 	autoApply := options.Yes || (options.watching() && !plan.HasDestructiveActions())
 	if autoApply || !plan.RequiresConfirmation() {
 		return true, nil
 	}
 
+	if err := review(); err != nil {
+		return false, err
+	}
 	confirmed, err := syncinteractive.Confirm(options.Context, options.Input, options.ErrorOutput, interactive, applyQuestion)
 	if err != nil {
 		return false, err
@@ -48,8 +55,16 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 // cleanupOrphanedAttachments shows the tool and skill files that no local
 // variation uses, and deletes them after the user agrees. Without --yes and
 // without a terminal, it keeps the files. Before it deletes a file, it makes
-// sure again that no variation uses the file.
+// sure again that no variation uses the file. A filtered sync keeps every
+// file. A variation outside the filter can have a missing file that a full
+// sync restores, and then its tools and skills only look unused. A sync that
+// plans tools or skills also keeps every file, because each file is a row of
+// its own.
 func cleanupOrphanedAttachments(options Options, store synclocal.Store, interactive bool) error {
+	action := options.syncAction()
+	if !action.Filter.IsZero() || action.Scope.Includes(syncdomain.KindTool) || action.Scope.Includes(syncdomain.KindSkill) {
+		return nil
+	}
 	orphaned, err := store.OrphanedAttachments()
 	if err != nil || len(orphaned) == 0 {
 		return err
@@ -100,7 +115,13 @@ func cleanupOrphanedAttachments(options Options, store synclocal.Store, interact
 		return nil
 	}
 
-	deleted, err := store.DeleteAttachments(orphaned)
+	ids := make([]syncdomain.ResourceID, 0, len(orphaned))
+	for _, attachment := range orphaned {
+		ids = append(ids, syncdomain.ResourceID{
+			Kind: syncdomain.Kind(attachment.Kind), ProjectKey: attachment.ProjectKey, LookupKey: attachment.Key,
+		})
+	}
+	deleted, err := store.DeleteAttachments(ids)
 	if err != nil {
 		return err
 	}

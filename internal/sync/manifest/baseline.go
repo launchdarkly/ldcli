@@ -1,8 +1,6 @@
 package manifest
 
 import (
-	"slices"
-
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
@@ -54,16 +52,19 @@ func NewBaselineStore(remote Store, lock LockFile) BaselineStore {
 	return BaselineStore{remote: remote, lock: lock}
 }
 
-// Load reads the sync.lock file and the remote manifest of each project that
-// projectKeys or the lock names. A working copy without a sync.lock file
-// tracks nothing yet. The remote manifest is not its lock, because other
-// branches add entries to it that this working copy never had.
+// Load reads the sync.lock file and the remote manifest of each project in
+// projectKeys. A working copy without a sync.lock file tracks nothing yet. The
+// remote manifest is not its lock, because other branches add entries to it
+// that this working copy never had.
+//
+// Save sends only the entries that changed, so a project that Load did not
+// read keeps its remote manifest as long as its lock entries do not change.
 func (store BaselineStore) Load(projectKeys []string) (Baseline, error) {
 	lock, err := ReadLock(store.lock)
 	if err != nil {
 		return Baseline{}, err
 	}
-	remote, err := store.remote.Load(append(slices.Clone(projectKeys), lock.ProjectKeys()...))
+	remote, err := store.remote.Load(projectKeys)
 	if err != nil {
 		return Baseline{}, err
 	}

@@ -1,9 +1,11 @@
 package prompt_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,6 +26,7 @@ import (
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
+	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
@@ -108,11 +111,23 @@ func (api *directAPI) MakeRequest(
 		}
 		return json.Marshal(tool)
 	}
+	if strings.HasSuffix(path, "/ai-configs/skills") && method == http.MethodPost {
+		var skill versionedSkill
+		if err := json.Unmarshal(body, &skill.Skill); err != nil {
+			return nil, err
+		}
+		skill.Version = 1
+		if api.skills == nil {
+			api.skills = make(map[string]versionedSkill)
+		}
+		api.skills[skill.Key] = skill
+		return json.Marshal(skill)
+	}
 	if strings.Contains(path, "/ai-configs/skills/") {
 		key := path[strings.LastIndex(path, "/")+1:]
 		skill, ok := api.skills[key]
 		if !ok {
-			return nil, fmt.Errorf("skill not found")
+			return nil, fmt.Errorf(`{"code":"not_found","message":"skill not found","statusCode":404}`)
 		}
 		if method == "PATCH" {
 			if err := json.Unmarshal(body, &skill.Skill); err != nil {
@@ -410,6 +425,33 @@ func TestPromptCreatesMissingToolWhenUpsertIsEnabled(t *testing.T) {
 	require.Equal(t, []syncdomain.AttachmentRef{{Key: "my-second-tool", Version: 1}}, api.variation.Tools)
 }
 
+func TestPromptCreatesMissingSkillWhenUpsertIsEnabled(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	withSkill := baseline
+	withSkill.Skills = []syncdomain.AttachmentRef{{Key: "handoff"}}
+	_, err := synclocal.NewStore(root).ReplaceVariations([]synclocal.VariationReplacement{{
+		ProjectKey: "production", ConfigKey: "support", Variation: withSkill,
+	}})
+	require.NoError(t, err)
+	skillFile := "---\nkey: handoff\ndescription: Hand off to a person\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n"
+	writeLocalFile(t, root, "skills/handoff.md", skillFile)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, syncdomain.Skill{
+		Key: "handoff", Name: "Human handoff", Description: "Hand off to a person", Markdown: "# Handoff\n",
+	}, api.skills["handoff"].Skill)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "handoff", Version: 1}}, api.variation.Skills)
+	content, err := os.ReadFile(filepath.Join(root, syncdomain.RootDir, "production", "skills", "handoff.md"))
+	require.NoError(t, err)
+	assert.Equal(t, skillFile, string(content))
+}
+
 func TestPromptExplainsUpsertForMissingTool(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
@@ -531,7 +573,14 @@ func TestPromptDeletesUnreferencedLocalToolWithYes(t *testing.T) {
 	assert.Contains(t, api.tools, "search")
 	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "tools", "search.json"))
 	require.ErrorIs(t, err, os.ErrNotExist)
-	assertManifestFingerprint(t, root, detached)
+	// A sync keeps the row of a tool that no variation uses. Only a detach
+	// removes it.
+	searchFingerprint, err := syncdomain.FingerprintAttachment("production", toolAttachment(tool, 2))
+	require.NoError(t, err)
+	assert.Equal(t, []syncmanifest.Resource{
+		{ResourceKind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search", Fingerprint: searchFingerprint},
+		{ResourceKind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default", Fingerprint: fingerprint(t, detached)},
+	}, readLock(t, root).Resources)
 }
 
 func TestPromptUpdateResolvesOmittedModelConfigVersionToLatest(t *testing.T) {
@@ -782,7 +831,7 @@ func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
 	assert.False(t, slices.ContainsFunc(api.requests, func(request string) bool {
 		return strings.HasPrefix(request, "PATCH ") && strings.Contains(request, "/variations/")
 	}), "sync wrote the older local file back to LaunchDarkly")
-	assert.Contains(t, review, "Another working copy synced this variation after your sync.lock.")
+	assert.Contains(t, review, "Note: Another working copy synced variation production/support/default after your sync.lock.")
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
@@ -909,6 +958,450 @@ func deleteVariationFile(t *testing.T, root string) {
 		ProjectKey: "production", ConfigKey: "support", VariationKey: "default",
 	}})
 	require.NoError(t, err)
+}
+
+func TestPromptFilterSyncsOnlyTheNamedVariation(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, variation("Local"), true)
+	writeManifest(t, root, baseline)
+	other := addOtherProjectVariation(t, root)
+	lockBefore := readLock(t, root)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "--project", "production", "--config-key", "support", "--key", "default", "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Local", api.variation.Name)
+	for _, request := range api.requests {
+		assert.NotContains(t, request, "/projects/other/")
+	}
+	lockAfter := readLock(t, root)
+	assert.Contains(t, lockAfter.Resources, other)
+	assert.Contains(t, lockBefore.Resources, other)
+	assert.NotEqual(t, lockBefore, lockAfter)
+}
+
+func TestPromptTargetFlagErrorsComeBeforeAnyRequest(t *testing.T) {
+	tests := map[string]struct {
+		arguments []string
+		want      string
+	}{
+		"key without project": {[]string{"--key", "default"}, "--key needs --project"},
+		"key without config": {
+			[]string{"--project", "production", "--key", "default"},
+			"--key needs --config-key. In sync prompts, --key is a variation key.",
+		},
+		"config without project": {[]string{"--config-key", "support"}, "--config-key needs --project"},
+		"blank project":          {[]string{"--project", " "}, "--project cannot be blank"},
+		"repeated key": {
+			[]string{"--project", "production", "--config-key", "support", "--key", "default", "--key", "default"},
+			"variation production/support/default was selected more than once",
+		},
+		"key that is not synced": {
+			[]string{"--project", "production", "--config-key", "support", "--key", "serch"},
+			"variation production/support/serch is not synced in this repository. " +
+				"To start syncing it, run ldcli sync prompts add --project production --config-key support --key serch.",
+		},
+		"project that is not synced": {
+			[]string{"--project", "demo"},
+			`project "demo" has no synced resources in this repository. To start, run ldcli sync prompts add --project demo.`,
+		},
+		"config that is not synced": {
+			[]string{"--project", "production", "--config-key", "chat"},
+			`config "chat" in project "production" has no synced variations in this repository. ` +
+				"To start, run ldcli sync prompts add --project production --config-key chat.",
+		},
+		"selectors and target flags": {
+			[]string{"add", "production/support/other", "--project", "production"},
+			"pass variations as --project, --config-key, and --key, or as project-key/config-key/variation-key arguments, not both",
+		},
+		"project that --to does not name": {
+			[]string{"attach", "tool", "search", "--project", "production", "--to", "other/support/default"},
+			`--to "other/support/default" names project "other", but --project is "production"`,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			writeVariation(t, root, variation("Baseline"), true)
+			writeManifest(t, root, variation("Baseline"))
+			api := &directAPI{}
+
+			_, _, err := runPrompt(t, root, api, append(test.arguments, "--no-input")...)
+
+			require.ErrorContains(t, err, test.want)
+			assert.Empty(t, api.requests)
+		})
+	}
+}
+
+func TestPromptAddsVariationsNamedByTargetFlags(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{variation: pointer(variation("Remote"))}
+
+	stdout, _, err := runPrompt(t, root, api, "add", "--project", "production", "--config-key", "support", "--key", "default", "--no-input")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Bootstrapped 1 variation file")
+	assertManifestFingerprint(t, root, variation("Remote"))
+}
+
+// Sync flags come only from the command line. A user's environment must not
+// apply, filter, or resolve a sync.
+func TestPromptIgnoresSyncFlagsFromTheEnvironment(t *testing.T) {
+	root := initRepository(t)
+	writeVariation(t, root, variation("Local"), true)
+	writeManifest(t, root, variation("Baseline"))
+	api := &directAPI{variation: pointer(variation("Baseline"))}
+	t.Setenv("LD_YES", "true")
+	t.Setenv("LD_CONFLICT", "bogus")
+	t.Setenv("LD_PROJECT", "demo")
+	t.Setenv("LD_KEY", "default")
+	t.Setenv("LD_NO_INPUT", "true")
+
+	_, _, err := runPrompt(t, root, api)
+	require.ErrorContains(t, err, "interactive confirmation requires a terminal")
+	requireOnlyReads(t, api.requests)
+
+	_, _, err = runPrompt(t, root, api, "add")
+	require.ErrorContains(t, err, "interactive prompt selection requires a terminal")
+}
+
+func TestPromptReadsTheAccessTokenFromTheEnvironment(t *testing.T) {
+	root := initRepository(t)
+	writeVariation(t, root, variation("Baseline"), true)
+	writeManifest(t, root, variation("Baseline"))
+	api := &directAPI{variation: pointer(variation("Baseline")), manifest: manifestsByRoot[root]}
+	t.Chdir(root)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LD_ACCESS_TOKEN", "token")
+
+	stdout, _, err := cmd.CallCmdCapturingStderr(t, cmd.APIClients{ResourcesClient: api}, analytics.NoopClientFn{}.Tracker(),
+		[]string{"sync", "prompts", "--base-uri", "https://example.test", "--dry-run", "--output", "plaintext"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "No changes. 1 in sync.\n", string(stdout))
+}
+
+// A filtered sync does not see the variations outside the filter. A missing
+// file of such a variation must not make its tool look unused, because a full
+// sync restores the file.
+func TestPromptFilterKeepsToolsOfVariationsOutsideTheFilter(t *testing.T) {
+	tests := map[string]struct {
+		local string
+	}{
+		"with a change":    {local: "Local"},
+		"without a change": {local: "Baseline"},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			baseline := variation("Baseline")
+			writeVariation(t, root, variation(test.local), true)
+			writeManifest(t, root, baseline)
+			toolID := addOtherProjectVariationWithTool(t, root)
+			toolPath := filepath.Join(root, syncdomain.RootDir, "other", "tools", "search.json")
+			api := &directAPI{variation: pointer(baseline)}
+
+			_, _, err := runPrompt(t, root, api, "--project", "production", "--yes")
+
+			require.NoError(t, err)
+			assert.Equal(t, test.local, api.variation.Name)
+			assert.FileExists(t, toolPath)
+			assert.True(t, slices.ContainsFunc(readLock(t, root).Resources, func(resource syncmanifest.Resource) bool {
+				return resource.ID() == toolID
+			}), "the sync.lock file must keep the tool of the other project")
+			for _, request := range api.requests {
+				assert.NotContains(t, request, "/projects/other/")
+			}
+		})
+	}
+}
+
+// addOtherProjectVariationWithTool tracks a variation that uses the tool
+// "search" in a second project. The tool file exists, but the variation file
+// is missing, as after a branch switch. It returns the ID of the tool.
+func addOtherProjectVariationWithTool(t *testing.T, root string) syncdomain.ResourceID {
+	t.Helper()
+	store := synclocal.NewStore(root)
+	value := variation("Other")
+	value.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	value.Attachments = []syncdomain.Attachment{toolAttachment(syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}, 1)}
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "other", ConfigKey: "chat", Upsert: true, Variation: value}})
+	require.NoError(t, err)
+
+	lock := readLock(t, root)
+	require.NoError(t, lock.SetAttachments("other", value.Attachments))
+	id := syncdomain.VariationID("other", "chat", "default")
+	fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, value)
+	require.NoError(t, err)
+	lock.SetFingerprint(id, fingerprint)
+	require.NoError(t, syncmanifest.WriteLock(store, lock))
+
+	_, err = store.DeleteVariations([]synclocal.VariationDeletion{{ProjectKey: "other", ConfigKey: "chat", VariationKey: "default"}})
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(root, syncdomain.RootDir, "other", "tools", "search.json"))
+	return value.Attachments[0].ID("other")
+}
+
+// addOtherProjectVariation syncs a variation in a second project and returns
+// its sync.lock entry.
+func addOtherProjectVariation(t *testing.T, root string) syncmanifest.Resource {
+	t.Helper()
+	store := synclocal.NewStore(root)
+	value := variation("Other")
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "other", ConfigKey: "chat", Upsert: true, Variation: value}})
+	require.NoError(t, err)
+	id := syncdomain.VariationID("other", "chat", "default")
+	fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, value)
+	require.NoError(t, err)
+
+	lock := readLock(t, root)
+	lock.SetFingerprint(id, fingerprint)
+	require.NoError(t, syncmanifest.WriteLock(store, lock))
+	return syncmanifest.Resource{ResourceKind: id.Kind, ProjectKey: id.ProjectKey, LookupKey: id.LookupKey, Fingerprint: fingerprint}
+}
+
+func readLock(t *testing.T, root string) syncmanifest.Manifest {
+	t.Helper()
+	lock, err := syncmanifest.ReadLock(synclocal.NewStore(root))
+	require.NoError(t, err)
+	return lock
+}
+
+func TestPromptPlansToolAndSkillRowsByScope(t *testing.T) {
+	root, api := writeStandaloneAttachmentWorkspace(t)
+	tools := []string{"tool lookup update_manifest", "tool refund create_server", "tool search in_sync"}
+	skills := []string{"skill summarize in_sync", "skill triage update_manifest"}
+	variations := []string{"variation support/default in_sync"}
+
+	for scope, want := range map[syncdomain.Scope][]string{
+		syncdomain.ScopePrompts: variations,
+		syncdomain.ScopeTools:   tools,
+		syncdomain.ScopeSkills:  skills,
+		syncdomain.ScopeAll:     slices.Concat(skills, tools, variations),
+	} {
+		t.Run(string(scope), func(t *testing.T) {
+			api.requests = nil
+
+			stdout, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: scope}, false)
+
+			require.NoError(t, err)
+			assert.Equal(t, want, planRows(t, stdout))
+			requireOnlyReads(t, api.requests)
+			if scope == syncdomain.ScopeAll {
+				assert.Equal(t, 1, countRequests(api.requests, "GET", "/ai-tools/search"),
+					"the tool row and the variation share one read")
+			}
+		})
+	}
+}
+
+func TestPromptFiltersToolRowsBeforeAnyRead(t *testing.T) {
+	root, api := writeStandaloneAttachmentWorkspace(t)
+	filter := syncdomain.Filter{Project: "production", Keys: []string{"lookup"}}
+
+	stdout, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeTools, Filter: filter}, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tool lookup update_manifest"}, planRows(t, stdout))
+	assert.Equal(t, []string{
+		"GET https://example.test/api/v2/projects/production/configs/sync/manifests",
+		"GET https://example.test/api/v2/projects/production/ai-tools/lookup",
+	}, api.requests)
+
+	for _, test := range []struct {
+		filter syncdomain.Filter
+		want   string
+	}{
+		{
+			syncdomain.Filter{Project: "production", Keys: []string{"serch"}},
+			"tool production/serch is not synced in this repository. " +
+				"To start syncing it, run ldcli sync tools add --project production --key serch.",
+		},
+		{
+			syncdomain.Filter{Project: "demo"},
+			`project "demo" has no synced resources in this repository. To start, run ldcli sync tools add --project demo.`,
+		},
+	} {
+		api.requests = nil
+		_, err := runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeTools, Filter: test.filter}, false)
+		require.EqualError(t, err, test.want)
+		assert.Empty(t, api.requests)
+	}
+}
+
+func TestPromptSyncsStandaloneToolsAndSkills(t *testing.T) {
+	root, api := writeStandaloneAttachmentWorkspace(t)
+	writeLocalFile(t, root, "tools/search.json", `{"formatVersion": 1, "key": "search", "description": "Search", "schema": {"type": "object"}}`)
+	all := syncprompt.SyncAction{Scope: syncdomain.ScopeAll}
+
+	// One plan pushes the tool once, creates the new tool, records the rest,
+	// and then pins the new tool version in the variation.
+	stdout, err := runSyncAction(t, root, api, all, true)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, `"lookupKey": "search",
+      "action": "update_server",
+      "status": "succeeded",
+      "version": 2`)
+	assert.Equal(t, 1, countRequests(api.requests, "PATCH", "/ai-tools/search"))
+	assert.Equal(t, 1, countRequests(api.requests, "POST", "/ai-tools"))
+	assert.Equal(t, 1, countRequests(api.requests, "PATCH", "/configs/sync/manifests"))
+	assert.Less(t, slices.Index(api.requests, "PATCH https://example.test/api/v2/projects/production/ai-tools/search"),
+		slices.Index(api.requests, "PATCH https://example.test/api/v2/projects/production/ai-configs/support/variations/default"))
+	assert.Equal(t, 1, api.tools["refund"].Version)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 2}}, api.variation.Tools)
+	assert.Len(t, readLock(t, root).Resources, 6, "the lock keeps every tool and skill, also the ones that no variation uses")
+
+	api.requests = nil
+	stdout, err = runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeAll}, false)
+	require.NoError(t, err)
+	for _, row := range planRows(t, stdout) {
+		assert.True(t, strings.HasSuffix(row, " in_sync"), row)
+	}
+
+	// A change in LaunchDarkly pulls into the standalone file.
+	lookup := api.tools["lookup"]
+	lookup.Description = pointer("Look up an order")
+	lookup.Version++
+	api.tools["lookup"] = lookup
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeTools}, true)
+	require.NoError(t, err)
+	content, err := os.ReadFile(filepath.Join(root, syncdomain.RootDir, "production", "tools", "lookup.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "Look up an order")
+
+	// A hand-written skill file with upsert creates the skill.
+	writeLocalFile(t, root, "skills/handoff.md", "---\nkey: handoff\ndescription: Hand off\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n")
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeSkills}, true)
+	require.NoError(t, err)
+	assert.Equal(t, "Human handoff", api.skills["handoff"].Name)
+
+	// LaunchDarkly owns the skill name after the create. A rename there is not
+	// a change, and a push of a local edit does not send the local name.
+	handoff := api.skills["handoff"]
+	handoff.Name = "Renamed in LaunchDarkly"
+	api.skills["handoff"] = handoff
+	stdout, err = runSyncAction(t, root, api, syncprompt.SyncAction{DryRun: true, Scope: syncdomain.ScopeSkills}, false)
+	require.NoError(t, err)
+	assert.Contains(t, planRows(t, stdout), "skill handoff in_sync", "a rename in LaunchDarkly is not a change")
+	writeLocalFile(t, root, "skills/handoff.md",
+		"---\nkey: handoff\ndescription: Hand off to a person\nname: Human handoff\nupsert: true\n---\n\n# Handoff\n")
+	api.requests = nil
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeSkills}, true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, countRequests(api.requests, "PATCH", "/ai-configs/skills/handoff"))
+	assert.Equal(t, "Hand off to a person", api.skills["handoff"].Description)
+	assert.Equal(t, "Renamed in LaunchDarkly", api.skills["handoff"].Name, "the push must not send the local name")
+	content, err = os.ReadFile(filepath.Join(root, syncdomain.RootDir, "production", "skills", "handoff.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "name: Human handoff\n", "the file keeps its local name")
+	assert.Contains(t, string(content), "upsert: true\n")
+
+	// A deletion in LaunchDarkly deletes the standalone file and its baseline.
+	delete(api.tools, "lookup")
+	_, err = runSyncAction(t, root, api, syncprompt.SyncAction{Scope: syncdomain.ScopeTools}, true)
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir, "production", "tools", "lookup.json"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	assert.NotContains(t, string(must(os.ReadFile(filepath.Join(root, syncdomain.RootDir, "sync.lock")))), "key: lookup")
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+// writeStandaloneAttachmentWorkspace syncs a variation that uses the tool
+// "search" and the skill "summarize". It also writes three tool and skill
+// files that no variation uses: "lookup" and "triage", which LaunchDarkly
+// has, and "refund", which LaunchDarkly does not have and which has upsert.
+func writeStandaloneAttachmentWorkspace(t *testing.T) (string, *directAPI) {
+	t.Helper()
+	root := initRepository(t)
+	search := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+	summarize := syncdomain.Skill{Key: "summarize", Description: "Summarize a ticket", Markdown: "Write three bullet points.\n"}
+	used := variation("Baseline")
+	used.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	used.Skills = []syncdomain.AttachmentRef{{Key: "summarize"}}
+	used.Attachments = []syncdomain.Attachment{
+		toolAttachment(search, 0), {Kind: syncdomain.AttachmentSkill, Skill: &summarize},
+	}
+	writeVariation(t, root, used, true)
+	writeManifest(t, root, used)
+
+	lookup := syncdomain.Tool{Key: "lookup", Schema: map[string]any{"type": "object"}}
+	triage := syncdomain.Skill{Key: "triage", Name: "Triage", Description: "Triage a ticket", Markdown: "Pick a queue.\n"}
+	writeLocalFile(t, root, "tools/lookup.json", `{"formatVersion": 1, "key": "lookup", "schema": {"type": "object"}}`)
+	writeLocalFile(t, root, "tools/refund.json", `{"formatVersion": 1, "upsert": true, "key": "refund", "schema": {"type": "object"}}`)
+	writeLocalFile(t, root, "skills/triage.md", "---\nkey: triage\ndescription: Triage a ticket\n---\n\nPick a queue.\n")
+
+	server := used
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Skills = []syncdomain.AttachmentRef{{Key: "summarize", Version: 1}}
+	server.Attachments = nil
+	summarizeInLaunchDarkly := summarize
+	summarizeInLaunchDarkly.Name = "Summarize"
+	return root, &directAPI{
+		variation: &server,
+		tools:     map[string]versionedTool{"search": {Tool: search, Version: 1}, "lookup": {Tool: lookup, Version: 2}},
+		skills: map[string]versionedSkill{
+			"summarize": {Skill: summarizeInLaunchDarkly, Version: 1}, "triage": {Skill: triage, Version: 3},
+		},
+	}
+}
+
+// runSyncAction runs one sync through Runner.Run, because no command selects
+// a scope yet. It returns the JSON output.
+func runSyncAction(t *testing.T, root string, api *directAPI, action syncprompt.SyncAction, yes bool) (string, error) {
+	t.Helper()
+	api.manifest = manifestsByRoot[root]
+	var output bytes.Buffer
+	err := syncprompt.NewRunner(api).Run(syncprompt.Options{
+		WorkingDirectory: root, AccessToken: "token", BaseURI: "https://example.test", OutputKind: "json",
+		Action: action, Yes: yes, Input: strings.NewReader(""), Output: &output, ErrorOutput: io.Discard,
+	})
+	return output.String(), err
+}
+
+// planRows returns "kind lookup-key action" for each row of a JSON plan.
+func planRows(t *testing.T, plan string) []string {
+	t.Helper()
+	var output struct {
+		Resources []struct {
+			ResourceKind string `json:"resourceKind"`
+			LookupKey    string `json:"lookupKey"`
+			Action       string `json:"action"`
+		} `json:"resources"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(plan), &output))
+	rows := make([]string, 0, len(output.Resources))
+	for _, resource := range output.Resources {
+		rows = append(rows, resource.ResourceKind+" "+resource.LookupKey+" "+resource.Action)
+	}
+	return rows
+}
+
+func countRequests(requests []string, method, pathSuffix string) int {
+	count := 0
+	for _, request := range requests {
+		if strings.HasPrefix(request, method+" ") && strings.HasSuffix(request, pathSuffix) {
+			count++
+		}
+	}
+	return count
+}
+
+func writeLocalFile(t *testing.T, root, projectPath, content string) {
+	t.Helper()
+	path := filepath.Join(root, syncdomain.RootDir, "production", filepath.FromSlash(projectPath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 }
 
 func TestPromptRestoresTrackedMissingFileInsteadOfArchiving(t *testing.T) {

@@ -31,12 +31,14 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		watched = &watchedSources{watcher: watcher, snapshot: snapshot, debounce: watchDebounce}
 	}
 
-	reviewed, err := workspace.loadState(client)
+	target := options.syncAction()
+	reviewed, err := workspace.loadState(client, target.Scope, target.Filter)
 	if err != nil {
 		return err
 	}
 	if options.dryRun() {
-		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan); err != nil {
+		writePlanNotes(options.ErrorOutput, reviewed.plan)
+		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan, options.Diff); err != nil {
 			return err
 		}
 		return reviewed.plan.BlockingError()
@@ -66,7 +68,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	// Read both sides again, so that no action uses state from before the review.
-	current, err := workspace.loadState(client)
+	current, err := workspace.loadState(client, target.Scope, target.Filter)
 	if err != nil {
 		return err
 	}
@@ -111,7 +113,7 @@ func (runner Runner) applyPlan(
 	if err := workspace.local.RemoveEmptyDirectories(); err != nil {
 		failures = append(failures, err)
 	}
-	if err := writeOutcomeOutput(options.Output, options.OutputKind, outcomes); err != nil {
+	if err := writeOutcomeOutput(options.Output, options.OutputKind, plan, outcomes); err != nil {
 		failures = append(failures, err)
 	}
 	if err := errors.Join(failures...); err != nil {

@@ -3,6 +3,7 @@
 package bootstrap
 
 import (
+	"bytes"
 	"cmp"
 	"errors"
 	"fmt"
@@ -42,6 +43,11 @@ type Options struct {
 	// Initial is true when the workspace has no .launchdarkly directory.
 	Initial bool
 	DryRun  bool
+	// Diff shows the content of each file that a dry run lists.
+	Diff bool
+	// ProjectKey and ConfigKey skip the project and the config questions.
+	ProjectKey string
+	ConfigKey  string
 	// Selections are the variations to add. If it is empty, Run asks the user.
 	Selections []syncdomain.ResourceID
 	NoInput    bool
@@ -55,7 +61,7 @@ func Run(options Options) error {
 		files, err = selectedVariations(options)
 	} else {
 		if err := syncinteractive.RequireTerminal(
-			options.Input, options.Output, options.NoInput, "variation selectors", "prompt selection",
+			options.Input, options.Output, options.NoInput, missingTargetFlags(options), "prompt selection",
 		); err != nil {
 			return err
 		}
@@ -121,14 +127,37 @@ func selectedVariations(options Options) ([]synclocal.VariationFile, error) {
 	return files, nil
 }
 
-// promptForVariations asks the user for a project, a config, and one or more
-// variations. The bool result is true when the user cancels.
-func promptForVariations(options Options) ([]synclocal.VariationFile, bool, error) {
-	project, canceled, err := syncinteractive.SelectProject(options.Input, options.Output, options.Catalog)
-	if err != nil || canceled {
-		return nil, canceled, err
+// missingTargetFlags names the flags that answer the questions that Run still
+// has to ask.
+func missingTargetFlags(options Options) string {
+	switch {
+	case options.ProjectKey == "":
+		return "--project, --config-key, and --key"
+	case options.ConfigKey == "":
+		return "--config-key and --key"
+	default:
+		return "--key values"
 	}
-	config, canceled, err := syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, nil)
+}
+
+// promptForVariations asks the user for a project, a config, and one or more
+// variations. ProjectKey and ConfigKey skip their questions. The bool result
+// is true when the user cancels.
+func promptForVariations(options Options) ([]synclocal.VariationFile, bool, error) {
+	project := syncapi.Project{Key: options.ProjectKey}
+	var canceled bool
+	var err error
+	if project.Key == "" {
+		if project, canceled, err = syncinteractive.SelectProject(options.Input, options.Output, options.Catalog); err != nil || canceled {
+			return nil, canceled, err
+		}
+	}
+	config := syncapi.Config{Key: options.ConfigKey}
+	if config.Key == "" {
+		config, canceled, err = syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, nil)
+	} else {
+		config, err = options.Catalog.Config(project.Key, config.Key)
+	}
 	if err != nil || canceled {
 		return nil, canceled, err
 	}
@@ -228,7 +257,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		if err != nil {
 			return err
 		}
-		writePreviews(options.Output, previews)
+		writePreviews(options.Output, previews, options.Diff)
 		return nil
 	}
 
@@ -323,23 +352,45 @@ func writeSummary(output io.Writer, initial bool, count int) {
 	_ = syncconsole.New(output).Printf("%s %d %s in %s.\n", verb, count, noun, syncdomain.RootDir)
 }
 
-// writePreviews prints each file that a dry run would create.
-func writePreviews(output io.Writer, previews []synclocal.RenderedFile) {
+// writePreviews lists each file that the add creates, with its number of
+// lines. With showContent, the content of each file follows the list.
+func writePreviews(output io.Writer, previews []synclocal.RenderedFile, showContent bool) {
 	console := syncconsole.New(output)
-	const border = "============================================================"
-	for index, preview := range previews {
-		if index != 0 {
-			_ = console.Line("")
-		}
-		_ = console.Line(border)
-		_ = console.Printf(
-			"File %d of %d\nWould create: %s\n", index+1, len(previews), path.Join(syncdomain.RootDir, preview.Path),
-		)
-		_ = console.Line("------------------------------------------------------------")
-		_ = console.WriteBytes(preview.Content)
-		if len(preview.Content) == 0 || preview.Content[len(preview.Content)-1] != '\n' {
-			_ = console.Line("")
-		}
-		_ = console.Line(border)
+	noun := "file"
+	if len(previews) != 1 {
+		noun += "s"
 	}
+	_ = console.Printf("%d %s to create:\n", len(previews), noun)
+
+	paths := make([]string, len(previews))
+	width := 0
+	for index, preview := range previews {
+		paths[index] = path.Join(syncdomain.RootDir, preview.Path)
+		width = max(width, len(paths[index]))
+	}
+	for index, preview := range previews {
+		_ = console.Printf("  %-*s   +%d\n", width, paths[index], lineCount(preview.Content))
+	}
+	if !showContent {
+		return
+	}
+	for index, preview := range previews {
+		_ = console.Printf("\n%s\n", paths[index])
+		for _, line := range strings.Split(strings.TrimSuffix(string(preview.Content), "\n"), "\n") {
+			if line != "" {
+				line = "    " + line
+			}
+			_ = console.Line(line)
+		}
+	}
+}
+
+// lineCount returns the number of lines in a file. A last line without a
+// final newline counts.
+func lineCount(content []byte) int {
+	count := bytes.Count(content, []byte("\n"))
+	if len(content) != 0 && content[len(content)-1] != '\n' {
+		count++
+	}
+	return count
 }
