@@ -91,6 +91,19 @@ func attachmentPath(projectKey string, kind syncdomain.AttachmentKind, key strin
 	}
 }
 
+// resourcePath returns the path of the file of a variation, a tool, or a
+// skill relative to the managed directory.
+func resourcePath(id syncdomain.ResourceID) (string, error) {
+	if id.Kind != syncdomain.KindVariation {
+		return attachmentPath(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+	}
+	configKey, variationKey, err := id.VariationKeys()
+	if err != nil {
+		return "", err
+	}
+	return variationPath(id.ProjectKey, configKey, variationKey)
+}
+
 // validateKey makes sure that key is a safe path segment. The name is the kind
 // of key, for example "project", and appears in the error.
 func validateKey(name, key string) error {

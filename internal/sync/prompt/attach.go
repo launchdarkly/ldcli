@@ -50,11 +50,16 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 		return err
 	}
 
-	// Other local variations can share the attachment file. Keep its local
-	// content, so that attach never overwrites a local edit. The next sync
-	// shows a conflict if the content differs from LaunchDarkly.
-	if local, ok := localAttachment(variations, attachment.ID(projectKey)); ok {
-		attachment = local
+	// The attachment can already have a local file, which other variations use
+	// or which syncs on its own. Keep its local content, so that attach never
+	// overwrites a local edit. The next sync shows a conflict if the content
+	// differs from LaunchDarkly.
+	local, err := localAttachment(options.RepositoryRoot, attachment.ID(projectKey))
+	if err != nil {
+		return err
+	}
+	if local != nil {
+		attachment = *local
 	}
 	variation := target.Variation
 	variation.Attach(attachment)
@@ -72,17 +77,14 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 	return err
 }
 
-// localAttachment finds the local content of an attachment.
-func localAttachment(variations []syncdomain.SyncedResource, id ResourceID) (syncdomain.Attachment, bool) {
-	for _, variation := range variations {
-		if variation.ProjectKey != id.ProjectKey {
-			continue
-		}
-		if attachment, ok := variation.Variation.Attachment(syncdomain.AttachmentKind(id.Kind), id.LookupKey); ok {
-			return attachment, true
-		}
+// localAttachment reads the local file of an attachment. It returns nil when
+// the attachment has no local file.
+func localAttachment(repositoryRoot string, id ResourceID) (*syncdomain.Attachment, error) {
+	local, err := synclocal.CompileAttachments(repositoryRoot, func(candidate ResourceID) bool { return candidate == id })
+	if err != nil || len(local) == 0 {
+		return nil, err
 	}
-	return syncdomain.Attachment{}, false
+	return &local[0].Attachment, nil
 }
 
 // selectAttachmentProject returns the project of the attachment. A workspace
