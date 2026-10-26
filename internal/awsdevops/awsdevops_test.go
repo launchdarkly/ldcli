@@ -65,8 +65,10 @@ type fakeAgent struct {
 	// paginate makes every list API return one item per page, so callers are
 	// exercised against the NextToken AWS sends for a long list.
 	paginate bool
-	// assets holds the skill assets of every space.
+	// assets holds the skill and custom agent assets of every space.
 	assets []agenttypes.Asset
+	// agentFiles holds the prompt of each custom agent by asset ID.
+	agentFiles map[string]string
 	// skillFiles holds the SKILL.md text by asset ID.
 	skillFiles map[string]string
 	// skillBytes holds a SKILL.md that AWS sends as bytes, by asset ID.
@@ -81,6 +83,20 @@ type fakeAgent struct {
 	updateAssociations   []*devopsagent.UpdateAssociationInput
 	updateAssociationErr error
 	updateAssets         []*devopsagent.UpdateAssetInput
+	// createAgents and updateAgents hold the custom agent writes, apart from
+	// the skill writes.
+	createAgents   []*devopsagent.CreateAssetInput
+	updateAgents   []*devopsagent.UpdateAssetInput
+	createAgentErr error
+}
+
+// agentAsset is a custom agent asset named name with these tools and skills.
+func agentAsset(id, name string, tools, skills []string) agenttypes.Asset {
+	return agenttypes.Asset{
+		AssetId:   aws.String(id),
+		AssetType: aws.String("custom_agent"),
+		Metadata:  document.NewLazyDocument(map[string]any{"name": name, "tools": tools, "skills": skills}),
+	}
 }
 
 // skillAsset is a skill asset named name.
@@ -94,11 +110,20 @@ func skillAsset(id, name string) agenttypes.Asset {
 
 func (f *fakeAgent) CreateAsset(_ context.Context, in *devopsagent.CreateAssetInput, _ ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
 	f.calls = append(f.calls, "CreateAsset")
-	f.createAssets = append(f.createAssets, in)
-	if f.createAssetErr != nil {
-		return nil, f.createAssetErr
+	id := "ki-created"
+	if aws.ToString(in.AssetType) == "custom_agent" {
+		f.createAgents = append(f.createAgents, in)
+		if f.createAgentErr != nil {
+			return nil, f.createAgentErr
+		}
+		id = "ki-agent-created"
+	} else {
+		f.createAssets = append(f.createAssets, in)
+		if f.createAssetErr != nil {
+			return nil, f.createAssetErr
+		}
 	}
-	asset := agenttypes.Asset{AssetId: aws.String("ki-created"), AssetType: in.AssetType, Metadata: in.Metadata}
+	asset := agenttypes.Asset{AssetId: aws.String(id), AssetType: in.AssetType, Metadata: in.Metadata}
 	f.assets = append(f.assets, asset)
 
 	return &devopsagent.CreateAssetOutput{Asset: &asset}, nil
@@ -111,6 +136,12 @@ func (f *fakeAgent) GetAssetFile(_ context.Context, in *devopsagent.GetAssetFile
 	}
 	if f.getFileErr != nil {
 		return nil, f.getFileErr
+	}
+	if prompt, ok := f.agentFiles[aws.ToString(in.AssetId)]; ok && aws.ToString(in.Path) == "experiment-orchestrator.md" {
+		return &devopsagent.GetAssetFileOutput{File: &agenttypes.AssetFile{
+			Path:    in.Path,
+			Content: &agenttypes.AssetFileBodyMemberText{Value: prompt},
+		}}, nil
 	}
 	if aws.ToString(in.Path) != "SKILL.md" {
 		return nil, &agenttypes.ResourceNotFoundException{}
@@ -137,13 +168,26 @@ func (f *fakeAgent) ListAssets(_ context.Context, in *devopsagent.ListAssetsInpu
 	if f.listAssetsErr != nil {
 		return nil, f.listAssetsErr
 	}
-	items, next := page(f.assets, in.NextToken, f.paginate)
+	var assets []agenttypes.Asset
+	for _, asset := range f.assets {
+		if in.AssetType == nil || aws.ToString(asset.AssetType) == aws.ToString(in.AssetType) {
+			assets = append(assets, asset)
+		}
+	}
+	items, next := page(assets, in.NextToken, f.paginate)
 
 	return &devopsagent.ListAssetsOutput{Items: items, NextToken: next}, nil
 }
 
 func (f *fakeAgent) UpdateAsset(_ context.Context, in *devopsagent.UpdateAssetInput, _ ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error) {
 	f.calls = append(f.calls, "UpdateAsset")
+	for _, asset := range f.assets {
+		if aws.ToString(asset.AssetId) == aws.ToString(in.AssetId) && aws.ToString(asset.AssetType) == "custom_agent" {
+			f.updateAgents = append(f.updateAgents, in)
+
+			return &devopsagent.UpdateAssetOutput{Asset: &agenttypes.Asset{AssetId: in.AssetId}}, nil
+		}
+	}
 	f.updateAssets = append(f.updateAssets, in)
 
 	return &devopsagent.UpdateAssetOutput{Asset: &agenttypes.Asset{AssetId: in.AssetId}}, nil
@@ -467,10 +511,12 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Equal(
 		t,
 		// The plan does not look for the server of a new space. The check
-		// before the MCP step looks, because the space exists by then,
-		// then the skill last.
+		// before the MCP step looks, because the space exists by then, then
+		// the skill and the custom agent last.
 		[]string{
-			"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService", "ListAssets", "CreateAsset",
+			"CreateAgentSpace", "AssociateService", "EnableOperatorApp",
+			"ListServices", "RegisterService", "AssociateService",
+			"ListAssets", "CreateAsset", "ListAssets", "CreateAsset",
 		},
 		agent.calls,
 	)
