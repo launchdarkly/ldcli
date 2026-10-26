@@ -52,7 +52,7 @@ func pickerTest(t *testing.T, l ssoLogin, config string, answers ...int) (ssoLog
 	l.now = func() time.Time { return time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC) }
 
 	var calls []chooseCall
-	l.choose = func(title, _ string, labels []string) (int, error) {
+	l.choose = func(title, _ string, labels []string, _ int) (int, error) {
 		calls = append(calls, chooseCall{title: title, labels: labels})
 		if len(calls) > len(answers) {
 			return 0, errPickCanceled
@@ -103,12 +103,20 @@ func TestLoadAsksForAProfileWhenTheDefaultFails(t *testing.T) {
 	assert.Contains(t, f.prompted.String(), "Using AWS profile prod. To skip this question, pass --profile prod")
 }
 
-// Without a default profile, NewClients reports the region first. The
-// profile can give the region, so load asks for the profile.
-func TestLoadAsksForAProfileWhenNoRegionAndNoDefault(t *testing.T) {
+// NewClients reports a missing region before missing credentials. A default
+// profile with no credentials and no region, for example one with only an
+// output key, gets the profile picker.
+func TestLoadAsksForAProfileWhenTheDefaultHasNoRegionAndNoCredentials(t *testing.T) {
 	_, l := newLoginTest(t, "")
 	l, calls := pickerTest(t, l, pickerConfig, 0)
-	l.newClients = byProfile(map[string]string{"": "", "dev": "us-west-2"})
+	working := byProfile(map[string]string{"dev": "us-west-2"})
+	l.newClients = func(ctx context.Context, region, profile string) (awsdevops.Clients, error) {
+		if profile == "" && region == "" {
+			return awsdevops.Clients{}, awsdevops.ErrNoRegion
+		}
+
+		return working(ctx, region, profile)
+	}
 
 	clients, err := l.load(context.Background(), "", "", func(string) {})
 
@@ -116,6 +124,20 @@ func TestLoadAsksForAProfileWhenNoRegionAndNoDefault(t *testing.T) {
 	assert.Equal(t, "us-west-2", clients.Region)
 	require.Len(t, *calls, 1)
 	assert.Equal(t, "Which AWS profile should ldcli use?", (*calls)[0].title)
+}
+
+// Default credentials that work without a region get the region picker.
+func TestLoadAsksForARegionWhenTheDefaultHasNone(t *testing.T) {
+	_, l := newLoginTest(t, "")
+	l, calls := pickerTest(t, l, pickerConfig, 1)
+	l.newClients = byProfile(map[string]string{"": ""})
+
+	clients, err := l.load(context.Background(), "", "", func(string) { t.Fatal("picked a profile") })
+
+	require.NoError(t, err)
+	assert.Equal(t, awsdevops.SupportedRegions[1], clients.Region)
+	require.Len(t, *calls, 1)
+	assert.Equal(t, "Which AWS region should ldcli use?", (*calls)[0].title)
 }
 
 func TestLoadAsksForARegionWhenTheProfileHasNone(t *testing.T) {
@@ -245,7 +267,7 @@ func rows(p picker) (shown []string, highlighted string) {
 }
 
 func TestPickerShowsAllRowsOfAShortList(t *testing.T) {
-	p := newPicker("Pick", "", numbered(pickerRows))
+	p := newPicker("Pick", "", numbered(pickerRows), 0)
 
 	shown, highlighted := rows(p)
 
@@ -256,7 +278,7 @@ func TestPickerShowsAllRowsOfAShortList(t *testing.T) {
 // The highlight moves down to the last row. Then the list scrolls, and the
 // highlight stays on the last row.
 func TestPickerHighlightMovesDownAndStaysOnTheLastRow(t *testing.T) {
-	p := newPicker("Pick", "", numbered(40))
+	p := newPicker("Pick", "", numbered(40), 0)
 
 	p = press(p, down, down, down)
 	shown, highlighted := rows(p)
@@ -275,7 +297,7 @@ func TestPickerHighlightMovesDownAndStaysOnTheLastRow(t *testing.T) {
 
 // Moving up past the first row scrolls back, with the highlight on top.
 func TestPickerScrollsBackUp(t *testing.T) {
-	p := newPicker("Pick", "", numbered(40))
+	p := newPicker("Pick", "", numbered(40), 0)
 	for range 15 {
 		p = press(p, down)
 	}
@@ -290,7 +312,7 @@ func TestPickerScrollsBackUp(t *testing.T) {
 }
 
 func TestPickerStopsAtTheEnds(t *testing.T) {
-	p := newPicker("Pick", "", numbered(3))
+	p := newPicker("Pick", "", numbered(3), 0)
 
 	p = press(p, tea.KeyMsg{Type: tea.KeyUp})
 	_, highlighted := rows(p)
@@ -302,7 +324,7 @@ func TestPickerStopsAtTheEnds(t *testing.T) {
 }
 
 func TestPickerSearchesBySubstringAndShowsAllMatches(t *testing.T) {
-	p := newPicker("Pick", "", numbered(40))
+	p := newPicker("Pick", "", numbered(40), 0)
 
 	p = press(p, typed("1"))
 	shown, highlighted := rows(p)
@@ -319,7 +341,7 @@ func TestPickerSearchesBySubstringAndShowsAllMatches(t *testing.T) {
 }
 
 func TestPickerSearchIgnoresCase(t *testing.T) {
-	p := newPicker("Pick", "", []string{"dev  Admin", "prod  Viewer"})
+	p := newPicker("Pick", "", []string{"dev  Admin", "prod  Viewer"}, 0)
 
 	p = press(p, typed("VIEW"), tea.KeyMsg{Type: tea.KeyEnter})
 
@@ -328,7 +350,7 @@ func TestPickerSearchIgnoresCase(t *testing.T) {
 }
 
 func TestPickerEnterDoesNothingWithNoMatch(t *testing.T) {
-	p := newPicker("Pick", "", numbered(3))
+	p := newPicker("Pick", "", numbered(3), 0)
 
 	p = press(p, typed("zzz"), tea.KeyMsg{Type: tea.KeyEnter})
 
@@ -337,7 +359,7 @@ func TestPickerEnterDoesNothingWithNoMatch(t *testing.T) {
 }
 
 func TestPickerEscClearsTheSearchAndThenCancels(t *testing.T) {
-	p := newPicker("Pick", "", numbered(3))
+	p := newPicker("Pick", "", numbered(3), 0)
 	esc := tea.KeyMsg{Type: tea.KeyEsc}
 
 	p = press(p, typed("02"), esc)
@@ -350,7 +372,7 @@ func TestPickerEscClearsTheSearchAndThenCancels(t *testing.T) {
 }
 
 func TestPickerCutsLinesToTheTerminalWidth(t *testing.T) {
-	p := newPicker("Pick", "", []string{strings.Repeat("x", 200)})
+	p := newPicker("Pick", "", []string{strings.Repeat("x", 200)}, 0)
 	model, _ := p.Update(tea.WindowSizeMsg{Width: 40, Height: 20})
 
 	for _, line := range strings.Split(model.View(), "\n") {
@@ -367,7 +389,7 @@ func TestTeaChooserPicksASearchedRow(t *testing.T) {
 	})
 	choose := teaChooser(iotest.OneByteReader(strings.NewReader("2222\r")), &bytes.Buffer{})
 
-	choice, err := choose("Which AWS profile should ldcli use?", "Type to search.", labels)
+	choice, err := choose("Which AWS profile should ldcli use?", "Type to search.", labels, 0)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, choice)
@@ -376,7 +398,27 @@ func TestTeaChooserPicksASearchedRow(t *testing.T) {
 func TestTeaChooserReportsCtrlC(t *testing.T) {
 	choose := teaChooser(strings.NewReader("\x03"), &bytes.Buffer{})
 
-	_, err := choose("Pick", "", numbered(3))
+	_, err := choose("Pick", "", numbered(3), 0)
 
 	require.ErrorIs(t, err, errPickCanceled)
+}
+
+func TestPickerStartsOnTheStartRow(t *testing.T) {
+	p := newPicker("Pick", "", numbered(40), 15)
+
+	shown, highlighted := rows(p)
+
+	assert.Equal(t, "profile-15", highlighted)
+	assert.Equal(t, "profile-15", shown[len(shown)-1])
+}
+
+// A wide character takes two columns, so the columns still line up.
+func TestProfileLabelsAlignWideCharacters(t *testing.T) {
+	labels := profileLabels([]awsdevops.Profile{
+		{Name: "開発", Account: "111111111111", Role: "Admin"},
+		{Name: "prod", Account: "222222222222", Role: "Viewer"},
+	})
+
+	column := func(label, account string) int { return ansi.StringWidth(label[:strings.Index(label, account)]) }
+	assert.Equal(t, column(labels[1], "222"), column(labels[0], "111"))
 }

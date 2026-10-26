@@ -14,8 +14,8 @@ import (
 // teaChooser asks below the current output, so the text above the picker
 // stays on the screen. Type to search the labels.
 func teaChooser(in io.Reader, out io.Writer) chooser {
-	return func(title, description string, labels []string) (int, error) {
-		final, err := tea.NewProgram(newPicker(title, description, labels), tea.WithInput(in), tea.WithOutput(out)).Run()
+	return func(title, description string, labels []string, start int) (int, error) {
+		final, err := tea.NewProgram(newPicker(title, description, labels, start), tea.WithInput(in), tea.WithOutput(out)).Run()
 		if err != nil {
 			return 0, err
 		}
@@ -34,7 +34,9 @@ type picker struct {
 	title       string
 	description string
 	labels      []string
-	search      textinput.Model
+	// lower has the labels in lowercase, for the search.
+	lower  []string
+	search textinput.Model
 	// matches are the indexes of the labels that contain the search text.
 	matches []int
 	// cursor is the highlighted position in matches, and offset is the
@@ -51,12 +53,18 @@ type picker struct {
 // the sync pickers.
 var pickerHighlight = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "24", Dark: "67"})
 
-func newPicker(title, description string, labels []string) picker {
+// newPicker makes a picker with the highlight on the label at index start.
+func newPicker(title, description string, labels []string, start int) picker {
 	search := textinput.New()
 	search.Prompt = "Search: "
 	search.Focus()
-	p := picker{title: title, description: description, labels: labels, search: search}
+	lower := make([]string, len(labels))
+	for i, label := range labels {
+		lower[i] = strings.ToLower(label)
+	}
+	p := picker{title: title, description: description, labels: labels, lower: lower, search: search}
 	p.filter()
+	p.move(start)
 
 	return p
 }
@@ -136,8 +144,8 @@ func (p *picker) move(step int) {
 func (p *picker) filter() {
 	query := strings.ToLower(p.search.Value())
 	p.matches = p.matches[:0]
-	for i, label := range p.labels {
-		if strings.Contains(strings.ToLower(label), query) {
+	for i, label := range p.lower {
+		if strings.Contains(label, query) {
 			p.matches = append(p.matches, i)
 		}
 	}

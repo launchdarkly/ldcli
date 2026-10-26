@@ -107,15 +107,6 @@ func TestProfilesMergesTheCredentialsFileAndKeepsNoSecrets(t *testing.T) {
 	assert.NotContains(t, fmt.Sprintf("%+v", got), "wJalrXUtnFEMI")
 }
 
-func TestHasProfile(t *testing.T) {
-	awsFiles(t, "[default]\nregion = us-east-1\n\n[sso-session corp]\nsso_region = us-east-1\n", "[keys]\naws_access_key_id = AKIA\n")
-
-	assert.True(t, awsdevops.HasProfile("default"))
-	assert.True(t, awsdevops.HasProfile("keys"))
-	assert.False(t, awsdevops.HasProfile("corp"))
-	assert.False(t, awsdevops.HasProfile("dev"))
-}
-
 func TestDefaultFallback(t *testing.T) {
 	t.Setenv("AWS_PROFILE", "")
 	t.Setenv("AWS_DEFAULT_PROFILE", "")

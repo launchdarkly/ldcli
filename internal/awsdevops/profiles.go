@@ -22,7 +22,11 @@ type Profile struct {
 }
 
 // DefaultFallback reports that the SDK has no profile and no credentials
-// from the environment, so it uses the default profile.
+// from the environment, so it uses the default profile. It checks only
+// AWS_ACCESS_KEY_ID. Other ambient credentials, for example web identity or
+// instance metadata, also return true. That is intentional: the caller asks
+// for a profile only after NewClients returns ErrNoCredentials, and NewClients
+// finds those credentials.
 func DefaultFallback(profile string) bool {
 	_, chosen := SelectedProfile(profile)
 
@@ -66,11 +70,6 @@ func Profiles(tokenPath func(key string) (string, error), now time.Time) []Profi
 	}
 
 	return append(signedIn, others...)
-}
-
-// HasProfile reports whether the shared AWS files have the profile.
-func HasProfile(name string) bool {
-	return slices.ContainsFunc(readProfiles(), func(s profileSection) bool { return s.name == name })
 }
 
 // roleARNParts returns the account and role name of a role ARN, for example

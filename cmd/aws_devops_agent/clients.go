@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
@@ -50,12 +49,7 @@ func (l ssoLogin) load(ctx context.Context, region, profile string, setProfile f
 	}
 
 	clients, err := l.newClients(ctx, region, profile)
-	// NewClients looks for the region before the credentials. If there is no
-	// default profile, a missing region also means that no profile is
-	// selected, and the profile can give the region.
-	noProfile := errors.Is(err, awsdevops.ErrNoCredentials) ||
-		errors.Is(err, awsdevops.ErrNoRegion) && !awsdevops.HasProfile("default")
-	if !noProfile {
+	if !l.defaultCredentialsFail(ctx, profile, err) {
 		return l.clientsAfter(ctx, region, profile, clients, err)
 	}
 
@@ -71,6 +65,19 @@ func (l ssoLogin) load(ctx context.Context, region, profile string, setProfile f
 	return l.clients(ctx, region, name)
 }
 
+// defaultCredentialsFail reports that the default credentials do not work.
+// NewClients looks for the region before the credentials. On a missing
+// region, it tries the credentials again with a supported region. A default
+// profile without credentials, for example one with only an output key, then
+// gets the profile picker and not the region picker.
+func (l ssoLogin) defaultCredentialsFail(ctx context.Context, profile string, err error) bool {
+	if errors.Is(err, awsdevops.ErrNoRegion) {
+		_, err = l.newClients(ctx, awsdevops.SupportedRegions[0], profile)
+	}
+
+	return errors.Is(err, awsdevops.ErrNoCredentials)
+}
+
 // newSSOLogin logs in only in a terminal, because aws sso login needs a
 // person to finish the sign-in in a browser. It asks first unless --yes is
 // set. The prompt goes to stderr, so a json run can ask too.
@@ -84,7 +91,7 @@ func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 		yes:        yesSet(cmd),
 		lookPath:   exec.LookPath,
 		run:        runAttached,
-		choose:     teaChooser(sharedStdin(cmd), cmd.ErrOrStderr()),
+		choose:     newChooser(cmd),
 		tokenPath:  ssocreds.StandardCachedTokenFilepath,
 		now:        time.Now,
 	}
@@ -98,7 +105,8 @@ func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevop
 
 // clientsAfter handles the result of a newClients call. In a terminal, it
 // asks for a missing region, and it offers aws sso login on an expired SSO
-// token.
+// token. The two steps can both run: if the call with the picked region
+// returns ErrNoCredentials, the SSO login step handles that error.
 func (l ssoLogin) clientsAfter(
 	ctx context.Context,
 	region, profile string,
@@ -132,9 +140,8 @@ func (l ssoLogin) clientsAfter(
 	if l.yes {
 		_, _ = fmt.Fprintf(l.out, "Running aws sso login --profile %s\n", name)
 	} else {
-		_, _ = fmt.Fprintf(l.out, "Run aws sso login --profile %s now? [y/N] ", name)
-		answer := strings.ToLower(readLine(l.in))
-		if answer != "y" && answer != "yes" {
+		_, _ = fmt.Fprintf(l.out, "Run aws sso login --profile %s now? [Y/n] ", name)
+		if !readYes(l.in) {
 			return clients, err
 		}
 	}

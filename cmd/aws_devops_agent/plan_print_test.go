@@ -317,7 +317,7 @@ func TestSetupEnterGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {
 
 	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
 
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "start 2\n")
 	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
@@ -336,7 +336,7 @@ func TestSetupEnterWithoutANamePicksTheSpaceSetupMade(t *testing.T) {
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "start 2\n")
 	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 }

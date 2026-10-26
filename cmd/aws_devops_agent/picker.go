@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+	"github.com/spf13/cobra"
+
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
@@ -15,9 +18,16 @@ const pickerRows = 10
 // errPickCanceled is the result of a picker that the user closed.
 var errPickCanceled = errors.New("canceled")
 
-// chooser asks the user to choose one label. It returns the index of the
-// label, or errPickCanceled.
-type chooser func(title, description string, labels []string) (int, error)
+// chooser asks the user to choose one label. The highlight starts on the
+// label at index start. It returns the index of the chosen label, or
+// errPickCanceled.
+type chooser func(title, description string, labels []string, start int) (int, error)
+
+// newChooser gives the chooser of a command. Tests replace it, because the
+// picker needs a terminal.
+var newChooser = func(cmd *cobra.Command) chooser {
+	return teaChooser(sharedStdin(cmd), cmd.ErrOrStderr())
+}
 
 // pickProfile asks which profile to use. The signed-in SSO profiles come
 // first, so Enter picks one of them. With --yes, it uses the one signed-in
@@ -46,6 +56,7 @@ func (l ssoLogin) pickProfile() (string, error) {
 		// The picker cuts a line wider than the terminal, so this fits 80 columns.
 		"The default credentials did not work. ✓ means signed in. Type to search.",
 		profileLabels(profiles),
+		0,
 	)
 	if errors.Is(err, errPickCanceled) {
 		return "", fmt.Errorf("no AWS profile was chosen. Pass --%s <name> or run `export AWS_PROFILE=<name>`", profileFlag)
@@ -68,6 +79,7 @@ func (l ssoLogin) pickRegion() (string, error) {
 		"Which AWS region should ldcli use?",
 		"No AWS region is set. Type to search.",
 		awsdevops.SupportedRegions,
+		0,
 	)
 	if errors.Is(err, errPickCanceled) {
 		return "", nil
@@ -103,9 +115,9 @@ func signedIn(profiles []awsdevops.Profile) int {
 func profileLabels(profiles []awsdevops.Profile) []string {
 	var nameWidth, accountWidth, regionWidth int
 	for _, p := range profiles {
-		nameWidth = max(nameWidth, len(p.Name))
-		accountWidth = max(accountWidth, len(p.Account))
-		regionWidth = max(regionWidth, len(p.Region))
+		nameWidth = max(nameWidth, ansi.StringWidth(p.Name))
+		accountWidth = max(accountWidth, ansi.StringWidth(p.Account))
+		regionWidth = max(regionWidth, ansi.StringWidth(p.Region))
 	}
 
 	labels := make([]string, len(profiles))
@@ -114,10 +126,16 @@ func profileLabels(profiles []awsdevops.Profile) []string {
 		if p.SignedIn {
 			mark = "✓"
 		}
-		line := fmt.Sprintf("%s %-*s  %-*s  %-*s  %s",
-			mark, nameWidth, p.Name, accountWidth, p.Account, regionWidth, p.Region, p.Role)
+		line := mark + " " + padRight(p.Name, nameWidth) + "  " + padRight(p.Account, accountWidth) +
+			"  " + padRight(p.Region, regionWidth) + "  " + p.Role
 		labels[i] = strings.TrimRight(line, " ")
 	}
 
 	return labels
+}
+
+// padRight adds spaces after text up to the width in terminal columns. A
+// wide character, for example in a profile name, takes two columns.
+func padRight(text string, width int) string {
+	return text + strings.Repeat(" ", max(width-ansi.StringWidth(text), 0))
 }
