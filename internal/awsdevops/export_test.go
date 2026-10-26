@@ -2,6 +2,7 @@ package awsdevops
 
 import (
 	"context"
+	"slices"
 	"time"
 )
 
@@ -52,3 +53,12 @@ func SetOAuthPollInterval(d time.Duration) func() {
 
 	return func() { oauthPollInterval = old }
 }
+
+// AllowedTools are the tools that setup allows on the MCP server.
+func AllowedTools() []string { return slices.Concat(mcpReadOnlyTools, mcpMutativeTools) }
+
+// ShippedAgentHashes are the hashes of the shipped custom agent prompts.
+func ShippedAgentHashes() []string { return shippedAgentHashes }
+
+// AgentTools are the tool IDs that setup gives the custom agent.
+func AgentTools(serverName string) []string { return agentTools(serverName) }

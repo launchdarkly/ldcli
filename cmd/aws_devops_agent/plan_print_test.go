@@ -66,6 +66,7 @@ func TestSetupPlanNamesRolesAndOperatorApp(t *testing.T) {
 	assert.Contains(t, out.String(), awsdevops.OperatorAppRoleName)
 	assert.Contains(t, out.String(), "operator app")
 	assert.Contains(t, out.String(), "Skill:         Create skill "+awsdevops.ExperimentSkillName)
+	assert.Contains(t, out.String(), "Custom agent:  Create custom agent "+awsdevops.ExperimentAgentName)
 }
 
 // A canceled plan does not create the skill.

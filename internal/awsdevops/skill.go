@@ -177,7 +177,13 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 // findSkill returns the skill with this name in the space, or nil if there is
 // none. AWS keeps skill names unique in a space.
 func findSkill(ctx context.Context, clients Clients, spaceID, name string) (*agenttypes.Asset, error) {
-	assets, err := listAssets(ctx, clients, spaceID, skillAssetType)
+	return findAsset(ctx, clients, spaceID, skillAssetType, name)
+}
+
+// findAsset returns the asset of this type and name in the space, or nil if
+// there is none.
+func findAsset(ctx context.Context, clients Clients, spaceID, assetType, name string) (*agenttypes.Asset, error) {
+	assets, err := listAssets(ctx, clients, spaceID, assetType)
 	if err != nil {
 		return nil, err
 	}
@@ -214,10 +220,16 @@ func assetName(asset agenttypes.Asset) string {
 // skillText returns the SKILL.md of the skill. found is false if the skill
 // has no SKILL.md.
 func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (text string, found bool, err error) {
+	return assetText(ctx, clients, spaceID, assetID, skillFilePath)
+}
+
+// assetText returns the file at path in the asset. found is false if the
+// asset has no such file.
+func assetText(ctx context.Context, clients Clients, spaceID, assetID, path string) (text string, found bool, err error) {
 	file, err := clients.Agent.GetAssetFile(ctx, &devopsagent.GetAssetFileInput{
 		AgentSpaceId: aws.String(spaceID),
 		AssetId:      aws.String(assetID),
-		Path:         aws.String(skillFilePath),
+		Path:         aws.String(path),
 	})
 	var missing *agenttypes.ResourceNotFoundException
 	switch {
@@ -225,7 +237,7 @@ func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (t
 		return "", false, nil
 	case err != nil:
 		// The caller names the skill.
-		return "", false, fmt.Errorf("unable to read %s of asset %s: %w", skillFilePath, assetID, err)
+		return "", false, fmt.Errorf("unable to read %s of asset %s: %w", path, assetID, err)
 	case file.File == nil:
 		return "", false, nil
 	}

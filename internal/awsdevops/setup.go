@@ -146,6 +146,9 @@ type SetupOptions struct {
 	// server association misses. AWS does not send back the classification of
 	// each tool, so the rewrite gives every tool the ldcli classification.
 	AddMCPTools bool
+	// ReplaceAgent overwrites the experiment-orchestrator custom agent if
+	// someone edited its prompt.
+	ReplaceAgent bool
 
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
@@ -175,7 +178,13 @@ type SetupResult struct {
 	SkillAction string `json:"skillAction,omitempty"`
 	// SkillError is set if the skill step failed or was skipped. The skill is
 	// optional, so the rest of the setup ran.
-	SkillError string `json:"skillError,omitempty"`
+	SkillError   string `json:"skillError,omitempty"`
+	AgentAssetID string `json:"agentAssetId,omitempty"`
+	// AgentAction is what the custom agent step did, for example "created".
+	AgentAction string `json:"agentAction,omitempty"`
+	// AgentError is set if the custom agent step failed or was skipped. The
+	// agent is optional, so the rest of the setup ran.
+	AgentError string `json:"agentError,omitempty"`
 }
 
 // ErrPlanChanged means AWS changed after the plan.
@@ -445,6 +454,7 @@ type SetupPlan struct {
 	AuthFlow string
 	MCP      MCPStep
 	Skill    SkillStep
+	Agent    AgentStep
 }
 
 // PlanText is the plan as lines for a person to read.
@@ -457,11 +467,18 @@ type PlanText struct {
 	OperatorApp string
 	MCPServer   string
 	Skill       string
+	Agent       string
 }
 
 // Text describes each step of the plan.
 func (p SetupPlan) Text() PlanText {
-	text := PlanText{Scope: "Full setup", AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe(), Skill: p.Skill.describe()}
+	text := PlanText{
+		Scope:      "Full setup",
+		AgentSpace: p.Space.describe(),
+		MCPServer:  p.MCP.describe(),
+		Skill:      p.Skill.describe(),
+		Agent:      p.Agent.describe(),
+	}
 	if p.Space.Action == SpaceConnect {
 		text.Scope = "Connect the MCP server only. To also update the IAM roles, " +
 			"account association, and operator app of the space, run setup again with --full-setup"
@@ -558,6 +575,7 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	}
 
 	plan.Skill = planSkill(ctx, clients, opts, plan.Space)
+	plan.Agent = planAgent(ctx, clients, opts, plan.Space, plan.MCP, plan.Skill)
 
 	if !provision {
 		// Read the app, so the run does not print a URL that does not work.
@@ -793,9 +811,13 @@ func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string
 	return "", fmt.Errorf("ID %s names no registered MCP server", id)
 }
 
-// name is the name of the existing server in AWS, or MCPServerName when AWS
-// sent none.
+// name is the name of the server in AWS. A new server gets
+// MCPOAuthServerName. An existing server without a name in AWS gets
+// MCPServerName.
 func (m MCPStep) name() string {
+	if m.Action == MCPRegister {
+		return MCPOAuthServerName
+	}
 	if m.Name != "" {
 		return m.Name
 	}
@@ -1005,9 +1027,10 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
-	// The skill goes last, so a failure of the optional step cannot stop the
-	// MCP server step.
+	// The skill and the agent go last, so a failure of the optional steps
+	// cannot stop the MCP server step.
 	installSkill(ctx, clients, plan.Skill, &result, logf)
+	installAgent(ctx, clients, plan.Agent, &result, logf)
 
 	return result, nil
 }
@@ -1067,6 +1090,7 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 		return result, err
 	}
 	installSkill(ctx, clients, plan.Skill, &result, logf)
+	installAgent(ctx, clients, plan.Agent, &result, logf)
 
 	return result, nil
 }

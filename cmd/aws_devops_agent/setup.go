@@ -28,6 +28,7 @@ const (
 	mcpEndpointFlag     = "mcp-endpoint"
 	replaceSkillFlag    = "replace-skill"
 	addMCPToolsFlag     = "add-mcp-tools"
+	replaceAgentFlag    = "replace-agent"
 	yesFlag             = "yes"
 )
 
@@ -66,7 +67,14 @@ from a goal to a report. Every agent type in the space can load it. If the
 skill has the text of an older ldcli version, setup updates it. If someone
 edited it, setup does not change it. To overwrite the edits, pass
 --replace-skill. The skill is optional: if its step fails, setup warns and
-does the other steps.`,
+does the other steps.
+
+The experiment-orchestrator custom agent runs the skill with the LaunchDarkly
+MCP tools that the space allows. Setup updates an agent with the prompt of an
+older ldcli version. If someone edited the prompt, setup does not change the
+agent. To overwrite the edits, pass --replace-agent. The agent is optional and
+needs the MCP server and the skill: if its step fails, setup warns and does
+the other steps.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -89,6 +97,7 @@ does the other steps.`,
 	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
 	cmd.Flags().Bool(addMCPToolsFlag, false, "Add the ldcli tools that the MCP server allowlist of an existing agent space misses. "+
 		"Every tool gets the ldcli classification")
+	cmd.Flags().Bool(replaceAgentFlag, false, "Overwrite the "+awsdevops.ExperimentAgentName+" custom agent if someone edited it")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -178,6 +187,9 @@ func setupWith(
 		if result.SkillError != "" {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.SkillError)
 		}
+		if result.AgentError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.AgentError)
+		}
 
 		return printJSON(cmd, result)
 	}
@@ -187,6 +199,9 @@ func setupWith(
 	}
 	if result.SkillError != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.SkillError)
+	}
+	if result.AgentError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.AgentError)
 	}
 
 	// Only a connect run leaves the app off, on a space that setup did not
@@ -513,7 +528,8 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	_, _ = fmt.Fprintf(out, "  Association:   %s\n", text.Association)
 	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", text.OperatorApp)
 	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n", text.MCPServer)
-	_, _ = fmt.Fprintf(out, "  Skill:         %s\n\n", text.Skill)
+	_, _ = fmt.Fprintf(out, "  Skill:         %s\n", text.Skill)
+	_, _ = fmt.Fprintf(out, "  Custom agent:  %s\n\n", text.Agent)
 	if !ask {
 		return nil
 	}
@@ -642,6 +658,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		OpenURL:         browser.OpenURL,
 		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
 		AddMCPTools:     mustBool(cmd, addMCPToolsFlag),
+		ReplaceAgent:    mustBool(cmd, replaceAgentFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""
