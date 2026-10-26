@@ -363,8 +363,8 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Contains(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName], "iam:CreateServiceLinkedRole")
 	assert.Equal(
 		t,
-		// Plan lookup, the pre-write check, and the check before the MCP step.
-		[]string{"ListServices", "ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
+		// A new space has no MCP server, so setup does not look for one.
+		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "RegisterService", "AssociateService"},
 		agent.calls,
 	)
 }
@@ -501,12 +501,13 @@ func stubLaunchDarkly(t *testing.T, status int) string {
 
 func TestSetupReusesAnExistingMCPServerWithoutAToken(t *testing.T) {
 	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
+		services:     []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
+		associations: mcpLink("mcp-existing"),
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
+		AgentSpaceID: "space-1",
+		AuthFlow:     "iam",
 	})
 	require.NoError(t, err)
 
@@ -538,7 +539,7 @@ func TestSetupDisassociatesTheMCPServerBeforeReplacingItsToken(t *testing.T) {
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
+		AgentSpaceID:    "space-1",
 		AuthFlow:        "iam",
 		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
 		LDAccessToken:   "api-token",
@@ -551,37 +552,6 @@ func TestSetupDisassociatesTheMCPServerBeforeReplacingItsToken(t *testing.T) {
 	assert.Less(t, indexOf(agent.calls, "DisassociateService"), indexOf(agent.calls, "DeregisterService"))
 	assert.Equal(t, "mcp-1", result.MCPServiceID)
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
-}
-
-func TestSetupReconnectsOtherSpacesAfterReplacingTheMCPToken(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{
-			{AgentSpaceId: aws.String("space-1")},
-			{AgentSpaceId: aws.String("space-2")},
-		},
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-mcp-existing"),
-			ServiceId:     aws.String("mcp-existing"),
-		}},
-	}
-
-	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceID:    "space-1",
-		AuthFlow:        "iam",
-		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
-		LDAccessToken:   "api-token",
-		ReplaceMCPToken: true,
-	})
-	require.NoError(t, err)
-
-	associated := []string{}
-	for _, in := range agent.associationInputs {
-		if aws.ToString(in.ServiceId) == "mcp-1" {
-			associated = append(associated, aws.ToString(in.AgentSpaceId))
-		}
-	}
-	assert.Equal(t, []string{"space-1", "space-2"}, associated)
 }
 
 func TestSetupKeepsTheMCPServerWhenLaunchDarklyRejectsTheNewToken(t *testing.T) {
@@ -607,14 +577,10 @@ func TestSetupKeepsTheMCPServerWhenLaunchDarklyRejectsTheNewToken(t *testing.T) 
 	assert.NotContains(t, agent.calls, "RegisterService")
 }
 
-func TestSetupNamesTheSpacesLeftWithoutAnMCPServer(t *testing.T) {
+func TestSetupNamesTheSpaceLeftWithoutAnMCPServer(t *testing.T) {
 	agent := &fakeAgent{
 		registerErr: errors.New("ValidationException: something broke"),
-		agentSpaces: []agenttypes.AgentSpace{
-			{AgentSpaceId: aws.String("space-1")},
-			{AgentSpaceId: aws.String("space-2")},
-		},
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
+		services:    []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
 		associations: []agenttypes.Association{{
 			AssociationId: aws.String("assoc-mcp-existing"),
 			ServiceId:     aws.String("mcp-existing"),
@@ -629,7 +595,7 @@ func TestSetupNamesTheSpacesLeftWithoutAnMCPServer(t *testing.T) {
 		ReplaceMCPToken: true,
 	})
 
-	assert.ErrorContains(t, err, "agent spaces space-1, space-2 have no LaunchDarkly MCP server")
+	assert.ErrorContains(t, err, "agent spaces space-1 have no LaunchDarkly MCP server")
 	assert.ErrorContains(t, err, "--access-token")
 }
 

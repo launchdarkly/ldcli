@@ -197,29 +197,50 @@ func agentSpaceARN(region, accountID, spaceID string) string {
 	return fmt.Sprintf("arn:aws:aidevops:%s:%s:agentspace/%s", region, accountID, spaceID)
 }
 
-// FindMCPServer returns the ID of the MCP server registered at endpoint, if the
-// account has one. AWS keeps MCP servers at the account level, so a second
-// agent space reuses the existing registration.
-func FindMCPServer(ctx context.Context, clients Clients, endpoint string) (string, error) {
-	id, _, err := findMCPService(ctx, clients, endpoint)
-
-	return id, err
+// MCPServerNameFor is the name of the MCP server that setup registers for an
+// agent space. AWS needs a unique name, and the ID ties the server to the space.
+func MCPServerNameFor(agentSpaceID string) string {
+	return MCPServerName + " " + agentSpaceID
 }
 
-// findMCPService returns the ID and the name of the MCP server registered at
-// endpoint, if the account has one.
-func findMCPService(ctx context.Context, clients Clients, endpoint string) (id, name string, err error) {
+// spaceMCPService returns the ID and the name of the MCP server of an agent
+// space. That is the server at endpoint that the space is connected to. If
+// there is none, it is the server at endpoint that setup registered for the
+// space. AWS keeps MCP servers at the account level, and each one has the token
+// of one LaunchDarkly account, so the server of another space is never a match.
+func spaceMCPService(ctx context.Context, clients Clients, agentSpaceID, endpoint string) (id, name string, err error) {
+	// A new space has no ID and no server yet.
+	if agentSpaceID == "" {
+		return "", "", nil
+	}
+	associations, err := listAssociations(ctx, clients, agentSpaceID)
+	if err != nil {
+		return "", "", err
+	}
+	linked := make(map[string]bool, len(associations))
+	for _, association := range associations {
+		linked[aws.ToString(association.ServiceId)] = true
+	}
 	services, err := listServices(ctx, clients)
 	if err != nil {
 		return "", "", err
 	}
 	for _, service := range services {
-		if mcpEndpointOf(service) == endpoint {
-			return aws.ToString(service.ServiceId), serviceName(service), nil
+		if mcpEndpointOf(service) != endpoint {
+			continue
+		}
+		serviceID := aws.ToString(service.ServiceId)
+		if linked[serviceID] {
+			return serviceID, serviceName(service), nil
+		}
+		// A run that registered the server and then failed to connect it
+		// leaves a server with the name of the space.
+		if id == "" && serviceName(service) == MCPServerNameFor(agentSpaceID) {
+			id, name = serviceID, serviceName(service)
 		}
 	}
 
-	return "", "", nil
+	return id, name, nil
 }
 
 // spacesNamed lists IDs of spaces named name.

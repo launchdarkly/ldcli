@@ -225,8 +225,8 @@ func TestPlanSetupNamesTheMCPServerAction(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			c.opts.AgentSpaceName = "launchdarkly"
-			agent := &fakeAgent{services: c.services}
+			c.opts.AgentSpaceID = "space-1"
+			agent := &fakeAgent{services: c.services, associations: mcpLink("mcp-existing")}
 
 			plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), c.opts, true)
 			require.NoError(t, err)

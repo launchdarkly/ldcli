@@ -20,6 +20,8 @@ import (
 type stubAgent struct {
 	spaces   []agenttypes.AgentSpace
 	services []agenttypes.RegisteredService
+	// associations are the associations of every space.
+	associations []agenttypes.Association
 	// unreadTags fails the tag lookup of these space IDs.
 	unreadTags map[string]bool
 	// missing makes GetAgentSpace report these space IDs as not found.
@@ -88,7 +90,7 @@ func (s stubAgent) ListAgentSpaces(context.Context, *devopsagent.ListAgentSpaces
 }
 
 func (s stubAgent) ListAssociations(context.Context, *devopsagent.ListAssociationsInput, ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error) {
-	return &devopsagent.ListAssociationsOutput{}, nil
+	return &devopsagent.ListAssociationsOutput{Associations: s.associations}, nil
 }
 
 func (s stubAgent) ListServices(context.Context, *devopsagent.ListServicesInput, ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error) {
