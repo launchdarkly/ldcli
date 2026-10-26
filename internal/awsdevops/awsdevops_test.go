@@ -51,6 +51,8 @@ type fakeAgent struct {
 	registerErr       error
 	deregisterErr     error
 	disassociateErr   error
+	// onDisassociate runs before DisassociateService returns.
+	onDisassociate    func()
 	registerInputs    []*devopsagent.RegisterServiceInput
 	associations      []agenttypes.Association
 	agentSpaces       []agenttypes.AgentSpace
@@ -124,6 +126,9 @@ func (f *fakeAgent) DeregisterService(_ context.Context, in *devopsagent.Deregis
 
 func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.DisassociateServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error) {
 	f.calls = append(f.calls, "DisassociateService")
+	if f.onDisassociate != nil {
+		f.onDisassociate()
+	}
 	if f.disassociateErr != nil {
 		return nil, f.disassociateErr
 	}

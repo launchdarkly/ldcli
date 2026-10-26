@@ -1215,19 +1215,58 @@ func TestReplaceRemovesAnUnusedServerWithTheNameOfTheSpace(t *testing.T) {
 	assert.Less(t, indexOf(agent.calls, "DeregisterService"), indexOf(agent.calls, "RegisterService"))
 }
 
-// A replace on a server that only this space uses keeps the name of the
-// server, as the plan says.
-func TestRunPlanReplaceKeepsTheNameOfAnUnsharedServer(t *testing.T) {
+// A replace gives the new server the name of the space, so a run after a
+// failure can find it. The plan says so.
+func TestRunPlanReplaceRenamesAnUnsharedServer(t *testing.T) {
 	agent := replaceOnOneSpace()
 	agent.services = []agenttypes.RegisteredService{mcpService("mcp-old", "Prod LD", awsdevops.MCPServerEndpoint)}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := rejectingOptions(t, http.StatusOK)
+	opts.ReplaceMCPToken = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
 
-	_, err := replaceRun(t, agent)
-
+	assert.Equal(t, "Replace the token of MCP server Prod LD (mcp-old), and rename it to LaunchDarkly-space-1",
+		plan.Text().MCPServer)
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
 	require.NoError(t, err)
 	require.Len(t, agent.registerInputs, 1)
 	details, ok := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver)
 	require.True(t, ok)
-	assert.Equal(t, "Prod LD", aws.ToString(details.Value.Name))
+	assert.Equal(t, awsdevops.MCPServerNameFor("space-1"), aws.ToString(details.Value.Name))
+}
+
+// A server with the name of this space that other spaces share keeps the
+// name, so the new server cannot have it. The plan stops, because every run
+// would fail on the name.
+func TestPlanStopsWhenTheSharedServerHasTheNameOfTheSpace(t *testing.T) {
+	agent := replaceAcrossSpaces()
+	agent.services = []agenttypes.RegisteredService{
+		mcpService("mcp-old", awsdevops.MCPServerNameFor("space-1"), awsdevops.MCPServerEndpoint),
+	}
+	opts := runPlanOptions()
+	opts.ReplaceMCPToken = true
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "agent spaces space-3 also use it")
+	assert.ErrorContains(t, err, "--replace-mcp-token on each of those agent spaces first")
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+// A disconnect that AWS made but reported as failed leaves the space with no
+// server after setup removes the new one, so the message says that.
+func TestReplaceSaysWhenTheFailedDisconnectHappened(t *testing.T) {
+	agent := replaceAcrossSpaces()
+	agent.disassociateErr = errors.New("RequestTimeout")
+	agent.onDisassociate = func() { delete(agent.spaceLinks, "space-1") }
+
+	_, err := replaceRun(t, agent)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "has no LaunchDarkly MCP server now")
+	assert.NotContains(t, err.Error(), "still uses")
 }
 
 // --mcp-service-id must not give a space a second LaunchDarkly server.
