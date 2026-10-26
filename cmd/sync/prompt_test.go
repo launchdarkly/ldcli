@@ -37,7 +37,14 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 func TestSyncCommandIncludesExamples(t *testing.T) {
 	command := NewSyncCmd(nil, nil)
 
-	assert.Contains(t, command.Example, "ldcli sync prompts")
+	assert.Contains(t, command.Example, "ldcli sync all\n")
+	assert.Contains(t, command.Example, "ldcli sync all --dry-run")
+	assert.Contains(t, command.Example, "ldcli sync tools")
+	for _, name := range []string{"all", "prompts", "tools", "skills"} {
+		child, _, err := command.Find([]string{name})
+		require.NoError(t, err)
+		assert.Equal(t, name, child.Name())
+	}
 }
 
 func TestPromptCommandHelpIncludesExamples(t *testing.T) {
