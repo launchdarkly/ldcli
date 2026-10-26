@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,6 +39,9 @@ type directAPI struct {
 	skills         map[string]versionedSkill
 	manifest       *syncapi.SyncManifest
 	requests       []string
+	// expandTools makes each read of the variation add the content of its
+	// tools to model.parameters.tools, as LaunchDarkly does.
+	expandTools bool
 }
 
 type notFoundAPI struct{}
@@ -152,8 +156,12 @@ func (api *directAPI) MakeRequest(
 	case "GET":
 		variations := []directAPIVariation{}
 		if api.variation != nil {
+			served := *api.variation
+			if api.expandTools && len(served.Tools) != 0 {
+				served.Model = api.expandedModel(served)
+			}
 			variations = append(variations, directAPIVariation{
-				Variation: *api.variation,
+				Variation: served,
 				State:     api.variationState,
 			})
 		}
@@ -222,6 +230,34 @@ func (*directAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, er
 	return nil, nil
 }
 
+// expandedModel returns the model of the variation with the content of each
+// of its tools in model.parameters.tools.
+func (api *directAPI) expandedModel(variation syncdomain.Variation) map[string]any {
+	model := maps.Clone(variation.Model)
+	if model == nil {
+		model = map[string]any{}
+	}
+	parameters, _ := model["parameters"].(map[string]any)
+	parameters = maps.Clone(parameters)
+	if parameters == nil {
+		parameters = map[string]any{}
+	}
+	expanded := make([]any, 0, len(variation.Tools))
+	for _, ref := range variation.Tools {
+		tool := api.tools[ref.Key]
+		description := ""
+		if tool.Description != nil {
+			description = *tool.Description
+		}
+		expanded = append(expanded, map[string]any{
+			"type": "function", "name": tool.Key, "description": description, "parameters": tool.Schema,
+		})
+	}
+	parameters["tools"] = expanded
+	model["parameters"] = parameters
+	return model
+}
+
 func TestPromptDryRunUsesOnlyExistingReadAPI(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
@@ -270,6 +306,137 @@ func TestPromptFirstSyncAdoptsMatchingStateWithoutMutation(t *testing.T) {
 	require.NoError(t, err)
 	assertManifestFingerprint(t, root, local)
 	requireOnlyReads(t, api.requests)
+}
+
+func TestPromptDiffExcludesExpandedToolsFromModelParameters(t *testing.T) {
+	root := initRepository(t)
+	description := "Search the documentation"
+	tool := syncdomain.Tool{
+		Key:         "search",
+		Description: &description,
+		Schema:      map[string]any{"type": "object"},
+	}
+	local := variation("Support")
+	local.Instructions = "Use the local instructions."
+	local.ModelConfigKey = "claude"
+	local.ModelConfigVersion = 2
+	local.Model = map[string]any{
+		"modelName": "claude-sonnet-4",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+		},
+	}
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 3}}
+	local.Attachments = []syncdomain.Attachment{toolAttachment(tool, 3)}
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, local)
+
+	server := local
+	server.Instructions = "Use the LaunchDarkly instructions."
+	server.Attachments = nil
+	server.Model = map[string]any{
+		"modelName": "claude-sonnet-4",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+			"tools": []any{map[string]any{
+				"type":        "function",
+				"name":        "search",
+				"description": description,
+				"parameters":  map[string]any{"type": "object"},
+			}},
+		},
+	}
+	api := &directAPI{
+		variation: &server,
+		tools: map[string]versionedTool{
+			"search": {Tool: tool, Version: 3},
+		},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--diff", "--output", "plaintext")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "instructions changed in LaunchDarkly")
+	assert.NotContains(t, stdout, "model changed in LaunchDarkly")
+	assert.NotContains(t, stdout, `"type": "function"`)
+	assert.NotContains(t, stdout, `Tool "search"`)
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	assert.Equal(t, map[string]any{
+		"modelName": "claude-sonnet-4",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+		},
+	}, resources[0].Variation.Model)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search"}}, resources[0].Variation.Tools)
+}
+
+// A push of a local change also ignores the expanded tools that LaunchDarkly
+// returns, sends only the local model, and leaves both sides in sync.
+func TestPromptPushExcludesExpandedToolsFromModelParameters(t *testing.T) {
+	root := initRepository(t)
+	description := "Search the documentation"
+	tool := syncdomain.Tool{Key: "search", Description: &description, Schema: map[string]any{"type": "object"}}
+	base := variation("Support")
+	base.Instructions = "Use the LaunchDarkly instructions."
+	base.ModelConfigKey = "claude"
+	base.ModelConfigVersion = 2
+	base.Model = map[string]any{"modelName": "claude-sonnet-4", "parameters": map[string]any{"temperature": 0.2}}
+	base.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 3}}
+	base.Attachments = []syncdomain.Attachment{toolAttachment(tool, 3)}
+	local := base
+	local.Instructions = "Use the local instructions."
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, base)
+
+	server := base
+	server.Attachments = nil
+	api := &directAPI{variation: &server, tools: map[string]versionedTool{"search": {Tool: tool, Version: 3}}, expandTools: true}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--diff", "--output", "plaintext")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "instructions changed")
+	assert.NotContains(t, stdout, "model changed")
+	assert.NotContains(t, stdout, `"type": "function"`)
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	assert.Equal(t, local.Instructions, api.variation.Instructions)
+	assert.Equal(t, base.Model, api.variation.Model, "the push sends the local model without expanded tools")
+
+	stdout, _, err = runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "No changes.")
+}
+
+// LaunchDarkly keeps model parameters and custom values only as objects, so
+// sync rejects any other value before a write.
+func TestPromptRejectsModelValuesThatAreNotObjects(t *testing.T) {
+	for name, test := range map[string]struct {
+		model string
+		want  string
+	}{
+		"parameters":       {"  parameters: temperature=0.2\n", "model.parameters must be an object"},
+		"empty parameters": {"  parameters:\n", "model.parameters must be an object"},
+		"custom":           {"  custom: [retries]\n", "model.custom must be an object"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
+				"mode: agent\nkey: default\nname: Default\nmodel:\n  modelName: gpt-5\n"+test.model+"---\n\nHelp.\n")
+			api := &directAPI{}
+
+			_, _, err := runPrompt(t, root, api, "--yes")
+
+			require.ErrorContains(t, err, test.want)
+			requireOnlyReads(t, api.requests)
+		})
+	}
 }
 
 func TestPromptFirstSyncCreatesUpsertVariation(t *testing.T) {

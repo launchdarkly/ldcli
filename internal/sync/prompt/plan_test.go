@@ -124,6 +124,37 @@ func TestBuildPlanOmitsDiffForEquivalentAPIDefaults(t *testing.T) {
 	require.Empty(t, plan.Resources[0].Diff)
 }
 
+func TestBuildPlanKeepsRealModelParameterChangesWithExpandedTools(t *testing.T) {
+	local := testVariation("example")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Model = map[string]any{
+		"modelName": "gpt-5",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+		},
+	}
+	server := local
+	server.Model = map[string]any{
+		"modelName": "gpt-5",
+		"parameters": map[string]any{
+			"temperature": 0.7,
+			"tools":       []any{map[string]any{"type": "function", "name": "search"}},
+		},
+	}
+
+	id := testResourceID()
+	manifest := syncmanifest.New()
+	manifest.SetFingerprint(id, fingerprintOf(t, local))
+	plan := BuildPlan(manifest, localResources(&local, false), map[ResourceID]ServerResource{
+		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent},
+	})
+
+	require.Equal(t, ActionUpdateLocal, plan.Resources[0].Action)
+	require.Equal(t, "model changed in LaunchDarkly", planReason(plan.Resources[0]))
+	require.NotContains(t, string(plan.Resources[0].Diff["variation"].Before), `"tools"`)
+	require.Contains(t, string(plan.Resources[0].Diff["variation"].Before), `"temperature":0.7`)
+}
+
 func TestBuildPlanRejectsParentConfigModeMismatch(t *testing.T) {
 	local := testVariation("local")
 	id := testResourceID()
