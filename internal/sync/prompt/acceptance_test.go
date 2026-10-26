@@ -1939,6 +1939,27 @@ func TestScopesOfToolsAndSkillsRejectPositionalSelectors(t *testing.T) {
 	}
 }
 
+// Only variations have config keys, so every tools or skills action rejects
+// --config-key before any request.
+func TestScopesOfToolsAndSkillsRejectConfigKeys(t *testing.T) {
+	filter := syncdomain.Filter{Project: "production", ConfigKey: "support"}
+	for _, scope := range []syncdomain.Scope{syncdomain.ScopeTools, syncdomain.ScopeSkills} {
+		for _, action := range []syncprompt.CommandAction{
+			syncprompt.SyncAction{Filter: filter},
+			syncprompt.AddAction{Filter: filter},
+			syncprompt.DetachAction{Filter: filter},
+		} {
+			root, api := writeStandaloneAttachmentWorkspace(t)
+			api.requests = nil
+
+			_, _, err := runScoped(t, root, api, syncprompt.Options{Scope: scope, Action: action, Yes: true})
+
+			require.EqualError(t, err, "--config-key is only valid for variations", "%s %T", scope, action)
+			assert.Empty(t, api.requests)
+		}
+	}
+}
+
 // A tool and the variation that uses it form one conflict in a sync of every
 // kind. A sync of only that tool resolves it, and the next sync of every kind
 // only repins the variation.
