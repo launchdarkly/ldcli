@@ -48,7 +48,10 @@ const (
 // The agent invokes read-only tools without asking for approval, so anything
 // that changes LaunchDarkly state has to be classified explicitly. The lists
 // cover the steps of the experiment-orchestration skill: find a flag, create
-// it, run an experiment, read its results, and ramp or clean up the flag.
+// it, run an experiment, read its results, and ramp or clean up the flag. The
+// skill keeps its experiment record in the flag description and creates a
+// missing primary metric, so the lists include update-flag-settings and
+// create-metric.
 // They also cover incident work: turn a change off for one segment or
 // context, and ask for approval where an environment needs it.
 var (
@@ -76,6 +79,8 @@ var (
 	mcpMutativeTools = []string{
 		"toggle-flag",
 		"create-flag",
+		"update-flag-settings",
+		"create-metric",
 		"update-rollout",
 		"archive-flag",
 		"create-experiment",
