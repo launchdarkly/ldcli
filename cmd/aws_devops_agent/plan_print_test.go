@@ -469,3 +469,24 @@ func TestSetupSaysWhenTheSecondPlanReusesAServer(t *testing.T) {
 	assert.Contains(t, stderrOf(cmd), "MCP server Prod LD (mcp-7) was registered after the first plan")
 	assert.Contains(t, stderrOf(cmd), "--access-token and --replace-mcp-token")
 }
+
+type failingSkillAgent struct{ countingAgent }
+
+func (failingSkillAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	return nil, errors.New("AccessDeniedException: no aidevops:CreateAsset")
+}
+
+// A failed skill step warns at the end, and setup still prints the app URL.
+func TestSetupWarnsWhenSkillFails(t *testing.T) {
+	cmd, errOut := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, w := countingClients()
+	clients.Agent = failingSkillAgent{clients.Agent.(countingAgent)}
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, false))
+
+	assert.Contains(t, w.calls, "RegisterService")
+	assert.Contains(t, errOut.String(), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
+	assert.Contains(t, stdoutOf(cmd), "The "+awsdevops.ExperimentSkillName+" skill is not set up")
+	assert.Contains(t, stdoutOf(cmd), "Open the DevOps Agent at:")
+}

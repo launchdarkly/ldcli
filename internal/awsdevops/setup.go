@@ -115,8 +115,9 @@ type SetupOptions struct {
 	// registration, so a self-hosted one is never confused with ours.
 	MCPEndpoint string
 
-	// ReplaceSkill replaces the instructions of a skill with the name of the
-	// experimentation skill when they differ.
+	// ReplaceSkill overwrites the SKILL.md of an existing
+	// experiment-orchestration skill that someone edited. Setup updates a
+	// SKILL.md from an older ldcli version without this option.
 	ReplaceSkill bool
 
 	// Logf, when set, reports progress as each step completes.
@@ -137,6 +138,9 @@ type SetupResult struct {
 	MCPServiceID       string `json:"mcpServiceId,omitempty"`
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 	SkillAssetID       string `json:"skillAssetId,omitempty"`
+	// SkillError is set if the skill step failed. The skill is optional, so
+	// the rest of the setup ran.
+	SkillError string `json:"skillError,omitempty"`
 }
 
 // ErrPlanChanged means AWS changed after the plan.
@@ -499,10 +503,7 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		return plan, err
 	}
 
-	plan.Skill, err = planSkill(ctx, clients, opts, plan.Space)
-	if err != nil {
-		return plan, err
-	}
+	plan.Skill = planSkill(ctx, clients, opts, plan.Space)
 
 	if !provision {
 		// Read the app, so the run does not print a URL that does not work.
@@ -896,11 +897,6 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err := checkSentToken(ctx, opts, plan.MCP); err != nil {
 		return result, err
 	}
-	if plan.Space.Action != SpaceCreate {
-		if err := checkSkill(ctx, clients, plan.Space.ID, plan.Skill); err != nil {
-			return result, err
-		}
-	}
 	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
 	if err != nil {
 		return result, err
@@ -986,10 +982,6 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		result.OperatorAppURL = OperatorAppURL(result.AgentSpaceID)
 	}
 
-	if err := installSkill(ctx, clients, plan.Skill, &result, logf); err != nil {
-		return result, err
-	}
-
 	// The role and association steps can take minutes. A server that appeared
 	// or went in that time makes AWS reject the step with an error that does
 	// not say that the plan changed, so check the server again. A new space
@@ -1000,6 +992,9 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
+	// The skill goes last, so a failure of the optional step cannot stop the
+	// MCP server step.
+	installSkill(ctx, clients, plan.Skill, &result, logf)
 
 	return result, nil
 }
@@ -1075,12 +1070,10 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 	if err := checkSentToken(ctx, opts, plan.MCP); err != nil {
 		return result, err
 	}
-	if err := installSkill(ctx, clients, plan.Skill, &result, logf); err != nil {
-		return result, err
-	}
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
+	installSkill(ctx, clients, plan.Skill, &result, logf)
 
 	return result, nil
 }

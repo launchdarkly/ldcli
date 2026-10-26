@@ -2,10 +2,13 @@ package awsdevops
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -24,6 +27,14 @@ var (
 	ExperimentSkillName        = frontMatterField(ExperimentSkill, "name")
 	experimentSkillDescription = frontMatterField(ExperimentSkill, "description")
 )
+
+// shippedSkillHashes holds the SHA-256 of each SKILL.md that an ldcli release
+// sent. A skill with one of these texts has no customer edits, so setup
+// updates it without --replace-skill. When you change SKILL.md, add the hash
+// of the new text. Never remove a hash.
+var shippedSkillHashes = []string{
+	"a5a063f2f3739ca73c10602e05f18d36f5d0e29c372be025e7e6c71d9846c4eb",
+}
 
 const (
 	skillAssetType = "skill"
@@ -48,23 +59,37 @@ func frontMatterField(text, key string) string {
 	return ""
 }
 
+func skillHash(text string) string {
+	sum := sha256.Sum256([]byte(text))
+
+	return hex.EncodeToString(sum[:])
+}
+
 // SkillAction is the planned skill action.
 type SkillAction int
 
 const (
 	SkillCreate SkillAction = iota
 	SkillKeep
-	// SkillLeave means that a skill with the name has other instructions. Skills
-	// have no tags, so setup cannot tell an edit by the customer from an older
-	// ldcli version, and it does not replace them without --replace-skill.
+	// SkillUpdate replaces a SKILL.md that an older ldcli sent.
+	SkillUpdate
+	// SkillLeave means that someone edited the SKILL.md, so setup does not
+	// replace it without --replace-skill.
 	SkillLeave
 	SkillReplace
+	// SkillSkip means that setup could not read the skills of the space. The
+	// skill is optional, so the run continues without it.
+	SkillSkip
 )
 
 // SkillStep is the planned experimentation skill step.
 type SkillStep struct {
 	Action  SkillAction
 	AssetID string
+	// Version is the asset version at plan time. A write stops if it changed.
+	Version int32
+	// Reason says why the step is skipped.
+	Reason string
 }
 
 func (s SkillStep) describe() string {
@@ -72,51 +97,63 @@ func (s SkillStep) describe() string {
 	switch s.Action {
 	case SkillKeep:
 		return "Keep skill " + label
+	case SkillUpdate:
+		return fmt.Sprintf("Update skill %s to the instructions of this ldcli version", label)
 	case SkillLeave:
-		return fmt.Sprintf("Leave skill %s unchanged because its instructions differ. "+
-			"Pass --replace-skill to replace them", label)
+		return fmt.Sprintf("Leave skill %s unchanged because someone edited it. "+
+			"Pass --replace-skill to overwrite it", label)
 	case SkillReplace:
-		return "Replace the instructions of skill " + label
+		return fmt.Sprintf("Overwrite the edited instructions of skill %s", label)
+	case SkillSkip:
+		return fmt.Sprintf("Skip skill %s: %s", ExperimentSkillName, s.Reason)
 	default:
-		return "Create skill " + ExperimentSkillName
+		return fmt.Sprintf("Create skill %s for every agent type in the space", ExperimentSkillName)
 	}
 }
 
-func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep) (SkillStep, error) {
+func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep) SkillStep {
 	if space.Action == SpaceCreate {
-		return SkillStep{Action: SkillCreate}, nil
+		return SkillStep{Action: SkillCreate}
 	}
-	id, err := findSkill(ctx, clients, space.ID, ExperimentSkillName)
-	if err != nil || id == "" {
-		return SkillStep{Action: SkillCreate}, err
+	asset, err := findSkill(ctx, clients, space.ID, ExperimentSkillName)
+	if err != nil {
+		return SkillStep{Action: SkillSkip, Reason: errorCode(err)}
 	}
-	same, err := skillMatches(ctx, clients, space.ID, id)
+	if asset == nil {
+		return SkillStep{Action: SkillCreate}
+	}
+	step := SkillStep{AssetID: aws.ToString(asset.AssetId), Version: aws.ToInt32(asset.Version)}
+	text, err := skillText(ctx, clients, space.ID, step.AssetID)
 	switch {
 	case err != nil:
-		return SkillStep{}, err
-	case same:
-		return SkillStep{Action: SkillKeep, AssetID: id}, nil
+		return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Reason: errorCode(err)}
+	case text == ExperimentSkill:
+		step.Action = SkillKeep
+	case slices.Contains(shippedSkillHashes, skillHash(text)):
+		step.Action = SkillUpdate
 	case opts.ReplaceSkill:
-		return SkillStep{Action: SkillReplace, AssetID: id}, nil
+		step.Action = SkillReplace
 	default:
-		return SkillStep{Action: SkillLeave, AssetID: id}, nil
+		step.Action = SkillLeave
 	}
+
+	return step
 }
 
-// findSkill returns the asset ID of the skill with this name in the space, or
-// "" if there is none. AWS keeps skill names unique in a space.
-func findSkill(ctx context.Context, clients Clients, spaceID, name string) (string, error) {
+// findSkill returns the skill with this name in the space, or nil if there is
+// none. AWS keeps skill names unique in a space.
+func findSkill(ctx context.Context, clients Clients, spaceID, name string) (*agenttypes.Asset, error) {
 	assets, err := listAssets(ctx, clients, spaceID, skillAssetType)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	for _, asset := range assets {
 		if assetName(asset) == name {
-			return aws.ToString(asset.AssetId), nil
+			return &asset, nil
 		}
 	}
 
-	return "", nil
+	return nil, nil
 }
 
 // assetName reads the name from the metadata of an asset. It decodes the JSON
@@ -140,8 +177,8 @@ func assetName(asset agenttypes.Asset) string {
 	return metadata.Name
 }
 
-// skillMatches reports whether the SKILL.md of the skill is ours.
-func skillMatches(ctx context.Context, clients Clients, spaceID, assetID string) (bool, error) {
+// skillText returns the SKILL.md of the skill, or "" if it has none.
+func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (string, error) {
 	file, err := clients.Agent.GetAssetFile(ctx, &devopsagent.GetAssetFileInput{
 		AgentSpaceId: aws.String(spaceID),
 		AssetId:      aws.String(assetID),
@@ -150,38 +187,79 @@ func skillMatches(ctx context.Context, clients Clients, spaceID, assetID string)
 	var missing *agenttypes.ResourceNotFoundException
 	switch {
 	case errors.As(err, &missing):
-		return false, nil
+		return "", nil
 	case err != nil:
-		return false, fmt.Errorf("unable to read skill %s (%s): %w", ExperimentSkillName, assetID, err)
+		return "", fmt.Errorf("unable to read skill %s (%s): %w", ExperimentSkillName, assetID, err)
+	case file.File == nil:
+		return "", nil
 	}
-	text, ok := file.File.Content.(*agenttypes.AssetFileBodyMemberText)
+	text, _ := file.File.Content.(*agenttypes.AssetFileBodyMemberText)
+	if text == nil {
+		return "", nil
+	}
 
-	return ok && text.Value == ExperimentSkill, nil
+	return text.Value, nil
 }
 
-// checkSkill compares the space with the skill step.
+// checkSkill compares the space with a step that writes. A change to the
+// version means that someone edited the skill after the plan.
 func checkSkill(ctx context.Context, clients Clients, spaceID string, step SkillStep) error {
-	id, err := findSkill(ctx, clients, spaceID, ExperimentSkillName)
+	asset, err := findSkill(ctx, clients, spaceID, ExperimentSkillName)
 	switch {
 	case err != nil:
 		return err
-	case step.Action == SkillCreate && id != "":
+	case step.Action == SkillCreate && asset != nil:
 		return planChanged("skill %s appeared after the plan", ExperimentSkillName)
-	case step.Action != SkillCreate && id != step.AssetID:
+	case step.Action == SkillCreate:
+		return nil
+	case asset == nil || aws.ToString(asset.AssetId) != step.AssetID:
 		return planChanged("skill %s disappeared after the plan", ExperimentSkillName)
+	case aws.ToInt32(asset.Version) != step.Version:
+		return planChanged("skill %s changed after the plan", ExperimentSkillName)
 	}
 
 	return nil
 }
 
+// installSkill does the skill step. The skill is optional, so a failure does
+// not stop setup. It goes in result.SkillError, and the caller reports it.
 func installSkill(
 	ctx context.Context,
 	clients Clients,
 	step SkillStep,
 	result *SetupResult,
 	logf func(string, ...any),
+) {
+	result.SkillAssetID = step.AssetID
+	if err := doSkillStep(ctx, clients, step, result, logf); err != nil {
+		result.SkillError = err.Error()
+		logf("Warning: %v", err)
+	}
+}
+
+func doSkillStep(
+	ctx context.Context,
+	clients Clients,
+	step SkillStep,
+	result *SetupResult,
+	logf func(string, ...any),
 ) error {
-	// The other steps can take minutes, so check the skill again.
+	switch step.Action {
+	case SkillKeep:
+		logf("Kept skill %s (%s)", ExperimentSkillName, step.AssetID)
+
+		return nil
+	case SkillLeave:
+		logf("Skill %s (%s) has edits, so ldcli did not change it", ExperimentSkillName, step.AssetID)
+		logf("Pass --replace-skill to overwrite it")
+
+		return nil
+	case SkillSkip:
+		return fmt.Errorf("skipped skill %s: %s", ExperimentSkillName, step.Reason)
+	}
+
+	// The other steps can take minutes, so check the skill right before the
+	// write.
 	if err := checkSkill(ctx, clients, result.AgentSpaceID, step); err != nil {
 		return err
 	}
@@ -189,28 +267,7 @@ func installSkill(
 		Path: aws.String(skillFilePath),
 		Body: &agenttypes.AssetFileBodyMemberText{Value: ExperimentSkill},
 	}}
-	switch step.Action {
-	case SkillKeep:
-		result.SkillAssetID = step.AssetID
-		logf("Kept skill %s (%s)", ExperimentSkillName, step.AssetID)
-	case SkillLeave:
-		result.SkillAssetID = step.AssetID
-		logf("Skill %s (%s) has other instructions, so ldcli did not change it", ExperimentSkillName, step.AssetID)
-		logf("Pass --replace-skill to replace them")
-	case SkillReplace:
-		// AWS updates only the metadata keys in the request, so the status
-		// and the agent types that the customer set stay.
-		if _, err := clients.Agent.UpdateAsset(ctx, &devopsagent.UpdateAssetInput{
-			AgentSpaceId: aws.String(result.AgentSpaceID),
-			AssetId:      aws.String(step.AssetID),
-			Content:      content,
-			Metadata:     document.NewLazyDocument(map[string]any{"description": experimentSkillDescription}),
-		}); err != nil {
-			return fmt.Errorf("unable to replace the instructions of skill %s (%s): %w", ExperimentSkillName, step.AssetID, err)
-		}
-		result.SkillAssetID = step.AssetID
-		logf("Replaced the instructions of skill %s (%s)", ExperimentSkillName, step.AssetID)
-	default:
+	if step.Action == SkillCreate {
 		created, err := clients.Agent.CreateAsset(ctx, &devopsagent.CreateAssetInput{
 			AgentSpaceId: aws.String(result.AgentSpaceID),
 			AssetType:    aws.String(skillAssetType),
@@ -226,7 +283,21 @@ func installSkill(
 		}
 		result.SkillAssetID = aws.ToString(created.Asset.AssetId)
 		logf("Created skill %s (%s)", ExperimentSkillName, result.SkillAssetID)
+
+		return nil
 	}
+
+	// AWS updates only the metadata keys in the request, so the status and
+	// the agent types that the customer set stay.
+	if _, err := clients.Agent.UpdateAsset(ctx, &devopsagent.UpdateAssetInput{
+		AgentSpaceId: aws.String(result.AgentSpaceID),
+		AssetId:      aws.String(step.AssetID),
+		Content:      content,
+		Metadata:     document.NewLazyDocument(map[string]any{"description": experimentSkillDescription}),
+	}); err != nil {
+		return fmt.Errorf("unable to update skill %s (%s): %w", ExperimentSkillName, step.AssetID, err)
+	}
+	logf("Updated skill %s (%s)", ExperimentSkillName, step.AssetID)
 
 	return nil
 }

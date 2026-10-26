@@ -41,11 +41,11 @@ Agent needs.
 
 When the account already has agent spaces, setup asks which one to connect
 LaunchDarkly to. On a space that setup did not make, setup only registers the
-MCP server and adds the skill. On a space that setup made, or with --auth-flow, setup runs the
-full setup. Pass --agent-space-id to pick a space without the list, or
---new-agent-space to provision another space. A new space needs a name: pass
---agent-space-name, or type one when setup asks. The run ends with the
-operator app URL, where the agent is used.
+MCP server and adds the skill. On a space that setup made, or with
+--auth-flow, setup runs the full setup. Pass --agent-space-id to pick a space
+without the list, or --new-agent-space to provision another space. A new
+space needs a name: pass --agent-space-name, or type one when setup asks. The
+run ends with the operator app URL, where the agent is used.
 
 Each agent space gets its own LaunchDarkly MCP server registration, so each
 space can use a different token. The MCP server is connected with
@@ -57,10 +57,12 @@ If it has none, setup asks for a service token in a terminal and checks it
 before it changes AWS. Without a terminal, or with --yes, it stops and asks
 for --access-token.
 
-The experimentation skill tells the agent how to run an experiment from a
-goal to a report. If the space has a skill with the same name and other
-instructions, setup does not change it. To replace the instructions, pass
---replace-skill.`,
+The experiment-orchestration skill tells the agent how to run an experiment
+from a goal to a report. Every agent type in the space can load it. If the
+skill has the text of an older ldcli version, setup updates it. If someone
+edited it, setup does not change it. To overwrite the edits, pass
+--replace-skill. The skill is optional: if its step fails, setup warns and
+does the other steps.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -80,7 +82,7 @@ instructions, setup does not change it. To replace the instructions, pass
 	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Give the agent space a new LaunchDarkly MCP server with the token passed with --access-token. Other agent spaces keep their server")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the agent space")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
-	cmd.Flags().Bool(replaceSkillFlag, false, "Replace the instructions of the "+awsdevops.ExperimentSkillName+" skill if they differ from the ldcli version")
+	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -179,6 +181,12 @@ func setupWith(
 			"\nThe LaunchDarkly MCP server is not connected. Create a service token at %s, "+
 				"then run setup again with --access-token\n",
 			awsdevops.AccessTokenURL(opts.LDBaseURI))
+	}
+
+	if result.SkillError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+			"\nThe %s skill is not set up: %s. Run setup again to add it\n",
+			awsdevops.ExperimentSkillName, result.SkillError)
 	}
 
 	// Only a connect run leaves the app off, on a space that setup did not

@@ -434,11 +434,10 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Equal(
 		t,
 		// The plan does not look for the server of a new space. The check
-		// before the MCP step looks, because the space exists by then. The
-		// skill goes before the MCP step.
+		// before the MCP step looks, because the space exists by then,
+		// then the skill last.
 		[]string{
-			"CreateAgentSpace", "AssociateService", "EnableOperatorApp",
-			"ListAssets", "CreateAsset", "ListServices", "RegisterService", "AssociateService",
+			"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService", "ListAssets", "CreateAsset",
 		},
 		agent.calls,
 	)
