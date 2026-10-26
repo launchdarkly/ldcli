@@ -45,11 +45,13 @@ full setup. Pass --agent-space-id to pick a space without the list, or
 --agent-space-name, or type one when setup asks. The run ends with the
 operator app URL, where the agent is used.
 
-The MCP server is connected with --access-token, or with the token in your
-ldcli configuration when you do not pass one. AWS keeps the token and the agent
-acts as its account and role, so a session token from 'ldcli login' stops
-working once it expires. With no token, setup reuses a registered MCP server.
-If none exists, setup asks for a service token in a terminal and checks it
+Each agent space gets its own LaunchDarkly MCP server registration, so each
+space can use a different token. The MCP server is connected with
+--access-token, or with the token in your ldcli configuration when you do not
+pass one. AWS keeps the token and the agent acts as its account and role, so a
+session token from 'ldcli login' stops working once it expires. If the agent
+space already has an MCP server, setup reuses it and does not change its token.
+If it has none, setup asks for a service token in a terminal and checks it
 before it changes AWS. Without a terminal, or with --yes, it stops and asks
 for --access-token.`,
 		Args:   cobra.NoArgs,
@@ -68,9 +70,9 @@ for --access-token.`,
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
-	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
-	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
-	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
+	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Give the agent space a new LaunchDarkly MCP server with the token passed with --access-token. Other agent spaces keep their server")
+	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the agent space")
+	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
