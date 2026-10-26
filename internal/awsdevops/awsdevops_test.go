@@ -890,3 +890,41 @@ func TestNewClientsNamesTheSelectedProfile(t *testing.T) {
 	assert.NotContains(t, err.Error(), "sso login")
 	assert.NotContains(t, err.Error(), "ec2imds")
 }
+
+// The agent calls a read-only tool with no approval, so every tool that
+// changes LaunchDarkly state must be mutative.
+func TestMCPAssociationClassifiesTheSkillTools(t *testing.T) {
+	agent := &fakeAgent{}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+		LDAccessToken:  "api-token",
+	})
+	require.NoError(t, err)
+
+	var config agenttypes.MCPServerConfiguration
+	for _, in := range agent.associationInputs {
+		if mcp, ok := in.Configuration.(*agenttypes.ServiceConfigurationMemberMcpserver); ok {
+			config = mcp.Value
+		}
+	}
+	classes := map[string]agenttypes.ToolClassification{}
+	for _, detail := range config.ToolDetails {
+		classes[aws.ToString(detail.Name)] = detail.ToolClassification
+	}
+	assert.Len(t, classes, len(config.Tools), "a tool is in both lists")
+	for _, tool := range config.Tools {
+		assert.Contains(t, classes, tool)
+	}
+	for _, tool := range []string{
+		"toggle-flag", "create-flag", "update-rollout", "archive-flag", "create-experiment",
+		"start-experiment-iteration", "stop-experiment-iteration", "start-guarded-rollout", "stop-guarded-rollout",
+		"update-targeting-rules", "update-individual-targets", "create-approval-request",
+	} {
+		assert.Equal(t, agenttypes.ToolClassificationMutative, classes[tool], tool)
+	}
+	for _, tool := range []string{"get-flag", "list-experiments", "get-experiment-results", "query-change-history"} {
+		assert.Equal(t, agenttypes.ToolClassificationReadOnly, classes[tool], tool)
+	}
+}
