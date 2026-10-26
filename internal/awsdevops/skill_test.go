@@ -3,7 +3,7 @@ package awsdevops_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -104,7 +104,47 @@ func TestSetupKeepsSameSkill(t *testing.T) {
 	assert.Empty(t, agent.createAssets)
 	assert.Empty(t, agent.updateAssets)
 	assert.Equal(t, "ki-ours", result.SkillAssetID)
+	assert.Equal(t, awsdevops.SkillKept, result.SkillAction)
 	assert.Empty(t, result.SkillError)
+}
+
+// AWS can send the file as bytes. The text is the same, so setup keeps it.
+func TestPlanSetupKeepsSameSkillSentAsBytes(t *testing.T) {
+	agent := &fakeAgent{
+		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
+		skillBytes: map[string][]byte{"ki-ours": []byte(awsdevops.ExperimentSkill)},
+	}
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
+	require.NoError(t, err)
+
+	assert.Equal(t, awsdevops.SkillKeep, plan.Skill.Action)
+}
+
+// An empty SKILL.md has no edits to lose, so setup updates it without the flag.
+func TestPlanSetupUpdatesEmptySkill(t *testing.T) {
+	agent := &fakeAgent{
+		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
+		skillFiles: map[string]string{"ki-ours": ""},
+	}
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
+	require.NoError(t, err)
+
+	assert.Equal(t, awsdevops.SkillUpdate, plan.Skill.Action)
+}
+
+// A skill without SKILL.md, for example one made from a PDF, is not ours.
+func TestPlanSetupLeavesSkillWithoutFile(t *testing.T) {
+	agent := &fakeAgent{assets: []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")}}
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
+	require.NoError(t, err)
+
+	assert.Equal(t, awsdevops.SkillLeave, plan.Skill.Action)
+	assert.Equal(t,
+		"Leave skill experiment-orchestration (ki-ours) unchanged because it has no SKILL.md. Pass --replace-skill to overwrite it",
+		plan.Text().Skill)
 }
 
 // A copy from an older ldcli has no edits, so setup updates it without the flag.
@@ -121,10 +161,11 @@ func TestSetupUpdatesOlderShippedSkill(t *testing.T) {
 	assert.Equal(t, awsdevops.SkillUpdate, plan.Skill.Action)
 	assert.Contains(t, plan.Text().Skill, "Update skill experiment-orchestration (ki-ours)")
 
-	_, err = awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
+	result, err := awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
 	require.NoError(t, err)
 	require.Len(t, agent.updateAssets, 1)
 	assert.Equal(t, "ki-ours", aws.ToString(agent.updateAssets[0].AssetId))
+	assert.Equal(t, awsdevops.SkillUpdated, result.SkillAction)
 }
 
 func TestSetupLeavesEditedSkill(t *testing.T) {
@@ -143,6 +184,8 @@ func TestSetupLeavesEditedSkill(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, agent.createAssets)
 	assert.Empty(t, agent.updateAssets)
+	// JSON output shows that the skill is not the ldcli version.
+	assert.Equal(t, awsdevops.SkillLeft, result.SkillAction)
 	assert.Empty(t, result.SkillError)
 }
 
@@ -154,10 +197,11 @@ func TestSetupOverwritesEditedSkillWithFlag(t *testing.T) {
 	opts := reuseOptions()
 	opts.ReplaceSkill = true
 
-	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), opts)
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), opts)
 	require.NoError(t, err)
 
 	assert.Empty(t, agent.createAssets)
+	assert.Equal(t, awsdevops.SkillOverwritten, result.SkillAction)
 	require.Len(t, agent.updateAssets, 1)
 	in := agent.updateAssets[0]
 	assert.Equal(t, "ki-ours", aws.ToString(in.AssetId))
@@ -193,6 +237,7 @@ func TestConnectCreatesSkill(t *testing.T) {
 	require.Len(t, agent.createAssets, 1)
 	assert.Equal(t, "space-2", aws.ToString(agent.createAssets[0].AgentSpaceId))
 	assert.Equal(t, "ki-created", result.SkillAssetID)
+	assert.Equal(t, awsdevops.SkillCreated, result.SkillAction)
 }
 
 // The skill step goes after the MCP server, and a plan change in it only
@@ -253,35 +298,59 @@ func TestRunPlanSkipsSkillEditedAfterPlan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, agent.updateAssets)
 	assert.Contains(t, result.SkillError, "changed after the plan")
+	assert.Equal(t, awsdevops.SkillFailed, result.SkillAction)
+}
+
+func accessDenied(action string) error {
+	return &agenttypes.AccessDeniedException{
+		Message: aws.String("User: arn:aws:sts::123456789012:assumed-role/Dev/me is not authorized to perform: " + action),
+	}
 }
 
 // Without aidevops:ListAssets, the plan skips the skill and setup does the
-// other steps.
+// other steps. The AWS error has a code, and the text keeps its message,
+// which names the denied action.
 func TestSetupSkipsSkillWhenAssetsCannotBeListed(t *testing.T) {
-	agent := &fakeAgent{listAssetsErr: errors.New("AccessDeniedException: no aidevops:ListAssets")}
+	agent := &fakeAgent{listAssetsErr: accessDenied("aidevops:ListAssets")}
 	clients := newTestClients(agent, newFakeIAM())
 
 	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseOptions(), true)
 	require.NoError(t, err)
 	assert.Equal(t, awsdevops.SkillSkip, plan.Skill.Action)
-	assert.Contains(t, plan.Text().Skill, "aidevops:ListAssets")
+	assert.Contains(t, plan.Text().Skill, "not authorized to perform: aidevops:ListAssets")
+	assert.Contains(t, plan.Text().Skill, "The skill step needs")
 
 	result, err := awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
 	require.NoError(t, err)
 	assert.Contains(t, agent.calls, "RegisterService")
-	assert.Contains(t, result.SkillError, "aidevops:ListAssets")
+	assert.Equal(t, awsdevops.SkillSkipped, result.SkillAction)
+	assert.Contains(t, result.SkillError, "not authorized to perform: aidevops:ListAssets")
+	assert.Equal(t, 1, strings.Count(result.SkillError, awsdevops.ExperimentSkillName))
 }
 
 func TestSetupWarnsOnSkillCreateFailure(t *testing.T) {
-	agent := &fakeAgent{createAssetErr: errors.New("ServiceQuotaExceededException: 200 skills")}
+	agent := &fakeAgent{createAssetErr: accessDenied("aidevops:CreateAsset")}
 
 	result, err := awsdevops.ConnectExisting(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
 
 	require.NoError(t, err)
 	assert.Contains(t, agent.calls, "RegisterService")
 	assert.Equal(t, "mcp-1", result.MCPServiceID)
+	assert.Equal(t, awsdevops.SkillFailed, result.SkillAction)
 	assert.Contains(t, result.SkillError, "unable to create skill experiment-orchestration")
+	assert.Contains(t, result.SkillError, "not authorized to perform: aidevops:CreateAsset")
 	assert.Empty(t, result.SkillAssetID)
+}
+
+// Other failures do not get the permission text.
+func TestSkillFailureNamesPermissionsOnlyWhenDenied(t *testing.T) {
+	agent := &fakeAgent{createAssetErr: &agenttypes.ServiceQuotaExceededException{Message: aws.String("200 skills")}}
+
+	result, err := awsdevops.ConnectExisting(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
+
+	require.NoError(t, err)
+	assert.Contains(t, result.SkillError, "200 skills")
+	assert.NotContains(t, result.SkillError, "The skill step needs")
 }
 
 func keysOf(m map[string]any) []string {

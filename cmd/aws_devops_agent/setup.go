@@ -184,9 +184,7 @@ func setupWith(
 	}
 
 	if result.SkillError != "" {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"\nThe %s skill is not set up: %s. Run setup again to add it\n",
-			awsdevops.ExperimentSkillName, result.SkillError)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.SkillError)
 	}
 
 	// Only a connect run leaves the app off, on a space that setup did not

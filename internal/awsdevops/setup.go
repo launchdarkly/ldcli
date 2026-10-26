@@ -138,8 +138,10 @@ type SetupResult struct {
 	MCPServiceID       string `json:"mcpServiceId,omitempty"`
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 	SkillAssetID       string `json:"skillAssetId,omitempty"`
-	// SkillError is set if the skill step failed. The skill is optional, so
-	// the rest of the setup ran.
+	// SkillAction is what the skill step did, for example "kept" or "left".
+	SkillAction string `json:"skillAction,omitempty"`
+	// SkillError is set if the skill step failed or was skipped. The skill is
+	// optional, so the rest of the setup ran.
 	SkillError string `json:"skillError,omitempty"`
 }
 

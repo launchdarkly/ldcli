@@ -71,10 +71,11 @@ type SkillAction int
 const (
 	SkillCreate SkillAction = iota
 	SkillKeep
-	// SkillUpdate replaces a SKILL.md that an older ldcli sent.
+	// SkillUpdate replaces a SKILL.md that an older ldcli sent, or one that
+	// is empty.
 	SkillUpdate
-	// SkillLeave means that someone edited the SKILL.md, so setup does not
-	// replace it without --replace-skill.
+	// SkillLeave means that someone edited the SKILL.md, or that the skill has
+	// none, so setup does not change it without --replace-skill.
 	SkillLeave
 	SkillReplace
 	// SkillSkip means that setup could not read the skills of the space. The
@@ -88,27 +89,44 @@ type SkillStep struct {
 	AssetID string
 	// Version is the asset version at plan time. A write stops if it changed.
 	Version int32
-	// Reason says why the step is skipped.
-	Reason string
+	// NoFile means that the skill has no SKILL.md, for example a skill that
+	// someone made from a PDF.
+	NoFile bool
+	// Err says why the step is skipped.
+	Err error
 }
 
 func (s SkillStep) describe() string {
 	label := fmt.Sprintf("%s (%s)", ExperimentSkillName, s.AssetID)
+	why := "someone edited it"
+	if s.NoFile {
+		why = "it has no " + skillFilePath
+	}
 	switch s.Action {
 	case SkillKeep:
 		return "Keep skill " + label
 	case SkillUpdate:
 		return fmt.Sprintf("Update skill %s to the instructions of this ldcli version", label)
 	case SkillLeave:
-		return fmt.Sprintf("Leave skill %s unchanged because someone edited it. "+
-			"Pass --replace-skill to overwrite it", label)
+		return fmt.Sprintf("Leave skill %s unchanged because %s. Pass --replace-skill to overwrite it", label, why)
 	case SkillReplace:
-		return fmt.Sprintf("Overwrite the edited instructions of skill %s", label)
+		return fmt.Sprintf("Overwrite skill %s, which is not the ldcli version because %s", label, why)
 	case SkillSkip:
-		return fmt.Sprintf("Skip skill %s: %s", ExperimentSkillName, s.Reason)
+		return skillFailure(fmt.Errorf("skip skill %s: %w", ExperimentSkillName, s.Err))
 	default:
 		return fmt.Sprintf("Create skill %s for every agent type in the space", ExperimentSkillName)
 	}
+}
+
+// skillFailure is the text of a failed skill step. A missing permission is
+// the most likely cause, so it names the permissions that the step needs.
+func skillFailure(err error) string {
+	if errorCode(err) != "AccessDeniedException" {
+		return err.Error()
+	}
+
+	return fmt.Sprintf("%v. The skill step needs aidevops:ListAssets, aidevops:GetAssetFile, "+
+		"aidevops:CreateAsset, and aidevops:UpdateAsset", err)
 }
 
 func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep) SkillStep {
@@ -117,19 +135,21 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 	}
 	asset, err := findSkill(ctx, clients, space.ID, ExperimentSkillName)
 	if err != nil {
-		return SkillStep{Action: SkillSkip, Reason: errorCode(err)}
+		return SkillStep{Action: SkillSkip, Err: err}
 	}
 	if asset == nil {
 		return SkillStep{Action: SkillCreate}
 	}
 	step := SkillStep{AssetID: aws.ToString(asset.AssetId), Version: aws.ToInt32(asset.Version)}
-	text, err := skillText(ctx, clients, space.ID, step.AssetID)
+	text, found, err := skillText(ctx, clients, space.ID, step.AssetID)
+	step.NoFile = !found
 	switch {
 	case err != nil:
-		return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Reason: errorCode(err)}
+		return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Err: err}
 	case text == ExperimentSkill:
 		step.Action = SkillKeep
-	case slices.Contains(shippedSkillHashes, skillHash(text)):
+	case found && (text == "" || slices.Contains(shippedSkillHashes, skillHash(text))):
+		// An empty file has nothing to lose.
 		step.Action = SkillUpdate
 	case opts.ReplaceSkill:
 		step.Action = SkillReplace
@@ -177,8 +197,9 @@ func assetName(asset agenttypes.Asset) string {
 	return metadata.Name
 }
 
-// skillText returns the SKILL.md of the skill, or "" if it has none.
-func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (string, error) {
+// skillText returns the SKILL.md of the skill. found is false if the skill
+// has no SKILL.md.
+func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (text string, found bool, err error) {
 	file, err := clients.Agent.GetAssetFile(ctx, &devopsagent.GetAssetFileInput{
 		AgentSpaceId: aws.String(spaceID),
 		AssetId:      aws.String(assetID),
@@ -187,18 +208,20 @@ func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (s
 	var missing *agenttypes.ResourceNotFoundException
 	switch {
 	case errors.As(err, &missing):
-		return "", nil
+		return "", false, nil
 	case err != nil:
-		return "", fmt.Errorf("unable to read skill %s (%s): %w", ExperimentSkillName, assetID, err)
+		return "", false, fmt.Errorf("unable to read skill %s (%s): %w", ExperimentSkillName, assetID, err)
 	case file.File == nil:
-		return "", nil
+		return "", false, nil
 	}
-	text, _ := file.File.Content.(*agenttypes.AssetFileBodyMemberText)
-	if text == nil {
-		return "", nil
+	switch body := file.File.Content.(type) {
+	case *agenttypes.AssetFileBodyMemberText:
+		return body.Value, true, nil
+	case *agenttypes.AssetFileBodyMemberBytes:
+		return string(body.Value), true, nil
 	}
 
-	return text.Value, nil
+	return "", false, nil
 }
 
 // checkSkill compares the space with a step that writes. A change to the
@@ -221,8 +244,20 @@ func checkSkill(ctx context.Context, clients Clients, spaceID string, step Skill
 	return nil
 }
 
+// The values of SetupResult.SkillAction.
+const (
+	SkillCreated     = "created"
+	SkillKept        = "kept"
+	SkillUpdated     = "updated"
+	SkillLeft        = "left"
+	SkillOverwritten = "overwritten"
+	SkillSkipped     = "skipped"
+	SkillFailed      = "failed"
+)
+
 // installSkill does the skill step. The skill is optional, so a failure does
-// not stop setup. It goes in result.SkillError, and the caller reports it.
+// not stop setup. The failure goes in result.SkillError, and the caller
+// reports it.
 func installSkill(
 	ctx context.Context,
 	clients Clients,
@@ -231,9 +266,14 @@ func installSkill(
 	logf func(string, ...any),
 ) {
 	result.SkillAssetID = step.AssetID
-	if err := doSkillStep(ctx, clients, step, result, logf); err != nil {
-		result.SkillError = err.Error()
-		logf("Warning: %v", err)
+	action, err := doSkillStep(ctx, clients, step, result, logf)
+	result.SkillAction = action
+	if err != nil {
+		result.SkillAction = SkillFailed
+		if step.Action == SkillSkip {
+			result.SkillAction = SkillSkipped
+		}
+		result.SkillError = skillFailure(err)
 	}
 }
 
@@ -243,25 +283,24 @@ func doSkillStep(
 	step SkillStep,
 	result *SetupResult,
 	logf func(string, ...any),
-) error {
+) (string, error) {
 	switch step.Action {
 	case SkillKeep:
 		logf("Kept skill %s (%s)", ExperimentSkillName, step.AssetID)
 
-		return nil
+		return SkillKept, nil
 	case SkillLeave:
-		logf("Skill %s (%s) has edits, so ldcli did not change it", ExperimentSkillName, step.AssetID)
-		logf("Pass --replace-skill to overwrite it")
+		logf("Left skill %s (%s) unchanged. Pass --replace-skill to overwrite it", ExperimentSkillName, step.AssetID)
 
-		return nil
+		return SkillLeft, nil
 	case SkillSkip:
-		return fmt.Errorf("skipped skill %s: %s", ExperimentSkillName, step.Reason)
+		return "", fmt.Errorf("setup skipped skill %s: %w", ExperimentSkillName, step.Err)
 	}
 
 	// The other steps can take minutes, so check the skill right before the
 	// write.
 	if err := checkSkill(ctx, clients, result.AgentSpaceID, step); err != nil {
-		return err
+		return "", err
 	}
 	content := &agenttypes.AssetContentMemberFile{Value: agenttypes.AssetFileContent{
 		Path: aws.String(skillFilePath),
@@ -279,12 +318,12 @@ func doSkillStep(
 			}),
 		})
 		if err != nil {
-			return fmt.Errorf("unable to create skill %s: %w", ExperimentSkillName, err)
+			return "", fmt.Errorf("unable to create skill %s: %w", ExperimentSkillName, err)
 		}
 		result.SkillAssetID = aws.ToString(created.Asset.AssetId)
 		logf("Created skill %s (%s)", ExperimentSkillName, result.SkillAssetID)
 
-		return nil
+		return SkillCreated, nil
 	}
 
 	// AWS updates only the metadata keys in the request, so the status and
@@ -295,9 +334,12 @@ func doSkillStep(
 		Content:      content,
 		Metadata:     document.NewLazyDocument(map[string]any{"description": experimentSkillDescription}),
 	}); err != nil {
-		return fmt.Errorf("unable to update skill %s (%s): %w", ExperimentSkillName, step.AssetID, err)
+		return "", fmt.Errorf("unable to update skill %s (%s): %w", ExperimentSkillName, step.AssetID, err)
 	}
 	logf("Updated skill %s (%s)", ExperimentSkillName, step.AssetID)
+	if step.Action == SkillReplace {
+		return SkillOverwritten, nil
+	}
 
-	return nil
+	return SkillUpdated, nil
 }

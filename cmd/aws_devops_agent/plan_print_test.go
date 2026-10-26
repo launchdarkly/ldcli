@@ -473,7 +473,7 @@ func TestSetupSaysWhenTheSecondPlanReusesAServer(t *testing.T) {
 type failingSkillAgent struct{ countingAgent }
 
 func (failingSkillAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
-	return nil, errors.New("AccessDeniedException: no aidevops:CreateAsset")
+	return nil, &agenttypes.AccessDeniedException{Message: aws.String("not authorized to perform: aidevops:CreateAsset")}
 }
 
 // A failed skill step warns at the end, and setup still prints the app URL.
@@ -486,7 +486,9 @@ func TestSetupWarnsWhenSkillFails(t *testing.T) {
 	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, false))
 
 	assert.Contains(t, w.calls, "RegisterService")
-	assert.Contains(t, errOut.String(), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
-	assert.Contains(t, stdoutOf(cmd), "The "+awsdevops.ExperimentSkillName+" skill is not set up")
+	assert.Contains(t, stdoutOf(cmd), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
+	assert.Contains(t, stdoutOf(cmd), "aidevops:CreateAsset")
 	assert.Contains(t, stdoutOf(cmd), "Open the DevOps Agent at:")
+	// The warning shows one time.
+	assert.Equal(t, 1, strings.Count(errOut.String()+stdoutOf(cmd), "unable to create skill"))
 }
