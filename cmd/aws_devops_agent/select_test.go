@@ -32,6 +32,22 @@ func (s stubAgent) AssociateService(context.Context, *devopsagent.AssociateServi
 	return nil, nil
 }
 
+func (s stubAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	return &devopsagent.CreateAssetOutput{Asset: &agenttypes.Asset{AssetId: aws.String("ki-1")}}, nil
+}
+
+func (s stubAgent) GetAssetFile(context.Context, *devopsagent.GetAssetFileInput, ...func(*devopsagent.Options)) (*devopsagent.GetAssetFileOutput, error) {
+	return nil, &agenttypes.ResourceNotFoundException{}
+}
+
+func (s stubAgent) ListAssets(context.Context, *devopsagent.ListAssetsInput, ...func(*devopsagent.Options)) (*devopsagent.ListAssetsOutput, error) {
+	return &devopsagent.ListAssetsOutput{}, nil
+}
+
+func (s stubAgent) UpdateAsset(context.Context, *devopsagent.UpdateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error) {
+	return &devopsagent.UpdateAssetOutput{}, nil
+}
+
 func (s stubAgent) CreateAgentSpace(context.Context, *devopsagent.CreateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAgentSpaceOutput, error) {
 	return nil, nil
 }

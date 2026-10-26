@@ -65,6 +65,17 @@ func TestSetupPlanNamesRolesAndOperatorApp(t *testing.T) {
 	assert.Contains(t, out.String(), awsdevops.AgentSpaceRoleName)
 	assert.Contains(t, out.String(), awsdevops.OperatorAppRoleName)
 	assert.Contains(t, out.String(), "operator app")
+	assert.Contains(t, out.String(), "Skill:         Create skill "+awsdevops.ExperimentSkillName)
+}
+
+// A canceled plan does not create the skill.
+func TestSetupCanceledCreatesNoSkill(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "n\n")
+	clients, w := countingClients()
+
+	require.Error(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+
+	assert.NotContains(t, w.calls, "CreateAsset")
 }
 
 func noTokenOptions() awsdevops.SetupOptions {

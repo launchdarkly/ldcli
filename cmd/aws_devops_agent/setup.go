@@ -27,6 +27,7 @@ const (
 	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	replaceSkillFlag    = "replace-skill"
 	yesFlag             = "yes"
 )
 
@@ -34,12 +35,13 @@ func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Provision the AWS DevOps Agent for LaunchDarkly",
-		Long: `Create the IAM roles, agent space, AWS account association, operator app and
-LaunchDarkly MCP server connection the AWS DevOps Agent needs.
+		Long: `Create the IAM roles, agent space, AWS account association, operator app,
+LaunchDarkly MCP server connection and experimentation skill the AWS DevOps
+Agent needs.
 
 When the account already has agent spaces, setup asks which one to connect
 LaunchDarkly to. On a space that setup did not make, setup only registers the
-MCP server. On a space that setup made, or with --auth-flow, setup runs the
+MCP server and adds the skill. On a space that setup made, or with --auth-flow, setup runs the
 full setup. Pass --agent-space-id to pick a space without the list, or
 --new-agent-space to provision another space. A new space needs a name: pass
 --agent-space-name, or type one when setup asks. The run ends with the
@@ -53,7 +55,12 @@ session token from 'ldcli login' stops working once it expires. If the agent
 space already has an MCP server, setup reuses it and does not change its token.
 If it has none, setup asks for a service token in a terminal and checks it
 before it changes AWS. Without a terminal, or with --yes, it stops and asks
-for --access-token.`,
+for --access-token.
+
+The experimentation skill tells the agent how to run an experiment from a
+goal to a report. If the space has a skill with the same name and other
+instructions, setup does not change it. To replace the instructions, pass
+--replace-skill.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -73,6 +80,7 @@ for --access-token.`,
 	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Give the agent space a new LaunchDarkly MCP server with the token passed with --access-token. Other agent spaces keep their server")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the agent space")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
+	cmd.Flags().Bool(replaceSkillFlag, false, "Replace the instructions of the "+awsdevops.ExperimentSkillName+" skill if they differ from the ldcli version")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -495,7 +503,8 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	_, _ = fmt.Fprintf(out, "  Agent space:   %s\n", text.AgentSpace)
 	_, _ = fmt.Fprintf(out, "  Association:   %s\n", text.Association)
 	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", text.OperatorApp)
-	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n\n", text.MCPServer)
+	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n", text.MCPServer)
+	_, _ = fmt.Fprintf(out, "  Skill:         %s\n\n", text.Skill)
 	if !ask {
 		return nil
 	}
@@ -681,6 +690,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
 		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
+		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""
