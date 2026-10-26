@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
@@ -47,6 +49,44 @@ type AgentSpaceStatus struct {
 	// and OperatorAppEnabled is false.
 	OperatorAppError string              `json:"operatorAppError,omitempty"`
 	Associations     []AssociationStatus `json:"associations,omitempty"`
+	// Skill is the experiment-orchestration skill, and Agent is the
+	// experiment-orchestrator custom agent.
+	Skill *AssetStatus `json:"skill,omitempty"`
+	Agent *AgentStatus `json:"agent,omitempty"`
+}
+
+// The values of AssetStatus.State.
+const (
+	// AssetCurrent is the text of this ldcli version.
+	AssetCurrent = "current"
+	// AssetOutdated is the text of an older ldcli version, or an empty file.
+	// Setup updates it.
+	AssetOutdated = "outdated"
+	// AssetEdited is a text that no ldcli version sent. Setup leaves it
+	// without --replace-skill or --replace-agent.
+	AssetEdited = "edited"
+	// AssetNoFile is an asset without the file that setup writes, for example
+	// a skill that someone made from a PDF. Setup leaves it too.
+	AssetNoFile  = "no-file"
+	AssetMissing = "missing"
+)
+
+// AssetStatus is the state of an asset that setup makes.
+type AssetStatus struct {
+	AssetID string `json:"assetId,omitempty"`
+	State   string `json:"state,omitempty"`
+	// Error is set if status could not read the asset, for example without
+	// aidevops:ListAssets. State is then empty.
+	Error string `json:"error,omitempty"`
+}
+
+// AgentStatus is the state of the custom agent.
+type AgentStatus struct {
+	AssetStatus
+	Tools []string `json:"tools,omitempty"`
+	// SkillAttached says whether the agent loads the experiment-orchestration
+	// skill. It is nil if status could not read the agent or the skill.
+	SkillAttached *bool `json:"skillAttached,omitempty"`
 }
 
 type AssociationStatus struct {
@@ -150,10 +190,119 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 			})
 		}
 
+		spaceStatus.Skill = skillStatus(ctx, clients, id)
+		spaceStatus.Agent = agentStatus(ctx, clients, id, *spaceStatus.Skill, associations)
+
 		status.AgentSpaces = append(status.AgentSpaces, spaceStatus)
 	}
 
 	return status, nil
+}
+
+// assetState compares the text of an asset with the text of this ldcli
+// version and the texts of older versions.
+func assetState(text string, found bool, current string, shipped []string) string {
+	switch {
+	case !found:
+		return AssetNoFile
+	case text == current:
+		return AssetCurrent
+	case found && (text == "" || slices.Contains(shipped, skillHash(text))):
+		return AssetOutdated
+	}
+
+	return AssetEdited
+}
+
+// skillStatus reads the skill. Like the operator app, an unreadable skill does
+// not stop status.
+func skillStatus(ctx context.Context, clients Clients, spaceID string) *AssetStatus {
+	asset, err := findSkill(ctx, clients, spaceID, ExperimentSkillName)
+	switch {
+	case err != nil:
+		return &AssetStatus{Error: errorCode(err)}
+	case asset == nil:
+		return &AssetStatus{State: AssetMissing}
+	}
+	status := &AssetStatus{AssetID: aws.ToString(asset.AssetId)}
+	text, found, err := skillText(ctx, clients, spaceID, status.AssetID)
+	switch {
+	case err != nil:
+		status.Error = errorCode(err)
+	case !found && !stillListed(ctx, clients, spaceID, skillAssetType, ExperimentSkillName, status.AssetID):
+		// AWS also sends ResourceNotFoundException for an asset that someone
+		// deleted after the list, and setup then makes a new one.
+		return &AssetStatus{State: AssetMissing}
+	default:
+		status.State = assetState(text, found, ExperimentSkill, shippedSkillHashes)
+	}
+
+	return status
+}
+
+// stillListed reports whether the asset is still in the space.
+func stillListed(ctx context.Context, clients Clients, spaceID, assetType, name, assetID string) bool {
+	asset, err := findAsset(ctx, clients, spaceID, assetType, name)
+
+	return err != nil || (asset != nil && aws.ToString(asset.AssetId) == assetID)
+}
+
+// agentStatus reads the custom agent. An agent with the ldcli prompt is
+// current only if it also has the skill and the ldcli tools that the space
+// allows, because setup updates it otherwise.
+func agentStatus(
+	ctx context.Context,
+	clients Clients,
+	spaceID string,
+	skill AssetStatus,
+	associations []agenttypes.Association,
+) *AgentStatus {
+	asset, err := findAsset(ctx, clients, spaceID, agentAssetType, ExperimentAgentName)
+	switch {
+	case err != nil:
+		return &AgentStatus{AssetStatus: AssetStatus{Error: errorCode(err)}}
+	case asset == nil:
+		return &AgentStatus{AssetStatus: AssetStatus{State: AssetMissing}}
+	}
+	status := &AgentStatus{AssetStatus: AssetStatus{AssetID: aws.ToString(asset.AssetId)}}
+	var skills []string
+	status.Tools, skills = agentMetadata(*asset)
+	if skill.Error == "" {
+		attached := skill.AssetID != "" && slices.Contains(skills, skill.AssetID)
+		status.SkillAttached = &attached
+	}
+	prompt, found, err := assetText(ctx, clients, spaceID, status.AssetID, agentFilePath)
+	if err != nil {
+		status.Error = errorCode(err)
+
+		return status
+	}
+	status.State = assetState(prompt, found, ExperimentAgentPrompt, shippedAgentHashes)
+	if status.State == AssetCurrent && (status.SkillAttached == nil || !*status.SkillAttached ||
+		missingAgentTools(status.Tools, associations)) {
+		status.State = AssetOutdated
+	}
+
+	return status
+}
+
+// missingAgentTools reports whether the agent lacks an ldcli tool that an MCP
+// server association of the space allows. status does not know which server is
+// the LaunchDarkly one, so it matches the tool by the part after the server
+// name.
+func missingAgentTools(tools []string, associations []agenttypes.Association) bool {
+	for _, association := range associations {
+		for _, allowed := range associationTools(association.Configuration) {
+			if !slices.Contains(slices.Concat(mcpReadOnlyTools, mcpMutativeTools), allowed) {
+				continue
+			}
+			if !slices.ContainsFunc(tools, func(tool string) bool { return strings.HasSuffix(tool, "_"+allowed) }) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // associationAccount returns the AWS account of an association. Each AWS

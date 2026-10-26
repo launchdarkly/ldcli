@@ -1,6 +1,8 @@
 package awsdevopsagent
 
 import (
+	"github.com/aws/aws-sdk-go-v2/aws"
+
 	"bytes"
 	"os"
 	"strings"
@@ -327,4 +329,55 @@ func TestStatusShowsAnOperatorAppThatIsOff(t *testing.T) {
 
 	assert.Contains(t, out, "Operator app: off")
 	assert.NotContains(t, out, "aidevops.global.app.aws")
+}
+
+func TestStatusShowsSkillAndAgent(t *testing.T) {
+	status := realisticStatus()
+	status.AgentSpaces[0].Skill = &awsdevops.AssetStatus{AssetID: "ki-skill", State: awsdevops.AssetCurrent}
+	status.AgentSpaces[0].Agent = &awsdevops.AgentStatus{
+		AssetStatus:   awsdevops.AssetStatus{AssetID: "ki-agent", State: awsdevops.AssetEdited},
+		Tools:         []string{"LaunchDarkly_get-flag", "LaunchDarkly_toggle-flag"},
+		SkillAttached: aws.Bool(true),
+	}
+	section := spaceSection(t, renderStatus(status), status.AgentSpaces[0].Name)
+
+	assert.Equal(t, "  Skill experiment-orchestration (ki-skill): this ldcli version", lineWith(t, section, "Skill"))
+	assert.Equal(t,
+		"  Custom agent experiment-orchestrator (ki-agent): edited. Setup leaves it unless you pass --replace-agent. "+
+			"It has 2 tools",
+		lineWith(t, section, "Custom agent"))
+}
+
+func TestStatusShowsMissingAgentAndAgentWithoutSkill(t *testing.T) {
+	status := realisticStatus()
+	status.AgentSpaces[0].Agent = &awsdevops.AgentStatus{AssetStatus: awsdevops.AssetStatus{State: awsdevops.AssetMissing}}
+	section := spaceSection(t, renderStatus(status), status.AgentSpaces[0].Name)
+	assert.Equal(t, "  Custom agent experiment-orchestrator: missing. "+setupHint, lineWith(t, section, "Custom agent"))
+
+	status.AgentSpaces[0].Agent = &awsdevops.AgentStatus{
+		AssetStatus:   awsdevops.AssetStatus{AssetID: "ki-agent", State: awsdevops.AssetOutdated},
+		SkillAttached: aws.Bool(false),
+	}
+	section = spaceSection(t, renderStatus(status), status.AgentSpaces[0].Name)
+	assert.Equal(t,
+		"  Custom agent experiment-orchestrator (ki-agent): an older ldcli version. Setup updates it. "+
+			"It has 0 tools and not skill experiment-orchestration",
+		lineWith(t, section, "Custom agent"))
+}
+
+func TestStatusShowsSkillWithoutFile(t *testing.T) {
+	status := realisticStatus()
+	status.AgentSpaces[0].Skill = &awsdevops.AssetStatus{AssetID: "ki-skill", State: awsdevops.AssetNoFile}
+	section := spaceSection(t, renderStatus(status), status.AgentSpaces[0].Name)
+
+	assert.Equal(t, "  Skill experiment-orchestration (ki-skill): has no SKILL.md. Setup leaves it unless you pass "+
+		"--replace-skill", lineWith(t, section, "Skill"))
+}
+
+func TestStatusShowsUnreadableSkill(t *testing.T) {
+	status := realisticStatus()
+	status.AgentSpaces[0].Skill = &awsdevops.AssetStatus{Error: "AccessDeniedException"}
+	section := spaceSection(t, renderStatus(status), status.AgentSpaces[0].Name)
+
+	assert.Equal(t, "  Skill experiment-orchestration: unknown (AccessDeniedException)", lineWith(t, section, "Skill"))
 }
