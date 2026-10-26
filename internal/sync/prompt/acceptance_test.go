@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,6 +39,9 @@ type directAPI struct {
 	skills         map[string]versionedSkill
 	manifest       *syncapi.SyncManifest
 	requests       []string
+	// expandTools makes each read of the variation add the content of its
+	// tools to model.parameters.tools, as LaunchDarkly does.
+	expandTools bool
 }
 
 type notFoundAPI struct{}
@@ -152,8 +156,12 @@ func (api *directAPI) MakeRequest(
 	case "GET":
 		variations := []directAPIVariation{}
 		if api.variation != nil {
+			served := *api.variation
+			if api.expandTools && len(served.Tools) != 0 {
+				served.Model = api.expandedModel(served)
+			}
 			variations = append(variations, directAPIVariation{
-				Variation: *api.variation,
+				Variation: served,
 				State:     api.variationState,
 			})
 		}
@@ -220,6 +228,34 @@ func (api *directAPI) MakeRequest(
 
 func (*directAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
 	return nil, nil
+}
+
+// expandedModel returns the model of the variation with the content of each
+// of its tools in model.parameters.tools.
+func (api *directAPI) expandedModel(variation syncdomain.Variation) map[string]any {
+	model := maps.Clone(variation.Model)
+	if model == nil {
+		model = map[string]any{}
+	}
+	parameters, _ := model["parameters"].(map[string]any)
+	parameters = maps.Clone(parameters)
+	if parameters == nil {
+		parameters = map[string]any{}
+	}
+	expanded := make([]any, 0, len(variation.Tools))
+	for _, ref := range variation.Tools {
+		tool := api.tools[ref.Key]
+		description := ""
+		if tool.Description != nil {
+			description = *tool.Description
+		}
+		expanded = append(expanded, map[string]any{
+			"type": "function", "name": tool.Key, "description": description, "parameters": tool.Schema,
+		})
+	}
+	parameters["tools"] = expanded
+	model["parameters"] = parameters
+	return model
 }
 
 func TestPromptDryRunUsesOnlyExistingReadAPI(t *testing.T) {
@@ -337,6 +373,45 @@ func TestPromptDiffExcludesExpandedToolsFromModelParameters(t *testing.T) {
 		},
 	}, resources[0].Variation.Model)
 	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search"}}, resources[0].Variation.Tools)
+}
+
+// A push of a local change also ignores the expanded tools that LaunchDarkly
+// returns, sends only the local model, and leaves both sides in sync.
+func TestPromptPushExcludesExpandedToolsFromModelParameters(t *testing.T) {
+	root := initRepository(t)
+	description := "Search the documentation"
+	tool := syncdomain.Tool{Key: "search", Description: &description, Schema: map[string]any{"type": "object"}}
+	base := variation("Support")
+	base.Instructions = "Use the LaunchDarkly instructions."
+	base.ModelConfigKey = "claude"
+	base.ModelConfigVersion = 2
+	base.Model = map[string]any{"modelName": "claude-sonnet-4", "parameters": map[string]any{"temperature": 0.2}}
+	base.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 3}}
+	base.Attachments = []syncdomain.Attachment{toolAttachment(tool, 3)}
+	local := base
+	local.Instructions = "Use the local instructions."
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, base)
+
+	server := base
+	server.Attachments = nil
+	api := &directAPI{variation: &server, tools: map[string]versionedTool{"search": {Tool: tool, Version: 3}}, expandTools: true}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--diff", "--output", "plaintext")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "instructions changed")
+	assert.NotContains(t, stdout, "model changed")
+	assert.NotContains(t, stdout, `"type": "function"`)
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	assert.Equal(t, local.Instructions, api.variation.Instructions)
+	assert.Equal(t, base.Model, api.variation.Model, "the push sends the local model without expanded tools")
+
+	stdout, _, err = runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "No changes.")
 }
 
 // LaunchDarkly keeps model parameters and custom values only as objects, so
