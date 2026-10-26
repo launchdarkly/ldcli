@@ -339,6 +339,31 @@ func TestPromptDiffExcludesExpandedToolsFromModelParameters(t *testing.T) {
 	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search"}}, resources[0].Variation.Tools)
 }
 
+// LaunchDarkly keeps model parameters and custom values only as objects, so
+// sync rejects any other value before a write.
+func TestPromptRejectsModelValuesThatAreNotObjects(t *testing.T) {
+	for name, test := range map[string]struct {
+		model string
+		want  string
+	}{
+		"parameters":       {"  parameters: temperature=0.2\n", "model.parameters must be an object"},
+		"empty parameters": {"  parameters:\n", "model.parameters must be an object"},
+		"custom":           {"  custom: [retries]\n", "model.custom must be an object"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
+				"mode: agent\nkey: default\nname: Default\nmodel:\n  modelName: gpt-5\n"+test.model+"---\n\nHelp.\n")
+			api := &directAPI{}
+
+			_, _, err := runPrompt(t, root, api, "--yes")
+
+			require.ErrorContains(t, err, test.want)
+			requireOnlyReads(t, api.requests)
+		})
+	}
+}
+
 func TestPromptFirstSyncCreatesUpsertVariation(t *testing.T) {
 	root := initRepository(t)
 	local := variation("New")
