@@ -94,6 +94,15 @@ type conflictChoice struct {
 	sourcesChanged bool
 }
 
+// missingConflictChoiceError names the flags that choose a side without a
+// terminal. Only sync prompts has --resolve.
+func missingConflictChoiceError(scope syncdomain.Scope) error {
+	if scope == "" || scope == syncdomain.ScopePrompts {
+		return errors.New("conflict resolution requires --conflict or --resolve without interactive input")
+	}
+	return errors.New("conflict resolution requires --conflict without interactive input")
+}
+
 // resolveConflicts shows each conflict and gets a choice from the policy or
 // from the user. In watch mode, a file change during the choice stops it.
 func resolveConflicts(
@@ -128,9 +137,7 @@ func resolveConflicts(
 				return conflictResolutionResult{}, errConflictAborted
 			}
 		case !interactive:
-			return conflictResolutionResult{}, errors.New(
-				"conflict resolution requires --conflict or --resolve without interactive input",
-			)
+			return conflictResolutionResult{}, missingConflictChoiceError(options.Scope)
 		case watched != nil:
 			choice, err = promptWatchedConflictResolution(options.Context, options.Input, options.ErrorOutput, *watched)
 		default:
@@ -308,7 +315,8 @@ func writeConflictChoice(output io.Writer, choice conflictChoice) {
 // resource has the action for its chosen side. The original plan stays as
 // the reviewed record.
 func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictResolution) Plan {
-	resolved := Plan{Resources: make([]PlannedResource, 0, len(plan.Resources))}
+	resolved := plan
+	resolved.Resources = make([]PlannedResource, 0, len(plan.Resources))
 	for _, resource := range plan.Resources {
 		if !chosenSideUses(resource, resolutions) {
 			continue

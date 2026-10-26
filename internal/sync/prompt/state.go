@@ -69,12 +69,14 @@ func loadWorkspacePlan(
 	// reads it from LaunchDarkly once.
 	attachments := newAttachmentCache(client)
 
-	var plan Plan
+	plan := Plan{Scope: scope}
 	var localFiles map[ResourceID]syncdomain.SyncedResource
 	if scope.Includes(syncdomain.KindVariation) {
-		if plan, localFiles, err = planVariationRows(repositoryRoot, baseline, client, attachments, filter, variations); err != nil {
+		var rows Plan
+		if rows, localFiles, err = planVariationRows(repositoryRoot, baseline, client, attachments, filter, variations); err != nil {
 			return Plan{}, nil, err
 		}
+		plan.Resources = rows.Resources
 	}
 	if scope.Includes(syncdomain.KindTool) || scope.Includes(syncdomain.KindSkill) {
 		include := func(id ResourceID) bool { return scope.Includes(id.Kind) && filter.Includes(id) }
@@ -96,9 +98,57 @@ func loadWorkspacePlan(
 	checkAttachmentBaselines(plan.Resources, baseline.Lock)
 	checkAttachmentDeletes(plan.Resources, variations)
 	for index := range plan.Resources {
-		plan.Resources[index].SyncedElsewhere = baseline.Stale(plan.Resources[index].ID)
+		resource := &plan.Resources[index]
+		resource.SyncedElsewhere = baseline.Stale(resource.ID)
+		if resource.ID.Kind != syncdomain.KindVariation {
+			resource.usedBy = usersOf(variations, resource.ID)
+		}
+	}
+	if scope.Includes(syncdomain.KindVariation) && !scope.Includes(syncdomain.KindTool) {
+		if plan.standalone, err = countStandalone(repositoryRoot, variations, plan.Resources, filter.Project); err != nil {
+			return Plan{}, nil, err
+		}
 	}
 	return plan, localFiles, nil
+}
+
+// usersOf returns the local variations that use a tool or a skill.
+func usersOf(variations []syncdomain.SyncedResource, id ResourceID) []ResourceID {
+	var users []ResourceID
+	for _, variation := range variations {
+		if uses(variation, id) {
+			users = append(users, variation.ID())
+		}
+	}
+	return users
+}
+
+// countStandalone counts the tool and skill files, by kind, in project (or in
+// every project when it is empty), that no local variation uses, and that have
+// no row in the plan. --config-key and --key select only variations, so they
+// do not change the count. It reads only paths, so an invalid file does not
+// stop the count.
+func countStandalone(
+	repositoryRoot string,
+	variations []syncdomain.SyncedResource,
+	planned []PlannedResource,
+	project string,
+) (map[syncdomain.Kind]int, error) {
+	files, err := synclocal.SourceFiles(repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[syncdomain.Kind]int)
+	for _, file := range files {
+		id, ok := synclocal.ParseManagedPath(file)
+		standalone := ok && id.Kind != syncdomain.KindVariation && (project == "" || id.ProjectKey == project) &&
+			len(usersOf(variations, id)) == 0 &&
+			!slices.ContainsFunc(planned, func(resource PlannedResource) bool { return resource.ID == id })
+		if standalone {
+			counts[id.Kind]++
+		}
+	}
+	return counts, nil
 }
 
 // planVariationRows reads the variations that the filter keeps from

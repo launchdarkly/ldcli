@@ -32,7 +32,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	target := options.syncAction()
-	reviewed, err := workspace.loadState(client, target.Scope, target.Filter)
+	reviewed, err := workspace.loadState(client, options.Scope, target.Filter)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	// Read both sides again, so that no action uses state from before the review.
-	current, err := workspace.loadState(client, target.Scope, target.Filter)
+	current, err := workspace.loadState(client, options.Scope, target.Filter)
 	if err != nil {
 		return err
 	}
@@ -111,5 +111,6 @@ func (runner Runner) applyPlan(
 	if err := writeOutcomeOutput(options.Output, options.OutputKind, plan, outcomes); err != nil {
 		failures = append(failures, err)
 	}
+	writeRepinNotes(options.ErrorOutput, plan, outcomes)
 	return errors.Join(failures...)
 }
