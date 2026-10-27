@@ -458,3 +458,29 @@ func TestSetupSaysWhenTheSecondPlanReusesAServer(t *testing.T) {
 	assert.Contains(t, stderrOf(cmd), "MCP server Prod LD (mcp-7) was registered after the first plan")
 	assert.Contains(t, stderrOf(cmd), "--access-token and --replace-mcp-token")
 }
+
+// Without a name from AWS, the warning gives only the ID, which identifies
+// the server, and does not guess a name.
+func TestSetupNamesANamelessServerByItsID(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "api-token\n")
+	clients, _ := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")})
+	agent := clients.Agent.(countingAgent)
+	agent.associations = []agenttypes.Association{{AssociationId: aws.String("assoc-7"), ServiceId: aws.String("mcp-7")}}
+	agent.services = []agenttypes.RegisteredService{{
+		ServiceId:   aws.String("mcp-7"),
+		ServiceType: agenttypes.ServiceMcpServer,
+		AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
+			Value: agenttypes.RegisteredMCPServerDetails{Endpoint: aws.String(awsdevops.MCPServerEndpoint)},
+		},
+	}}
+	clients.Agent = agent
+	opts := noTokenOptions()
+	opts.AgentSpaceName, opts.AgentSpaceID = "", "space-1"
+	first := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPAsk}}
+
+	plan, err := planWithToken(cmd, clients, &opts, first, true)
+
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	assert.Contains(t, stderrOf(cmd), "MCP server mcp-7 was registered after the first plan")
+}

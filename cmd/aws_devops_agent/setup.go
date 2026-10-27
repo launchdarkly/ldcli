@@ -626,14 +626,15 @@ func planWithToken(
 		again, err := awsdevops.PlanSetup(cmd.Context(), clients, *opts, provision)
 		if err == nil && again.MCP.Action == awsdevops.MCPReuse {
 			// The first plan found no server, so one appeared since then.
-			name := again.MCP.Name
-			if name == "" {
-				name = awsdevops.MCPServerNameFor(again.MCP.SpaceID)
+			// Without a name from AWS, only the ID identifies it.
+			server := again.MCP.ServiceID
+			if again.MCP.Name != "" {
+				server = fmt.Sprintf("%s (%s)", again.MCP.Name, again.MCP.ServiceID)
 			}
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
-				"MCP server %s (%s) was registered after the first plan, so setup reuses it and does not "+
+				"MCP server %s was registered after the first plan, so setup reuses it and does not "+
 					"use the token that you pasted. To replace its token, run setup with --%s and --%s.\n",
-				name, again.MCP.ServiceID, cliflags.AccessTokenFlag, replaceMCPTokenFlag)
+				server, cliflags.AccessTokenFlag, replaceMCPTokenFlag)
 		}
 
 		return again, err
