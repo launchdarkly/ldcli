@@ -94,6 +94,8 @@ type SetupOptions struct {
 	AgentSpaceID   string
 	AgentSpaceName string
 	NewAgentSpace  bool
+	// FullSetup: the user passed --full-setup.
+	FullSetup bool
 
 	AuthFlow string
 	// AuthFlowSet: the user passed --auth-flow.

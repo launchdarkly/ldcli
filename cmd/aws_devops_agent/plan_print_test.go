@@ -363,10 +363,10 @@ func twoSimilarSpaces() (awsdevops.Clients, *writes) {
 	)
 }
 
-// --auth-flow runs full setup on choice.
-func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
+// --full-setup runs full setup on choice.
+func TestSetupChosenSpaceWithFullSetup(t *testing.T) {
 	cmd, out := setupTestCmd(t, "2\ny\n")
-	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
+	require.NoError(t, cmd.Flags().Set(fullSetupFlag, "true"))
 	clients, w := twoSimilarSpaces()
 	opts, err := setupOptions(cmd)
 	require.NoError(t, err)
@@ -381,7 +381,22 @@ func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
 	assert.NotContains(t, out.String(), "agent space launchdarkly (space-1)")
 }
 
-func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
+// A connect run does not change the sign-in, so --auth-flow alone stops it.
+func TestSetupChosenSpaceWithOnlyAuthFlowStops(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "2\ny\n")
+	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
+	clients, w := twoSimilarSpaces()
+	opts, err := setupOptions(cmd)
+	require.NoError(t, err)
+	opts.LDAccessToken = "api-token"
+
+	err = setupWith(cmd, clients, opts, true, true)
+
+	require.EqualError(t, err, "setup only connects the MCP server to agent space space-2, so it does not use --auth-flow. To run the full setup on it, pass --full-setup")
+	assert.Empty(t, w.calls)
+}
+
+func TestSetupChosenSpaceWithoutFullSetupConnects(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "2\ny\n")
 	clients, w := twoSimilarSpaces()
 
@@ -393,7 +408,7 @@ func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
 	assert.Contains(t, stderrOf(cmd), "No change. The operator app is off")
 	assert.Contains(t, stdoutOf(cmd), "The operator app of agent space space-2 is off")
 	assert.Contains(t, stdoutOf(cmd), "use the AWS console")
-	assert.NotContains(t, stdoutOf(cmd), "--auth-flow")
+	assert.NotContains(t, stdoutOf(cmd), "--full-setup")
 	assert.NotContains(t, stdoutOf(cmd), "Open the DevOps Agent at")
 }
 
