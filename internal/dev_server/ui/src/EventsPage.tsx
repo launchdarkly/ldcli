@@ -13,9 +13,14 @@ const EventsPage = ({ limit = 1000 }: Props) => {
   const [backlog, setBacklog] = useState<EventData[]>([]);
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
 
+  // The stream effect reconnects when streaming toggles, so the open event
+  // lives in its own mount-only effect to count one open per page visit.
+  useEffect(() => {
+    sendUiAnalytics('Dev Server UI Events Stream Opened');
+  }, []);
+
   useEffect(() => {
     const eventSource = new EventSource(apiRoute('/events/tee'));
-    sendUiAnalytics('Dev Server UI Events Stream Opened');
 
     eventSource.addEventListener('put', (event: MessageEvent) => {
       if (!event.data || event.data.trim() === '') {

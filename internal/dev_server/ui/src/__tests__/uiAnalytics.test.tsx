@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Flags from '../Flags';
+import EventsPage from '../EventsPage';
 import { PageAnalytics } from '../App';
 
 type FetchCall = { url: string; body?: string };
@@ -162,5 +163,27 @@ describe('dev server UI analytics', () => {
       ).toBe(true);
     });
     expect(overrides['my-flag']).toBeUndefined();
+  });
+
+  it('sends one stream open event when streaming is paused and resumed', async () => {
+    vi.stubGlobal(
+      'EventSource',
+      class {
+        addEventListener() {}
+        close() {}
+      },
+    );
+    const eventsSent = (name: string) =>
+      calls.filter((call) => call.body?.includes(`"event":"${name}"`)).length;
+
+    render(<EventsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Streaming ON' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Streaming OFF' }));
+
+    await waitFor(() => {
+      expect(eventsSent('Dev Server UI Events Stream Changed')).toBe(2);
+    });
+    expect(eventsSent('Dev Server UI Events Stream Opened')).toBe(1);
   });
 });
