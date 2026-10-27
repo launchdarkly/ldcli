@@ -47,7 +47,7 @@ func TestSetupCreatesAgentInNewSpace(t *testing.T) {
 	metadata := metadataOf(t, in.Metadata)
 	assert.Equal(t, awsdevops.ExperimentAgentName, metadata["name"])
 	assert.Equal(t, []any{"ki-created"}, metadata["skills"])
-	assert.Contains(t, metadata["tools"], awsdevops.MCPServerName+"_get-flag")
+	assert.Contains(t, metadata["tools"], awsdevops.MCPServerNameFor("space-1")+"_get-flag")
 	assert.NotContains(t, metadata, "memory_stores")
 	file, ok := in.Content.(*agenttypes.AssetContentMemberFile)
 	require.True(t, ok)
@@ -61,9 +61,13 @@ func TestSetupCreatesAgentInNewSpace(t *testing.T) {
 // The tool IDs use the name of the server in AWS, which the customer can
 // change.
 func TestPlanSetupNamesAgentToolsAfterTheExistingServer(t *testing.T) {
-	agent := &fakeAgent{services: []agenttypes.RegisteredService{
-		mcpService("mcp-1", "Prod-LD", awsdevops.MCPServerEndpoint),
-	}}
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{
+			mcpService("mcp-1", "Prod-LD", awsdevops.MCPServerEndpoint),
+		},
+		// Setup reuses only a server that the space already uses.
+		associations: []agenttypes.Association{mcpAssociation(awsdevops.AllowedTools()...)},
+	}
 	opts := reuseOptions()
 	opts.LDAccessToken = ""
 
@@ -80,7 +84,7 @@ func TestSetupKeepsCurrentAgent(t *testing.T) {
 	agent := &fakeAgent{
 		assets: []agenttypes.Asset{
 			skillAsset("ki-ours", "experiment-orchestration"),
-			agentAsset("ki-agent", "experiment-orchestrator", awsdevops.AgentTools(awsdevops.MCPServerName), []string{"ki-ours"}),
+			agentAsset("ki-agent", "experiment-orchestrator", awsdevops.AgentTools(awsdevops.MCPServerNameFor("space-2")), []string{"ki-ours"}),
 		},
 		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
 		agentFiles: map[string]string{"ki-agent": awsdevops.ExperimentAgentPrompt},
@@ -112,7 +116,9 @@ func TestSetupUpdatesAgentWithOldTools(t *testing.T) {
 
 	require.Len(t, agent.updateAgents, 1)
 	metadata := metadataOf(t, agent.updateAgents[0].Metadata)
-	assert.ElementsMatch(t, awsdevops.AgentTools(awsdevops.MCPServerName), metadata["tools"])
+	// The update adds the tools of the server and keeps the ones the agent has.
+	assert.Subset(t, metadata["tools"], awsdevops.AgentTools(awsdevops.MCPServerNameFor("space-2")))
+	assert.Contains(t, metadata["tools"], "LaunchDarkly_get-flag")
 	assert.Equal(t, []any{"ki-ours"}, metadata["skills"])
 	// AWS keeps the keys that the request leaves out, such as memory stores.
 	assert.NotContains(t, metadata, "memory_stores")
@@ -192,7 +198,7 @@ func TestPlanSetupSkipsAgentWhenAssetsCannotBeListed(t *testing.T) {
 // A customer can give the agent more tools or skills. The ldcli ones are
 // there, so setup keeps the agent.
 func TestPlanSetupKeepsAgentWithAddedTools(t *testing.T) {
-	tools := append(awsdevops.AgentTools(awsdevops.MCPServerName), "Datadog_query-logs")
+	tools := append(awsdevops.AgentTools(awsdevops.MCPServerNameFor("space-2")), "Datadog_query-logs")
 	agent := &fakeAgent{
 		assets: []agenttypes.Asset{
 			skillAsset("ki-ours", "experiment-orchestration"),
@@ -224,7 +230,7 @@ func TestSetupUpdateKeepsAddedToolsAndSkills(t *testing.T) {
 	require.Len(t, agent.updateAgents, 1)
 	metadata := metadataOf(t, agent.updateAgents[0].Metadata)
 	assert.Contains(t, metadata["tools"], "Datadog_query-logs")
-	assert.Contains(t, metadata["tools"], awsdevops.MCPServerName+"_get-flag")
+	assert.Contains(t, metadata["tools"], awsdevops.MCPServerNameFor("space-2")+"_get-flag")
 	assert.Equal(t, []any{"ki-other", "ki-created"}, metadata["skills"])
 }
 
@@ -377,4 +383,17 @@ func TestStatusReportsUnreadableAssets(t *testing.T) {
 
 	assert.Equal(t, "AccessDeniedException", status.AgentSpaces[0].Skill.Error)
 	assert.Equal(t, "AccessDeniedException", status.AgentSpaces[0].Agent.Error)
+}
+
+// Setup registers a server for each space, so the agent's tools start with the
+// name of that server.
+func TestPlanSetupNamesAgentToolsAfterTheServerOfANewSpace(t *testing.T) {
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+		LDAccessToken:  "api-token",
+	}, true)
+	require.NoError(t, err)
+
+	assert.Contains(t, plan.Text().Agent, "the MCP tools of server LaunchDarkly-<agent space ID>")
 }

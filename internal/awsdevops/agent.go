@@ -152,7 +152,7 @@ func agentFailure(err error) string {
 }
 
 func planAgent(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep, mcp MCPStep, skill SkillStep) AgentStep {
-	step := AgentStep{ServerName: mcp.name()}
+	step := AgentStep{ServerName: planServerName(mcp, space)}
 	if space.Action == SpaceCreate {
 		return step
 	}
@@ -189,6 +189,38 @@ func planAgent(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 	}
 
 	return step
+}
+
+// planServerName is the name that the MCP server of the space has after setup:
+// a reused server keeps its name, and setup registers a new one as
+// MCPServerNameFor. The run reads the real name, because a replace can rename
+// the server.
+func planServerName(mcp MCPStep, space SpaceStep) string {
+	switch {
+	case mcp.Action == MCPReuse && mcp.Name != "":
+		return mcp.Name
+	case space.ID == "":
+		// A new space gets its ID from AWS during the run.
+		return MCPServerNameFor("<agent space ID>")
+	}
+
+	return MCPServerNameFor(space.ID)
+}
+
+// serverName is the name of the registered MCP server in AWS, which the tool
+// IDs start with.
+func serverName(ctx context.Context, clients Clients, serviceID string) (string, error) {
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return "", err
+	}
+	for _, service := range services {
+		if aws.ToString(service.ServiceId) == serviceID {
+			return serviceName(service), nil
+		}
+	}
+
+	return "", fmt.Errorf("MCP server %s is not registered", serviceID)
 }
 
 // agentMetadata reads the tools and the skills of a custom agent.
@@ -310,7 +342,11 @@ func doAgentStep(
 		return "", fmt.Errorf("setup skipped custom agent %s, because skill %s is not ready: %w",
 			ExperimentAgentName, ExperimentSkillName, errAgentNeeds)
 	}
-	tools, err := spaceAgentTools(ctx, clients, result.AgentSpaceID, result.MCPServiceID, step.ServerName)
+	name, err := serverName(ctx, clients, result.MCPServiceID)
+	if err != nil {
+		return "", err
+	}
+	tools, err := spaceAgentTools(ctx, clients, result.AgentSpaceID, result.MCPServiceID, name)
 	if err != nil {
 		return "", err
 	}
