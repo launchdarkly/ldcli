@@ -175,6 +175,7 @@ function App() {
           });
         }
       };
+      let saved = false;
       try {
         const res = await fetch(apiRoute(`/dev/projects/${selectedProject}`), {
           method: 'PATCH',
@@ -204,12 +205,15 @@ function App() {
         setSourceEnvironmentKey(sourceEnvironmentKey);
         setContext(JSON.stringify(fetchedContext || {}, null, 2));
         setSelectedEnvironment(newEnvironment);
+        saved = true;
+        sendSettingsAnalytics('success');
 
         // Fetch updated flags and variations
         await fetchDevFlags();
-        sendSettingsAnalytics('success');
       } catch (error) {
-        sendSettingsAnalytics('error');
+        if (!saved) {
+          sendSettingsAnalytics('error');
+        }
         console.error('Error updating project settings:', error);
         // You might want to show an error message to the user here
       }

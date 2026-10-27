@@ -3,6 +3,7 @@ import { MemoryRouter, useNavigate } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Flags from '../Flags';
 import EventsPage from '../EventsPage';
+import FlagsPage from '../FlagsPage';
 import { PageAnalytics } from '../App';
 
 type FetchCall = { url: string; body?: string };
@@ -185,5 +186,70 @@ describe('dev server UI analytics', () => {
       expect(eventsSent('Dev Server UI Events Stream Changed')).toBe(2);
     });
     expect(eventsSent('Dev Server UI Events Stream Opened')).toBe(1);
+  });
+
+  it('reports a saved context update as success when the refresh after it fails', async () => {
+    let patched = false;
+    const project = {
+      flagsState: {},
+      overrides: {},
+      sourceEnvironmentKey: 'test',
+      availableVariations: { 'my-flag': [] },
+      context: { kind: 'user', key: 'a' },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const body = typeof init?.body === 'string' ? init.body : undefined;
+        calls.push({ url, body });
+        if (url.includes('/ui-analytics')) {
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith('/dev/projects')) {
+          return Response.json(['proj']);
+        }
+        if (url.includes('/environments')) {
+          return patched
+            ? new Response('{}', { status: 500 })
+            : Response.json([{ key: 'test', name: 'Test' }]);
+        }
+        if (init?.method === 'PATCH') {
+          patched = true;
+          return Response.json({
+            ...project,
+            context: JSON.parse(body!).context,
+          });
+        }
+        return Response.json(project);
+      }),
+    );
+    const settingsEvents = () =>
+      calls
+        .filter((call) => call.url.includes('/ui-analytics'))
+        .map((call) => JSON.parse(call.body || '{}'))
+        .filter((event) => event.event === 'Dev Server UI Context Updated');
+
+    render(<FlagsPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'test' }));
+    fireEvent.change(await screen.findByDisplayValue(/"key": "a"/), {
+      target: { value: '{"kind":"user","key":"b"}' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => {
+      const patchIndex = calls.findIndex((call) => call.body?.includes('"b"'));
+      expect(patchIndex).toBeGreaterThanOrEqual(0);
+      expect(
+        calls
+          .slice(patchIndex + 1)
+          .some((call) => call.url.includes('/environments')),
+      ).toBe(true);
+    });
+    await waitFor(() => {
+      expect(settingsEvents()).toHaveLength(1);
+    });
+    expect(settingsEvents()[0].properties.outcome).toBe('success');
   });
 });
