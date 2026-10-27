@@ -84,7 +84,7 @@ func TestTokenPromptAsksWhenInteractive(t *testing.T) {
 	assert.Contains(t, w.calls, "RegisterService")
 	assert.Less(t, strings.Index(stderrOf(cmd), "Paste the token"), strings.Index(stderrOf(cmd), "Setup plan:"))
 	// The plan is built again with the token, so it is current.
-	assert.Contains(t, stderrOf(cmd), "Register MCP server LaunchDarkly at")
+	assert.Contains(t, stderrOf(cmd), "Register a new MCP server for this agent space at")
 	assert.NotContains(t, stderrOf(cmd), "Ask for a token")
 }
 
@@ -178,12 +178,13 @@ func TestSetupNeedsATokenItCannotAsk(t *testing.T) {
 	}
 }
 
-// A registered server needs no token.
+// The server of the agent space needs no token.
 func TestSetupWithoutTokenReusesServer(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
-	clients, w := countingClients()
+	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")})
 	agent := clients.Agent.(countingAgent)
+	agent.associations = []agenttypes.Association{{AssociationId: aws.String("assoc-1"), ServiceId: aws.String("mcp-1")}}
 	agent.services = []agenttypes.RegisteredService{{
 		ServiceId:   aws.String("mcp-1"),
 		ServiceType: agenttypes.ServiceMcpServer,
@@ -193,10 +194,12 @@ func TestSetupWithoutTokenReusesServer(t *testing.T) {
 	}}
 	clients.Agent = agent
 
-	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, false))
+	opts := noTokenOptions()
+	opts.AgentSpaceName, opts.AgentSpaceID = "", "space-1"
+
+	require.NoError(t, setupWith(cmd, clients, opts, true, false))
 
 	assert.NotContains(t, w.calls, "RegisterService")
-	assert.Contains(t, w.calls, "AssociateService")
 }
 
 func TestSetupPlanNamesAccountAssociation(t *testing.T) {
@@ -317,7 +320,7 @@ func TestSetupEnterGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {
 
 	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
 
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "start 2\n")
 	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
@@ -336,7 +339,7 @@ func TestSetupEnterWithoutANamePicksTheSpaceSetupMade(t *testing.T) {
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "start 2\n")
 	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 }
@@ -429,12 +432,13 @@ func TestSetupFailureNamesTheNewSpace(t *testing.T) {
 	assert.Contains(t, err.Error(), "To use it, run setup again with --agent-space-id space-new")
 }
 
-// A server that appears between the two plans is reused, and setup says
-// that it does not use the pasted token.
+// A server that the space gets between the two plans is reused, and setup
+// says that it does not use the pasted token.
 func TestSetupSaysWhenTheSecondPlanReusesAServer(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "api-token\n")
-	clients, _ := countingClients()
+	clients, _ := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")})
 	agent := clients.Agent.(countingAgent)
+	agent.associations = []agenttypes.Association{{AssociationId: aws.String("assoc-7"), ServiceId: aws.String("mcp-7")}}
 	agent.services = []agenttypes.RegisteredService{{
 		ServiceId:   aws.String("mcp-7"),
 		ServiceType: agenttypes.ServiceMcpServer,
@@ -444,6 +448,7 @@ func TestSetupSaysWhenTheSecondPlanReusesAServer(t *testing.T) {
 	}}
 	clients.Agent = agent
 	opts := noTokenOptions()
+	opts.AgentSpaceName, opts.AgentSpaceID = "", "space-1"
 	first := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPAsk}}
 
 	plan, err := planWithToken(cmd, clients, &opts, first, true)

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
@@ -46,11 +45,13 @@ full setup. Pass --agent-space-id to pick a space without the list, or
 --agent-space-name, or type one when setup asks. The run ends with the
 operator app URL, where the agent is used.
 
-The MCP server is connected with --access-token, or with the token in your
-ldcli configuration when you do not pass one. AWS keeps the token and the agent
-acts as its account and role, so a session token from 'ldcli login' stops
-working once it expires. With no token, setup reuses a registered MCP server.
-If none exists, setup asks for a service token in a terminal and checks it
+Each agent space gets its own LaunchDarkly MCP server registration, so each
+space can use a different token. The MCP server is connected with
+--access-token, or with the token in your ldcli configuration when you do not
+pass one. AWS keeps the token and the agent acts as its account and role, so a
+session token from 'ldcli login' stops working once it expires. If the agent
+space already has an MCP server, setup reuses it and does not change its token.
+If it has none, setup asks for a service token in a terminal and checks it
 before it changes AWS. Without a terminal, or with --yes, it stops and asks
 for --access-token.`,
 		Args:   cobra.NoArgs,
@@ -69,9 +70,9 @@ for --access-token.`,
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
-	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
-	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
-	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
+	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Give the agent space a new LaunchDarkly MCP server with the token passed with --access-token. Other agent spaces keep their server")
+	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the agent space")
+	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -498,10 +499,8 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	if !ask {
 		return nil
 	}
-	_, _ = fmt.Fprint(out, "Continue? [y/N]: ")
-
-	switch strings.ToLower(readLine(sharedStdin(cmd))) {
-	case "y", "yes":
+	_, _ = fmt.Fprint(out, "Continue? [Y/n]: ")
+	if readYes(sharedStdin(cmd)) {
 		return nil
 	}
 	_, _ = fmt.Fprintln(out)
@@ -527,8 +526,11 @@ type spaceChoice struct {
 }
 
 // selectAgentSpace asks which agent space to connect LaunchDarkly to. With a
-// name, Enter picks the space with that name, or a new space with that name
-// when no space has it. Without a name, there is no default.
+// name, the highlight starts on the space with that name, or on a new space
+// with that name when no space has it. Without a name, the highlight starts
+// on the one space that setup made. If the space is not clear, the highlight
+// starts on a new space, so Enter does not connect to a space of another
+// owner.
 //
 // The list leaves out a space whose tags setup could not read, because its
 // owner is unknown. A note names each of those spaces. The name checks still
@@ -553,7 +555,7 @@ func selectAgentSpace(
 
 	defaultIndex := spaceNamed(spaces, name)
 	if name == "" && len(unread) == 0 {
-		// Enter does what a run that cannot ask does: it picks the one
+		// The highlight starts where a run that cannot ask picks: the one
 		// space that setup made.
 		defaultIndex = ownSpace(spaces)
 	}
@@ -567,12 +569,12 @@ func selectAgentSpace(
 	}
 	choices = append(choices, spaceChoice{newSpace: true})
 	labels = append(labels, "provision a new agent space")
+	start := defaultIndex
+	if start < 0 {
+		start = len(choices) - 1
+	}
 
 	out := cmd.ErrOrStderr()
-	_, _ = fmt.Fprintf(out, "\nThis AWS account already runs the DevOps Agent in %s:\n\n", region)
-	for i, label := range labels {
-		_, _ = fmt.Fprintf(out, "  %d) %s\n", i+1, label)
-	}
 	_, _ = fmt.Fprintln(out)
 	if len(unread) > 0 {
 		_, _ = fmt.Fprintf(out,
@@ -580,33 +582,20 @@ func selectAgentSpace(
 			notListed(len(unread)), strings.Join(agentSpaceLabels(unread), ", "), agentSpaceIDFlag)
 	}
 
-	question := "Which one should LaunchDarkly connect to? "
-	if defaultIndex >= 0 {
-		question += fmt.Sprintf("[%d] ", defaultIndex+1)
+	choice, err := newChooser(cmd)(
+		"Which agent space should LaunchDarkly connect to?",
+		fmt.Sprintf("This AWS account already runs the DevOps Agent in %s. Type to search.", region),
+		labels,
+		start,
+	)
+	if errors.Is(err, errPickCanceled) {
+		return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
+	}
+	if err != nil {
+		return spaceChoice{}, err
 	}
 
-	in := sharedStdin(cmd)
-	for {
-		_, _ = fmt.Fprint(out, question)
-		line, err := nextLine(in)
-		if err != nil && line == "" {
-			return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
-		}
-
-		answer := strings.TrimSpace(line)
-		if answer == "" && defaultIndex >= 0 {
-			return choices[defaultIndex], nil
-		}
-
-		choice, err := strconv.Atoi(answer)
-		if err != nil || choice < 1 || choice > len(choices) {
-			_, _ = fmt.Fprintf(out, "Enter a number between 1 and %d\n", len(choices))
-
-			continue
-		}
-
-		return choices[choice-1], nil
-	}
+	return choices[choice], nil
 }
 
 func agentSpaceLabels(spaces []awsdevops.AgentSpaceSummary) []string {

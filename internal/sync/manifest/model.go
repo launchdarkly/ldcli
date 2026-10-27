@@ -116,24 +116,6 @@ func (manifest *Manifest) setAttachments(projectKey string, attachments []syncdo
 	return nil
 }
 
-// RemoveUnusedAttachments stops tracking each tool and skill that none of the
-// variations references.
-func (manifest *Manifest) RemoveUnusedAttachments(variations []syncdomain.SyncedResource) {
-	used := make(map[syncdomain.ResourceID]struct{})
-	for _, variation := range variations {
-		for _, attachment := range variation.Variation.Attachments {
-			used[attachment.ID(variation.ProjectKey)] = struct{}{}
-		}
-	}
-	manifest.Resources = slices.DeleteFunc(manifest.Resources, func(resource Resource) bool {
-		if resource.ResourceKind == syncdomain.KindVariation {
-			return false
-		}
-		_, ok := used[resource.ID()]
-		return !ok
-	})
-}
-
 // WithChanges returns a copy of the manifest with the entry changes from
 // before to after. An entry that is the same in before and after keeps the
 // value that the manifest has, which can come from another working copy.

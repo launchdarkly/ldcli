@@ -161,18 +161,21 @@ func TestRunnerDetachesWithoutCallingTheAPI(t *testing.T) {
 	root := initGitRepository(t)
 	runner := NewRunner(noopResourceClient{})
 	called := false
+	selection := syncdomain.VariationID("project", "config", "default")
 	runner.detach = func(options syncdetach.Options) error {
 		called = true
 		assert.NotZero(t, options.Store)
 		assert.NotZero(t, options.Baselines)
 		assert.Equal(t, os.Stdin, options.Input)
 		assert.Equal(t, io.Discard, options.Output)
+		assert.Equal(t, syncdomain.KindVariation, options.Kind)
+		assert.Equal(t, []syncdomain.ResourceID{selection}, options.Selections)
 		return nil
 	}
 
 	err := runner.Run(Options{
 		WorkingDirectory: root,
-		Action:           DetachAction{},
+		Action:           DetachAction{Resources: []syncdomain.ResourceID{selection}},
 		Input:            os.Stdin,
 		Output:           io.Discard,
 		ErrorOutput:      io.Discard,
@@ -277,26 +280,55 @@ func TestAttachToVariationPreservesExistingSharedAttachmentEdits(t *testing.T) {
 	}
 }
 
+// A tool file that no variation uses yet also keeps its local edit.
+func TestAttachToVariationPreservesStandaloneAttachmentEdits(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	localDescription, serverDescription := "Local edit", "Server content"
+	tool := syncdomain.Tool{Key: "search", Description: &localDescription, Schema: map[string]any{"type": "object"}}
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: testVariation("default")}})
+	require.NoError(t, err)
+	_, err = store.ReplaceAttachments([]syncdomain.SyncedAttachment{{
+		ProjectKey: "project", Attachment: syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &tool},
+	}})
+	require.NoError(t, err)
+	transport := &attachmentMutationAPI{
+		current: syncdomain.Tool{Key: "search", Description: &serverDescription, Schema: map[string]any{"type": "object"}},
+		version: 2,
+	}
+
+	err = attachToVariation(store, syncapi.NewClient(transport, "token", "https://example.com"), attachOptions{
+		RepositoryRoot: root, ProjectKey: "project", VariationID: "config/default",
+		Kind: syncdomain.AttachmentTool, Key: "search",
+	})
+
+	require.NoError(t, err)
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources[0].Variation.Attachments, 1)
+	assert.Equal(t, localDescription, *resources[0].Variation.Attachments[0].Tool.Description)
+}
+
 func TestEmptyAttachmentSearchReturnsNoResults(t *testing.T) {
 	client := syncapi.NewClient(emptyAttachmentClient{}, "token", "https://example.com")
 
-	attachments, totalCount, err := searchAttachmentPage(client, "project", syncdomain.AttachmentTool, "missing", 25, 0)
+	page, err := client.SearchAttachments("project", syncdomain.AttachmentTool, "missing", 25, 0)
 
 	require.NoError(t, err)
-	assert.Empty(t, attachments)
-	assert.Zero(t, totalCount)
+	assert.Empty(t, page.Items)
+	assert.Zero(t, page.TotalCount)
 }
 
 func TestToolSearchPageReturnsTrueLatestVersion(t *testing.T) {
 	transport := &toolSearchClient{}
 	client := syncapi.NewClient(transport, "token", "https://example.com")
 
-	attachments, totalCount, err := searchAttachmentPage(client, "project", syncdomain.AttachmentTool, "old description", 25, 0)
+	page, err := client.SearchAttachments("project", syncdomain.AttachmentTool, "old description", 25, 0)
 
 	require.NoError(t, err)
-	require.Len(t, attachments, 1)
-	assert.Equal(t, 3, attachments[0].Version)
-	assert.Equal(t, 1, totalCount)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, 3, page.Items[0].Version)
+	assert.Equal(t, 1, page.TotalCount)
 	assert.Equal(t, 2, transport.requests)
 }
 

@@ -73,9 +73,24 @@ type PlannedResource struct {
 	// changedAttachments are the tools and skills whose content differs
 	// between the local file and LaunchDarkly.
 	changedAttachments []ResourceID
+	// conflictUses are the conflicted variations that newly use the tool or
+	// skill of this row on one side, when no push or pull needs the row.
+	conflictUses []conflictUse
+	// usedBy are the local variations that use the tool or skill of this row.
+	usedBy []ResourceID
+	// nameSource is where the name of a local skill comes from: a name in its
+	// file, its key, or a flag of the add that creates it.
+	nameSource string
 	// restoreRef is the link that a restored variation file keeps.
 	restoreRef *syncdomain.Reference
 }
+
+// The sources of the name of a skill that sync creates.
+const (
+	nameFromFlag        = "flag"
+	nameFromFrontMatter = "frontMatter"
+	nameFromKey         = "key"
+)
 
 // hasLocal reports whether the resource has a local file.
 func (resource PlannedResource) hasLocal() bool {
@@ -87,9 +102,38 @@ func (resource PlannedResource) hasServer() bool {
 	return resource.Server != nil || resource.ServerAttachment != nil
 }
 
+// writtenSides returns the variation that a variation row writes, and the
+// variation that it replaces. Both are nil for a row that writes none.
+func (resource PlannedResource) writtenSides() (source, target *syncdomain.Variation) {
+	switch {
+	case resource.ID.Kind != syncdomain.KindVariation:
+		return nil, nil
+	case resource.Action.changesServer():
+		return resource.Local, resource.Server
+	case resource.Action == ActionUpdateLocal:
+		return resource.Server, resource.Local
+	default:
+		return nil, nil
+	}
+}
+
+// conflictUse is a conflicted variation that newly uses a tool or skill on one
+// side. local is true when that side is the local file.
+type conflictUse struct {
+	variation ResourceID
+	local     bool
+}
+
 // Plan is the sync decision for each resource, in identity order.
 type Plan struct {
 	Resources []PlannedResource
+	// Scope is the resource kinds that the plan covers. The empty scope is
+	// prompt variations.
+	Scope syncdomain.Scope
+	// standalone counts the tool and skill files, by kind, that no local
+	// variation uses. Only a prompts plan counts them, because it leaves them
+	// out.
+	standalone map[syncdomain.Kind]int
 }
 
 // BuildPlan compares the baseline with the local and the server state. The
@@ -254,6 +298,12 @@ func planAttachment(
 			return fail(err.Error())
 		}
 	}
+	if local != nil && local.Skill != nil {
+		resource.nameSource = nameFromKey
+		if local.Skill.Name != "" {
+			resource.nameSource = nameFromFrontMatter
+		}
+	}
 	if server != nil {
 		if resource.ServerFingerprint, err = syncdomain.FingerprintAttachment(id.ProjectKey, *server); err != nil {
 			return fail(fmt.Sprintf("invalid server %s: %s", id.Kind, err))
@@ -277,12 +327,18 @@ func planAttachment(
 // missingAttachmentError explains how to create a tool or skill that exists
 // only in a local file, or how to stop syncing it.
 func missingAttachmentError(id ResourceID) string {
+	return fmt.Sprintf("%s To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
+		missingAttachment(id), id.Kind, id.ProjectKey, id.LookupKey)
+}
+
+// missingAttachment says that LaunchDarkly does not have the tool or skill
+// of a local file without upsert, and names the command that creates it.
+func missingAttachment(id ResourceID) string {
 	consent := `add "upsert": true to its file`
 	if id.Kind == syncdomain.KindSkill {
 		consent = "add upsert: true to its front matter"
 	}
-	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. To create it during sync, %s. "+
-		"To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
+	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. To create it, %s and run ldcli sync %ss --project %s --key %s.",
 		id.Kind, id.LookupKey, consent, id.Kind, id.ProjectKey, id.LookupKey)
 }
 

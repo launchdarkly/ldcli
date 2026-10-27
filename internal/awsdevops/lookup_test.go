@@ -15,15 +15,16 @@ import (
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
+func TestSetupReusesTheMCPServerOfTheAgentSpace(t *testing.T) {
 	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+		services:   []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+		spaceLinks: map[string][]agenttypes.Association{"space-1": mcpLink("mcp-1")},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
-		LDAccessToken:  "api-token",
+		AgentSpaceID:  "space-1",
+		AuthFlow:      "iam",
+		LDAccessToken: "api-token",
 	})
 	require.NoError(t, err)
 
@@ -32,13 +33,58 @@ func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
 }
 
-func TestSetupReplacesTheMCPServerTokenWhenAsked(t *testing.T) {
+// The server of another space has the token of that space, so a space never
+// uses it.
+func TestSetupRegistersAServerBesideTheServerOfAnotherSpace(t *testing.T) {
 	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+		agentSpaces: []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}, {AgentSpaceId: aws.String("space-2")}},
+		services:    []agenttypes.RegisteredService{launchDarklyMCPService("mcp-other")},
+		spaceLinks:  map[string][]agenttypes.Association{"space-2": mcpLink("mcp-other")},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
+		AgentSpaceID:  "space-1",
+		AuthFlow:      "iam",
+		LDAccessToken: "api-token",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "mcp-1", result.MCPServiceID)
+	require.Len(t, agent.registerInputs, 1)
+	details, ok := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver)
+	require.True(t, ok)
+	assert.Equal(t, awsdevops.MCPServerNameFor("space-1"), aws.ToString(details.Value.Name))
+	assert.Empty(t, agent.disassociatedIDs)
+}
+
+// A run that registered the server and failed to connect it leaves a server
+// with the name of the space. The next run connects that server.
+func TestSetupReusesTheServerItRegisteredForTheSpace(t *testing.T) {
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{
+			mcpService("mcp-other", awsdevops.MCPServerNameFor("space-2"), awsdevops.MCPServerEndpoint),
+			mcpService("mcp-own", awsdevops.MCPServerNameFor("space-1"), awsdevops.MCPServerEndpoint),
+		},
+	}
+
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID: "space-1",
+		AuthFlow:     "iam",
+	})
+	require.NoError(t, err)
+
+	assert.NotContains(t, agent.calls, "RegisterService")
+	assert.Equal(t, "mcp-own", result.MCPServiceID)
+}
+
+func TestSetupReplacesTheMCPServerTokenWhenAsked(t *testing.T) {
+	agent := &fakeAgent{
+		services:   []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")},
+		spaceLinks: map[string][]agenttypes.Association{"space-1": mcpLink("mcp-old")},
+	}
+
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID:    "space-1",
 		AuthFlow:        "iam",
 		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
 		LDAccessToken:   "api-token",
@@ -46,34 +92,34 @@ func TestSetupReplacesTheMCPServerTokenWhenAsked(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"mcp-1"}, agent.deregisteredIDs)
-	assert.Contains(t, agent.calls, "RegisterService")
+	assert.Equal(t, []string{"mcp-old"}, agent.deregisteredIDs)
 	assert.Equal(t, "mcp-1", result.MCPServiceID)
 }
 
-func TestFindMCPServerMatchesOnTheEndpointInTheServiceDetails(t *testing.T) {
-	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{
-			{
-				ServiceId:   aws.String("mcp-2"),
-				ServiceType: agenttypes.ServiceMcpServer,
-				AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
-					Value: agenttypes.RegisteredMCPServerDetails{
-						Endpoint: aws.String(awsdevops.MCPServerEndpoint),
-					},
-				},
-			},
-		},
-	}
+// A replacement on a shared server changes only this space. The other spaces
+// keep the server and its token.
+func TestSetupReplaceLeavesASharedServerToTheOtherSpaces(t *testing.T) {
+	agent := replaceAcrossSpaces()
 
-	serviceID, err := awsdevops.FindMCPServer(
-		context.Background(),
-		newTestClients(agent, newFakeIAM()),
-		awsdevops.MCPServerEndpoint,
-	)
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID:    "space-1",
+		AuthFlow:        "iam",
+		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
+		LDAccessToken:   "api-token",
+		ReplaceMCPToken: true,
+	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "mcp-2", serviceID)
+	assert.Empty(t, agent.deregisteredIDs)
+	assert.Equal(t, []string{"assoc-mcp-old"}, agent.disassociatedIDs)
+	assert.Equal(t, "mcp-1", result.MCPServiceID)
+	var associated []string
+	for _, in := range agent.associationInputs {
+		if aws.ToString(in.ServiceId) == "mcp-1" {
+			associated = append(associated, aws.ToString(in.AgentSpaceId))
+		}
+	}
+	assert.Equal(t, []string{"space-1"}, associated)
 }
 
 const space1ARN = "arn:aws:aidevops:us-east-1:" + testAccountID + ":agentspace/space-1"
