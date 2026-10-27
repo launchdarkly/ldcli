@@ -21,3 +21,8 @@ func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (S
 
 	return ConnectPlan(ctx, clients, opts, plan)
 }
+
+// MCPTools lists every tool in the allowlist, for tests.
+func MCPTools() []string {
+	return append(append([]string{}, mcpReadOnlyTools...), mcpMutativeTools...)
+}

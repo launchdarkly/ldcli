@@ -197,10 +197,18 @@ func agentSpaceARN(region, accountID, spaceID string) string {
 	return fmt.Sprintf("arn:aws:aidevops:%s:%s:agentspace/%s", region, accountID, spaceID)
 }
 
+// mcpServerIDLength is the length to truncate the agent space ID to in the
+// server name.
+const mcpServerIDLength = 12
+
 // MCPServerNameFor is the name of the MCP server that setup registers for an
 // agent space. AWS needs a unique name of letters, digits, "_" and "-", and
-// the ID ties the server to the space.
+// the end of the ID ties the server to the space.
 func MCPServerNameFor(agentSpaceID string) string {
+	if len(agentSpaceID) > mcpServerIDLength {
+		agentSpaceID = agentSpaceID[len(agentSpaceID)-mcpServerIDLength:]
+	}
+
 	return MCPServerName + "-" + agentSpaceID
 }
 
