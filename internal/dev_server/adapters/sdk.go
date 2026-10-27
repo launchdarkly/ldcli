@@ -24,7 +24,10 @@ func WithSdk(ctx context.Context, s Sdk) context.Context {
 }
 
 func GetSdk(ctx context.Context) Sdk {
-	return ctx.Value(ctxKeySdk).(Sdk)
+	if sdk := ctx.Value(ctxKeySdk); sdk != nil {
+		return sdk.(Sdk)
+	}
+	return nil
 }
 
 //go:generate go run go.uber.org/mock/mockgen -destination mocks/sdk.go -package mocks . Sdk

@@ -57,7 +57,10 @@ func ContextWithEventStore(ctx context.Context, store EventStore) context.Contex
 }
 
 func EventStoreFromContext(ctx context.Context) EventStore {
-	return ctx.Value(ctxKeyEventStore).(EventStore)
+	if store := ctx.Value(ctxKeyEventStore); store != nil {
+		return store.(EventStore)
+	}
+	return nil
 }
 
 func EventStoreMiddleware(store EventStore) mux.MiddlewareFunc {
