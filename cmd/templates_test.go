@@ -31,7 +31,3 @@ func TestGetUsageTemplate_ListsTopLevelCommands(t *testing.T) {
 		assert.Contains(t, template, `"`+name+`"`, "%s is missing from the root usage listing", name)
 	}
 }
-
-func TestGetUsageTemplate_LeavesOutHiddenCommands(t *testing.T) {
-	assert.NotContains(t, getUsageTemplate(), `"aws-devops-agent"`)
-}

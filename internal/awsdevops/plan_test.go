@@ -280,7 +280,7 @@ func TestPlanTextOfAConnectPlan(t *testing.T) {
 func TestPlanTextOfASkippedMCPServer(t *testing.T) {
 	plan := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPSkip}}
 
-	assert.Equal(t, "Skip MCP server "+awsdevops.MCPServerName+", because no token was given", plan.Text().MCPServer)
+	assert.Equal(t, "Skip the MCP server of this agent space, because no token was given", plan.Text().MCPServer)
 }
 
 // The plan names the server by its name in AWS, which the customer can change.

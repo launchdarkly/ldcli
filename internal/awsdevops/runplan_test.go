@@ -479,7 +479,7 @@ func TestRunPlanSkipsTheMCPServer(t *testing.T) {
 	for _, in := range agent.associationInputs {
 		assert.Equal(t, "aws", aws.ToString(in.ServiceId))
 	}
-	assert.Contains(t, strings.Join(*logged, "\n"), "Skipped MCP server")
+	assert.Contains(t, strings.Join(*logged, "\n"), "Skipped the MCP server of the agent space")
 }
 
 // A space that reads only another account still gets this account. Setup
