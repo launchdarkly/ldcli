@@ -114,6 +114,13 @@ func selectedVariations(options Options) ([]synclocal.VariationFile, error) {
 			return variation.Key == variationKey
 		})
 		if index < 0 {
+			if slices.Contains(config.ArchivedVariationKeys, variationKey) {
+				return nil, fmt.Errorf(
+					"variation %q in config %q in project %q is archived in LaunchDarkly. "+
+						"Restore it in LaunchDarkly, or pass another --key.",
+					variationKey, configKey, selection.ProjectKey,
+				)
+			}
 			return nil, fmt.Errorf(
 				"variation %q does not exist in config %q in project %q. To create it, run %s with --model-config-key and --content.",
 				variationKey, configKey, selection.ProjectKey, AddCommand(selection),
