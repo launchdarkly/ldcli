@@ -129,17 +129,18 @@ func setupWith(
 	if err != nil {
 		return err
 	}
-	if !provision && opts.AuthFlowSet {
-		// A connect run does not change the sign-in, so do not ignore the flag.
-		return fmt.Errorf(
-			"setup only connects the MCP server to agent space %s, so it does not use --%s. To run the full setup on it, pass --%s",
-			opts.AgentSpaceID, authFlowFlag, fullSetupFlag,
-		)
-	}
 
 	plan, err := awsdevops.PlanSetup(cmd.Context(), clients, opts, provision)
 	if err != nil {
 		return err
+	}
+	if !provision && opts.AuthFlowSet {
+		// A connect run ignores --auth-flow, so stop and name --full-setup.
+		return fmt.Errorf(
+			"only a full setup changes the operator app sign-in. To use --%s on agent space %s (%s), also pass --%s. "+
+				"To only connect the MCP server, remove --%s",
+			authFlowFlag, plan.Space.Name, plan.Space.ID, fullSetupFlag, authFlowFlag,
+		)
 	}
 	if plan.MCP.Action == awsdevops.MCPAsk && !ask {
 		return fmt.Errorf("create a service token at %s, then pass --access-token", awsdevops.AccessTokenURL(opts.LDBaseURI))

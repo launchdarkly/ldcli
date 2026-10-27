@@ -393,7 +393,8 @@ func TestSetupChosenSpaceWithOnlyAuthFlowStops(t *testing.T) {
 
 	err = setupWith(cmd, clients, opts, true, true)
 
-	require.EqualError(t, err, "setup only connects the MCP server to agent space space-2, so it does not use --auth-flow. To run the full setup on it, pass --full-setup")
+	require.EqualError(t, err, "only a full setup changes the operator app sign-in. To use --auth-flow on agent space LaunchDarkly (space-2), also pass --full-setup. "+
+		"To only connect the MCP server, remove --auth-flow")
 	assert.Empty(t, w.calls)
 }
 
