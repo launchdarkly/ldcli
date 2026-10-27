@@ -1362,6 +1362,11 @@ func TestMCPServerNameForHasOnlyAllowedCharacters(t *testing.T) {
 	assert.Regexp(t, `^[a-zA-Z0-9_-]{1,128}$`, name)
 }
 
+// The name keeps the last group of a UUID space ID.
+func TestMCPServerNameForKeepsTheEndOfTheSpaceID(t *testing.T) {
+	assert.Equal(t, "LaunchDarkly-3f4e5d6c7b8a", awsdevops.MCPServerNameFor("0b9f6c3e-5d7a-4c1e-9a2b-3f4e5d6c7b8a"))
+}
+
 // AWS caps the server name, "_" and a tool name at 64 characters.
 func TestMCPServerNameForLeavesRoomForEveryTool(t *testing.T) {
 	name := awsdevops.MCPServerNameFor("0b9f6c3e-5d7a-4c1e-9a2b-3f4e5d6c7b8a")
