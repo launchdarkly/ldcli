@@ -85,6 +85,10 @@ func (s stubAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpac
 	return &devopsagent.GetAgentSpaceOutput{AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId}}, nil
 }
 
+func (s stubAgent) UpdateAgentSpace(context.Context, *devopsagent.UpdateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAgentSpaceOutput, error) {
+	return nil, nil
+}
+
 func (s stubAgent) ListAgentSpaces(context.Context, *devopsagent.ListAgentSpacesInput, ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error) {
 	return &devopsagent.ListAgentSpacesOutput{AgentSpaces: s.spaces}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -43,6 +44,9 @@ const (
 	MCPServerEndpoint = "https://mcp.launchdarkly.com/mcp/launchdarkly"
 
 	agentSpaceDescription = "Managed by the LaunchDarkly CLI"
+	// ElevatedActionsPreference lets the agent run actions that change AWS
+	// resources.
+	ElevatedActionsPreference = "elevatedActionsEnabled"
 )
 
 // The agent invokes read-only tools without asking for approval, so anything
@@ -94,6 +98,8 @@ type SetupOptions struct {
 	AgentSpaceID   string
 	AgentSpaceName string
 	NewAgentSpace  bool
+	// NoElevatedActions keeps the elevated actions preference of the space.
+	NoElevatedActions bool
 
 	AuthFlow string
 	// AuthFlowSet: the user passed --auth-flow.
@@ -187,17 +193,23 @@ type SpaceStep struct {
 	Action SpaceAction
 	ID     string
 	Name   string
+	// EnableElevated turns on elevated actions on the space.
+	EnableElevated bool
 }
 
 func (s SpaceStep) describe() string {
 	label := fmt.Sprintf("%s (%s)", s.Name, s.ID)
+	elevated := ""
+	if s.EnableElevated {
+		elevated = ", and turn on elevated actions"
+	}
 	switch s.Action {
 	case SpaceCreate:
-		return "Create agent space " + s.Name
+		return "Create agent space " + s.Name + elevated
 	case SpaceConnect:
 		return "Connect to agent space " + label
 	default:
-		return "Reuse agent space " + label
+		return "Reuse agent space " + label + elevated
 	}
 }
 
@@ -581,7 +593,7 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 		return SpaceStep{}, errors.New("a new agent space needs a name. Pass --agent-space-name")
 	}
 	if id == "" {
-		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, EnableElevated: !opts.NoElevatedActions}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
@@ -591,6 +603,8 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 	step := SpaceStep{Action: SpaceReuse, ID: id, Name: aws.ToString(space.AgentSpace.Name)}
 	if !provision {
 		step.Action = SpaceConnect
+	} else {
+		step.EnableElevated = !opts.NoElevatedActions && !space.AgentSpace.Preferences[ElevatedActionsPreference]
 	}
 
 	return step, nil
@@ -617,6 +631,29 @@ func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
 		return planChanged("agent space %s disappeared after the plan", step.ID)
 	case err != nil:
 		return fmt.Errorf("unable to read agent space %s: %w", step.ID, err)
+	}
+
+	return nil
+}
+
+// enableElevatedActions turns on elevated actions on a space. An update
+// replaces all the preferences, so it sends the current ones too.
+func enableElevatedActions(ctx context.Context, clients Clients, spaceID string) error {
+	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(spaceID)})
+	if err != nil {
+		return fmt.Errorf("unable to read agent space %s: %w", spaceID, err)
+	}
+	preferences := maps.Clone(space.AgentSpace.Preferences)
+	if preferences == nil {
+		preferences = map[string]bool{}
+	}
+	preferences[ElevatedActionsPreference] = true
+	_, err = clients.Agent.UpdateAgentSpace(ctx, &devopsagent.UpdateAgentSpaceInput{
+		AgentSpaceId: aws.String(spaceID),
+		Preferences:  preferences,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to turn on elevated actions on agent space %s: %w", spaceID, err)
 	}
 
 	return nil
@@ -913,11 +950,15 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		if err := checkSpace(ctx, clients, plan.Space); err != nil {
 			return result, err
 		}
-		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
+		input := &devopsagent.CreateAgentSpaceInput{
 			Name:        aws.String(plan.Space.Name),
 			Description: aws.String(agentSpaceDescription),
 			Tags:        map[string]string{ManagedTagKey: ManagedTagValue},
-		})
+		}
+		if plan.Space.EnableElevated {
+			input.Preferences = map[string]bool{ElevatedActionsPreference: true}
+		}
+		space, err := clients.Agent.CreateAgentSpace(ctx, input)
 		if err != nil {
 			return result, fmt.Errorf("unable to create the agent space: %w", err)
 		}
@@ -926,6 +967,12 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	} else {
 		result.AgentSpaceID = plan.Space.ID
 		logf("Reused agent space %s (%s)", plan.Space.Name, plan.Space.ID)
+		if plan.Space.EnableElevated {
+			if err := enableElevatedActions(ctx, clients, plan.Space.ID); err != nil {
+				return result, err
+			}
+			logf("Turned on elevated actions on agent space %s", plan.Space.ID)
+		}
 	}
 
 	result.AWSAssociationID, err = FindAWSAssociation(ctx, clients, result.AgentSpaceID, accountID)

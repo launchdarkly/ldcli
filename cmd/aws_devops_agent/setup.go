@@ -27,6 +27,7 @@ const (
 	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	noElevatedFlag      = "no-elevated-actions"
 	yesFlag             = "yes"
 )
 
@@ -40,10 +41,11 @@ LaunchDarkly MCP server connection the AWS DevOps Agent needs.
 When the account already has agent spaces, setup asks which one to connect
 LaunchDarkly to. On a space that setup did not make, setup only registers the
 MCP server. On a space that setup made, or with --auth-flow, setup runs the
-full setup. Pass --agent-space-id to pick a space without the list, or
---new-agent-space to provision another space. A new space needs a name: pass
---agent-space-name, or type one when setup asks. The run ends with the
-operator app URL, where the agent is used.
+full setup. A full setup turns on elevated actions on the space, unless you
+pass --no-elevated-actions. Pass --agent-space-id to pick a space without the
+list, or --new-agent-space to provision another space. A new space needs a
+name: pass --agent-space-name, or type one when setup asks. The run ends with
+the operator app URL, where the agent is used.
 
 Each agent space gets its own LaunchDarkly MCP server registration, so each
 space can use a different token. The MCP server is connected with
@@ -72,6 +74,7 @@ for --access-token.`,
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Give the agent space a new LaunchDarkly MCP server with the token passed with --access-token. Other agent spaces keep their server")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the agent space")
+	cmd.Flags().Bool(noElevatedFlag, false, "Do not turn on elevated actions on the agent space. Elevated actions let the agent change AWS resources")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
@@ -668,20 +671,21 @@ func askToken(cmd *cobra.Command, baseURI string) (string, error) {
 
 func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 	opts := awsdevops.SetupOptions{
-		AgentSpaceID:    mustString(cmd, agentSpaceIDFlag),
-		AgentSpaceName:  mustString(cmd, agentSpaceNameFlag),
-		AuthFlow:        strings.ToLower(mustString(cmd, authFlowFlag)),
-		AuthFlowSet:     cmd.Flags().Changed(authFlowFlag),
-		IdcInstanceARN:  mustString(cmd, idcInstanceARNFlag),
-		IssuerURL:       mustString(cmd, issuerURLFlag),
-		IdpClientID:     mustString(cmd, idpClientIDFlag),
-		IdpClientSecret: mustString(cmd, idpClientSecretFlag),
-		NewAgentSpace:   mustBool(cmd, newAgentSpaceFlag),
-		LDBaseURI:       viper.GetString(cliflags.BaseURIFlag),
-		LDAccessToken:   viper.GetString(cliflags.AccessTokenFlag),
-		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
-		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
-		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
+		AgentSpaceID:      mustString(cmd, agentSpaceIDFlag),
+		AgentSpaceName:    mustString(cmd, agentSpaceNameFlag),
+		AuthFlow:          strings.ToLower(mustString(cmd, authFlowFlag)),
+		AuthFlowSet:       cmd.Flags().Changed(authFlowFlag),
+		IdcInstanceARN:    mustString(cmd, idcInstanceARNFlag),
+		IssuerURL:         mustString(cmd, issuerURLFlag),
+		IdpClientID:       mustString(cmd, idpClientIDFlag),
+		IdpClientSecret:   mustString(cmd, idpClientSecretFlag),
+		NewAgentSpace:     mustBool(cmd, newAgentSpaceFlag),
+		NoElevatedActions: mustBool(cmd, noElevatedFlag),
+		LDBaseURI:         viper.GetString(cliflags.BaseURIFlag),
+		LDAccessToken:     viper.GetString(cliflags.AccessTokenFlag),
+		ReplaceMCPToken:   mustBool(cmd, replaceMCPTokenFlag),
+		MCPServiceID:      mustString(cmd, mcpServiceIDFlag),
+		MCPEndpoint:       mustString(cmd, mcpEndpointFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""

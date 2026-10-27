@@ -34,6 +34,10 @@ type fakeAgent struct {
 	tagsErrFor map[string]error
 	// createdTags holds the tags of the created space.
 	createdTags map[string]string
+	// createdPreferences holds the preferences of the created space.
+	createdPreferences map[string]bool
+	// updatedPreferences holds the preferences of each space update.
+	updatedPreferences []map[string]bool
 	// goneSpaces makes GetAgentSpace report not found.
 	goneSpaces      map[string]bool
 	getSpaceErr     error
@@ -108,6 +112,7 @@ func (f *fakeAgent) AssociateService(_ context.Context, in *devopsagent.Associat
 func (f *fakeAgent) CreateAgentSpace(_ context.Context, in *devopsagent.CreateAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.CreateAgentSpaceOutput, error) {
 	f.calls = append(f.calls, "CreateAgentSpace")
 	f.createdTags = in.Tags
+	f.createdPreferences = in.Preferences
 
 	return &devopsagent.CreateAgentSpaceOutput{
 		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1")},
@@ -180,16 +185,30 @@ func (f *fakeAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpa
 	}
 	name := "launchdarkly"
 	var description *string
+	var preferences map[string]bool
 	for _, space := range f.agentSpaces {
 		if aws.ToString(space.AgentSpaceId) == id && space.Name != nil {
 			name = aws.ToString(space.Name)
 			description = space.Description
+			preferences = space.Preferences
 		}
 	}
 
 	return &devopsagent.GetAgentSpaceOutput{
-		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId, Name: aws.String(name), Description: description},
+		AgentSpace: &agenttypes.AgentSpace{
+			AgentSpaceId: in.AgentSpaceId,
+			Name:         aws.String(name),
+			Description:  description,
+			Preferences:  preferences,
+		},
 	}, nil
+}
+
+func (f *fakeAgent) UpdateAgentSpace(_ context.Context, in *devopsagent.UpdateAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.UpdateAgentSpaceOutput, error) {
+	f.calls = append(f.calls, "UpdateAgentSpace")
+	f.updatedPreferences = append(f.updatedPreferences, in.Preferences)
+
+	return &devopsagent.UpdateAgentSpaceOutput{}, nil
 }
 
 func (f *fakeAgent) ListAgentSpaces(_ context.Context, in *devopsagent.ListAgentSpacesInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error) {
@@ -903,4 +922,96 @@ func TestMCPAssociationClassifiesTheSkillTools(t *testing.T) {
 	for _, tool := range []string{"get-flag", "list-experiments", "get-experiment-results", "query-change-history"} {
 		assert.Equal(t, agenttypes.ToolClassificationReadOnly, classes[tool], tool)
 	}
+}
+
+func TestSetupTurnsOnElevatedActionsOnANewSpace(t *testing.T) {
+	agent := &fakeAgent{}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+		LDAccessToken:  "api-token",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]bool{awsdevops.ElevatedActionsPreference: true}, agent.createdPreferences)
+	assert.NotContains(t, agent.calls, "UpdateAgentSpace")
+}
+
+func TestSetupTurnsOnElevatedActionsOnAReusedSpaceAndKeepsOtherPreferences(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
+		AgentSpaceId: aws.String("space-existing"),
+		Name:         aws.String("launchdarkly"),
+		Preferences:  map[string]bool{"otherPreference": true},
+	}}}
+	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly", AuthFlow: "iam"}
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+	require.NoError(t, err)
+	assert.Contains(t, plan.Text().AgentSpace, "turn on elevated actions")
+
+	_, err = awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), opts)
+	require.NoError(t, err)
+
+	assert.Equal(t, []map[string]bool{{
+		"otherPreference":                   true,
+		awsdevops.ElevatedActionsPreference: true,
+	}}, agent.updatedPreferences)
+}
+
+func TestSetupLeavesASpaceWithElevatedActionsUnchanged(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
+		AgentSpaceId: aws.String("space-existing"),
+		Name:         aws.String("launchdarkly"),
+		Preferences:  map[string]bool{awsdevops.ElevatedActionsPreference: true},
+	}}}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+	})
+	require.NoError(t, err)
+
+	assert.NotContains(t, agent.calls, "UpdateAgentSpace")
+}
+
+func TestSetupWithNoElevatedActionsKeepsThePreference(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
+		AgentSpaceId: aws.String("space-existing"),
+		Name:         aws.String("launchdarkly"),
+	}}}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName:    "launchdarkly",
+		AuthFlow:          "iam",
+		NoElevatedActions: true,
+	})
+	require.NoError(t, err)
+	assert.NotContains(t, agent.calls, "UpdateAgentSpace")
+
+	created := &fakeAgent{}
+	_, err = awsdevops.Setup(context.Background(), newTestClients(created, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName:    "fresh",
+		NewAgentSpace:     true,
+		AuthFlow:          "iam",
+		LDAccessToken:     "api-token",
+		NoElevatedActions: true,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, created.createdPreferences)
+}
+
+func TestPlanSetupConnectLeavesElevatedActionsUnchanged(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
+		AgentSpaceId: aws.String("space-existing"),
+		Name:         aws.String("launchdarkly"),
+	}}}
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID: "space-existing",
+	}, false)
+	require.NoError(t, err)
+
+	assert.False(t, plan.Space.EnableElevated)
+	assert.NotContains(t, plan.Text().AgentSpace, "elevated")
 }
