@@ -58,12 +58,14 @@ describe('dev server UI analytics', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Go' }));
 
     await waitFor(() => {
-      expect(
-        calls.some((call) => call.body?.includes('"page":"events"')),
-      ).toBe(true);
+      expect(calls.some((call) => call.body?.includes('"page":"events"'))).toBe(
+        true,
+      );
     });
 
-    const pageView = calls.find((call) => call.body?.includes('"page":"flags"'));
+    const pageView = calls.find((call) =>
+      call.body?.includes('"page":"flags"'),
+    );
     expect(pageView?.url).toContain('/ui-analytics');
     expect(pageView?.body).toContain('Dev Server UI Page Viewed');
     expect(pageView?.body).not.toContain('proj');
@@ -91,7 +93,9 @@ describe('dev server UI analytics', () => {
       );
     });
 
-    const putIndex = calls.findIndex((call) => call.url.includes('/overrides/'));
+    const putIndex = calls.findIndex((call) =>
+      call.url.includes('/overrides/'),
+    );
     const analyticsIndex = calls.findIndex((call) =>
       call.url.includes('/ui-analytics'),
     );
@@ -153,9 +157,9 @@ describe('dev server UI analytics', () => {
     fireEvent.click(screen.getByRole('switch'));
 
     await waitFor(() => {
-      expect(calls.some((call) => call.body?.includes('"outcome":"error"'))).toBe(
-        true,
-      );
+      expect(
+        calls.some((call) => call.body?.includes('"outcome":"error"')),
+      ).toBe(true);
     });
     expect(overrides['my-flag']).toBeUndefined();
   });
