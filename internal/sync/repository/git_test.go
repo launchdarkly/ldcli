@@ -11,7 +11,8 @@ func TestFindGitRepository(t *testing.T) {
 	git := &fakeGit{
 		path: "/usr/bin/git",
 		outputs: map[string]gitResult{
-			"rev-parse --show-toplevel": {output: "/tmp/example"},
+			"rev-parse --show-toplevel":      {output: "/tmp/example"},
+			"config --get remote.origin.url": {output: "git@github.com:launchdarkly/ldcli.git"},
 		},
 	}
 
@@ -20,21 +21,22 @@ func TestFindGitRepository(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, "/tmp/example", repository.Root)
+	require.Equal(t, "git@github.com:launchdarkly/ldcli.git", repository.Origin)
 }
 
-func TestFindGitRepositoryDoesNotRequireOrigin(t *testing.T) {
+func TestFindGitRepositoryRequiresOrigin(t *testing.T) {
 	git := &fakeGit{
 		path: "/usr/bin/git",
 		outputs: map[string]gitResult{
-			"rev-parse --show-toplevel": {output: "/tmp/local-only"},
+			"rev-parse --show-toplevel":      {output: "/tmp/local-only"},
+			"config --get remote.origin.url": {err: errors.New("exit status 1")},
 		},
 	}
 
-	repository, found, err := findGitRepository(git, "/tmp/local-only")
+	_, found, err := findGitRepository(git, "/tmp/local-only")
 
-	require.NoError(t, err)
-	require.True(t, found)
-	require.Equal(t, "/tmp/local-only", repository.Root)
+	require.False(t, found)
+	require.EqualError(t, err, "Git origin is not configured")
 }
 
 func TestFindGitRepositoryRequiresGitAndInitializedRepository(t *testing.T) {

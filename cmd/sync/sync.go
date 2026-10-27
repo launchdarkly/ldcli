@@ -9,6 +9,7 @@ import (
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
 // NewSyncCmd creates the parent command for synchronization workflows.
@@ -16,7 +17,15 @@ func NewSyncCmd(client resources.Client, analyticsTrackerFn analytics.TrackerFn)
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Synchronize local resources with LaunchDarkly",
-		Args:  cobra.MinimumNArgs(1),
+		Example: `  # Synchronize prompt variations, tools, and skills
+  ldcli sync all
+
+  # Preview every change
+  ldcli sync all --dry-run
+
+  # Synchronize only tools
+  ldcli sync tools`,
+		Args: cobra.MinimumNArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			tracker := analyticsTrackerFn(
 				viper.GetString(cliflags.AccessTokenFlag),
@@ -26,13 +35,30 @@ func NewSyncCmd(client resources.Client, analyticsTrackerFn analytics.TrackerFn)
 			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
 				cmd,
 				"sync",
-				map[string]interface{}{"action": cmd.Name()},
+				map[string]interface{}{"action": cmd.Name(), "scope": commandScope(cmd)},
 			))
 		},
 	}
 
-	cmd.AddCommand(NewPromptCmd(client))
+	cmd.AddCommand(
+		NewAllCmd(client),
+		NewPromptCmd(client),
+		newAttachmentScopeCmd(client, syncdomain.AttachmentTool),
+		newAttachmentScopeCmd(client, syncdomain.AttachmentSkill),
+	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
 	return cmd
+}
+
+// commandScope returns the scope of a sync command: all, prompts, tools, or
+// skills. The name of the command is add for every kind, so analytics needs
+// the scope too.
+func commandScope(cmd *cobra.Command) string {
+	for ; cmd.HasParent(); cmd = cmd.Parent() {
+		if cmd.Parent().Name() == "sync" {
+			return cmd.Name()
+		}
+	}
+	return ""
 }

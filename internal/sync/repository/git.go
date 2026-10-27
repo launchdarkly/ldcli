@@ -13,7 +13,8 @@ var ErrGitUnavailable = errors.New("git executable is unavailable")
 
 // GitRepository identifies a repository discovered through Git.
 type GitRepository struct {
-	Root string
+	Root   string
+	Origin string
 }
 
 type gitRunner interface {
@@ -32,9 +33,8 @@ func (execGit) lookPath(name string) (string, error) {
 func (execGit) output(dir string, args ...string) (string, string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	// Repository discovery recognizes Git's stable English "not a git
-	// repository" diagnostic. Fix the subprocess locale so classification does
-	// not change with the user's system language.
+	// Repository discovery looks for the English "not a git repository"
+	// message. A fixed locale keeps that message the same in every language.
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
 
 	out, err := cmd.Output()
@@ -72,5 +72,12 @@ func findGitRepository(git gitRunner, dir string) (GitRepository, bool, error) {
 		return GitRepository{}, false, fmt.Errorf("find Git repository: %w", err)
 	}
 
-	return GitRepository{Root: root}, true, nil
+	origin, stderr, err := git.output(root, "config", "--get", "remote.origin.url")
+	if err != nil {
+		if stderr == "" {
+			return GitRepository{}, false, errors.New("Git origin is not configured")
+		}
+		return GitRepository{}, false, fmt.Errorf("read Git origin: %s: %w", stderr, err)
+	}
+	return GitRepository{Root: root, Origin: origin}, true, nil
 }

@@ -1,0 +1,192 @@
+package awsdevops
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+)
+
+// AWSServiceID identifies the AWS account association.
+const AWSServiceID = awsServiceID
+
+// Status is a read-only view of what setup has provisioned so far.
+type Status struct {
+	AccountID    string             `json:"accountId"`
+	Region       string             `json:"region"`
+	Roles        []RoleStatus       `json:"roles"`
+	Services     []ServiceStatus    `json:"services,omitempty"`
+	AgentSpaces  []AgentSpaceStatus `json:"agentSpaces"`
+	MissingSetup []string           `json:"missingSetup,omitempty"`
+}
+
+type RoleStatus struct {
+	Name   string `json:"name"`
+	ARN    string `json:"arn,omitempty"`
+	Exists bool   `json:"exists"`
+}
+
+type ServiceStatus struct {
+	ServiceID   string `json:"serviceId"`
+	ServiceType string `json:"serviceType"`
+	Name        string `json:"name,omitempty"`
+}
+
+type AgentSpaceStatus struct {
+	AgentSpaceID   string `json:"agentSpaceId"`
+	Name           string `json:"name"`
+	OperatorAppURL string `json:"operatorAppUrl"`
+	// OperatorAppEnabled is false if the app is off. The URL is then empty.
+	OperatorAppEnabled bool `json:"operatorAppEnabled"`
+	// OperatorAppError is set if status could not read the app, for example
+	// without aidevops:GetOperatorApp. The state of the app is then unknown,
+	// and OperatorAppEnabled is false.
+	OperatorAppError string              `json:"operatorAppError,omitempty"`
+	Associations     []AssociationStatus `json:"associations,omitempty"`
+}
+
+type AssociationStatus struct {
+	AssociationID string `json:"associationId"`
+	ServiceID     string `json:"serviceId"`
+	Status        string `json:"status,omitempty"`
+	// AccountID and AccountType are set for an AWS account association.
+	// AccountType is "monitor" for the account of the agent space, and
+	// "source" for another account that the agent space can read.
+	AccountID   string `json:"accountId,omitempty"`
+	AccountType string `json:"accountType,omitempty"`
+	// Tools is set for an MCP server association. AWS does not validate an
+	// MCP server association, so Status is empty for it.
+	Tools []string `json:"tools,omitempty"`
+}
+
+// GetStatus reports the IAM roles and agent spaces in the caller's account. It
+// inspects one agent space when agentSpaceID is set, and every space otherwise.
+func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Status, error) {
+	accountID, err := clients.AccountID(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+
+	status := Status{AccountID: accountID, Region: clients.Region}
+	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
+		role, err := clients.IAM.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
+		if err != nil {
+			status.Roles = append(status.Roles, RoleStatus{Name: name})
+			status.MissingSetup = append(status.MissingSetup, fmt.Sprintf("IAM role %s does not exist", name))
+
+			continue
+		}
+		status.Roles = append(status.Roles, RoleStatus{
+			Name:   name,
+			ARN:    aws.ToString(role.Role.Arn),
+			Exists: true,
+		})
+	}
+
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return status, err
+	}
+	for _, service := range services {
+		status.Services = append(status.Services, ServiceStatus{
+			ServiceID:   aws.ToString(service.ServiceId),
+			ServiceType: string(service.ServiceType),
+			Name:        serviceName(service),
+		})
+	}
+
+	spaceIDs := []string{agentSpaceID}
+	if agentSpaceID == "" {
+		spaces, err := listAgentSpaces(ctx, clients)
+		if err != nil {
+			return status, err
+		}
+		spaceIDs = nil
+		for _, space := range spaces {
+			spaceIDs = append(spaceIDs, aws.ToString(space.AgentSpaceId))
+		}
+	}
+
+	for _, id := range spaceIDs {
+		space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
+		if err != nil {
+			return status, fmt.Errorf("unable to read agent space %s: %w", id, err)
+		}
+		spaceStatus := AgentSpaceStatus{
+			AgentSpaceID: id,
+			Name:         aws.ToString(space.AgentSpace.Name),
+		}
+		// status is a read command. If it cannot read the app, it reports the
+		// app as unknown and shows the rest of the space.
+		app, err := appState(ctx, clients, id)
+		switch {
+		case err != nil:
+			spaceStatus.OperatorAppError = errorCode(err)
+		case app.Flow != "":
+			spaceStatus.OperatorAppEnabled = true
+			spaceStatus.OperatorAppURL = app.URL
+			if spaceStatus.OperatorAppURL == "" {
+				spaceStatus.OperatorAppURL = OperatorAppURL(id)
+			}
+		}
+
+		associations, err := listAssociations(ctx, clients, id)
+		if err != nil {
+			return status, err
+		}
+		for _, association := range associations {
+			accountID, accountType := associationAccount(association.Configuration)
+			spaceStatus.Associations = append(spaceStatus.Associations, AssociationStatus{
+				AssociationID: aws.ToString(association.AssociationId),
+				ServiceID:     aws.ToString(association.ServiceId),
+				Status:        string(association.Status),
+				AccountID:     accountID,
+				AccountType:   accountType,
+				Tools:         associationTools(association.Configuration),
+			})
+		}
+
+		status.AgentSpaces = append(status.AgentSpaces, spaceStatus)
+	}
+
+	return status, nil
+}
+
+// associationAccount returns the AWS account of an association. Each AWS
+// account association has the service ID "aws", so only the configuration
+// tells the accounts apart.
+func associationAccount(configuration agenttypes.ServiceConfiguration) (accountID, accountType string) {
+	switch c := configuration.(type) {
+	case *agenttypes.ServiceConfigurationMemberAws:
+		return aws.ToString(c.Value.AccountId), string(c.Value.AccountType)
+	case *agenttypes.ServiceConfigurationMemberSourceAws:
+		return aws.ToString(c.Value.AccountId), string(c.Value.AccountType)
+	}
+
+	return "", ""
+}
+
+// associationTools returns the MCP tools of an MCP server association, such
+// as the LaunchDarkly MCP server.
+func associationTools(configuration agenttypes.ServiceConfiguration) []string {
+	if c, ok := configuration.(*agenttypes.ServiceConfigurationMemberMcpserver); ok {
+		return c.Value.Tools
+	}
+
+	return nil
+}
+
+// errorCode gives the AWS error code, for example AccessDeniedException, or
+// the error text if the error has no code.
+func errorCode(err error) string {
+	var api interface{ ErrorCode() string }
+	if errors.As(err, &api) && api.ErrorCode() != "" {
+		return api.ErrorCode()
+	}
+
+	return err.Error()
+}

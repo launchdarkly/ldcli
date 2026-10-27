@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 )
 
 type notifyingWriter struct {
@@ -42,7 +44,7 @@ func TestConfirmApply(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var prompt bytes.Buffer
-			confirmed, err := confirmApply(strings.NewReader(test.input), &prompt, test.terminal)
+			confirmed, err := syncinteractive.Confirm(context.Background(), strings.NewReader(test.input), &prompt, test.terminal, applyQuestion)
 
 			assert.Equal(t, test.confirmed, confirmed)
 			if test.wantError != "" {
@@ -69,9 +71,9 @@ func TestReviewAndConfirmPlanStopsWhenWatchContextIsCanceled(t *testing.T) {
 	}, 1)
 	go func() {
 		confirmed, err := reviewAndConfirmPlan(Options{
-			Watch: true, Context: ctx, Input: input, ErrorOutput: output,
+			Action: SyncAction{Watch: true}, Context: ctx, Input: input, ErrorOutput: output,
 		}, Plan{Resources: []PlannedResource{{
-			ID: testResourceID(), Action: ActionArchiveServer,
+			ID: testResourceID(), Action: ActionDeleteLocal,
 		}}}, true)
 		results <- struct {
 			confirmed bool
@@ -103,13 +105,57 @@ func TestReviewAndConfirmPlanRejectsConfirmationWhenWatchContextIsAlreadyCancele
 	cancel()
 
 	confirmed, err := reviewAndConfirmPlan(Options{
-		Watch: true, Context: ctx, Input: strings.NewReader("yes\n"), ErrorOutput: io.Discard,
+		Action: SyncAction{Watch: true}, Context: ctx, Input: strings.NewReader("yes\n"), ErrorOutput: io.Discard,
 	}, Plan{Resources: []PlannedResource{{
-		ID: testResourceID(), Action: ActionArchiveServer,
+		ID: testResourceID(), Action: ActionDeleteLocal,
 	}}}, true)
 
 	require.False(t, confirmed)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestReviewAndConfirmPlanShowsPlanOnlyWhenNeeded(t *testing.T) {
+	tests := []struct {
+		name         string
+		action       Action
+		yes          bool
+		input        string
+		wantContinue bool
+		wantError    string
+		wantReview   string
+	}{
+		{name: "yes applies without the plan", action: ActionUpdateServer, yes: true, wantContinue: true},
+		{name: "a manifest-only plan applies without the plan", action: ActionUpdateManifest, wantContinue: true},
+		{
+			name: "a question shows the plan first", action: ActionUpdateServer, input: "yes\n", wantContinue: true,
+			wantReview: "1 change: 1 prompt push.\n\nPrompts\n  push   production/support/default   changed\n\nSync these changes? [y/N] ",
+		},
+		{
+			name: "a blocking row shows the plan", action: ActionError, yes: true,
+			wantError:  "cannot sync variation production/support/default: broken",
+			wantReview: "1 error.\n\nPrompts\n  error   production/support/default   broken\n",
+		},
+		{name: "a plan without changes shows its summary", action: ActionInSync, wantReview: "No changes. 1 in sync.\n"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			plan := Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: test.action, Error: "broken"}}}
+
+			continued, err := reviewAndConfirmPlan(Options{
+				Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
+			}, plan, true)
+
+			assert.Equal(t, test.wantContinue, continued)
+			if test.wantError != "" {
+				require.EqualError(t, err, test.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, test.wantReview, output.String())
+		})
+	}
 }
 
 func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
@@ -125,7 +171,7 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 	}{
 		{name: "updates apply automatically", action: ActionUpdateServer, wantContinue: true},
 		{
-			name: "server archive requires confirmation", action: ActionArchiveServer, input: "yes\n",
+			name: "local deletion requires confirmation", action: ActionDeleteLocal, input: "yes\n",
 			interactive: true, wantContinue: true, wantPrompt: true,
 		},
 		{
@@ -133,11 +179,11 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 			interactive: true, wantPrompt: true,
 		},
 		{
-			name: "non-terminal destructive action is rejected", action: ActionArchiveServer,
+			name: "non-terminal destructive action is rejected", action: ActionDeleteLocal,
 			wantError: "rerun with --yes",
 		},
 		{
-			name: "explicit yes applies destructive action", action: ActionArchiveServer,
+			name: "explicit yes applies destructive action", action: ActionDeleteLocal,
 			yes: true, wantContinue: true,
 		},
 	}
@@ -147,7 +193,7 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 			var output bytes.Buffer
 			plan := Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: test.action}}}
 			continued, err := reviewAndConfirmPlan(Options{
-				Watch: true, Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
+				Action: SyncAction{Watch: true}, Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
 			}, plan, test.interactive)
 
 			assert.Equal(t, test.wantContinue, continued)

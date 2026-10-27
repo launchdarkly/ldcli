@@ -1,7 +1,6 @@
 package local
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,12 +9,35 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-func TestIsVariationFile(t *testing.T) {
-	assert.True(t, isVariationFile("my-config/my-variation.prompt.md"))
-	assert.False(t, isVariationFile("my-variation.prompt.md"))
-	assert.False(t, isVariationFile("my-config/nested/my-variation.prompt.md"))
-	assert.False(t, isVariationFile("my-config/my-variation.prompt"))
-	assert.False(t, isVariationFile("my-config/my-variation.md"))
+func TestParseManagedPath(t *testing.T) {
+	valid := map[string]syncdomain.ResourceID{
+		".launchdarkly/project/configs/config/variation.prompt.md": syncdomain.VariationID("project", "config", "variation"),
+		".launchdarkly/project/tools/search.json": {
+			Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search",
+		},
+		".launchdarkly/project/skills/support.md": {
+			Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "support",
+		},
+	}
+	for file, expected := range valid {
+		id, ok := ParseManagedPath(file)
+		assert.True(t, ok, file)
+		assert.Equal(t, expected, id, file)
+	}
+
+	for _, file := range []string{
+		".launchdarkly/project/configs/variation.prompt.md",
+		".launchdarkly/project/configs/config/nested/variation.prompt.md",
+		".launchdarkly/project/configs/config/variation.prompt",
+		".launchdarkly/project/configs/config/.prompt.md",
+		".launchdarkly/project/tools/search.md",
+		".launchdarkly/project/tools/nested/search.json",
+		"other/project/configs/config/variation.prompt.md",
+		".launchdarkly/manifest.json",
+	} {
+		_, ok := ParseManagedPath(file)
+		assert.False(t, ok, file)
+	}
 }
 
 func TestParseVariation_UntaggedBodyIsSystemMessage(t *testing.T) {
@@ -36,8 +58,7 @@ Just say hello.
 	resource, err := parseVariation(file)
 	require.NoError(t, err)
 
-	var payload syncdomain.Variation
-	require.NoError(t, unmarshalPayload(resource, &payload))
+	payload := resource.Variation
 	require.Equal(
 		t,
 		[]syncdomain.Message{{Role: "system", Content: "Just say hello."}},
@@ -65,8 +86,7 @@ Use the available capabilities.
 	resource, err := parseVariation(file)
 	require.NoError(t, err)
 
-	var payload syncdomain.Variation
-	require.NoError(t, unmarshalPayload(resource, &payload))
+	payload := resource.Variation
 	assert.Equal(
 		t,
 		"Use the available capabilities.\n\n<system>This tag is part of the instructions.</system>",
@@ -91,8 +111,7 @@ func TestParseVariation_ParsesBOMAndCRLF(t *testing.T) {
 	resource, err := parseVariation(file)
 	require.NoError(t, err)
 
-	var payload syncdomain.Variation
-	require.NoError(t, unmarshalPayload(resource, &payload))
+	payload := resource.Variation
 	require.Equal(
 		t,
 		[]syncdomain.Message{{Role: "system", Content: "Just say hello."}},
@@ -249,8 +268,4 @@ description: Variation description
 
 	_, err := parseVariation(file)
 	require.ErrorContains(t, err, "invalid front matter")
-}
-
-func unmarshalPayload(resource syncdomain.SyncedResource, destination any) error {
-	return json.Unmarshal(resource.Payload, destination)
 }
