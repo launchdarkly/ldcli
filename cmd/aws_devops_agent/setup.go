@@ -498,6 +498,7 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	_, _ = fmt.Fprintf(out, "  Region:        %s\n", plan.Region)
 	_, _ = fmt.Fprintf(out, "  AWS profile:   %s\n", profileLabel(cmd))
 	text := plan.Text()
+	_, _ = fmt.Fprintf(out, "  Setup:         %s\n", text.Scope)
 	for _, role := range text.Roles {
 		_, _ = fmt.Fprintf(out, "  IAM role:      %s\n", role)
 	}

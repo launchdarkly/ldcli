@@ -375,6 +375,7 @@ func TestSetupChosenSpaceWithFullSetup(t *testing.T) {
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
 	assert.Contains(t, out.String(), "Reuse agent space LaunchDarkly (space-2)")
+	assert.Contains(t, out.String(), "Setup:         Full setup")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
 	assert.Contains(t, out.String(), "Reused agent space LaunchDarkly (space-2)")
@@ -406,6 +407,8 @@ func TestSetupChosenSpaceWithoutFullSetupConnects(t *testing.T) {
 	assert.NotContains(t, w.calls, "CreateRole")
 	assert.Contains(t, stderrOf(cmd), "Using agent space LaunchDarkly (space-2)")
 	assert.Contains(t, stderrOf(cmd), "No change. The operator app is off")
+	assert.Contains(t, stderrOf(cmd), "Setup:         Connect the MCP server only.")
+	assert.Contains(t, stderrOf(cmd), "run setup again with --full-setup")
 	assert.Contains(t, stdoutOf(cmd), "The operator app of agent space space-2 is off")
 	assert.Contains(t, stdoutOf(cmd), "use the AWS console")
 	assert.NotContains(t, stdoutOf(cmd), "--full-setup")
