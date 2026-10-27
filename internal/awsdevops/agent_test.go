@@ -367,3 +367,15 @@ func TestStatusReportsUnreadableAssets(t *testing.T) {
 	assert.Equal(t, "AccessDeniedException", status.AgentSpaces[0].Skill.Error)
 	assert.Equal(t, "AccessDeniedException", status.AgentSpaces[0].Agent.Error)
 }
+
+// Setup registers one OAuth server for the account, so the agent's tools start
+// with the name of that server.
+func TestPlanSetupNamesAgentToolsAfterANewServer(t *testing.T) {
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+	}, true)
+	require.NoError(t, err)
+
+	assert.Contains(t, plan.Text().Agent, "the MCP tools of server "+awsdevops.MCPOAuthServerName)
+}

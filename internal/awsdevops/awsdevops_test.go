@@ -362,6 +362,13 @@ func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterS
 		return f.registerOutput, nil
 	}
 
+	// AWS lists the new server, so a later step can read its name.
+	name := aws.ToString(in.Name)
+	if details, ok := in.ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver); ok && details.Value.Name != nil {
+		name = aws.ToString(details.Value.Name)
+	}
+	f.services = append(f.services, mcpService("mcp-1", name, awsdevops.MCPServerEndpoint))
+
 	return &devopsagent.RegisterServiceOutput{ServiceId: aws.String("mcp-1")}, nil
 }
 
@@ -505,11 +512,12 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 		// The plan and the first check look only for the server of the
 		// account, because a new space has no server. The check before the
 		// MCP step also looks for the server of the space, which exists by
-		// then. The skill and the custom agent are last.
+		// then. The skill and the custom agent are last. The custom agent
+		// step reads the name of the server.
 		[]string{
 			"ListServices", "ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp",
 			"ListServices", "ListServices", "RegisterService", "AssociateService",
-			"ListAssets", "CreateAsset", "ListAssets", "CreateAsset",
+			"ListAssets", "CreateAsset", "ListServices", "ListAssets", "CreateAsset",
 		},
 		agent.calls,
 	)
