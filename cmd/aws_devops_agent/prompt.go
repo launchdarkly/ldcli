@@ -53,6 +53,21 @@ func nextLine(in io.Reader) (string, error) {
 	}
 }
 
+// readYes reads the answer to a [Y/n] question. An empty line is a yes, so
+// Enter accepts. The end of the input is a no.
+func readYes(in io.Reader) bool {
+	line, err := nextLine(in)
+	if err != nil && line == "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "", "y", "yes":
+		return true
+	}
+
+	return false
+}
+
 // readSecret reads one line without echoing it, so a pasted credential stays
 // off the screen.
 func readSecret(in io.Reader) string {

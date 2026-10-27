@@ -29,9 +29,17 @@ type toolMutationRequest struct {
 	Tags             []string       `json:"tags"`
 }
 
+// skillMutationRequest updates a skill. It has no name, because LaunchDarkly
+// owns the name of a skill after it creates the skill.
 type skillMutationRequest struct {
 	Description string `json:"description"`
 	Markdown    string `json:"markdown"`
+}
+
+type skillCreateRequest struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+	skillMutationRequest
 }
 
 // SearchAttachments returns one page of the latest tools or skills that match query.
@@ -100,11 +108,8 @@ func (client Client) ReadAttachment(projectKey string, kind syncdomain.Attachmen
 	return attachment, nil
 }
 
-// CreateAttachment creates the first version of a tool. Sync cannot create a skill.
+// CreateAttachment creates the first version of a tool or a skill.
 func (client Client) CreateAttachment(projectKey string, attachment syncdomain.Attachment) error {
-	if attachment.Kind != syncdomain.AttachmentTool {
-		return fmt.Errorf("creating %ss is not supported", attachment.Kind)
-	}
 	return client.mutateAttachment(projectKey, attachment, true)
 }
 
@@ -135,7 +140,11 @@ func (client Client) mutateAttachment(projectKey string, attachment syncdomain.A
 		}
 		request.body = body
 	case attachment.Kind == syncdomain.AttachmentSkill && attachment.Skill != nil:
-		request.body = skillMutationRequest{Description: attachment.Skill.Description, Markdown: attachment.Skill.Markdown}
+		body := skillMutationRequest{Description: attachment.Skill.Description, Markdown: attachment.Skill.Markdown}
+		request.body = body
+		if create {
+			request.body = skillCreateRequest{Key: attachment.Key(), Name: attachment.Skill.CreateName(), skillMutationRequest: body}
+		}
 	default:
 		return fmt.Errorf("%s %q has no content", attachment.Kind, attachment.Key())
 	}

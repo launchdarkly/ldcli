@@ -87,6 +87,69 @@ func TestRunRequiresTerminal(t *testing.T) {
 	)
 }
 
+func TestRunNamesTheMissingTargetFlagsWithoutInput(t *testing.T) {
+	tests := map[string]struct {
+		projectKey, configKey string
+		want                  string
+	}{
+		"no flags":           {want: "--project, --config-key, and --key are required with --no-input"},
+		"project":            {projectKey: "project", want: "--config-key and --key are required with --no-input"},
+		"project and config": {projectKey: "project", configKey: "config", want: "--key values are required with --no-input"},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := Run(Options{
+				Catalog: &fakeCatalog{}, Store: synclocal.NewStore(t.TempDir()),
+				Input: bytes.NewBuffer(nil), Output: bytes.NewBuffer(nil),
+				ProjectKey: test.projectKey, ConfigKey: test.configKey, NoInput: true,
+			})
+
+			require.EqualError(t, err, test.want)
+		})
+	}
+}
+
+func TestPromptForVariationsSkipsTheQuestionsThatFlagsAnswer(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	variation := syncdomain.Variation{Key: "variation", Name: "Variation", Mode: syncdomain.VariationModeAgent, Instructions: "Be helpful."}
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
+	require.NoError(t, err)
+	catalog := &noSearchCatalog{config: syncapi.Config{
+		Key: "config", Mode: syncdomain.VariationModeAgent, Variations: []syncdomain.Variation{variation},
+	}}
+
+	files, canceled, err := promptForVariations(Options{
+		Catalog: catalog, Store: store, Input: bytes.NewBuffer(nil), Output: bytes.NewBuffer(nil),
+		ProjectKey: "project", ConfigKey: "config",
+	})
+
+	require.NoError(t, err)
+	assert.False(t, canceled)
+	assert.Empty(t, files, "every variation of the config is already synced")
+}
+
+// noSearchCatalog fails when a question searches projects or configs.
+type noSearchCatalog struct {
+	config syncapi.Config
+}
+
+func (*noSearchCatalog) SearchProjects(string, int, int) (syncapi.Page[syncapi.Project], error) {
+	return syncapi.Page[syncapi.Project]{}, errors.New("asked for the project")
+}
+
+func (*noSearchCatalog) SearchConfigs(string, string, []syncdomain.VariationMode, int, int) (syncapi.Page[syncapi.Config], error) {
+	return syncapi.Page[syncapi.Config]{}, errors.New("asked for the config")
+}
+
+func (catalog *noSearchCatalog) Config(projectKey, configKey string) (syncapi.Config, error) {
+	if projectKey != "project" || configKey != catalog.config.Key {
+		return syncapi.Config{}, errors.New("read the wrong config")
+	}
+	return catalog.config, nil
+}
+
 func TestRunUsesExplicitVariationSelectorsWithoutTerminal(t *testing.T) {
 	root := t.TempDir()
 	var output bytes.Buffer
@@ -111,7 +174,7 @@ func TestRunUsesExplicitVariationSelectorsWithoutTerminal(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Contains(t, output.String(), "Would create: .launchdarkly/project/configs/config/variation.prompt.md")
+	assert.Contains(t, output.String(), "  .launchdarkly/project/configs/config/variation.prompt.md   +9")
 }
 
 func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
@@ -138,20 +201,8 @@ func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		`============================================================
-File 1 of 1
-Would create: .launchdarkly/project/configs/config/variation.prompt.md
-------------------------------------------------------------
----
-formatVersion: 1
-upsert: true
-mode: agent
-key: variation
-name: Variation
----
-
-Be helpful.
-============================================================
+		`1 file to create:
+  .launchdarkly/project/configs/config/variation.prompt.md   +9
 `,
 		output.String(),
 	)
@@ -372,6 +423,7 @@ func TestWriteSummary(t *testing.T) {
 		&output,
 		true,
 		2,
+		"variation",
 	)
 	assert.Equal(
 		t,
@@ -384,32 +436,32 @@ func TestWriteSummary(t *testing.T) {
 	assert.Contains(t, output.String(), "No variations added")
 }
 
-func TestWritePreviewsPrintsEveryFile(t *testing.T) {
-	var output bytes.Buffer
+func TestWritePreviewsListsEveryFileWithItsSize(t *testing.T) {
+	previews := []synclocal.RenderedFile{
+		{Path: "project/tools/search.json", Content: []byte("{\n}")},
+		{Path: "project/configs/config/first.prompt.md", Content: []byte("---\nkey: first\n---\n\nfirst\n")},
+	}
 
-	writePreviews(&output, []synclocal.RenderedFile{
-		{Path: "project/configs/config/first.prompt.md", Content: []byte("first\n")},
-		{Path: "project/configs/config/second.prompt.md", Content: []byte("second\n")},
-	})
+	var list, content bytes.Buffer
+	writePreviews(&list, previews, false)
+	writePreviews(&content, previews, true)
 
-	assert.Equal(
-		t,
-		`============================================================
-File 1 of 2
-Would create: .launchdarkly/project/configs/config/first.prompt.md
-------------------------------------------------------------
-first
-============================================================
+	assert.Equal(t, `2 files to create:
+  .launchdarkly/project/tools/search.json                +2
+  .launchdarkly/project/configs/config/first.prompt.md   +5
+`, list.String())
+	assert.Equal(t, list.String()+`
+.launchdarkly/project/tools/search.json
+    {
+    }
 
-============================================================
-File 2 of 2
-Would create: .launchdarkly/project/configs/config/second.prompt.md
-------------------------------------------------------------
-second
-============================================================
-`,
-		output.String(),
-	)
+.launchdarkly/project/configs/config/first.prompt.md
+    ---
+    key: first
+    ---
+
+    first
+`, content.String())
 }
 
 type fakeCatalog struct {

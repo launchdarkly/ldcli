@@ -86,6 +86,15 @@ func (variation Variation) Validate() error {
 		return errors.New("skills can only be attached to agent-mode configs")
 	}
 
+	// LaunchDarkly drops a value of these keys that is not an object.
+	for _, key := range []string{"parameters", "custom"} {
+		if value, ok := variation.Model[key]; ok {
+			if _, isObject := value.(map[string]any); !isObject {
+				return fmt.Errorf("model.%s must be an object", key)
+			}
+		}
+	}
+
 	for _, kind := range AttachmentKinds {
 		seen := make(map[string]struct{})
 		for _, ref := range variation.Refs(kind) {

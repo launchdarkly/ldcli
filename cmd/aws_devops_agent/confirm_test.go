@@ -166,7 +166,7 @@ func TestSetupJSONInATerminalAsks(t *testing.T) {
 	err := setupWith(cmd, clients, newSpaceOptions(), false, true)
 
 	require.Error(t, err)
-	assert.Contains(t, out.String(), "Continue? [y/N]")
+	assert.Contains(t, out.String(), "Continue? [Y/n]")
 	assert.Empty(t, w.calls)
 	assert.Empty(t, stdoutOf(cmd))
 }
@@ -176,7 +176,6 @@ func TestSetupStopsUnlessTheAnswerIsYes(t *testing.T) {
 		"near miss ye":   "ye\n",
 		"near miss yess": "yess\n",
 		"no":             "n\n",
-		"empty answer":   "\n",
 		"end of input":   "",
 		"yes with words": "yes please\n",
 	} {
@@ -200,6 +199,7 @@ func TestSetupContinuesOnYes(t *testing.T) {
 		"mixed yes":     "YeS\n",
 		"padded yes":    "  yes  \n",
 		"no final line": "y",
+		"empty answer":  "\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			cmd, _ := setupTestCmd(t, answer)
@@ -251,7 +251,7 @@ func TestSetupPlanNamesWhereANewSpaceGoes(t *testing.T) {
 	assert.Contains(t, out.String(), "eu-west-2")
 	assert.Contains(t, out.String(), "staging-admin")
 	assert.Contains(t, out.String(), "ld-devops-agent")
-	assert.Contains(t, out.String(), "Continue? [y/N]")
+	assert.Contains(t, out.String(), "Continue? [Y/n]")
 }
 
 func TestSetupPlanSaysDefaultCredentialsWithoutAProfile(t *testing.T) {
@@ -330,7 +330,7 @@ func TestSetupPromptsGoToStderr(t *testing.T) {
 
 	_ = setupWith(cmd, clients, newSpaceOptions(), true, true)
 
-	assert.Contains(t, stderrOf(cmd), "Which one should LaunchDarkly connect to?")
-	assert.Contains(t, stderrOf(cmd), "Continue? [y/N]")
+	assert.Contains(t, stderrOf(cmd), "Which agent space should LaunchDarkly connect to?")
+	assert.Contains(t, stderrOf(cmd), "Continue? [Y/n]")
 	assert.Empty(t, stdoutOf(cmd))
 }

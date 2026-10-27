@@ -38,12 +38,22 @@ type Tool struct {
 }
 
 // Skill is one Markdown file and its catalog metadata. Sync owns Key,
-// Description, and Markdown. LaunchDarkly owns Name.
+// Description, and Markdown. LaunchDarkly owns Name. A local skill file can
+// set Name, and sync sends it only when it creates the skill.
 type Skill struct {
 	Key         string `json:"key"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Markdown    string `json:"markdown"`
+}
+
+// CreateName returns the name of a new skill: the name in the skill file, or a
+// name made from the key.
+func (skill Skill) CreateName() string {
+	if skill.Name != "" {
+		return skill.Name
+	}
+	return DisplayName(skill.Key)
 }
 
 // Attachment is the content of one tool or one skill, with the latest version
@@ -53,7 +63,8 @@ type Skill struct {
 type Attachment struct {
 	Kind    AttachmentKind
 	Version int
-	// Upsert lets sync create the tool in LaunchDarkly when it is absent.
+	// Upsert lets sync create the tool or the skill in LaunchDarkly when it
+	// is absent.
 	Upsert bool
 	Tool   *Tool
 	Skill  *Skill
@@ -74,6 +85,17 @@ func (attachment Attachment) Key() string {
 // ID returns the manifest identity of the attachment in one project.
 func (attachment Attachment) ID(projectKey string) ResourceID {
 	return ResourceID{Kind: Kind(attachment.Kind), ProjectKey: projectKey, LookupKey: attachment.Key()}
+}
+
+// SyncedAttachment is one tool or skill file of the local workspace.
+type SyncedAttachment struct {
+	ProjectKey string
+	Attachment Attachment
+}
+
+// ID returns the identity of the tool or the skill.
+func (attachment SyncedAttachment) ID() ResourceID {
+	return attachment.Attachment.ID(attachment.ProjectKey)
 }
 
 // CanonicalAttachment removes the runtime version, local-only flags, and

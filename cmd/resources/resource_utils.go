@@ -105,7 +105,7 @@ func replaceMethodWithCmdUse(operationId string) string {
 
 func removeResourceFromOperationId(resourceName, operationId string) string {
 	// strip the Beta tag from the resource name to properly remove it from the operation ID
-	resourceName = strings.TrimRight(resourceName, "Beta")
+	resourceName = strings.TrimSuffix(resourceName, "Beta")
 
 	// operations use both singular (Team) and plural (Teams) resource names, whereas resource names are (usually) plural
 	singularResourceName := strings.TrimRight(resourceName, "s")

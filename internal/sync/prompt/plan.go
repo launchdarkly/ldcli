@@ -1,7 +1,9 @@
 package prompt
 
 import (
+	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -45,7 +47,8 @@ type ServerResource struct {
 }
 
 // PlannedResource is the local and the server state of one resource, and the
-// action that reconciles them.
+// action that reconciles them. A variation row has Local and Server. A tool or
+// skill row has LocalAttachment and ServerAttachment. A nil side does not exist.
 type PlannedResource struct {
 	ID                  ResourceID
 	Action              Action
@@ -56,6 +59,8 @@ type PlannedResource struct {
 	ServerMode          syncdomain.VariationMode
 	Local               *syncdomain.Variation
 	Server              *syncdomain.Variation
+	LocalAttachment     *syncdomain.Attachment
+	ServerAttachment    *syncdomain.Attachment
 	// SyncedElsewhere is true when another working copy synced the resource
 	// after this working copy wrote its sync.lock file. The plan is still
 	// correct, because it compares against this working copy's lock.
@@ -68,13 +73,67 @@ type PlannedResource struct {
 	// changedAttachments are the tools and skills whose content differs
 	// between the local file and LaunchDarkly.
 	changedAttachments []ResourceID
+	// conflictUses are the conflicted variations that newly use the tool or
+	// skill of this row on one side, when no push or pull needs the row.
+	conflictUses []conflictUse
+	// usedBy are the local variations that use the tool or skill of this row.
+	usedBy []ResourceID
+	// nameSource is where the name of a local skill comes from: a name in its
+	// file, its key, or a flag of the add that creates it.
+	nameSource string
 	// restoreRef is the link that a restored variation file keeps.
 	restoreRef *syncdomain.Reference
+}
+
+// The sources of the name of a skill that sync creates.
+const (
+	nameFromFlag        = "flag"
+	nameFromFrontMatter = "frontMatter"
+	nameFromKey         = "key"
+)
+
+// hasLocal reports whether the resource has a local file.
+func (resource PlannedResource) hasLocal() bool {
+	return resource.Local != nil || resource.LocalAttachment != nil
+}
+
+// hasServer reports whether LaunchDarkly has the resource.
+func (resource PlannedResource) hasServer() bool {
+	return resource.Server != nil || resource.ServerAttachment != nil
+}
+
+// writtenSides returns the variation that a variation row writes, and the
+// variation that it replaces. Both are nil for a row that writes none.
+func (resource PlannedResource) writtenSides() (source, target *syncdomain.Variation) {
+	switch {
+	case resource.ID.Kind != syncdomain.KindVariation:
+		return nil, nil
+	case resource.Action.changesServer():
+		return resource.Local, resource.Server
+	case resource.Action == ActionUpdateLocal:
+		return resource.Server, resource.Local
+	default:
+		return nil, nil
+	}
+}
+
+// conflictUse is a conflicted variation that newly uses a tool or skill on one
+// side. local is true when that side is the local file.
+type conflictUse struct {
+	variation ResourceID
+	local     bool
 }
 
 // Plan is the sync decision for each resource, in identity order.
 type Plan struct {
 	Resources []PlannedResource
+	// Scope is the resource kinds that the plan covers. The empty scope is
+	// prompt variations.
+	Scope syncdomain.Scope
+	// standalone counts the tool and skill files, by kind, that no local
+	// variation uses. Only a prompts plan counts them, because it leaves them
+	// out.
+	standalone map[syncdomain.Kind]int
 }
 
 // BuildPlan compares the baseline with the local and the server state. The
@@ -154,6 +213,10 @@ func planResource(
 	if resource.Action == ActionError {
 		resource.Error = "variation does not exist in LaunchDarkly; set upsert: true to create it"
 	}
+	if resource.Action == ActionCreateServer {
+		_, variationKey, _ := id.VariationKeys()
+		rejectInvalidCreate(&resource, syncdomain.ValidateCreate(id.Kind, variationKey, local.Variation.Name, ""))
+	}
 	// The fingerprints do not include versions. If LaunchDarkly pins an older
 	// attachment version, sync updates the pin even when the content matches.
 	currentPins, latestPins, stalePins := attachmentPinDiff(resource.Server)
@@ -177,11 +240,134 @@ func planResource(
 	return resource
 }
 
+// planAttachments plans one row for each tool and skill that has a local file
+// or an entry in the baseline. server must have an entry for each of them,
+// which is nil when LaunchDarkly does not have the attachment.
+func planAttachments(
+	baseline syncmanifest.Manifest,
+	local []syncdomain.SyncedAttachment,
+	server map[ResourceID]*syncdomain.Attachment,
+) []PlannedResource {
+	localByID := make(map[ResourceID]*syncdomain.Attachment, len(local))
+	for index := range local {
+		localByID[local[index].ID()] = &local[index].Attachment
+	}
+	baselineByID := make(map[ResourceID]string, len(baseline.Resources))
+	for _, resource := range baseline.Resources {
+		if resource.ResourceKind != syncdomain.KindVariation {
+			baselineByID[resource.ID()] = resource.Fingerprint
+		}
+	}
+
+	ids := slices.Collect(maps.Keys(localByID))
+	for id := range baselineByID {
+		if _, isLocal := localByID[id]; !isLocal {
+			ids = append(ids, id)
+		}
+	}
+	slices.SortFunc(ids, syncdomain.CompareResourceIDs)
+
+	resources := make([]PlannedResource, 0, len(ids))
+	for _, id := range ids {
+		baselineFingerprint, tracked := baselineByID[id]
+		resources = append(resources, planAttachment(id, localByID[id], server[id], baselineFingerprint, tracked))
+	}
+	return resources
+}
+
+// planAttachment fingerprints both sides of one tool or skill and chooses its
+// action with the same rules as a variation.
+func planAttachment(
+	id ResourceID,
+	local, server *syncdomain.Attachment,
+	baselineFingerprint string,
+	tracked bool,
+) PlannedResource {
+	resource := PlannedResource{
+		ID: id, BaselineFingerprint: baselineFingerprint, LocalAttachment: local, ServerAttachment: server,
+	}
+	fail := func(message string) PlannedResource {
+		resource.Action, resource.Error = ActionError, message
+		return resource
+	}
+
+	var err error
+	if local != nil {
+		resource.Upsert = local.Upsert
+		if resource.LocalFingerprint, err = syncdomain.FingerprintAttachment(id.ProjectKey, *local); err != nil {
+			return fail(err.Error())
+		}
+	}
+	if local != nil && local.Skill != nil {
+		resource.nameSource = nameFromKey
+		if local.Skill.Name != "" {
+			resource.nameSource = nameFromFrontMatter
+		}
+	}
+	if server != nil {
+		if resource.ServerFingerprint, err = syncdomain.FingerprintAttachment(id.ProjectKey, *server); err != nil {
+			return fail(fmt.Sprintf("invalid server %s: %s", id.Kind, err))
+		}
+	}
+
+	resource.Action = chooseAction(tracked, resource)
+	switch resource.Action {
+	case ActionError:
+		resource.Error = missingAttachmentError(id)
+	case ActionCreateServer:
+		rejectInvalidCreate(&resource, validateAttachmentCreate(*local))
+	}
+	if resource.LocalFingerprint != resource.ServerFingerprint {
+		resource.Diff = attachmentDiff(server, local)
+	}
+	resource.changedAttachments = changedAttachmentIDs(resource)
+	return resource
+}
+
+// missingAttachmentError explains how to create a tool or skill that exists
+// only in a local file, or how to stop syncing it.
+func missingAttachmentError(id ResourceID) string {
+	return fmt.Sprintf("%s To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
+		missingAttachment(id), id.Kind, id.ProjectKey, id.LookupKey)
+}
+
+// missingAttachment says that LaunchDarkly does not have the tool or skill
+// of a local file without upsert, and names the command that creates it.
+func missingAttachment(id ResourceID) string {
+	consent := `add "upsert": true to its file`
+	if id.Kind == syncdomain.KindSkill {
+		consent = "add upsert: true to its front matter"
+	}
+	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. To create it, %s and run ldcli sync %ss --project %s --key %s.",
+		id.Kind, id.LookupKey, consent, id.Kind, id.ProjectKey, id.LookupKey)
+}
+
+// validateAttachmentCreate checks a new tool or skill against the create rules
+// of LaunchDarkly.
+func validateAttachmentCreate(attachment syncdomain.Attachment) error {
+	var name, description string
+	switch {
+	case attachment.Tool != nil && attachment.Tool.Description != nil:
+		description = *attachment.Tool.Description
+	case attachment.Skill != nil:
+		name, description = attachment.Skill.CreateName(), attachment.Skill.Description
+	}
+	return syncdomain.ValidateCreate(syncdomain.Kind(attachment.Kind), attachment.Key(), name, description)
+}
+
+// rejectInvalidCreate turns a create that LaunchDarkly would reject into an
+// error, so that the apply does not stop halfway.
+func rejectInvalidCreate(resource *PlannedResource, err error) {
+	if err != nil {
+		resource.Action, resource.Error = ActionError, err.Error()
+	}
+}
+
 // chooseAction compares each fingerprint with the baseline to find which side
-// changed. It returns ActionError for a new local variation without upsert.
+// changed. It returns ActionError for a new local resource without upsert.
 func chooseAction(tracked bool, resource PlannedResource) Action {
-	localExists := resource.Local != nil
-	serverExists := resource.Server != nil
+	localExists := resource.hasLocal()
+	serverExists := resource.hasServer()
 
 	// Without a baseline, sync cannot tell which side changed. It adopts equal
 	// state, creates a new local variation that has upsert, and reports a
@@ -257,15 +443,18 @@ func (plan Plan) HasChanges() bool {
 	})
 }
 
-// BlockingError returns an error for the first conflict or invalid resource.
+// BlockingError returns one error for each conflict or invalid resource, in
+// plan order. A plan row shows only the first clause of an error, so this
+// error carries the full message of every row.
 func (plan Plan) BlockingError() error {
+	var blocking []error
 	for _, resource := range plan.Resources {
 		switch resource.Action {
 		case ActionConflict:
-			return fmt.Errorf("cannot sync conflicted resource %s", resource.ID)
+			blocking = append(blocking, fmt.Errorf("cannot sync conflicted resource %s", resource.ID.Label()))
 		case ActionError:
-			return fmt.Errorf("cannot sync %s: %s", resource.ID, resource.Error)
+			blocking = append(blocking, fmt.Errorf("cannot sync %s: %s", resource.ID.Label(), resource.Error))
 		}
 	}
-	return nil
+	return errors.Join(blocking...)
 }

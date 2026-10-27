@@ -31,12 +31,14 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		watched = &watchedSources{watcher: watcher, snapshot: snapshot, debounce: watchDebounce}
 	}
 
-	reviewed, err := workspace.loadState(client)
+	target := options.syncAction()
+	reviewed, err := workspace.loadState(client, options.Scope, target.Filter)
 	if err != nil {
 		return err
 	}
 	if options.dryRun() {
-		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan); err != nil {
+		writePlanNotes(options.ErrorOutput, reviewed.plan)
+		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan, options.Diff); err != nil {
 			return err
 		}
 		return reviewed.plan.BlockingError()
@@ -59,21 +61,19 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		return err
 	}
 	if !proceed {
-		if !resolved.HasChanges() {
-			return cleanupOrphanedAttachments(options, workspace.local, interactive)
-		}
 		return nil
 	}
 
 	// Read both sides again, so that no action uses state from before the review.
-	current, err := workspace.loadState(client)
+	current, err := workspace.loadState(client, options.Scope, target.Filter)
 	if err != nil {
 		return err
 	}
 	if err := checkUnchanged(options, reviewed, current); err != nil {
 		return err
 	}
-	return runner.applyPlan(options, workspace, client, current, conflicts.resolutions, interactive)
+	_, err = runner.applyPlan(options, workspace, client, current, conflicts.resolutions)
+	return err
 }
 
 // checkUnchanged returns an error if the state changed after the review.
@@ -91,16 +91,14 @@ func checkUnchanged(options Options, reviewed, current workspaceState) error {
 }
 
 // applyPlan applies the conflict choices to the current plan, executes it,
-// and records the new baseline. It removes unused attachment files only when
-// every step succeeds.
+// records the new baseline, and returns the outcome of each row.
 func (runner Runner) applyPlan(
 	options Options,
 	workspace syncWorkspace,
 	client syncapi.Client,
 	current workspaceState,
 	resolutions map[syncdomain.ResourceID]ConflictResolution,
-	interactive bool,
-) error {
+) ([]ResourceOutcome, error) {
 	plan := applyConflictResolutions(current.plan, resolutions)
 	outcomes, next, err := executePlan(workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles)
 
@@ -111,11 +109,9 @@ func (runner Runner) applyPlan(
 	if err := workspace.local.RemoveEmptyDirectories(); err != nil {
 		failures = append(failures, err)
 	}
-	if err := writeOutcomeOutput(options.Output, options.OutputKind, outcomes); err != nil {
+	if err := writeOutcomeOutput(options.Output, options.OutputKind, plan, outcomes); err != nil {
 		failures = append(failures, err)
 	}
-	if err := errors.Join(failures...); err != nil {
-		return err
-	}
-	return cleanupOrphanedAttachments(options, workspace.local, interactive)
+	writeRepinNotes(options.ErrorOutput, plan, outcomes)
+	return outcomes, errors.Join(failures...)
 }

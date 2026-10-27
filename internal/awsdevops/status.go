@@ -58,6 +58,9 @@ type AssociationStatus struct {
 	// "source" for another account that the agent space can read.
 	AccountID   string `json:"accountId,omitempty"`
 	AccountType string `json:"accountType,omitempty"`
+	// Tools is set for an MCP server association. AWS does not validate an
+	// MCP server association, so Status is empty for it.
+	Tools []string `json:"tools,omitempty"`
 }
 
 // GetStatus reports the IAM roles and agent spaces in the caller's account. It
@@ -143,6 +146,7 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 				Status:        string(association.Status),
 				AccountID:     accountID,
 				AccountType:   accountType,
+				Tools:         associationTools(association.Configuration),
 			})
 		}
 
@@ -164,6 +168,16 @@ func associationAccount(configuration agenttypes.ServiceConfiguration) (accountI
 	}
 
 	return "", ""
+}
+
+// associationTools returns the MCP tools of an MCP server association, such
+// as the LaunchDarkly MCP server.
+func associationTools(configuration agenttypes.ServiceConfiguration) []string {
+	if c, ok := configuration.(*agenttypes.ServiceConfigurationMemberMcpserver); ok {
+		return c.Value.Tools
+	}
+
+	return nil
 }
 
 // errorCode gives the AWS error code, for example AccessDeniedException, or
