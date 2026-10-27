@@ -252,4 +252,58 @@ describe('dev server UI analytics', () => {
     });
     expect(settingsEvents()[0].properties.outcome).toBe('success');
   });
+
+  it('sends only a project update when only the source environment changes', async () => {
+    vi.stubGlobal('CSS', { escape: (value: string) => value });
+    const project = {
+      flagsState: {},
+      overrides: {},
+      sourceEnvironmentKey: 'test',
+      availableVariations: { 'my-flag': [] },
+      context: { kind: 'user', key: 'a' },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const body = typeof init?.body === 'string' ? init.body : undefined;
+        calls.push({ url, body });
+        if (url.includes('/ui-analytics')) {
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith('/dev/projects')) {
+          return Response.json(['proj']);
+        }
+        if (url.includes('/environments')) {
+          return Response.json([
+            { key: 'test', name: 'Test' },
+            { key: 'production', name: 'Production' },
+          ]);
+        }
+        if (init?.method === 'PATCH') {
+          project.sourceEnvironmentKey = JSON.parse(body!).sourceEnvironmentKey;
+        }
+        return Response.json(project);
+      }),
+    );
+    const analyticsEvents = () =>
+      calls
+        .filter((call) => call.url.includes('/ui-analytics'))
+        .map((call) => JSON.parse(call.body || '{}'))
+        .filter((event) => event.event !== 'Dev Server UI Page Viewed');
+
+    render(<FlagsPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'test' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Production' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => {
+      expect(analyticsEvents()).toHaveLength(1);
+    });
+    expect(analyticsEvents()[0]).toEqual({
+      event: 'Dev Server UI Project Updated',
+      properties: { changed: 'source_environment', outcome: 'success' },
+    });
+  });
 });
