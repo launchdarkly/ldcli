@@ -31,52 +31,105 @@ const (
 	diffBodyIndent    = 8
 )
 
-// renderVariationDiff formats structured field changes as terminal or Markdown
-// unified diffs, choosing side-by-side output when the terminal is wide enough.
-func renderVariationDiff(fields variationDiffFields, outputKind string, width int, presentation variationDiffPresentation) (string, error) {
-	keys := make([]string, 0, len(fields))
-	for key := range fields {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
+// A placeholder stands in for the side of a diff that does not exist. It is
+// not content, so a diff size does not count it.
+const (
+	missingInLaunchDarkly = "(does not exist in LaunchDarkly)"
+	missingLocally        = "(does not exist locally)"
+	notAttached           = "(not attached)"
+)
 
-	var rendered strings.Builder
-	for _, key := range keys {
+// diffBlock is the unified diff of one titled section, for example
+// `Tool "search" (changed)`.
+type diffBlock struct {
+	title string
+	lines []string
+}
+
+// diffBlocks builds the unified diff of each changed part, in the order that
+// the review shows them.
+func diffBlocks(fields variationDiffFields, presentation variationDiffPresentation) ([]diffBlock, error) {
+	var blocks []diffBlock
+	for _, key := range slices.Sorted(maps.Keys(fields)) {
 		diff := fields[key]
 		if presentation.reverse {
 			diff.Before, diff.After = diff.After, diff.Before
 		}
 		sections, err := diffSections(key, diff, presentation)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		for _, section := range sections {
 			diffLines, err := unifiedDiffLines(section.before, section.after, presentation.beforeLabel, presentation.afterLabel)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			if key == "tools" || key == "skills" {
 				diffLines = slices.DeleteFunc(diffLines, func(line string) bool {
 					return strings.HasPrefix(line, "@@")
 				})
 			}
-			if outputKind == "markdown" {
-				_, _ = fmt.Fprintf(&rendered, "\n#### %s (%s)\n\n", section.title, section.change)
-				content := strings.Join(diffLines, "\n")
-				fence := markdownCodeFence(content)
-				_, _ = fmt.Fprintf(&rendered, "%sdiff\n%s\n%s\n", fence, content, fence)
-				continue
+			blocks = append(blocks, diffBlock{title: fmt.Sprintf("%s (%s)", section.title, section.change), lines: diffLines})
+		}
+	}
+	return blocks, nil
+}
+
+// diffSize counts the added and the removed lines of content that
+// renderVariationDiff shows for the same diff.
+func diffSize(fields variationDiffFields, presentation variationDiffPresentation) (added, removed int, err error) {
+	blocks, err := diffBlocks(fields, presentation)
+	for _, block := range blocks {
+		for _, line := range block.lines {
+			switch {
+			case isPlaceholderDiffLine(line):
+			case isAddedDiffLine(line):
+				added++
+			case isRemovedDiffLine(line):
+				removed++
 			}
-			sectionTitle := fmt.Sprintf("%s (%s)", section.title, section.change)
-			if width > 0 {
-				sectionTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("67")).Bold(true).Render(sectionTitle)
-			}
-			_, _ = fmt.Fprintf(&rendered, "\n%s%s\n\n", strings.Repeat(" ", diffSectionIndent), sectionTitle)
-			if width >= 100 {
-				rendered.WriteString(renderSideBySideUnifiedDiff(diffLines, width))
-			} else {
-				rendered.WriteString(renderUnifiedDiff(diffLines, width > 0))
-			}
+		}
+	}
+	return added, removed, err
+}
+
+// isPlaceholderDiffLine reports whether a changed line holds a placeholder
+// instead of content.
+func isPlaceholderDiffLine(line string) bool {
+	switch strings.TrimLeft(line, "+-") {
+	case missingInLaunchDarkly, missingLocally, notAttached:
+		return true
+	default:
+		return false
+	}
+}
+
+// renderVariationDiff formats structured field changes as terminal or Markdown
+// unified diffs, choosing side-by-side output when the terminal is wide enough.
+func renderVariationDiff(fields variationDiffFields, outputKind string, width int, presentation variationDiffPresentation) (string, error) {
+	blocks, err := diffBlocks(fields, presentation)
+	if err != nil {
+		return "", err
+	}
+
+	var rendered strings.Builder
+	for _, block := range blocks {
+		if outputKind == "markdown" {
+			_, _ = fmt.Fprintf(&rendered, "\n#### %s\n\n", block.title)
+			content := strings.Join(block.lines, "\n")
+			fence := markdownCodeFence(content)
+			_, _ = fmt.Fprintf(&rendered, "%sdiff\n%s\n%s\n", fence, content, fence)
+			continue
+		}
+		title := block.title
+		if width > 0 {
+			title = lipgloss.NewStyle().Foreground(lipgloss.Color("67")).Bold(true).Render(title)
+		}
+		_, _ = fmt.Fprintf(&rendered, "\n%s%s\n\n", strings.Repeat(" ", diffSectionIndent), title)
+		if width >= 100 {
+			rendered.WriteString(renderSideBySideUnifiedDiff(block.lines, width))
+		} else {
+			rendered.WriteString(renderUnifiedDiff(block.lines, width > 0))
 		}
 	}
 	return rendered.String(), nil
@@ -110,11 +163,11 @@ func diffSections(field string, diff variationFieldDiff, presentation variationD
 		)
 	}
 
-	before, err := formatDiffValue(diff.Before, presentation.beforeLabel, "")
+	before, err := formatDiffValue(diff.Before, presentation.beforeLabel)
 	if err != nil {
 		return nil, err
 	}
-	after, err := formatDiffValue(diff.After, presentation.afterLabel, presentation.missingAfter)
+	after, err := formatDiffValue(diff.After, presentation.afterLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +215,7 @@ func attachmentDiffSections[T any](
 			continue
 		}
 
-		beforeValue, afterValue := "(not attached)", "(not attached)"
+		beforeValue, afterValue := notAttached, notAttached
 		if beforeExists {
 			beforeValue = format(beforeItem)
 		}
@@ -473,15 +526,12 @@ func changedParts(before, after string) (prefix, removed, added, suffix string) 
 
 // formatDiffValue pretty-prints JSON and substitutes readable absence markers
 // for missing local or LaunchDarkly resources.
-func formatDiffValue(value json.RawMessage, label string, missingValue string) (string, error) {
+func formatDiffValue(value json.RawMessage, label string) (string, error) {
 	if len(value) == 0 || bytes.Equal(value, []byte("null")) {
-		if missingValue != "" {
-			return missingValue, nil
-		}
 		if strings.HasPrefix(label, "LaunchDarkly") {
-			return "(does not exist in LaunchDarkly)", nil
+			return missingInLaunchDarkly, nil
 		}
-		return "(does not exist locally)", nil
+		return missingLocally, nil
 	}
 	var formatted bytes.Buffer
 	if err := json.Indent(&formatted, value, "", "  "); err != nil {

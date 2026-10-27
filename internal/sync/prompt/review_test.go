@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -14,8 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
+	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 )
 
 type notifyingWriter struct {
@@ -29,17 +26,6 @@ func (writer *notifyingWriter) Write(data []byte) (int, error) {
 		writer.once.Do(func() { close(writer.written) })
 	}
 	return writer.Writer.Write(data)
-}
-
-type callbackReader struct {
-	io.Reader
-	once     sync.Once
-	callback func()
-}
-
-func (reader *callbackReader) Read(data []byte) (int, error) {
-	reader.once.Do(reader.callback)
-	return reader.Reader.Read(data)
 }
 
 func TestConfirmApply(t *testing.T) {
@@ -58,7 +44,7 @@ func TestConfirmApply(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var prompt bytes.Buffer
-			confirmed, err := confirm(context.Background(), strings.NewReader(test.input), &prompt, test.terminal, applyQuestion)
+			confirmed, err := syncinteractive.Confirm(context.Background(), strings.NewReader(test.input), &prompt, test.terminal, applyQuestion)
 
 			assert.Equal(t, test.confirmed, confirmed)
 			if test.wantError != "" {
@@ -69,93 +55,6 @@ func TestConfirmApply(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestCleanupOrphanedAttachmentsRequiresConfirmationUnlessYes(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       string
-		yes         bool
-		interactive bool
-		wantExist   bool
-		message     string
-	}{
-		{name: "declined", input: "n\n", interactive: true, wantExist: true, message: "files kept"},
-		{name: "yes flag", yes: true, message: "Deleted unreferenced attachment files"},
-		{name: "non-terminal", wantExist: true, message: "Rerun with --yes"},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			root, store, _ := newOrphanedToolStore(t)
-
-			var output bytes.Buffer
-			err := cleanupOrphanedAttachments(Options{
-				Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
-			}, store, test.interactive)
-
-			require.NoError(t, err)
-			_, statErr := os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
-			assert.Equal(t, test.wantExist, statErr == nil)
-			assert.Contains(t, output.String(), `Tool "search"`)
-			assert.Contains(t, output.String(), test.message)
-			if test.yes {
-				assert.NotContains(t, output.String(), "Delete these unreferenced local files?")
-			}
-		})
-	}
-}
-
-func TestCleanupOrphanedAttachmentsRechecksReferencesAfterConfirmation(t *testing.T) {
-	root, store, attachedVariation := newOrphanedToolStore(t)
-	input := &callbackReader{
-		Reader: strings.NewReader("yes\n"),
-		callback: func() {
-			_, err := store.ReplaceVariations([]synclocal.VariationReplacement{{
-				ProjectKey: "project",
-				ConfigKey:  "config",
-				Variation:  attachedVariation,
-			}})
-			require.NoError(t, err)
-		},
-	}
-	var output bytes.Buffer
-
-	err := cleanupOrphanedAttachments(Options{
-		Input: input, ErrorOutput: &output,
-	}, store, true)
-
-	require.NoError(t, err)
-	_, statErr := os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
-	require.NoError(t, statErr)
-	assert.Contains(t, output.String(), "No selected attachment files remain unreferenced.")
-}
-
-func newOrphanedToolStore(t *testing.T) (string, synclocal.Store, syncdomain.Variation) {
-	t.Helper()
-	root := t.TempDir()
-	store := synclocal.NewStore(root)
-	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
-	attached := syncdomain.Variation{
-		Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Default",
-		Tools: []syncdomain.AttachmentRef{{Key: tool.Key}},
-		Attachments: []syncdomain.Attachment{{
-			Kind: syncdomain.AttachmentTool, Tool: &tool,
-		}},
-	}
-	_, err := store.Add([]synclocal.VariationFile{{
-		ProjectKey: "project", ConfigKey: "config", Variation: attached,
-	}})
-	require.NoError(t, err)
-
-	orphaned := attached
-	orphaned.Tools = nil
-	orphaned.Attachments = nil
-	_, err = store.ReplaceVariations([]synclocal.VariationReplacement{{
-		ProjectKey: "project", ConfigKey: "config", Variation: orphaned,
-	}})
-	require.NoError(t, err)
-	return root, store, attached
 }
 
 func TestReviewAndConfirmPlanStopsWhenWatchContextIsCanceled(t *testing.T) {
@@ -174,7 +73,7 @@ func TestReviewAndConfirmPlanStopsWhenWatchContextIsCanceled(t *testing.T) {
 		confirmed, err := reviewAndConfirmPlan(Options{
 			Action: SyncAction{Watch: true}, Context: ctx, Input: input, ErrorOutput: output,
 		}, Plan{Resources: []PlannedResource{{
-			ID: testResourceID(), Action: ActionArchiveServer,
+			ID: testResourceID(), Action: ActionDeleteLocal,
 		}}}, true)
 		results <- struct {
 			confirmed bool
@@ -208,11 +107,55 @@ func TestReviewAndConfirmPlanRejectsConfirmationWhenWatchContextIsAlreadyCancele
 	confirmed, err := reviewAndConfirmPlan(Options{
 		Action: SyncAction{Watch: true}, Context: ctx, Input: strings.NewReader("yes\n"), ErrorOutput: io.Discard,
 	}, Plan{Resources: []PlannedResource{{
-		ID: testResourceID(), Action: ActionArchiveServer,
+		ID: testResourceID(), Action: ActionDeleteLocal,
 	}}}, true)
 
 	require.False(t, confirmed)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestReviewAndConfirmPlanShowsPlanOnlyWhenNeeded(t *testing.T) {
+	tests := []struct {
+		name         string
+		action       Action
+		yes          bool
+		input        string
+		wantContinue bool
+		wantError    string
+		wantReview   string
+	}{
+		{name: "yes applies without the plan", action: ActionUpdateServer, yes: true, wantContinue: true},
+		{name: "a manifest-only plan applies without the plan", action: ActionUpdateManifest, wantContinue: true},
+		{
+			name: "a question shows the plan first", action: ActionUpdateServer, input: "yes\n", wantContinue: true,
+			wantReview: "1 change: 1 prompt push.\n\nPrompts\n  push   production/support/default   changed\n\nSync these changes? [y/N] ",
+		},
+		{
+			name: "a blocking row shows the plan", action: ActionError, yes: true,
+			wantError:  "cannot sync variation production/support/default: broken",
+			wantReview: "1 error.\n\nPrompts\n  error   production/support/default   broken\n",
+		},
+		{name: "a plan without changes shows its summary", action: ActionInSync, wantReview: "No changes. 1 in sync.\n"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			plan := Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: test.action, Error: "broken"}}}
+
+			continued, err := reviewAndConfirmPlan(Options{
+				Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
+			}, plan, true)
+
+			assert.Equal(t, test.wantContinue, continued)
+			if test.wantError != "" {
+				require.EqualError(t, err, test.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, test.wantReview, output.String())
+		})
+	}
 }
 
 func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
@@ -228,7 +171,7 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 	}{
 		{name: "updates apply automatically", action: ActionUpdateServer, wantContinue: true},
 		{
-			name: "server archive requires confirmation", action: ActionArchiveServer, input: "yes\n",
+			name: "local deletion requires confirmation", action: ActionDeleteLocal, input: "yes\n",
 			interactive: true, wantContinue: true, wantPrompt: true,
 		},
 		{
@@ -236,11 +179,11 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 			interactive: true, wantPrompt: true,
 		},
 		{
-			name: "non-terminal destructive action is rejected", action: ActionArchiveServer,
+			name: "non-terminal destructive action is rejected", action: ActionDeleteLocal,
 			wantError: "rerun with --yes",
 		},
 		{
-			name: "explicit yes applies destructive action", action: ActionArchiveServer,
+			name: "explicit yes applies destructive action", action: ActionDeleteLocal,
 			yes: true, wantContinue: true,
 		},
 	}

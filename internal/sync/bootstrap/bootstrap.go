@@ -1,8 +1,9 @@
-// Package bootstrap adds LaunchDarkly variations to the local workspace. The
-// first add creates the .launchdarkly directory.
+// Package bootstrap adds LaunchDarkly variations, tools, and skills to the
+// local workspace. The first add creates the .launchdarkly directory.
 package bootstrap
 
 import (
+	"bytes"
 	"cmp"
 	"errors"
 	"fmt"
@@ -26,42 +27,50 @@ type Catalog interface {
 	Config(projectKey, configKey string) (syncapi.Config, error)
 }
 
-// AttachmentReader reads the tools and skills that a variation uses.
+// AttachmentReader reads the tools and skills that a variation uses, and
+// searches the tools or skills that the user adds.
 type AttachmentReader interface {
+	syncinteractive.AttachmentSearcher
 	ReadAttachment(projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error)
-}
-
-// ManifestStore reads and writes the sync baseline.
-type ManifestStore interface {
-	Load(projectKeys []string) (syncmanifest.Manifest, error)
-	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
 }
 
 // Options are the dependencies and the input of one add.
 type Options struct {
+	// Kind is the kind of resource to add. The empty kind is a variation.
+	Kind        syncdomain.Kind
 	Catalog     Catalog
 	Attachments AttachmentReader
 	Store       synclocal.Store
-	Manifest    ManifestStore
+	Baselines   syncmanifest.Baselines
 	Input       io.Reader
 	Output      io.Writer
 	// Initial is true when the workspace has no .launchdarkly directory.
 	Initial bool
 	DryRun  bool
-	// Selections are the variations to add. If it is empty, Run asks the user.
+	// Diff shows the content of each file that a dry run lists.
+	Diff bool
+	// ProjectKey and ConfigKey skip the project and the config questions.
+	ProjectKey string
+	ConfigKey  string
+	// Selections are the resources to add. If it is empty, Run asks the user.
 	Selections []syncdomain.ResourceID
 	NoInput    bool
 }
 
-// Run writes the files of the selected variations and records their baseline.
+// Run writes the files of the selected resources and records their baseline.
 func Run(options Options) error {
+	switch options.Kind {
+	case syncdomain.KindTool, syncdomain.KindSkill:
+		return addAttachments(options)
+	}
+
 	var files []synclocal.VariationFile
 	var err error
 	if len(options.Selections) != 0 {
 		files, err = selectedVariations(options)
 	} else {
 		if err := syncinteractive.RequireTerminal(
-			options.Input, options.Output, options.NoInput, "variation selectors", "prompt selection",
+			options.Input, options.Output, options.NoInput, missingTargetFlags(options), "prompt selection",
 		); err != nil {
 			return err
 		}
@@ -127,14 +136,37 @@ func selectedVariations(options Options) ([]synclocal.VariationFile, error) {
 	return files, nil
 }
 
-// promptForVariations asks the user for a project, a config, and one or more
-// variations. The bool result is true when the user cancels.
-func promptForVariations(options Options) ([]synclocal.VariationFile, bool, error) {
-	project, canceled, err := syncinteractive.SelectProject(options.Input, options.Output, options.Catalog)
-	if err != nil || canceled {
-		return nil, canceled, err
+// missingTargetFlags names the flags that answer the questions that Run still
+// has to ask.
+func missingTargetFlags(options Options) string {
+	switch {
+	case options.ProjectKey == "":
+		return "--project, --config-key, and --key"
+	case options.ConfigKey == "":
+		return "--config-key and --key"
+	default:
+		return "--key values"
 	}
-	config, canceled, err := syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, nil)
+}
+
+// promptForVariations asks the user for a project, a config, and one or more
+// variations. ProjectKey and ConfigKey skip their questions. The bool result
+// is true when the user cancels.
+func promptForVariations(options Options) ([]synclocal.VariationFile, bool, error) {
+	project := syncapi.Project{Key: options.ProjectKey}
+	var canceled bool
+	var err error
+	if project.Key == "" {
+		if project, canceled, err = syncinteractive.SelectProject(options.Input, options.Output, options.Catalog); err != nil || canceled {
+			return nil, canceled, err
+		}
+	}
+	config := syncapi.Config{Key: options.ConfigKey}
+	if config.Key == "" {
+		config, canceled, err = syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, nil)
+	} else {
+		config, err = options.Catalog.Config(project.Key, config.Key)
+	}
 	if err != nil || canceled {
 		return nil, canceled, err
 	}
@@ -234,7 +266,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		if err != nil {
 			return err
 		}
-		writePreviews(options.Output, previews)
+		writePreviews(options.Output, previews, options.Diff)
 		return nil
 	}
 
@@ -242,7 +274,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	for _, file := range files {
 		projectKeys = append(projectKeys, file.ProjectKey)
 	}
-	manifest, err := options.Manifest.Load(projectKeys)
+	baseline, err := options.Baselines.Load(projectKeys)
 	if err != nil {
 		return err
 	}
@@ -256,15 +288,15 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if err != nil {
 		return err
 	}
-	next, err := recordCreatedVariations(manifest, options.Store, files)
+	next, err := recordCreatedVariations(baseline.Lock, options.Store, files)
 	if err == nil {
-		_, err = options.Manifest.Update(manifest, next)
+		_, err = options.Baselines.Save(baseline, next)
 	}
 	if err != nil {
 		return errors.Join(err, options.Store.RollbackCreation(creation))
 	}
 
-	writeSummary(options.Output, options.Initial, len(creation.VariationPaths))
+	writeSummary(options.Output, options.Initial, len(creation.VariationPaths), "variation")
 	return nil
 }
 
@@ -316,36 +348,58 @@ func writeNoChangeSummary(output io.Writer, dryRun bool) {
 	_ = syncconsole.New(output).Line(message)
 }
 
-// writeSummary reports how many variation files the add created.
-func writeSummary(output io.Writer, initial bool, count int) {
+// writeSummary reports how many files of kind the add created.
+func writeSummary(output io.Writer, initial bool, count int, kind string) {
 	verb := "Added"
 	if initial {
 		verb = "Bootstrapped"
 	}
-	noun := "variation file"
+	noun := kind + " file"
 	if count != 1 {
 		noun += "s"
 	}
 	_ = syncconsole.New(output).Printf("%s %d %s in %s.\n", verb, count, noun, syncdomain.RootDir)
 }
 
-// writePreviews prints each file that a dry run would create.
-func writePreviews(output io.Writer, previews []synclocal.RenderedFile) {
+// writePreviews lists each file that the add creates, with its number of
+// lines. With showContent, the content of each file follows the list.
+func writePreviews(output io.Writer, previews []synclocal.RenderedFile, showContent bool) {
 	console := syncconsole.New(output)
-	const border = "============================================================"
-	for index, preview := range previews {
-		if index != 0 {
-			_ = console.Line("")
-		}
-		_ = console.Line(border)
-		_ = console.Printf(
-			"File %d of %d\nWould create: %s\n", index+1, len(previews), path.Join(syncdomain.RootDir, preview.Path),
-		)
-		_ = console.Line("------------------------------------------------------------")
-		_ = console.WriteBytes(preview.Content)
-		if len(preview.Content) == 0 || preview.Content[len(preview.Content)-1] != '\n' {
-			_ = console.Line("")
-		}
-		_ = console.Line(border)
+	noun := "file"
+	if len(previews) != 1 {
+		noun += "s"
 	}
+	_ = console.Printf("%d %s to create:\n", len(previews), noun)
+
+	paths := make([]string, len(previews))
+	width := 0
+	for index, preview := range previews {
+		paths[index] = path.Join(syncdomain.RootDir, preview.Path)
+		width = max(width, len(paths[index]))
+	}
+	for index, preview := range previews {
+		_ = console.Printf("  %-*s   +%d\n", width, paths[index], lineCount(preview.Content))
+	}
+	if !showContent {
+		return
+	}
+	for index, preview := range previews {
+		_ = console.Printf("\n%s\n", paths[index])
+		for _, line := range strings.Split(strings.TrimSuffix(string(preview.Content), "\n"), "\n") {
+			if line != "" {
+				line = "    " + line
+			}
+			_ = console.Line(line)
+		}
+	}
+}
+
+// lineCount returns the number of lines in a file. A last line without a
+// final newline counts.
+func lineCount(content []byte) int {
+	count := bytes.Count(content, []byte("\n"))
+	if len(content) != 0 && content[len(content)-1] != '\n' {
+		count++
+	}
+	return count
 }

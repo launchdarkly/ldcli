@@ -15,6 +15,9 @@ import (
 //	.launchdarkly/<project>/configs/<config>/<variation>.prompt.md
 //	.launchdarkly/<project>/tools/<tool>.json
 //	.launchdarkly/<project>/skills/<skill>.md
+//	.launchdarkly/sync.lock
+//
+// A file directly in .launchdarkly, such as sync.lock, is not a resource.
 const (
 	configsDir = "configs"
 	toolsDir   = "tools"
@@ -59,6 +62,17 @@ func ParseManagedPath(file string) (syncdomain.ResourceID, bool) {
 	return id, true
 }
 
+// ResourcePath returns the path of the file of a variation, a tool, or a
+// skill relative to the repository root, in the form that ParseManagedPath
+// reads.
+func ResourcePath(id syncdomain.ResourceID) (string, error) {
+	relativePath, err := resourcePath(id)
+	if err != nil {
+		return "", err
+	}
+	return path.Join(syncdomain.RootDir, relativePath), nil
+}
+
 // variationPath returns the path of a variation file relative to the managed
 // directory. It makes sure that each key is a safe path segment.
 func variationPath(projectKey, configKey, variationKey string) (string, error) {
@@ -86,6 +100,19 @@ func attachmentPath(projectKey string, kind syncdomain.AttachmentKind, key strin
 	default:
 		return "", fmt.Errorf("unsupported attachment kind %q", kind)
 	}
+}
+
+// resourcePath returns the path of the file of a variation, a tool, or a
+// skill relative to the managed directory.
+func resourcePath(id syncdomain.ResourceID) (string, error) {
+	if id.Kind != syncdomain.KindVariation {
+		return attachmentPath(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+	}
+	configKey, variationKey, err := id.VariationKeys()
+	if err != nil {
+		return "", err
+	}
+	return variationPath(id.ProjectKey, configKey, variationKey)
 }
 
 // validateKey makes sure that key is a safe path segment. The name is the kind

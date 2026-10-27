@@ -2,14 +2,12 @@ package local
 
 import (
 	"bytes"
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"maps"
-	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -19,7 +17,9 @@ import (
 )
 
 // A tool file is JSON. A skill file is Markdown with YAML front matter that
-// has the key and the description.
+// has the key and the description. Both can set upsert, and a skill file can
+// set the name that sync sends when it creates the skill. Neither is part of
+// the fingerprint.
 const toolFormatVersion = 1
 
 type toolFile struct {
@@ -31,14 +31,38 @@ type toolFile struct {
 type skillFrontMatter struct {
 	Key         string  `yaml:"key"`
 	Description *string `yaml:"description"`
+	Name        string  `yaml:"name,omitempty"`
+	Upsert      bool    `yaml:"upsert,omitempty"`
 }
 
-// OrphanedAttachment is a tool or skill file that no variation uses.
-type OrphanedAttachment struct {
-	ProjectKey string
-	Kind       syncdomain.AttachmentKind
-	Key        string
-	Path       string
+// CompileAttachments reads each tool and skill file that include accepts. It
+// does not read the other files, so an invalid file outside include does not
+// stop the read. Like CompileWorkspace, it rejects a symbolic link in a
+// managed path.
+func CompileAttachments(repositoryRoot string, include func(syncdomain.ResourceID) bool) ([]syncdomain.SyncedAttachment, error) {
+	root, err := filepath.EvalSymlinks(repositoryRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository root: %w", err)
+	}
+	files, err := SourceFiles(root)
+	if err != nil {
+		return nil, err
+	}
+
+	fsys := workspaceFS{root: root}
+	var attachments []syncdomain.SyncedAttachment
+	for _, file := range files {
+		id, ok := ParseManagedPath(file)
+		if !ok || id.Kind == syncdomain.KindVariation || !include(id) {
+			continue
+		}
+		attachment, err := readAttachment(fsys, id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+		if err != nil {
+			return nil, ParseError{Path: file, Err: err}
+		}
+		attachments = append(attachments, syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
+	}
+	return attachments, nil
 }
 
 // readAttachment reads the file of one tool or skill.
@@ -91,16 +115,9 @@ func readSkill(fsys fs.FS, projectKey, key string) (syncdomain.Attachment, error
 		return syncdomain.Attachment{}, err
 	}
 
-	var metadata skillFrontMatter
-	body, err := parseYAMLFrontMatter(data, &metadata)
+	metadata, body, err := parseSkillFile(data)
 	if err != nil {
 		return syncdomain.Attachment{}, fmt.Errorf("parse skill %q: %w", key, err)
-	}
-	// Rendering puts one blank line after the front matter. Remove it.
-	if bytes.HasPrefix(body, []byte("\r\n")) {
-		body = body[2:]
-	} else {
-		body = bytes.TrimPrefix(body, []byte("\n"))
 	}
 
 	switch {
@@ -111,8 +128,23 @@ func readSkill(fsys fs.FS, projectKey, key string) (syncdomain.Attachment, error
 	case strings.TrimSpace(string(body)) == "":
 		return syncdomain.Attachment{}, fmt.Errorf("skill %q markdown is required", key)
 	}
-	skill := syncdomain.Skill{Key: key, Description: *metadata.Description, Markdown: string(body)}
-	return syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &skill}, nil
+	skill := syncdomain.Skill{Key: key, Name: metadata.Name, Description: *metadata.Description, Markdown: string(body)}
+	return syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Upsert: metadata.Upsert, Skill: &skill}, nil
+}
+
+// parseSkillFile decodes the front matter of a skill file and returns the
+// Markdown that follows it.
+func parseSkillFile(data []byte) (skillFrontMatter, []byte, error) {
+	var metadata skillFrontMatter
+	body, err := parseYAMLFrontMatter(data, &metadata)
+	if err != nil {
+		return skillFrontMatter{}, nil, err
+	}
+	// Rendering puts one blank line after the front matter. Remove it.
+	if bytes.HasPrefix(body, []byte("\r\n")) {
+		return metadata, body[2:], nil
+	}
+	return metadata, bytes.TrimPrefix(body, []byte("\n")), nil
 }
 
 // readAttachmentFile reads one tool or skill file. It rejects a symbolic link
@@ -172,6 +204,16 @@ func renderAttachmentFiles(files []VariationFile) ([]RenderedFile, error) {
 	return rendered, nil
 }
 
+// RenderAttachment renders the file of one tool or skill without writing it.
+func RenderAttachment(attachment syncdomain.SyncedAttachment) (RenderedFile, error) {
+	filePath, err := attachmentPath(attachment.ProjectKey, attachment.Attachment.Kind, attachment.Attachment.Key())
+	if err != nil {
+		return RenderedFile{}, err
+	}
+	content, err := renderAttachment(attachment.Attachment)
+	return RenderedFile{Path: filePath, Content: content}, err
+}
+
 func renderAttachment(attachment syncdomain.Attachment) ([]byte, error) {
 	switch {
 	case attachment.Kind == syncdomain.AttachmentTool && attachment.Tool != nil:
@@ -180,7 +222,16 @@ func renderAttachment(attachment syncdomain.Attachment) ([]byte, error) {
 		}
 		return renderToolFile(toolFile{FormatVersion: toolFormatVersion, Upsert: attachment.Upsert, Tool: *attachment.Tool})
 	case attachment.Kind == syncdomain.AttachmentSkill && attachment.Skill != nil:
-		return renderSkill(*attachment.Skill)
+		// LaunchDarkly owns the name of a skill, so a file from LaunchDarkly
+		// does not get it, and a pull keeps the name of an existing file. A
+		// file with upsert can still create the skill, so it keeps the name
+		// that the create sends.
+		skill := *attachment.Skill
+		metadata := skillFrontMatter{Key: skill.Key, Description: &skill.Description, Upsert: attachment.Upsert}
+		if attachment.Upsert {
+			metadata.Name = skill.Name
+		}
+		return renderSkillFile(metadata, skill.Markdown)
 	default:
 		return nil, fmt.Errorf("%s %q has no content", attachment.Kind, attachment.Key())
 	}
@@ -197,109 +248,53 @@ func renderToolFile(file toolFile) ([]byte, error) {
 	return content.Bytes(), nil
 }
 
-func renderSkill(skill syncdomain.Skill) ([]byte, error) {
-	if strings.TrimSpace(skill.Markdown) == "" {
-		return nil, fmt.Errorf("skill %q markdown is required", skill.Key)
+func renderSkillFile(metadata skillFrontMatter, markdown string) ([]byte, error) {
+	if strings.TrimSpace(markdown) == "" {
+		return nil, fmt.Errorf("skill %q markdown is required", metadata.Key)
 	}
-	metadata, err := marshalYAML(skillFrontMatter{Key: skill.Key, Description: &skill.Description})
+	frontMatter, err := marshalYAML(metadata)
 	if err != nil {
-		return nil, fmt.Errorf("marshal skill %q metadata: %w", skill.Key, err)
+		return nil, fmt.Errorf("marshal skill %q metadata: %w", metadata.Key, err)
 	}
 
 	var content bytes.Buffer
 	content.WriteString("---\n")
-	content.Write(metadata)
+	content.Write(frontMatter)
 	content.WriteString("---\n\n")
-	content.WriteString(skill.Markdown)
+	content.WriteString(markdown)
 	return content.Bytes(), nil
 }
 
-// preserveToolUpsert keeps the upsert flag of an existing tool file. The flag
-// is a local choice, so new content from LaunchDarkly does not remove it.
-func preserveToolUpsert(filePath string, original, replacement []byte) ([]byte, error) {
-	if !strings.HasSuffix(filePath, toolFileSuffix) {
-		return replacement, nil
-	}
-	var local, updated toolFile
-	if err := json.Unmarshal(original, &local); err != nil {
-		return nil, fmt.Errorf("parse existing tool %q: %w", filePath, err)
-	}
-	if !local.Upsert {
-		return replacement, nil
-	}
-	if err := json.Unmarshal(replacement, &updated); err != nil {
-		return nil, fmt.Errorf("parse replacement tool %q: %w", filePath, err)
-	}
-	updated.Upsert = true
-	return renderToolFile(updated)
-}
-
-// OrphanedAttachments returns each tool and skill file that no local
-// variation uses.
-func (store Store) OrphanedAttachments() ([]OrphanedAttachment, error) {
-	variations, err := CompileWorkspace(store.repositoryRoot)
-	if err != nil && !errors.Is(err, ErrNoDirectory) {
-		return nil, err
-	}
-	used := make(map[syncdomain.ResourceID]struct{})
-	for _, variation := range variations {
-		for _, attachment := range variation.Variation.Attachments {
-			used[attachment.ID(variation.ProjectKey)] = struct{}{}
+// preserveLocalFields keeps the local choices of an existing tool or skill
+// file: the upsert flag, and the name of a skill. New content from
+// LaunchDarkly does not remove them.
+func preserveLocalFields(filePath string, original, replacement []byte) ([]byte, error) {
+	if strings.HasSuffix(filePath, toolFileSuffix) {
+		var local, updated toolFile
+		if err := json.Unmarshal(original, &local); err != nil {
+			return nil, fmt.Errorf("parse existing tool %q: %w", filePath, err)
 		}
+		if !local.Upsert {
+			return replacement, nil
+		}
+		if err := json.Unmarshal(replacement, &updated); err != nil {
+			return nil, fmt.Errorf("parse replacement tool %q: %w", filePath, err)
+		}
+		updated.Upsert = true
+		return renderToolFile(updated)
 	}
 
-	var orphaned []OrphanedAttachment
-	err = filepath.WalkDir(store.root, func(filePath string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
-		}
-		relativePath, err := filepath.Rel(store.repositoryRoot, filePath)
-		if err != nil {
-			return err
-		}
-		id, ok := ParseManagedPath(filepath.ToSlash(relativePath))
-		if !ok || id.Kind == syncdomain.KindVariation {
-			return nil
-		}
-		if _, isUsed := used[id]; !isUsed {
-			orphaned = append(orphaned, OrphanedAttachment{
-				ProjectKey: id.ProjectKey,
-				Kind:       syncdomain.AttachmentKind(id.Kind),
-				Key:        id.LookupKey,
-				Path:       strings.TrimPrefix(filepath.ToSlash(relativePath), syncdomain.RootDir+"/"),
-			})
-		}
-		return nil
-	})
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
+	local, _, err := parseSkillFile(original)
 	if err != nil {
-		return nil, fmt.Errorf("find unreferenced attachments: %w", err)
+		return nil, fmt.Errorf("parse existing skill %q: %w", filePath, err)
 	}
-
-	slices.SortFunc(orphaned, func(left, right OrphanedAttachment) int {
-		return cmp.Or(
-			strings.Compare(left.ProjectKey, right.ProjectKey),
-			strings.Compare(string(left.Kind), string(right.Kind)),
-			strings.Compare(left.Key, right.Key),
-		)
-	})
-	return orphaned, nil
-}
-
-// DeleteAttachments deletes tool and skill files in one transaction.
-func (store Store) DeleteAttachments(attachments []OrphanedAttachment) ([]string, error) {
-	paths := make([]string, 0, len(attachments))
-	for _, attachment := range attachments {
-		relativePath, err := attachmentPath(attachment.ProjectKey, attachment.Kind, attachment.Key)
-		if err != nil {
-			return nil, err
-		}
-		if relativePath != attachment.Path {
-			return nil, fmt.Errorf("attachment path %q does not match %q", attachment.Path, relativePath)
-		}
-		paths = append(paths, relativePath)
+	if local.Name == "" && !local.Upsert {
+		return replacement, nil
 	}
-	return store.deleteFiles(paths)
+	updated, markdown, err := parseSkillFile(replacement)
+	if err != nil {
+		return nil, fmt.Errorf("parse replacement skill %q: %w", filePath, err)
+	}
+	updated.Name, updated.Upsert = local.Name, updated.Upsert || local.Upsert
+	return renderSkillFile(updated, string(markdown))
 }

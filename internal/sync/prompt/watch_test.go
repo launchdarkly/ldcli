@@ -457,3 +457,16 @@ func TestSourceWatcherRecognizesNewManagedResourceKinds(t *testing.T) {
 		Op:   fsnotify.Create,
 	}))
 }
+
+func TestSourceWatcherIgnoresSyncLock(t *testing.T) {
+	root := t.TempDir()
+	managedRoot := filepath.Join(root, syncdomain.RootDir)
+	lockFile := filepath.Join(managedRoot, "sync.lock")
+	require.NoError(t, os.MkdirAll(managedRoot, 0o755))
+	require.NoError(t, os.WriteFile(lockFile, []byte("formatVersion: 1\n"), 0o644))
+	watcher := sourceWatcher{managedRoot: managedRoot, files: make(map[string]struct{})}
+
+	for _, op := range []fsnotify.Op{fsnotify.Create, fsnotify.Write, fsnotify.Rename} {
+		require.False(t, watcher.relevant(fsnotify.Event{Name: lockFile, Op: op}), op.String())
+	}
+}
