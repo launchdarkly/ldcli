@@ -98,8 +98,6 @@ type SetupOptions struct {
 	AgentSpaceID   string
 	AgentSpaceName string
 	NewAgentSpace  bool
-	// NoElevatedActions keeps the elevated actions preference of the space.
-	NoElevatedActions bool
 
 	AuthFlow string
 	// AuthFlowSet: the user passed --auth-flow.
@@ -593,7 +591,7 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 		return SpaceStep{}, errors.New("a new agent space needs a name. Pass --agent-space-name")
 	}
 	if id == "" {
-		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, EnableElevated: !opts.NoElevatedActions}, nil
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, EnableElevated: true}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
@@ -604,7 +602,7 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 	if !provision {
 		step.Action = SpaceConnect
 	} else {
-		step.EnableElevated = !opts.NoElevatedActions && !space.AgentSpace.Preferences[ElevatedActionsPreference]
+		step.EnableElevated = !space.AgentSpace.Preferences[ElevatedActionsPreference]
 	}
 
 	return step, nil

@@ -975,32 +975,6 @@ func TestSetupLeavesASpaceWithElevatedActionsUnchanged(t *testing.T) {
 	assert.NotContains(t, agent.calls, "UpdateAgentSpace")
 }
 
-func TestSetupWithNoElevatedActionsKeepsThePreference(t *testing.T) {
-	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
-		AgentSpaceId: aws.String("space-existing"),
-		Name:         aws.String("launchdarkly"),
-	}}}
-
-	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:    "launchdarkly",
-		AuthFlow:          "iam",
-		NoElevatedActions: true,
-	})
-	require.NoError(t, err)
-	assert.NotContains(t, agent.calls, "UpdateAgentSpace")
-
-	created := &fakeAgent{}
-	_, err = awsdevops.Setup(context.Background(), newTestClients(created, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:    "fresh",
-		NewAgentSpace:     true,
-		AuthFlow:          "iam",
-		LDAccessToken:     "api-token",
-		NoElevatedActions: true,
-	})
-	require.NoError(t, err)
-	assert.Nil(t, created.createdPreferences)
-}
-
 func TestPlanSetupConnectLeavesElevatedActionsUnchanged(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
 		AgentSpaceId: aws.String("space-existing"),
