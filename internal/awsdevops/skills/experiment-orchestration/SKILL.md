@@ -31,7 +31,7 @@ The next chat may be with another person, and you have no memory of this one. Ke
 - Project and environment keys
 - Goal: metric, direction, target, and baseline
 - Hypothesis, and the change that the person implements
-- Current step, for example "waiting for deployment", "experiment running", "won, guarded rollout pending", "guarded rollout running", or "report produced"
+- Current step, for example "waiting for deployment", "design waiting for confirmation", "experiment running", "won, guarded rollout pending", "guarded rollout running", or "report produced"
 - Deployment: who confirmed that the change is deployed, and when
 
 Read everything else (the experiment key, dates, results, and rollout stages) from LaunchDarkly.
@@ -88,13 +88,14 @@ Start only after a person says that the change is deployed.
    - Exactly one primary metric: the success metric from Step 1.
    - Guardrail metrics: always the error-rate metric, and a performance metric (for example p95 page load time) for a performance change.
    - `analysisConfig.sequentialTestingEnabled` set to true, so that checking results at each check-in does not inflate false positives.
-3. Show the person the design and its `designUrl`, check with them that 10% of traffic takes part, and wait for their confirmation. Do not start the experiment in the same reply.
+3. Write the record: the step "design waiting for confirmation", the experiment key, and who confirmed the deployment, and when. A later chat then resumes the draft instead of making another one.
+4. Show the person the design and its `designUrl`, check with them that 10% of traffic takes part, and wait for their confirmation. Do not start the experiment in the same reply.
 
 **After the person confirms the design:**
 
-4. Turn the flag on. Its defaults serve false, so no user gets the treatment yet. Starting an experiment needs the flag on.
-5. Start the experiment.
-6. Write the record once: the step "experiment running", and who confirmed the deployment, and when. Tell the person to check back in 2 weeks, or sooner for a guardrail check, and end.
+5. Turn the flag on. Its defaults serve false, so no user gets the treatment yet. Starting an experiment needs the flag on.
+6. Start the experiment.
+7. Set the record to "experiment running". Tell the person to check back in 2 weeks, or sooner for a guardrail check, and end.
 
 # Check on experiments
 
@@ -106,6 +107,8 @@ If the person asks about an experiment on a flag without the tag, read it and re
 
 **Waiting for deployment:** report it. If the person says now that the change is deployed, go to Step 4.
 
+**Design waiting for confirmation:** the draft experiment from the record exists but has not started. Show its `designUrl` again and ask the person to confirm it, then continue at item 5 of Step 4. Do not create another draft.
+
 **Experiment running:**
 
 - **A guardrail regressed, at any time:** end without a win (below).
@@ -116,6 +119,8 @@ If the person asks about an experiment on a flag without the tag, read it and re
 - **No significance after 4 weeks:** inconclusive, need more traffic. End without a win.
 
 Never declare a winner off a single data point, or before the stats engine confirms significance.
+
+Sequential testing keeps each check-in valid, which is what lets a guardrail regression end the experiment early. The 2-week minimum for a win is about the product, not the statistics: behavior differs between weekdays and weekends, and a new experience can get a short novelty bump. A win needs at least two full weekly cycles.
 
 **Ending without a win:** stop the iteration with control as the winner and a reason that says why, because stopping an iteration requires a winning treatment. Stopping serves control to everyone that the default rule matches. Then turn the flag off, so that its state shows that it is not in use. Do not archive the flag, because the code still evaluates it. Go to Step 6.
 
@@ -149,6 +154,7 @@ Then restart the guarded rollout from the start with the same settings. Never re
 
 When an experiment reaches an outcome (a winner at 100%, a loser, inconclusive, or a failed rollout), produce this report in the same reply, and set the record to "report produced":
 
+```markdown
 ## Experiment Report: [Goal]
 
 **Date:** [YYYY-MM-DD]
@@ -166,7 +172,7 @@ When an experiment reaches an outcome (a winner at 100%, a loser, inconclusive, 
 ### Experiment (10% of traffic)
 - Status: [proven / loser / inconclusive / stopped for a guardrail]
 - Duration: [time]
-- Metric change: [before] → [after] ([+/-]%)
+- Metric change: [control] → [treatment] ([+/-]%)
 - Statistical significance: [value, confidence interval]
 
 ### Guarded rollout (if reached)
@@ -180,7 +186,8 @@ When an experiment reaches an outcome (a winner at 100%, a loser, inconclusive, 
 - [Other guardrails]: [baseline] → [final] ([status])
 
 ### Next steps
-[What to do next. For an experiment that did not win, recommend removing the flag from the code, and then archiving it.]
+[What to do next. For a winner at 100%, recommend a cleanup change that removes the flag from the code and keeps the winning path, and then archiving the flag. For an experiment that did not win, recommend removing the flag from the code and keeping the current behavior, and then archiving the flag.]
+```
 
 ## Safety rules
 

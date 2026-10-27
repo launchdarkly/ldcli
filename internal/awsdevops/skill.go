@@ -33,7 +33,7 @@ var (
 // updates it without --replace-skill. When you change SKILL.md, add the hash
 // of the new text. Never remove a hash.
 var shippedSkillHashes = []string{
-	"53b05092fd7f9ecca7027c60699c88162f1f4410430ea27afa0dc18205dd894c",
+	"57844bc3c5aca292ef88b5f949cd791206074b5cfc850ea52ebdd40020ead695",
 }
 
 const (
