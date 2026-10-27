@@ -628,7 +628,7 @@ func planWithToken(
 			// The first plan found no server, so one appeared since then.
 			name := again.MCP.Name
 			if name == "" {
-				name = awsdevops.MCPServerName
+				name = awsdevops.MCPServerNameFor(again.MCP.SpaceID)
 			}
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 				"MCP server %s (%s) was registered after the first plan, so setup reuses it and does not "+

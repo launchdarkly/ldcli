@@ -350,7 +350,7 @@ type MCPStep struct {
 	// Endpoint is the URL that the server serves.
 	Endpoint string
 	// Name is the name of an existing server in AWS. The customer can change
-	// it, so it can differ from MCPServerName.
+	// it, so it can differ from MCPServerNameFor.
 	Name string
 	// Spaces lists spaces linked to the server.
 	Spaces []string
@@ -739,7 +739,8 @@ func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string
 	return "", fmt.Errorf("ID %s names no registered MCP server", id)
 }
 
-// name is the name of the server in AWS, or the name that setup registers.
+// name is the name of the existing server in AWS, or MCPServerName when AWS
+// sent none. A server that setup registers gets MCPServerNameFor instead.
 func (m MCPStep) name() string {
 	if m.Name != "" {
 		return m.Name
@@ -788,9 +789,9 @@ func (m MCPStep) describe() string {
 	case MCPRegister:
 		return fmt.Sprintf("Register a new MCP server for this agent space at %s", m.Endpoint)
 	case MCPSkip:
-		return fmt.Sprintf("Skip MCP server %s, because no token was given", MCPServerName)
+		return "Skip the MCP server of this agent space, because no token was given"
 	default:
-		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName)
+		return "Ask for a token, then register a new MCP server for this agent space"
 	}
 }
 
@@ -1180,7 +1181,7 @@ func registerMCPServer(
 		// The caller asks for a token.
 		return nil
 	case MCPSkip:
-		logf("Skipped MCP server %s, because no token was given", MCPServerName)
+		logf("Skipped the MCP server of the agent space, because no token was given")
 
 		return nil
 	}
@@ -1189,7 +1190,7 @@ func registerMCPServer(
 		logf("Reused MCP server %s (%s) with its current token", step.name(), existing)
 		logf("Pass --access-token and --replace-mcp-token to change the token")
 
-		return associateMCPServer(ctx, clients, result, logf)
+		return associateMCPServer(ctx, clients, step.name(), result, logf)
 	}
 	// A run after a failure finds an unconnected server by this name.
 	name := MCPServerNameFor(result.AgentSpaceID)
@@ -1278,7 +1279,7 @@ func registerMCPServer(
 		}
 	}
 
-	return associateMCPServer(ctx, clients, result, logf)
+	return associateMCPServer(ctx, clients, name, result, logf)
 }
 
 // leaveSharedServer disconnects a shared server from this space only, after
@@ -1426,9 +1427,11 @@ func disassociateEverywhere(
 	return detached, nil
 }
 
+// associateMCPServer connects the server, named name in AWS, to the space.
 func associateMCPServer(
 	ctx context.Context,
 	clients Clients,
+	name string,
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
@@ -1438,7 +1441,7 @@ func associateMCPServer(
 	}
 	if existing != "" {
 		result.MCPAssociationID = existing
-		logf("MCP server %s is already associated with the agent space", MCPServerName)
+		logf("MCP server %s is already associated with the agent space", name)
 
 		return nil
 	}
@@ -1448,7 +1451,7 @@ func associateMCPServer(
 		return err
 	}
 	result.MCPAssociationID = associationID
-	logf("Associated MCP server %s with the agent space", MCPServerName)
+	logf("Associated MCP server %s with the agent space", name)
 
 	return nil
 }

@@ -111,7 +111,7 @@ func TestSetupSkippedTokenNamesTheNextStep(t *testing.T) {
 	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, true))
 
 	assert.NotContains(t, w.calls, "RegisterService")
-	assert.Contains(t, stderrOf(cmd), "Skip MCP server LaunchDarkly")
+	assert.Contains(t, stderrOf(cmd), "Skip the MCP server of this agent space")
 	assert.NotContains(t, stderrOf(cmd), "Ask for a token")
 	assert.Contains(t, stdoutOf(cmd), "The LaunchDarkly MCP server is not connected")
 }
