@@ -197,13 +197,8 @@ func agentSpaceARN(region, accountID, spaceID string) string {
 	return fmt.Sprintf("arn:aws:aidevops:%s:%s:agentspace/%s", region, accountID, spaceID)
 }
 
-// mcpServerIDLength is how many characters of the space ID the server name
-// keeps. The agent sees each tool as "<server name>_<tool name>", and AWS
-// caps that at 64 characters. "LaunchDarkly-" takes 13 and "_" takes 1, so
-// with the longest tool (get-experiment-metric-results, 29) the ID gets at
-// most 21. A full UUID is 36. 12 is the last group of a UUID, which leaves 9
-// characters for longer tools. TestMCPServerNameForLeavesRoomForEveryTool
-// checks every tool in the allowlist.
+// mcpServerIDLength is the length to truncate the agent space ID to in the
+// server name.
 const mcpServerIDLength = 12
 
 // MCPServerNameFor is the name of the MCP server that setup registers for an
