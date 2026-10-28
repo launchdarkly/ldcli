@@ -73,7 +73,7 @@ func TestSetupAddsMissingToolsToAnExistingAllowlist(t *testing.T) {
 func TestSetupKeepsACompleteAllowlist(t *testing.T) {
 	agent := &fakeAgent{
 		services:     []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
-		associations: []agenttypes.Association{mcpAssociation(awsdevops.AllowedTools()...)},
+		associations: []agenttypes.Association{mcpAssociation(awsdevops.MCPTools()...)},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseServerOptions())

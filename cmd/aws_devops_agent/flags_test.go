@@ -62,13 +62,14 @@ func spaceIDRun(t *testing.T, flags map[string]string) []string {
 	return w.calls
 }
 
-// An auth flag asks for full setup.
-func TestSpaceIDWithAuthFlagRunsFullSetup(t *testing.T) {
+// --full-setup asks for full setup, with any sign-in method.
+func TestSpaceIDWithFullSetupRunsFullSetup(t *testing.T) {
 	cases := map[string]map[string]string{
-		"auth-flow":        {authFlowFlag: "iam"},
-		"idc-instance-arn": {authFlowFlag: "idc", idcInstanceARNFlag: "arn:aws:sso:::instance/ssoins-1"},
+		"full-setup":       {fullSetupFlag: "true"},
+		"auth-flow":        {fullSetupFlag: "true", authFlowFlag: "iam"},
+		"idc-instance-arn": {fullSetupFlag: "true", authFlowFlag: "idc", idcInstanceARNFlag: "arn:aws:sso:::instance/ssoins-1"},
 		"idp": {
-			authFlowFlag: "idp", issuerURLFlag: "https://idp.example.com",
+			fullSetupFlag: "true", authFlowFlag: "idp", issuerURLFlag: "https://idp.example.com",
 			idpClientIDFlag: "client", idpClientSecretFlag: "secret",
 		},
 	}
@@ -146,6 +147,12 @@ func TestSetupOptionsRecordsAuthFlow(t *testing.T) {
 	opts, err = setupOptions(cmd)
 	require.NoError(t, err)
 	assert.True(t, opts.AuthFlowSet)
+	assert.False(t, opts.FullSetup)
+
+	require.NoError(t, cmd.Flags().Set(fullSetupFlag, "true"))
+	opts, err = setupOptions(cmd)
+	require.NoError(t, err)
+	assert.True(t, opts.FullSetup)
 }
 
 // Setup does not ask for the replacement token, so the flag needs one.

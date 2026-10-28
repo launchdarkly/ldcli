@@ -268,6 +268,8 @@ func TestPlanTextOfAConnectPlan(t *testing.T) {
 
 			text := plan.Text()
 
+			assert.Contains(t, text.Scope, "Connect the MCP server only")
+			assert.Contains(t, text.Scope, "--full-setup")
 			assert.Equal(t, "Connect to agent space platform (space-7)", text.AgentSpace)
 			assert.Equal(t, "No change", text.Association)
 			assert.Equal(t, []string{"No change"}, text.Roles)
@@ -280,7 +282,7 @@ func TestPlanTextOfAConnectPlan(t *testing.T) {
 func TestPlanTextOfASkippedMCPServer(t *testing.T) {
 	plan := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPSkip}}
 
-	assert.Equal(t, "Skip MCP server "+awsdevops.MCPServerName+", because no token was given", plan.Text().MCPServer)
+	assert.Equal(t, "Skip the MCP server of this agent space, because no token was given", plan.Text().MCPServer)
 }
 
 // The plan names the server by its name in AWS, which the customer can change.

@@ -479,7 +479,7 @@ func TestRunPlanSkipsTheMCPServer(t *testing.T) {
 	for _, in := range agent.associationInputs {
 		assert.Equal(t, "aws", aws.ToString(in.ServiceId))
 	}
-	assert.Contains(t, strings.Join(*logged, "\n"), "Skipped MCP server")
+	assert.Contains(t, strings.Join(*logged, "\n"), "Skipped the MCP server of the agent space")
 }
 
 // A space that reads only another account still gets this account. Setup
@@ -1360,4 +1360,18 @@ func TestMCPServerNameForHasOnlyAllowedCharacters(t *testing.T) {
 	name := awsdevops.MCPServerNameFor("0b9f6c3e-5d7a-4c1e-9a2b-3f4e5d6c7b8a")
 
 	assert.Regexp(t, `^[a-zA-Z0-9_-]{1,128}$`, name)
+}
+
+// The name keeps the last group of a UUID space ID.
+func TestMCPServerNameForKeepsTheEndOfTheSpaceID(t *testing.T) {
+	assert.Equal(t, "LaunchDarkly-3f4e5d6c7b8a", awsdevops.MCPServerNameFor("0b9f6c3e-5d7a-4c1e-9a2b-3f4e5d6c7b8a"))
+}
+
+// AWS caps the server name, "_" and a tool name at 64 characters.
+func TestMCPServerNameForLeavesRoomForEveryTool(t *testing.T) {
+	name := awsdevops.MCPServerNameFor("0b9f6c3e-5d7a-4c1e-9a2b-3f4e5d6c7b8a")
+
+	for _, tool := range awsdevops.MCPTools() {
+		assert.LessOrEqual(t, len(name+"_"+tool), 64, tool)
+	}
 }

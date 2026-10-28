@@ -122,7 +122,7 @@ func TestSetupSkippedTokenNamesTheNextStep(t *testing.T) {
 	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, true))
 
 	assert.NotContains(t, w.calls, "RegisterService")
-	assert.Contains(t, stderrOf(cmd), "Skip MCP server LaunchDarkly")
+	assert.Contains(t, stderrOf(cmd), "Skip the MCP server of this agent space")
 	assert.NotContains(t, stderrOf(cmd), "Ask for a token")
 	assert.Contains(t, stdoutOf(cmd), "The LaunchDarkly MCP server is not connected")
 }
@@ -374,10 +374,10 @@ func twoSimilarSpaces() (awsdevops.Clients, *writes) {
 	)
 }
 
-// --auth-flow runs full setup on choice.
-func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
+// --full-setup runs full setup on choice.
+func TestSetupChosenSpaceWithFullSetup(t *testing.T) {
 	cmd, out := setupTestCmd(t, "2\ny\n")
-	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
+	require.NoError(t, cmd.Flags().Set(fullSetupFlag, "true"))
 	clients, w := twoSimilarSpaces()
 	opts, err := setupOptions(cmd)
 	require.NoError(t, err)
@@ -386,13 +386,30 @@ func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
 	assert.Contains(t, out.String(), "Reuse agent space LaunchDarkly (space-2)")
+	assert.Contains(t, out.String(), "Setup:         Full setup")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
 	assert.Contains(t, out.String(), "Reused agent space LaunchDarkly (space-2)")
 	assert.NotContains(t, out.String(), "agent space launchdarkly (space-1)")
 }
 
-func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
+// A connect run does not change the sign-in, so --auth-flow alone stops it.
+func TestSetupChosenSpaceWithOnlyAuthFlowStops(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "2\ny\n")
+	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
+	clients, w := twoSimilarSpaces()
+	opts, err := setupOptions(cmd)
+	require.NoError(t, err)
+	opts.LDAccessToken = "api-token"
+
+	err = setupWith(cmd, clients, opts, true, true)
+
+	require.EqualError(t, err, "only a full setup changes the operator app sign-in. To use --auth-flow on agent space LaunchDarkly (space-2), also pass --full-setup. "+
+		"To only connect the MCP server, remove --auth-flow")
+	assert.Empty(t, w.calls)
+}
+
+func TestSetupChosenSpaceWithoutFullSetupConnects(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "2\ny\n")
 	clients, w := twoSimilarSpaces()
 
@@ -402,9 +419,11 @@ func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
 	assert.NotContains(t, w.calls, "CreateRole")
 	assert.Contains(t, stderrOf(cmd), "Using agent space LaunchDarkly (space-2)")
 	assert.Contains(t, stderrOf(cmd), "No change. The operator app is off")
+	assert.Contains(t, stderrOf(cmd), "Setup:         Connect the MCP server only.")
+	assert.Contains(t, stderrOf(cmd), "run setup again with --full-setup")
 	assert.Contains(t, stdoutOf(cmd), "The operator app of agent space space-2 is off")
 	assert.Contains(t, stdoutOf(cmd), "use the AWS console")
-	assert.NotContains(t, stdoutOf(cmd), "--auth-flow")
+	assert.NotContains(t, stdoutOf(cmd), "--full-setup")
 	assert.NotContains(t, stdoutOf(cmd), "Open the DevOps Agent at")
 }
 
@@ -505,4 +524,30 @@ func TestSetupJSONWarnsOnStderrWhenSkillFails(t *testing.T) {
 	assert.True(t, json.Valid([]byte(stdoutOf(cmd))), "stdout is not JSON: %s", stdoutOf(cmd))
 	assert.Contains(t, stdoutOf(cmd), `"skillAction": "failed"`)
 	assert.Contains(t, errOut.String(), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
+}
+
+// Without a name from AWS, the warning gives only the ID, which identifies
+// the server, and does not guess a name.
+func TestSetupNamesANamelessServerByItsID(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "api-token\n")
+	clients, _ := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")})
+	agent := clients.Agent.(countingAgent)
+	agent.associations = []agenttypes.Association{{AssociationId: aws.String("assoc-7"), ServiceId: aws.String("mcp-7")}}
+	agent.services = []agenttypes.RegisteredService{{
+		ServiceId:   aws.String("mcp-7"),
+		ServiceType: agenttypes.ServiceMcpServer,
+		AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
+			Value: agenttypes.RegisteredMCPServerDetails{Endpoint: aws.String(awsdevops.MCPServerEndpoint)},
+		},
+	}}
+	clients.Agent = agent
+	opts := noTokenOptions()
+	opts.AgentSpaceName, opts.AgentSpaceID = "", "space-1"
+	first := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPAsk}}
+
+	plan, err := planWithToken(cmd, clients, &opts, first, true)
+
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	assert.Contains(t, stderrOf(cmd), "MCP server mcp-7 was registered after the first plan")
 }

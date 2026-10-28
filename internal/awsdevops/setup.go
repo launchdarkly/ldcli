@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -43,6 +44,9 @@ const (
 	MCPServerEndpoint = "https://mcp.launchdarkly.com/mcp/launchdarkly"
 
 	agentSpaceDescription = "Managed by the LaunchDarkly CLI"
+	// ElevatedActionsPreference lets the agent run actions that change AWS
+	// resources.
+	ElevatedActionsPreference = "elevatedActionsEnabled"
 )
 
 // The agent invokes read-only tools without asking for approval, so anything
@@ -101,6 +105,8 @@ type SetupOptions struct {
 	AgentSpaceID   string
 	AgentSpaceName string
 	NewAgentSpace  bool
+	// FullSetup: the user passed --full-setup.
+	FullSetup bool
 
 	AuthFlow string
 	// AuthFlowSet: the user passed --auth-flow.
@@ -215,17 +221,23 @@ type SpaceStep struct {
 	Action SpaceAction
 	ID     string
 	Name   string
+	// EnableElevated turns on elevated actions on the space.
+	EnableElevated bool
 }
 
 func (s SpaceStep) describe() string {
 	label := fmt.Sprintf("%s (%s)", s.Name, s.ID)
+	elevated := ""
+	if s.EnableElevated {
+		elevated = ", and turn on elevated actions"
+	}
 	switch s.Action {
 	case SpaceCreate:
-		return "Create agent space " + s.Name
+		return "Create agent space " + s.Name + elevated
 	case SpaceConnect:
 		return "Connect to agent space " + label
 	default:
-		return "Reuse agent space " + label
+		return "Reuse agent space " + label + elevated
 	}
 }
 
@@ -378,7 +390,7 @@ type MCPStep struct {
 	// Endpoint is the URL that the server serves.
 	Endpoint string
 	// Name is the name of an existing server in AWS. The customer can change
-	// it, so it can differ from MCPServerName.
+	// it, so it can differ from MCPServerNameFor.
 	Name string
 	// Spaces lists spaces linked to the server.
 	Spaces []string
@@ -436,6 +448,8 @@ type SetupPlan struct {
 
 // PlanText is the plan as lines for a person to read.
 type PlanText struct {
+	// Scope tells if the run is a full setup.
+	Scope       string
 	AgentSpace  string
 	Association string
 	Roles       []string
@@ -446,8 +460,10 @@ type PlanText struct {
 
 // Text describes each step of the plan.
 func (p SetupPlan) Text() PlanText {
-	text := PlanText{AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe(), Skill: p.Skill.describe()}
+	text := PlanText{Scope: "Full setup", AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe(), Skill: p.Skill.describe()}
 	if p.Space.Action == SpaceConnect {
+		text.Scope = "Connect the MCP server only. To also update the IAM roles, " +
+			"account association, and operator app of the space, run setup again with --full-setup"
 		text.Association = "No change"
 		text.Roles = []string{"No change"}
 		text.OperatorApp = "No change"
@@ -631,7 +647,7 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 		return SpaceStep{}, errors.New("a new agent space needs a name. Pass --agent-space-name")
 	}
 	if id == "" {
-		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, EnableElevated: true}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
@@ -641,6 +657,8 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 	step := SpaceStep{Action: SpaceReuse, ID: id, Name: aws.ToString(space.AgentSpace.Name)}
 	if !provision {
 		step.Action = SpaceConnect
+	} else {
+		step.EnableElevated = !space.AgentSpace.Preferences[ElevatedActionsPreference]
 	}
 
 	return step, nil
@@ -667,6 +685,29 @@ func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
 		return planChanged("agent space %s disappeared after the plan", step.ID)
 	case err != nil:
 		return fmt.Errorf("unable to read agent space %s: %w", step.ID, err)
+	}
+
+	return nil
+}
+
+// enableElevatedActions turns on elevated actions on a space. An update
+// replaces all the preferences, so it sends the current ones too.
+func enableElevatedActions(ctx context.Context, clients Clients, spaceID string) error {
+	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(spaceID)})
+	if err != nil {
+		return fmt.Errorf("unable to read agent space %s: %w", spaceID, err)
+	}
+	preferences := maps.Clone(space.AgentSpace.Preferences)
+	if preferences == nil {
+		preferences = map[string]bool{}
+	}
+	preferences[ElevatedActionsPreference] = true
+	_, err = clients.Agent.UpdateAgentSpace(ctx, &devopsagent.UpdateAgentSpaceInput{
+		AgentSpaceId: aws.String(spaceID),
+		Preferences:  preferences,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to turn on elevated actions on agent space %s: %w", spaceID, err)
 	}
 
 	return nil
@@ -789,7 +830,8 @@ func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string
 	return "", fmt.Errorf("ID %s names no registered MCP server", id)
 }
 
-// name is the name of the server in AWS, or the name that setup registers.
+// name is the name of the existing server in AWS, or MCPServerName when AWS
+// sent none. A server that setup registers gets MCPServerNameFor instead.
 func (m MCPStep) name() string {
 	if m.Name != "" {
 		return m.Name
@@ -850,9 +892,9 @@ func (m MCPStep) describe() string {
 	case MCPRegister:
 		return fmt.Sprintf("Register a new MCP server for this agent space at %s", m.Endpoint)
 	case MCPSkip:
-		return fmt.Sprintf("Skip MCP server %s, because no token was given", MCPServerName)
+		return "Skip the MCP server of this agent space, because no token was given"
 	default:
-		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName)
+		return "Ask for a token, then register a new MCP server for this agent space"
 	}
 }
 
@@ -974,11 +1016,15 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		if err := checkSpace(ctx, clients, plan.Space); err != nil {
 			return result, err
 		}
-		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
+		input := &devopsagent.CreateAgentSpaceInput{
 			Name:        aws.String(plan.Space.Name),
 			Description: aws.String(agentSpaceDescription),
 			Tags:        map[string]string{ManagedTagKey: ManagedTagValue},
-		})
+		}
+		if plan.Space.EnableElevated {
+			input.Preferences = map[string]bool{ElevatedActionsPreference: true}
+		}
+		space, err := clients.Agent.CreateAgentSpace(ctx, input)
 		if err != nil {
 			return result, fmt.Errorf("unable to create the agent space: %w", err)
 		}
@@ -987,6 +1033,12 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	} else {
 		result.AgentSpaceID = plan.Space.ID
 		logf("Reused agent space %s (%s)", plan.Space.Name, plan.Space.ID)
+		if plan.Space.EnableElevated {
+			if err := enableElevatedActions(ctx, clients, plan.Space.ID); err != nil {
+				return result, err
+			}
+			logf("Turned on elevated actions on agent space %s", plan.Space.ID)
+		}
 	}
 
 	result.AWSAssociationID, err = FindAWSAssociation(ctx, clients, result.AgentSpaceID, accountID)
@@ -1246,7 +1298,7 @@ func registerMCPServer(
 		// The caller asks for a token.
 		return nil
 	case MCPSkip:
-		logf("Skipped MCP server %s, because no token was given", MCPServerName)
+		logf("Skipped the MCP server of the agent space, because no token was given")
 
 		return nil
 	}
@@ -1255,7 +1307,7 @@ func registerMCPServer(
 		logf("Reused MCP server %s (%s) with its current token", step.name(), existing)
 		logf("Pass --access-token and --replace-mcp-token to change the token")
 
-		return associateMCPServer(ctx, clients, opts, step, result, logf)
+		return associateMCPServer(ctx, clients, opts, step, step.name(), result, logf)
 	}
 	// A run after a failure finds an unconnected server by this name.
 	name := MCPServerNameFor(result.AgentSpaceID)
@@ -1344,7 +1396,7 @@ func registerMCPServer(
 		}
 	}
 
-	return associateMCPServer(ctx, clients, opts, step, result, logf)
+	return associateMCPServer(ctx, clients, opts, step, name, result, logf)
 }
 
 // leaveSharedServer disconnects a shared server from this space only, after
@@ -1492,11 +1544,13 @@ func disassociateEverywhere(
 	return detached, nil
 }
 
+// associateMCPServer connects the server, named name in AWS, to the space.
 func associateMCPServer(
 	ctx context.Context,
 	clients Clients,
 	opts SetupOptions,
 	step MCPStep,
+	name string,
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
@@ -1506,7 +1560,7 @@ func associateMCPServer(
 	}
 	if existing != nil {
 		result.MCPAssociationID = aws.ToString(existing.AssociationId)
-		logf("MCP server %s is already associated with the agent space", MCPServerName)
+		logf("MCP server %s is already associated with the agent space", name)
 		extendAllowlist(ctx, clients, opts, step, *existing, result, logf)
 
 		return nil
@@ -1517,7 +1571,7 @@ func associateMCPServer(
 		return err
 	}
 	result.MCPAssociationID = associationID
-	logf("Associated MCP server %s with the agent space", MCPServerName)
+	logf("Associated MCP server %s with the agent space", name)
 
 	return nil
 }

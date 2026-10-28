@@ -101,6 +101,10 @@ func (s stubAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpac
 	return &devopsagent.GetAgentSpaceOutput{AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId}}, nil
 }
 
+func (s stubAgent) UpdateAgentSpace(context.Context, *devopsagent.UpdateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAgentSpaceOutput, error) {
+	return nil, nil
+}
+
 func (s stubAgent) ListAgentSpaces(context.Context, *devopsagent.ListAgentSpacesInput, ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error) {
 	return &devopsagent.ListAgentSpacesOutput{AgentSpaces: s.spaces}, nil
 }
@@ -636,19 +640,19 @@ func TestResolveAgentSpaceIDWithUnreadTagsConnectsOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, provision)
 	assert.Contains(t, out.String(), "could not read the tags of agent space launchdarkly (space-2), so it only connects the MCP server")
-	assert.Contains(t, out.String(), "--auth-flow")
+	assert.Contains(t, out.String(), "--full-setup")
 }
 
-// --auth-flow forces the full setup on a space that setup did not make, and
+// --full-setup forces the full setup on a space that setup did not make, and
 // setup warns about it before the plan.
-func TestResolveAgentSpaceWarnsAboutAuthFlowOnAnotherSpace(t *testing.T) {
+func TestResolveAgentSpaceWarnsAboutFullSetupOnAnotherSpace(t *testing.T) {
 	for name, space := range map[string]agenttypes.AgentSpace{
 		"made by someone else": {AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
 		"made by setup":        ldcliSpace("space-2", "platform"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			cmd, out := testCmd("")
-			opts := awsdevops.SetupOptions{AgentSpaceID: "space-2", AuthFlowSet: true}
+			opts := awsdevops.SetupOptions{AgentSpaceID: "space-2", FullSetup: true}
 
 			provision, err := resolveAgentSpace(cmd, newStubClients(space), &opts, false)
 

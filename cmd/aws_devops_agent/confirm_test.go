@@ -77,6 +77,12 @@ func (a countingAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgent
 	return &devopsagent.GetAgentSpaceOutput{AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId}}, nil
 }
 
+func (a countingAgent) UpdateAgentSpace(context.Context, *devopsagent.UpdateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAgentSpaceOutput, error) {
+	a.writes.add("UpdateAgentSpace")
+
+	return &devopsagent.UpdateAgentSpaceOutput{}, nil
+}
+
 func (a countingAgent) RegisterService(context.Context, *devopsagent.RegisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.RegisterServiceOutput, error) {
 	a.writes.add("RegisterService")
 
