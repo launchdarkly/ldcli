@@ -3,12 +3,11 @@ package awsdevopsagent
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
@@ -25,7 +24,6 @@ const (
 	issuerURLFlag       = "issuer-url"
 	idpClientIDFlag     = "idp-client-id"
 	idpClientSecretFlag = "idp-client-secret"
-	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
 	replaceSkillFlag    = "replace-skill"
@@ -50,15 +48,13 @@ or --new-agent-space to provision another space. A new space needs a name:
 pass --agent-space-name, or type one when setup asks. The run ends with the
 operator app URL, where the agent is used.
 
-Each agent space gets its own LaunchDarkly MCP server registration, so each
-space can use a different token. The MCP server is connected with
---access-token, or with the token in your ldcli configuration when you do not
-pass one. AWS keeps the token and the agent acts as its account and role, so a
-session token from 'ldcli login' stops working once it expires. If the agent
-space already has an MCP server, setup reuses it and does not change its token.
-If it has none, setup asks for a service token in a terminal and checks it
-before it changes AWS. Without a terminal, or with --yes, it stops and asks
-for --access-token.
+The AWS account gets one LaunchDarkly MCP server, which all agent spaces use.
+If the account has no server, setup registers one with OAuth. It opens a
+browser, where you approve access to LaunchDarkly, and waits until AWS
+registers the server. After the approval, the browser opens the AWS console,
+which can ask you to sign in. The agent then acts as the LaunchDarkly member
+who approved access, in every agent space. If the agent space already has an
+MCP server, setup keeps it.
 
 A space that reuses a server keeps its tool allowlist. If the allowlist misses
 tools that this ldcli version allows, setup warns. To add them, pass
@@ -88,8 +84,7 @@ does the other steps.`,
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
-	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Give the agent space a new LaunchDarkly MCP server with the token passed with --access-token. Other agent spaces keep their server")
-	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the agent space")
+	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the AWS account")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
 	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
 	cmd.Flags().Bool(addMCPToolsFlag, false, "Add the ldcli tools that the MCP server allowlist of an existing agent space misses. "+
@@ -116,13 +111,6 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	plaintext := cliflags.GetOutputKind(cmd) != "json"
 	if warning := awsdevops.CheckAWSCLIVersion(cmd.Context()); warning != "" {
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", warning)
-	}
-	if opts.LDAccessToken != "" && accessTokenFromConfig(cmd) {
-		_, _ = fmt.Fprintln(
-			cmd.ErrOrStderr(),
-			"Using the access token from your ldcli configuration for the MCP server. "+
-				"Pass --access-token with a service token if that one expires",
-		)
 	}
 	// The prompts go to stderr, so a json run in a terminal can ask too.
 	return setupWith(cmd, clients, opts, plaintext, canPrompt())
@@ -161,15 +149,6 @@ func setupWith(
 			authFlowFlag, plan.Space.Name, plan.Space.ID, fullSetupFlag, authFlowFlag,
 		)
 	}
-	if plan.MCP.Action == awsdevops.MCPAsk && !ask {
-		return fmt.Errorf("create a service token at %s, then pass --access-token", awsdevops.AccessTokenURL(opts.LDBaseURI))
-	}
-	if plan.MCP.Action == awsdevops.MCPAsk {
-		plan, err = planWithToken(cmd, clients, &opts, plan, provision)
-		if err != nil {
-			return err
-		}
-	}
 	// The plan goes to stderr, so a json run shows it too.
 	if err := confirmSetup(cmd, plan, ask); err != nil {
 		return err
@@ -201,13 +180,6 @@ func setupWith(
 		}
 
 		return printJSON(cmd, result)
-	}
-
-	if result.MCPServiceID == "" {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"\nThe LaunchDarkly MCP server is not connected. Create a service token at %s, "+
-				"then run setup again with --access-token\n",
-			awsdevops.AccessTokenURL(opts.LDBaseURI))
 	}
 
 	if result.MCPToolsError != "" {
@@ -653,65 +625,6 @@ func agentSpaceLabels(spaces []awsdevops.AgentSpaceSummary) []string {
 	return labels
 }
 
-// planWithToken asks for the token before any AWS write. With a token, it plans
-// again, so the plan that the user confirms is current. Without one, the plan
-// skips the MCP server, and a connect run has nothing to do.
-func planWithToken(
-	cmd *cobra.Command,
-	clients awsdevops.Clients,
-	opts *awsdevops.SetupOptions,
-	plan awsdevops.SetupPlan,
-	provision bool,
-) (awsdevops.SetupPlan, error) {
-	token, err := askToken(cmd, opts.LDBaseURI)
-	switch {
-	case err != nil:
-		return plan, err
-	case token != "":
-		opts.LDAccessToken = token
-		again, err := awsdevops.PlanSetup(cmd.Context(), clients, *opts, provision)
-		if err == nil && again.MCP.Action == awsdevops.MCPReuse {
-			// The first plan found no server, so one appeared since then.
-			// Without a name from AWS, only the ID identifies it.
-			server := again.MCP.ServiceID
-			if again.MCP.Name != "" {
-				server = fmt.Sprintf("%s (%s)", again.MCP.Name, again.MCP.ServiceID)
-			}
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
-				"MCP server %s was registered after the first plan, so setup reuses it and does not "+
-					"use the token that you pasted. To replace its token, run setup with --%s and --%s.\n",
-				server, cliflags.AccessTokenFlag, replaceMCPTokenFlag)
-		}
-
-		return again, err
-	case !provision:
-		return plan, fmt.Errorf(
-			"setup did not change AWS: without a token, there is nothing to do on agent space %s (%s). Pass --access-token",
-			plan.Space.Name, plan.Space.ID)
-	}
-	plan.MCP.Action = awsdevops.MCPSkip
-
-	return plan, nil
-}
-
-// askToken asks for a LaunchDarkly service token and checks it. An empty
-// answer skips the MCP server.
-func askToken(cmd *cobra.Command, baseURI string) (string, error) {
-	out := cmd.ErrOrStderr()
-	_, _ = fmt.Fprintf(out, "\nCreate a LaunchDarkly service token at:\n  %s\n\n", awsdevops.AccessTokenURL(baseURI))
-	_, _ = fmt.Fprint(out, "Paste the token, or press Enter to skip: ")
-	token := readSecret(cmd.InOrStdin())
-	_, _ = fmt.Fprintln(out)
-	if token == "" {
-		return "", nil
-	}
-	if err := awsdevops.CheckToken(cmd.Context(), baseURI, token); err != nil {
-		return "", fmt.Errorf("setup did not change AWS: %w", err)
-	}
-
-	return token, nil
-}
-
 func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 	opts := awsdevops.SetupOptions{
 		AgentSpaceID:    mustString(cmd, agentSpaceIDFlag),
@@ -724,11 +637,9 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		IdpClientID:     mustString(cmd, idpClientIDFlag),
 		IdpClientSecret: mustString(cmd, idpClientSecretFlag),
 		NewAgentSpace:   mustBool(cmd, newAgentSpaceFlag),
-		LDBaseURI:       viper.GetString(cliflags.BaseURIFlag),
-		LDAccessToken:   viper.GetString(cliflags.AccessTokenFlag),
-		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
 		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
+		OpenURL:         browser.OpenURL,
 		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
 		AddMCPTools:     mustBool(cmd, addMCPToolsFlag),
 	}
@@ -755,23 +666,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 	default:
 		return opts, fmt.Errorf("--%s must be iam, idc or idp", authFlowFlag)
 	}
-	// The replacement token comes from the flag, LD_ACCESS_TOKEN, or the ldcli
-	// configuration. Setup does not ask for one, so without one the flag does
-	// nothing.
-	if opts.ReplaceMCPToken && opts.LDAccessToken == "" {
-		return opts, fmt.Errorf("--%s needs a token. Pass --%s", replaceMCPTokenFlag, cliflags.AccessTokenFlag)
-	}
-
 	return opts, nil
-}
-
-// accessTokenFromConfig reports whether the token came from the ldcli
-// configuration rather than this run, where `ldcli login` may have written a
-// session token that AWS would keep past its expiry.
-func accessTokenFromConfig(cmd *cobra.Command) bool {
-	return !cmd.Flags().Changed(cliflags.AccessTokenFlag) &&
-		os.Getenv("LD_ACCESS_TOKEN") == "" &&
-		viper.GetString(cliflags.AccessTokenFlag) != ""
 }
 
 // mustString and friends read flags this package declares itself, so a lookup

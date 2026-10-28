@@ -1,6 +1,9 @@
 package awsdevops
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Setup plans a full setup and runs it, for tests.
 func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
@@ -39,4 +42,13 @@ func SkillHash(text string) string { return skillHash(text) }
 // MCPTools lists every tool in the allowlist, for tests.
 func MCPTools() []string {
 	return append(append([]string{}, mcpReadOnlyTools...), mcpMutativeTools...)
+}
+
+// SetOAuthPollInterval changes how often setup looks for the OAuth server,
+// for tests. It returns a function that restores the old interval.
+func SetOAuthPollInterval(d time.Duration) func() {
+	old := oauthPollInterval
+	oauthPollInterval = d
+
+	return func() { oauthPollInterval = old }
 }

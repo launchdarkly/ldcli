@@ -68,22 +68,6 @@ func readYes(in io.Reader) bool {
 	return false
 }
 
-// readSecret reads one line without echoing it, so a pasted credential stays
-// off the screen.
-func readSecret(in io.Reader) string {
-	file, ok := in.(*os.File)
-	if !ok || !term.IsTerminal(int(file.Fd())) {
-		return readLine(in)
-	}
-
-	typed, err := term.ReadPassword(int(file.Fd()))
-	if err != nil {
-		return ""
-	}
-
-	return strings.TrimSpace(string(typed))
-}
-
 // canPrompt reports a terminal on stdin and stderr. The prompts go to stderr,
 // so a run with stderr sent to a file does not wait for an answer.
 func canPrompt() bool {

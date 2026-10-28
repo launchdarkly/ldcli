@@ -16,7 +16,7 @@ import (
 )
 
 func reuseOptions() awsdevops.SetupOptions {
-	return awsdevops.SetupOptions{AgentSpaceID: "space-2", AuthFlow: "iam", LDAccessToken: "api-token"}
+	return awsdevops.SetupOptions{AgentSpaceID: "space-2", AuthFlow: "iam"}
 }
 
 func metadataOf(t *testing.T, doc document.Interface) map[string]any {
@@ -47,7 +47,6 @@ func TestSetupCreatesSkillInNewSpace(t *testing.T) {
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
 		AuthFlow:       "iam",
-		LDAccessToken:  "api-token",
 	})
 	require.NoError(t, err)
 

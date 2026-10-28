@@ -2,8 +2,6 @@ package awsdevops_test
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,22 +51,4 @@ func TestSupportedRegionsMatchTheAWSList(t *testing.T) {
 		"ap-south-1", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1", "ap-northeast-2",
 		"eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3", "eu-north-1",
 	}, awsdevops.SupportedRegions)
-}
-
-func TestValidateAccessTokenSendsAPIVersion(t *testing.T) {
-	var got []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got = r.Header.Values("LD-API-Version")
-		if len(got) != 1 || got[0] != "20240415" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(server.Close)
-
-	err := awsdevops.ValidateAccessToken(context.Background(), server.URL, "api-token")
-
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"20240415"}, got)
 }

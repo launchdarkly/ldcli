@@ -78,68 +78,6 @@ func TestSetupCanceledCreatesNoSkill(t *testing.T) {
 	assert.NotContains(t, w.calls, "CreateAsset")
 }
 
-func noTokenOptions() awsdevops.SetupOptions {
-	opts := newSpaceOptions()
-	opts.LDAccessToken = ""
-
-	return opts
-}
-
-// The token prompt comes before the plan question.
-func TestTokenPromptAsksWhenInteractive(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "api-token\ny\n")
-	clients, w := countingClients()
-
-	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, true))
-
-	assert.Contains(t, w.calls, "RegisterService")
-	assert.Less(t, strings.Index(stderrOf(cmd), "Paste the token"), strings.Index(stderrOf(cmd), "Setup plan:"))
-	// The plan is built again with the token, so it is current.
-	assert.Contains(t, stderrOf(cmd), "Register a new MCP server for this agent space at")
-	assert.NotContains(t, stderrOf(cmd), "Ask for a token")
-}
-
-// A rejected token stops setup before any AWS write.
-func TestSetupChecksAPastedTokenFirst(t *testing.T) {
-	saved := awsdevops.CheckToken
-	t.Cleanup(func() { awsdevops.CheckToken = saved })
-	awsdevops.CheckToken = func(context.Context, string, string) error { return awsdevops.ErrInvalidAccessToken }
-	cmd, _ := setupTestCmd(t, "expired-token\ny\n")
-	clients, w := countingClients()
-
-	err := setupWith(cmd, clients, noTokenOptions(), true, true)
-
-	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
-	assert.Empty(t, w.calls)
-	assert.NotContains(t, stderrOf(cmd), "Setup plan:")
-}
-
-// Enter skips the MCP server, and the end names the next step.
-func TestSetupSkippedTokenNamesTheNextStep(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "\ny\n")
-	clients, w := countingClients()
-
-	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, true))
-
-	assert.NotContains(t, w.calls, "RegisterService")
-	assert.Contains(t, stderrOf(cmd), "Skip the MCP server of this agent space")
-	assert.NotContains(t, stderrOf(cmd), "Ask for a token")
-	assert.Contains(t, stdoutOf(cmd), "The LaunchDarkly MCP server is not connected")
-}
-
-// Without a token, a connect run has nothing to do.
-func TestSetupConnectWithoutATokenStops(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "2\n\n")
-	clients, w := twoSimilarSpaces()
-
-	err := setupWith(cmd, clients, noTokenOptions(), true, true)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "nothing to do on agent space LaunchDarkly (space-2)")
-	assert.Empty(t, w.calls)
-	assert.NotContains(t, stderrOf(cmd), "Continue?")
-}
-
 // Progress goes to stderr, so a json run shows it, and stdout stays JSON.
 func TestSetupJSONShowsProgressOnStderr(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "")
@@ -160,35 +98,6 @@ func TestPlanNamesTheAWSDefaultProfile(t *testing.T) {
 	assert.Equal(t, "corp", profileLabel(cmd))
 }
 
-// No token, no prompt: stop first.
-func TestSetupNeedsATokenItCannotAsk(t *testing.T) {
-	cases := map[string]struct {
-		plaintext, interactive, yes bool
-	}{
-		"no terminal":     {plaintext: true},
-		"json":            {},
-		"yes in terminal": {plaintext: true, interactive: true, yes: true},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			cmd, out := setupTestCmd(t, "")
-			cmd.SetIn(noReadStdin{t})
-			if c.yes {
-				require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
-			}
-			clients, w := countingClients()
-
-			err := setupWith(cmd, clients, noTokenOptions(), c.plaintext, c.interactive)
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "--access-token")
-			assert.Contains(t, err.Error(), awsdevops.AccessTokenURL(""))
-			assert.Empty(t, w.calls)
-			assert.NotContains(t, out.String(), "Setup plan")
-		})
-	}
-}
-
 // The server of the agent space needs no token.
 func TestSetupWithoutTokenReusesServer(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "")
@@ -205,7 +114,7 @@ func TestSetupWithoutTokenReusesServer(t *testing.T) {
 	}}
 	clients.Agent = agent
 
-	opts := noTokenOptions()
+	opts := newSpaceOptions()
 	opts.AgentSpaceName, opts.AgentSpaceID = "", "space-1"
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, false))
@@ -381,7 +290,6 @@ func TestSetupChosenSpaceWithFullSetup(t *testing.T) {
 	clients, w := twoSimilarSpaces()
 	opts, err := setupOptions(cmd)
 	require.NoError(t, err)
-	opts.LDAccessToken = "api-token"
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
@@ -400,7 +308,6 @@ func TestSetupChosenSpaceWithOnlyAuthFlowStops(t *testing.T) {
 	clients, w := twoSimilarSpaces()
 	opts, err := setupOptions(cmd)
 	require.NoError(t, err)
-	opts.LDAccessToken = "api-token"
 
 	err = setupWith(cmd, clients, opts, true, true)
 
@@ -462,33 +369,6 @@ func TestSetupFailureNamesTheNewSpace(t *testing.T) {
 	assert.Contains(t, err.Error(), "To use it, run setup again with --agent-space-id space-new")
 }
 
-// A server that the space gets between the two plans is reused, and setup
-// says that it does not use the pasted token.
-func TestSetupSaysWhenTheSecondPlanReusesAServer(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "api-token\n")
-	clients, _ := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")})
-	agent := clients.Agent.(countingAgent)
-	agent.associations = []agenttypes.Association{{AssociationId: aws.String("assoc-7"), ServiceId: aws.String("mcp-7")}}
-	agent.services = []agenttypes.RegisteredService{{
-		ServiceId:   aws.String("mcp-7"),
-		ServiceType: agenttypes.ServiceMcpServer,
-		AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
-			Value: agenttypes.RegisteredMCPServerDetails{Name: aws.String("Prod LD"), Endpoint: aws.String(awsdevops.MCPServerEndpoint)},
-		},
-	}}
-	clients.Agent = agent
-	opts := noTokenOptions()
-	opts.AgentSpaceName, opts.AgentSpaceID = "", "space-1"
-	first := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPAsk}}
-
-	plan, err := planWithToken(cmd, clients, &opts, first, true)
-
-	require.NoError(t, err)
-	assert.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
-	assert.Contains(t, stderrOf(cmd), "MCP server Prod LD (mcp-7) was registered after the first plan")
-	assert.Contains(t, stderrOf(cmd), "--access-token and --replace-mcp-token")
-}
-
 type failingSkillAgent struct{ countingAgent }
 
 func (failingSkillAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
@@ -524,30 +404,4 @@ func TestSetupJSONWarnsOnStderrWhenSkillFails(t *testing.T) {
 	assert.True(t, json.Valid([]byte(stdoutOf(cmd))), "stdout is not JSON: %s", stdoutOf(cmd))
 	assert.Contains(t, stdoutOf(cmd), `"skillAction": "failed"`)
 	assert.Contains(t, errOut.String(), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
-}
-
-// Without a name from AWS, the warning gives only the ID, which identifies
-// the server, and does not guess a name.
-func TestSetupNamesANamelessServerByItsID(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "api-token\n")
-	clients, _ := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")})
-	agent := clients.Agent.(countingAgent)
-	agent.associations = []agenttypes.Association{{AssociationId: aws.String("assoc-7"), ServiceId: aws.String("mcp-7")}}
-	agent.services = []agenttypes.RegisteredService{{
-		ServiceId:   aws.String("mcp-7"),
-		ServiceType: agenttypes.ServiceMcpServer,
-		AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
-			Value: agenttypes.RegisteredMCPServerDetails{Endpoint: aws.String(awsdevops.MCPServerEndpoint)},
-		},
-	}}
-	clients.Agent = agent
-	opts := noTokenOptions()
-	opts.AgentSpaceName, opts.AgentSpaceID = "", "space-1"
-	first := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPAsk}}
-
-	plan, err := planWithToken(cmd, clients, &opts, first, true)
-
-	require.NoError(t, err)
-	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
-	assert.Contains(t, stderrOf(cmd), "MCP server mcp-7 was registered after the first plan")
 }

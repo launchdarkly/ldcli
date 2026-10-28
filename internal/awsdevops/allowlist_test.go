@@ -29,7 +29,6 @@ func mcpAssociation(tools ...string) agenttypes.Association {
 
 func reuseServerOptions() awsdevops.SetupOptions {
 	opts := reuseOptions()
-	opts.LDAccessToken = ""
 	opts.AddMCPTools = true
 
 	return opts
