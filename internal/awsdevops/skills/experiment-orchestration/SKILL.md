@@ -169,4 +169,3 @@ Runs automatically the instant Step 7 reaches a terminal outcome (winner + auto-
 - **Cap guarded rollout stages well below 100%** (most platforms reject stages ≥50% audience allocation) and let the platform auto-promote to 100% after the final stage — don't try to add an explicit 100% stage.
 - Distinguish a metric-driven rollback (don't retry) from an external-cause rollback (safe to retry once fixed) before restarting a rolled-back rollout.
 - The final report is automatic and mandatory on every terminal outcome — never defer it to a follow-up ask.
-

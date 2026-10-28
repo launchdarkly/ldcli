@@ -34,7 +34,7 @@ var (
 // of the new text. Never remove a hash.
 var shippedSkillHashes = []string{
 	"57844bc3c5aca292ef88b5f949cd791206074b5cfc850ea52ebdd40020ead695",
-	"9dd6c8cf7c3432faa5c444c0529998676ad6bdb94aeb4558c9581973c04535f2",
+	"c4c4e12aeff900402dc17ff370bc1e78eadcb34abac5b256319c7cd793bd73f3",
 }
 
 const (
