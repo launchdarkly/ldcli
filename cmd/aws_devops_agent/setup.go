@@ -52,9 +52,9 @@ The AWS account gets one LaunchDarkly MCP server, which all agent spaces use.
 If the account has no server, setup registers one with OAuth. It opens a
 browser, where you approve access to LaunchDarkly, and waits until AWS
 registers the server. After the approval, the browser opens the AWS console,
-which can ask you to sign in. Setup does not need that sign-in.
-The agent then acts as the LaunchDarkly member who approved access, in every
-agent space. If the agent space already has an MCP server, setup keeps it.
+which can ask you to sign in. The agent then acts as the LaunchDarkly member
+who approved access, in every agent space. If the agent space already has an
+MCP server, setup keeps it.
 
 A space that reuses a server keeps its tool allowlist. If the allowlist misses
 tools that this ldcli version allows, setup warns. To add them, pass
