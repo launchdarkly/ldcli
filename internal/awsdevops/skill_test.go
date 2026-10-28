@@ -31,7 +31,7 @@ func metadataOf(t *testing.T, doc document.Interface) map[string]any {
 
 func TestExperimentSkillFrontMatter(t *testing.T) {
 	assert.Equal(t, "experiment-orchestration", awsdevops.ExperimentSkillName)
-	assert.Contains(t, awsdevops.ExperimentSkill, "# Experimentation")
+	assert.Contains(t, awsdevops.ExperimentSkill, "# Automated Experimentation")
 }
 
 // A change to SKILL.md must add its hash, so the next release updates the
@@ -57,7 +57,7 @@ func TestSetupCreatesSkillInNewSpace(t *testing.T) {
 	assert.Equal(t, "skill", aws.ToString(in.AssetType))
 	metadata := metadataOf(t, in.Metadata)
 	assert.Equal(t, awsdevops.ExperimentSkillName, metadata["name"])
-	assert.Contains(t, metadata["description"], "Start a LaunchDarkly experiment for a product goal")
+	assert.Contains(t, metadata["description"], "Orchestrates automated experimentation lifecycle")
 	assert.Equal(t, []any{"GENERIC"}, metadata["agent_types"])
 	assert.NotContains(t, metadata, "status")
 	file, ok := in.Content.(*agenttypes.AssetContentMemberFile)

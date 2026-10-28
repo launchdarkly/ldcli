@@ -53,7 +53,8 @@ const (
 // missing primary metric, so the lists include update-flag-settings and
 // create-metric.
 // They also cover incident work: turn a change off for one segment or
-// context, and ask for approval where an environment needs it.
+// context, and ask for approval where an environment needs it, then apply
+// the request after a reviewer approves it.
 var (
 	mcpReadOnlyTools = []string{
 		"list-projects",
@@ -91,6 +92,7 @@ var (
 		"update-targeting-rules",
 		"update-individual-targets",
 		"create-approval-request",
+		"apply-approval-request",
 	}
 )
 

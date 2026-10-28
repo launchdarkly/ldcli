@@ -1,202 +1,172 @@
 ---
 name: "experiment-orchestration"
-description: "Start a LaunchDarkly experiment for a product goal, or check on running ones. Use when someone wants to move a goal (for example, increase checkout conversion by 15%) through a flag, an A/B experiment, and then a guarded rollout, or asks how their experiments are doing. Not for a standalone guarded rollout or flag change."
+description: "Orchestrates automated experimentation lifecycle using LaunchDarkly Guarded Rollouts, an AI coding agent for implementation, and GitHub Actions for deployment."
 ---
 
-# Experimentation
+# Automated Experimentation
 
-Use this skill in chat when a person wants to move a goal through experimentation (for example, "increase checkout conversion by 15%"), or asks how their experiments are doing.
+Use this skill when you have a goal you want to move through experimentation (e.g., "increase checkout conversion by 15%", "decrease page load time by 20%").
 
-**Core principle: experiment first, then guarded rollout.** Always prove a change on a small, fixed slice of traffic with an A/B experiment before you ramp it up with a guarded rollout. A guarded rollout only scales a change that the experiment has already shown to work.
+**Core principle: experiment first, then guarded rollout.** Always prove a change on a small, fixed slice of traffic via an A/B experiment before ramping it up through a guarded rollout. Never start a guarded rollout blind — it exists only to scale a change the experiment has already shown to work.
 
-An experiment runs for weeks, so the work happens in separate chats:
+**Execution mode:** once the goal is confirmed (Step 1), run Steps 2–8 end-to-end. Async operations (code implementation, release review, deployment, experiment monitoring, rollout monitoring) should be checked periodically, not tight-polled — see the waiting note in each step. Only stop and ask the user something if a step fails unrecoverably (repeated failed release reviews, deployment failure, or an inconclusive/losing experiment result).
 
-1. **Start an experiment** (Steps 1–4): goal, hypothesis, flag, a person ships the change, then the experiment starts.
-2. **Check on experiments** (Steps 5–6): read where each experiment stands, decide when a decision is due, and report.
+**Approvals:** if the LaunchDarkly environment requires approval for a change (for example, to turn a flag on or off, start or stop an experiment, or start a guarded rollout), create an approval request instead of the direct change. Tell the person who must review it. Continue only after `list-approval-requests` shows it approved, then apply it with `apply-approval-request` and go to the next step. If a reviewer rejects it, stop and report.
 
-Decide which one the person asked for. If they ask about experiments that already exist, go to "Check on experiments". Never start a goal that the person did not ask for.
+**The final report (Step 8) is mandatory, not optional.** The moment an experiment or rollout reaches a terminal outcome — winner, loser, inconclusive, or rollback — produce the full report in the same turn you announce the outcome. Don't let a casual "it worked!" substitute for the structured report.
 
-## How you work
+## Step 1: Goal Clarification
 
-- **A person implements and deploys the code.** You cannot read or change the code, and you cannot deploy. You create and change things in LaunchDarkly only.
-- **Every write needs the person's approval.** Before each write (create a flag, change a flag, start or stop an experiment, start a guarded rollout), say in one sentence what it changes. If the person rejects it, stop that step and do not try another way.
-- **A blocked write is a setup problem.** If a write fails with "This action is not available in this agent space", the agent space does not allow LaunchDarkly writes: directed actions are off, or the tool is not allowed. Tell the person, and do not retry.
-- **Change only your flags.** Change only flags that have the tag `experiment-orchestration`. Read other flags for collision checks and history, but never change them.
-- **Stop at each wait.** When the next step needs a person (shipping code, or two weeks of data), say what happens next and end. Do not wait or poll in the chat.
+Before doing anything, get answers to:
 
-## Experiment record
+1. **What metric measures success?** *(Required)* e.g. conversion rate, page load time, bounce rate. Reserve your error-rate metric as a safety guardrail — never use it as the primary success metric.
+2. **What's the target improvement?** *(Required)* e.g. 15% increase, 200ms decrease.
+3. **What's the current baseline?** *(Optional — infer from production metrics if not given)*
+4. **What parts of the app are in scope?** *(Optional — infer from the codebase if not given)*
+5. **Any constraints?** *(Optional)* e.g. no changes to the payment flow.
 
-The next chat may be with another person, and you have no memory of this one. Keep the record in the description of the flag, and update it whenever a field changes:
+Questions 1–2 are required before proceeding; infer 3–5 where possible and confirm your assumptions with the user before implementing.
 
-- Project and environment keys
-- Goal: metric, direction, target, and baseline
-- Hypothesis, and the change that the person implements
-- Current step, for example "waiting for deployment", "design waiting for confirmation", "experiment running", "won, guarded rollout pending", "guarded rollout running", or "report produced"
-- Deployment: who confirmed that the change is deployed, and when
+## Step 2: Hypothesis Generation
 
-Read everything else (the experiment key, dates, results, and rollout stages) from LaunchDarkly.
+Explore the target repository/codebase to find a plausible change:
 
-# Start an experiment
+1. Search and read the relevant code paths.
+2. Think through what UI/UX or logic change could plausibly move the chosen metric.
+3. Check whether this hypothesis (or something close to it) has already been tried and failed — look at flag history or archived flags with similar naming. Avoid repeating a known failure.
+4. Present the hypothesis to the user before proceeding, along with your reasoning and any inferred assumptions from Step 1.
 
-## Step 1: Goal
+**Before finalizing a flag key, check for collisions:** look up any candidate flag key first.
+- Already fully shipped (100% one variation, no split) → already decided, pick a different hypothesis.
+- Actively running an experiment → mid-flight, don't compete with it, pick a different hypothesis.
+- Doesn't exist → safe to create.
 
-Get answers to:
+## Step 3: Implementation
 
-1. **What metric measures success?** *(Required)* For example, conversion rate, page load time, or bounce rate. Keep the error-rate metric as a safety guardrail; never use it as the primary metric.
-2. **What is the target improvement?** *(Required)* For example, a 15% increase or a 200ms decrease.
-3. **What is the baseline?** *(Optional: read it from the metric if the person does not know.)*
-4. **What part of the product is in scope?** *(Required, because you cannot read the code.)*
-5. **Which LaunchDarkly project and environment?** *(Required)* The environment is the one that the app's production traffic evaluates in. Confirm both; do not guess.
-6. **Any constraints?** *(Optional)* For example, no changes to the payment flow.
+1. Create a boolean feature flag, OFF by default in all environments, with `defaults` of `{"onVariation": 1, "offVariation": 1}` so that it serves false even when it is on, and `clientSideAvailability` of `{"usingEnvironmentId": true, "usingMobileKey": true}` so that every SDK can read it. Name it with a clear pattern like `exp-<metric>-<short-description>` (e.g. `exp-checkout-conversion-cta-color`), lowercase with hyphens, ~50 chars max. If the project has its own flag naming conventions (for example, a required prefix or case), follow them instead.
+2. Hand off implementation to your coding agent/tool of choice, with clear instructions to gate the change behind the exact flag key from step 1.
+3. This step is asynchronous — check status periodically rather than looping tightly on it.
+4. Once implementation completes, move to Step 4 with the resulting branch/PR. If it fails, report the error and stop.
 
-## Step 2: Hypothesis
+## Step 4: Release Readiness
 
-You cannot read the code, so build the hypothesis with the person:
+Run your standard release/risk review on the PR before merging.
 
-1. Ask what the product surface does today and what change could move the metric.
-2. Use LaunchDarkly for context: existing flags and metrics, archived flags with similar keys, and the change history. Avoid a hypothesis that was already tried and failed.
-3. Propose one hypothesis in this shape: "Changing **X** will improve **metric** for **audience**, because **reason**." Confirm it with the person before you continue.
+- If it passes: merge the PR.
+- If it fails: feed the review's specific feedback back into implementation and retry. Cap retries at a small fixed number (e.g. 3 attempts total) — if it still hasn't passed, stop and report the last failure to the user rather than retrying indefinitely.
 
-**Before you pick a flag key, check for collisions:**
+*(If your environment genuinely has no review capability available — e.g., a fully unattended automation context — you can skip straight to merge, but treat that as a deliberate, narrow exception you call out explicitly, not a default. Skipping review removes your only gate against shipping broken code.)*
 
-- The key exists: pick a different key. If that flag tests the same idea, check its result first.
-  - Already shipped (100% one variation, no split): the idea is already decided, so pick a different hypothesis.
-  - An experiment is running on it: do not compete with it, so pick a different hypothesis.
-- Does not exist: safe to create.
+## Step 5: Deployment
 
-## Step 3: Flag and handoff
+Deployment typically won't fire automatically on merge if your workflow is manually-triggered (`workflow_dispatch`-only) — you'll need to trigger it explicitly.
 
-1. Create a boolean flag, OFF in all environments, with the tag `experiment-orchestration` and `defaults` of `{"onVariation": 1, "offVariation": 1}`, so that it serves false whether it is on or off. A flag that is on and matches no rule serves its on variation, so without these defaults, turning it on would give every user the treatment before the experiment starts. Name it `exp-<metric>-<short-description>` (for example `exp-checkout-conversion-cta-color`), lowercase with hyphens, about 50 characters at most. If the change is in a browser or mobile app, make the flag available to client-side SDKs (`clientSideAvailability.usingEnvironmentId`, or `usingMobileKey` for mobile). Otherwise the app cannot read the flag, and the experiment collects no data.
-2. Write the experiment record to the flag description, with the step "waiting for deployment".
-3. Give the person the handoff:
-   - The flag key, and that the change must be behind it
-   - The change, in plain words
-   - What the code must do when the flag is off or cannot be evaluated: keep the current behavior
-   - The event that the primary metric needs, if the app does not send it yet
-4. Stop. The person implements, reviews, and deploys the change, then comes back.
+1. Trigger the deploy workflow on the merge target branch. Treat "already an in-progress deployment for this ref" as expected de-duplication, not an error — don't re-trigger.
+2. Poll for status, but let your polling tool's own internal long-poll do the waiting rather than looping tightly yourself.
+3. Watch for a "stale" status specifically: if a deployment reports "running" for far longer than normal, cross-check the actual CI run history by commit SHA/timing before assuming it's still in progress — a background poll process may have died without updating the record.
+4. **Trigger a deployment at most once per attempt.** If you're unsure whether a previous trigger succeeded, check status first — never re-trigger just because you're unsure.
+5. On timeout: stop, check the CI run directly, report the situation, ask how to proceed.
+6. On explicit failure: stop and report — do not proceed to the experiment.
+7. On success: proceed immediately to Step 6.
 
-## Step 4: Start the experiment
+## Step 6: Experiment Phase (fixed 10%)
 
-Start only after a person says that the change is deployed.
+Prove the change on a small, fixed slice of traffic. Do **not** start a guarded rollout here — that's Step 7, and only after this proves out.
 
-**Design the experiment:**
-
-1. Make sure that the metrics exist. You can create a metric only for an event that the app already sends. If the event is not sent yet, ask the person to add it and come back.
-2. Create the experiment as a draft, on the flag's default rule (`"fallthrough"`), in the environment from the record:
-   - Only 10% of the rule's traffic takes part: treatments of control (false) at 5% and treatment (true) at 5%, with `notInExperimentVariationId` set to the false variation, so that the other 90% get control and are not analyzed. If the tool rejects allocations that do not sum to 100%, do not fall back to 50/50 of all traffic: tell the person, and ask them to set a 10% audience on the design page before they confirm.
-   - Your randomization unit (usually "user").
+1. Turn the flag ON.
+2. Configure a fixed 50/50 split across 10% of traffic (a flat allocation, not a staged ramp) on your chosen randomization unit (typically "user"). The remaining 90% of traffic is excluded from the experiment entirely.
+3. Create an experiment with:
    - Exactly one primary metric: the success metric from Step 1.
-   - Guardrail metrics: always the error-rate metric, and a performance metric (for example p95 page load time) for a performance change.
-   - `analysisConfig.sequentialTestingEnabled` set to true, so that checking results at each check-in does not inflate false positives.
-3. Write the record: the step "design waiting for confirmation", the experiment key, and who confirmed the deployment, and when. A later chat then resumes the draft instead of making another one.
-4. Show the person the design and its `designUrl`, check with them that 10% of traffic takes part, and wait for their confirmation. Do not start the experiment in the same reply.
+   - Guardrail metric(s): always include your error-rate metric; add a performance metric (e.g. p95 page load time) too if this is a performance-focused change.
+   - Treatments: control (off) at 50%, treatment (on) at 50%, allocated to 10% of total traffic.
+4. Start the experiment/data collection.
+5. Move to Step 7 to monitor toward a decision.
 
-**After the person confirms the design:**
+## Step 7: Monitoring & Outcome
 
-5. Turn the flag on. Its defaults serve false, so no user gets the treatment yet. Starting an experiment needs the flag on.
-6. Start the experiment.
-7. Set the record to "experiment running". Tell the person to check back in 2 weeks, or sooner for a guardrail check, and end.
+Check status periodically — don't tight-loop. In an interactive session, check once and report progress, then pick back up later. In an unattended/scheduled context, check once per invocation and persist your progress somewhere durable between runs.
 
-# Check on experiments
+**Phase 1 — Prove the experiment at 10% (gate before any rollout):**
 
-## Step 5: Read and decide
+Watch for statistical significance on the primary metric:
 
-For each project in the person's account (or the one they name), list the flags with the tag `experiment-orchestration` that are not archived. For each one, read the record and the current state in the environment from the record, then report where it stands. Act only where a decision is due.
+- **Significant + positive lift** → experiment proven. Stop the experiment iteration with control as the winner, then move to Phase 2. Stopping serves the winner to everyone, so a treatment winner would skip the guarded rollout.
+- **Significant + negative lift** → declare a loser, stop the iteration with control as the winner, turn the flag off (do not archive it while the code still evaluates it), skip Phase 2, go straight to the Step 8 report.
+- **No significance after a reasonable ceiling (e.g. 4 weeks)** → report "inconclusive, need more traffic", stop the iteration with control as the winner, and stop; don't proceed to Phase 2.
 
-If the person asks about an experiment on a flag without the tag, read it and report on it, but never change it.
+Never declare a winner off a single data point or before your stats engine confirms significance. Do not decide on a lift before the experiment has run 2 full weeks.
 
-**Waiting for deployment:** report it. If the person says now that the change is deployed, go to Step 4.
+**Phase 2 — Guarded rollout ramp (only after Phase 1 proves the change):**
 
-**Design waiting for confirmation:** the draft experiment from the record exists but has not started. Show its `designUrl` again and ask the person to confirm it, then continue at item 5 of Step 4. Do not create another draft.
+Start a guarded rollout with:
+- The winning ("on") variation as the test, the original as control.
+- Same randomization unit as the experiment.
+- **Exactly 3 monitored stages, capped well below 100%** — e.g. 20% → 30% → 40%, ~60 minutes monitoring each. Don't add a stage at or above 100%; Guarded-rollout implementations reject stages above 50% audience allocation, and the rollout auto-promotes to 100% itself once the final monitored stage completes cleanly — no explicit 100% stage needed.
+- The same primary + guardrail metrics as the experiment, each configured to notify and auto-rollback on regression.
 
-**Experiment running:**
+Track stage progression. If the rollout rolls back or stops at any point, treat it as a regression: declare failed, turn the flag off (do not archive it while the code still evaluates it), and go to the Step 8 report.
 
-- **A guardrail regressed, at any time:** end without a win (below).
-- **Less than 2 full weeks of data:** keep it running, even if the primary metric looks significant. Report progress only.
-- **2 weeks or more, significant positive lift:** the experiment is proven. First set the record to "won, guarded rollout pending", so that a later check-in can tell the win apart from a loss. Then stop the iteration with control as the winner, and a reason that says that the treatment won, with its lift. Stopping serves the winner to everyone that the default rule matches, so a treatment winner would reach 100% of users at once and skip the guarded rollout. Then start the guarded rollout (below), which ramps the treatment.
-- **2 weeks or more, significant negative lift:** a loser. End without a win.
-- **2 to 4 weeks, not significant:** keep it running. Report progress only.
-- **No significance after 4 weeks:** inconclusive, need more traffic. End without a win.
+Once the final stage completes cleanly and auto-promotes to 100%, declare a winner and go to the Step 8 report.
 
-Never declare a winner off a single data point, or before the stats engine confirms significance.
+**Retrying after a rollback:** a rollback isn't always caused by your monitored metrics genuinely regressing — it can also be triggered by an unrelated application error surfacing mid-ramp. Before blindly restarting after the user says they've fixed something:
+1. Confirm the flag's current state (should be back to 100% control, nothing stuck mid-rollout).
+2. Check the change history timing between "advanced to next stage" and "reverted." A rollback within seconds of advancing is inconsistent with a full metric-window regression and points to an external cause instead.
+3. If the flag is cleanly reverted and the external cause is confirmed fixed, it's safe to restart the guarded rollout from scratch with the same parameters.
+4. Don't silently retry without this check, and don't refuse to retry just because a prior attempt rolled back — a genuinely fixed external cause is a legitimate reason to retry. A metric-driven loser is not — don't retry that.
 
-Sequential testing keeps each check-in valid, which is what lets a guardrail regression end the experiment early. The 2-week minimum for a win is about the product, not the statistics: behavior differs between weekdays and weekends, and a new experience can get a short novelty bump. A win needs at least two full weekly cycles.
+**On any terminal outcome, immediately produce the Step 8 report in the same turn** — a one-line "it worked!" note is fine as a lead-in, but the structured report must follow, not wait for a follow-up request.
 
-**Ending without a win:** stop the iteration with control as the winner and a reason that says why, because stopping an iteration requires a winning treatment. Stopping serves control to everyone that the default rule matches. Then turn the flag off, so that its state shows that it is not in use. Do not archive the flag, because the code still evaluates it. Go to Step 6.
+## Step 8: Report
 
-**Starting the guarded rollout:**
-
-Before you start it, read the flag's default rule. It must serve control (false) to everyone. If it still has the experiment's split, set it to serve control first.
-
-- The winning ("on") variation as the test, the original as control, and the same randomization unit as the experiment.
-- Exactly 3 monitored stages, none above 50% (for example 10% → 25% → 50%), with about 24 hours of monitoring each. LaunchDarkly rejects any step above 50%, and it promotes the rollout to 100% itself after the last stage, so do not add a 100% stage.
-- The same primary and guardrail metrics as the experiment, each set to notify and roll back on regression.
-
-Set the record to "guarded rollout running". LaunchDarkly advances the stages and rolls back on its own, so later check-ins only read its status.
-
-**Won, guarded rollout pending:** the iteration is stopped and the treatment won. Start the guarded rollout (above).
-
-**Guarded rollout running:**
-
-- **Still in a stage:** report the stage.
-- **Rolled back or stopped:** the rollout failed. Confirm that everyone gets control, and go to Step 6.
-- **Reached 100%:** a winner. Go to Step 6.
-
-**Retrying after a rollback:** a rollback can come from an unrelated application error during the ramp, not from the change. Retry only when the person asks, and only after these checks:
-
-1. The flag is back to 100% control, with nothing stuck mid-rollout.
-2. The change history shows the timing between "advanced to next stage" and "reverted". A rollback within seconds of advancing does not fit a regression over a full metric window, so it points to an external cause.
-3. The person confirms that the external cause is fixed.
-
-Then restart the guarded rollout from the start with the same settings. Never retry a rollback that the metrics caused.
-
-## Step 6: Report
-
-When an experiment reaches an outcome (a winner at 100%, a loser, inconclusive, or a failed rollout), produce this report in the same reply, and set the record to "report produced":
+Runs automatically the instant Step 7 reaches a terminal outcome (winner + auto-promoted to 100%; loser; inconclusive; or rollback/failure). Use this exact structure from Experiment Report to Next Steps:
 
 ```markdown
-## Experiment Report: [Goal]
+## Experiment Report: [Goal Description]
 
 **Date:** [YYYY-MM-DD]
 **Goal:** [metric] [direction] by [target]%
-**Status:** [achieved / not achieved / inconclusive]
+**Status:** [achieved / in progress / stalled]
 
 ### Hypothesis
 [What we tried and why]
 
-### Change
-- Flag: [flag key]
-- Change: [as described in the handoff]
-- Deployed: [who confirmed, and when]
+### Implementation
+- Flag: [flag_key]
+- Files modified: [list]
+- Branch: [branch name]
 
-### Experiment (10% of traffic)
-- Status: [proven / loser / inconclusive / stopped for a guardrail]
+### Release Readiness
+- [reviewed, passed after N attempt(s) / skipped, per your environment's process]
+
+### Experiment Phase (10% fixed split)
+- Status: [proven / loser / inconclusive]
 - Duration: [time]
-- Metric change: [control] → [treatment] ([+/-]%)
+- Metric change: [before] → [after] ([+/-]%)
 - Statistical significance: [value, confidence interval]
 
-### Guarded rollout (if reached)
-- Status: [completed / rolled back / not started]
+### Guarded Rollout Phase (if reached)
+- Status: [completed / rolled_back / not started]
 - Duration: [time]
-- Stages reached: [N of 3]
-- If rolled back and retried: [cause, and the result of the retry]
+- Stages reached: [N of 3 monitored stages]
+- If rolled back and retried: [root cause, outcome of retry]
 
-### Safety metrics
-- Error rate: [baseline] → [final] ([no regression / regression])
-- [Other guardrails]: [baseline] → [final] ([status])
+### Safety Metrics
+- error-rate: [baseline] → [final] ([no regression / regression detected])
+- [other guardrails]: [baseline] → [final] ([status])
 
-### Next steps
-[What to do next. For a winner at 100%, recommend a cleanup change that removes the flag from the code and keeps the winning path, and then archiving the flag. For an experiment that did not win, recommend removing the flag from the code and keeping the current behavior, and then archiving the flag.]
+### Next Steps
+[What to do next based on the outcome]
 ```
 
-## Safety rules
+## Safety Rules (the non-negotiables)
 
-- Present the hypothesis, and get the person's agreement, before you create anything.
-- Never treat a change as deployed without a person's confirmation.
-- Always prove a change with a fixed 10% experiment before any guarded rollout.
-- Run an experiment for at least 2 full weeks before you decide, unless a guardrail regresses.
-- Always include an error-rate guardrail, separate from the success metric. Add a performance guardrail for a performance change.
-- Set every rollout metric to both notify and roll back on regression.
-- Keep every guarded rollout stage at or below 50%, and let LaunchDarkly promote to 100%.
-- Tell a rollback that the metrics caused (do not retry) from one with an external cause (safe to retry once it is fixed).
-- Change only flags with the tag `experiment-orchestration`, and keep the record in the flag description current.
+- Always present the hypothesis before implementing.
+- Always run a release/risk review before merging, unless your environment has a deliberate, explicitly-called-out exception.
+- **Always prove a change via a fixed small-percentage experiment before starting any guarded rollout** — never ramp blind.
+- Always include an error-rate (or equivalent "don't break prod") metric as a guardrail, separate from your success metric.
+- Add a performance guardrail (e.g. p95 latency) for performance-focused changes.
+- Every rollout metric should be configured to both notify AND auto-rollback on regression — don't rely on notification alone.
+- **Cap guarded rollout stages well below 100%** (most platforms reject stages ≥50% audience allocation) and let the platform auto-promote to 100% after the final stage — don't try to add an explicit 100% stage.
+- Distinguish a metric-driven rollback (don't retry) from an external-cause rollback (safe to retry once fixed) before restarting a rolled-back rollout.
+- The final report is automatic and mandatory on every terminal outcome — never defer it to a follow-up ask.
+
