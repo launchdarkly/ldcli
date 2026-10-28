@@ -8,5 +8,6 @@ type Tracker interface {
 	SendSetupStepStartedEvent(step string)
 	SendSetupSDKSelectedEvent(sdk string)
 	SendSetupFlagToggledEvent(on bool, count int, duration_ms int64)
+	SendDevServerUIEvent(name string, properties map[string]interface{})
 	Wait()
 }

@@ -32,7 +32,6 @@ func TestResolvedConflictAction(t *testing.T) {
 		{"LaunchDarkly deletion removes the local resource", PlannedResource{Local: &local}, ConflictUseLaunchDarkly, ActionDeleteLocal},
 		{"local updates an existing server resource", PlannedResource{Local: &local, Server: &server}, ConflictUseLocal, ActionUpdateServer},
 		{"local creates a missing server resource", PlannedResource{Local: &local}, ConflictUseLocal, ActionCreateServer},
-		{"local deletion archives the server resource", PlannedResource{Server: &server}, ConflictUseLocal, ActionArchiveServer},
 	}
 
 	for _, test := range tests {
@@ -140,6 +139,25 @@ func TestResolveConflictsShowsDiffBeforePrompt(t *testing.T) {
 	assert.Less(t, strings.Index(rendered, "LaunchDarkly now"), strings.Index(rendered, "Using local."))
 }
 
+func TestWriteConflictNamesTheResourcesThatOneChoiceCovers(t *testing.T) {
+	conflict := divergentPlan(t).Resources[0]
+	shared := conflict
+	shared.ID.LookupKey = "support/shared"
+	shared.Action = ActionUpdateServer
+
+	var single, group bytes.Buffer
+	require.NoError(t, writeConflict(&single, conflictGroup{resources: []PlannedResource{conflict}}))
+	require.NoError(t, writeConflict(&group, conflictGroup{resources: []PlannedResource{conflict, shared}}))
+
+	assert.True(t, strings.HasPrefix(single.String(),
+		"\nConflict: variation production/support/default changed on both sides.\n\n      Variation content (changed)\n"))
+	assert.True(t, strings.HasPrefix(group.String(),
+		"\nConflict: variation production/support/default changed on both sides. "+
+			"It shares a changed tool or skill with variation production/support/shared, so one choice covers them all.\n"))
+	assert.Contains(t, group.String(), "\n  variation production/support/shared\n")
+	assert.Equal(t, 2, strings.Count(group.String(), "Variation content (changed)"))
+}
+
 func TestResolveConflictsRequiresTerminalEvenWithYes(t *testing.T) {
 	plan := divergentPlan(t)
 	input := strings.NewReader("")
@@ -215,7 +233,6 @@ func TestGroupConflictsDeduplicatesSharedAttachment(t *testing.T) {
 	groups := groupConflicts(Plan{Resources: []PlannedResource{first, second}})
 
 	require.Len(t, groups, 1)
-	assert.True(t, groups[0].attachment)
 	assert.Len(t, groups[0].resources, 2)
 }
 
@@ -248,8 +265,30 @@ func TestGroupConflictsConnectsMixedChangesAcrossSharedAttachments(t *testing.T)
 	groups := groupConflicts(Plan{Resources: resources})
 
 	require.Len(t, groups, 1)
-	assert.True(t, groups[0].attachment)
 	assert.Len(t, groups[0].resources, 4)
+}
+
+func TestGroupConflictsJoinsAToolRowAndTheVariationsThatUseIt(t *testing.T) {
+	description := "Search the docs"
+	local := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: &description, Schema: map[string]any{"type": "object"},
+	}}
+	server := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}}
+	toolID := local.ID("project")
+	tool := planAttachment(toolID, &local, &server, "sha256:baseline", true)
+	require.Equal(t, ActionConflict, tool.Action)
+	variation := func(lookupKey string) PlannedResource {
+		return PlannedResource{
+			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: lookupKey},
+			Action: ActionUpdateServer, changedAttachments: []ResourceID{toolID},
+		}
+	}
+
+	groups := groupConflicts(Plan{Resources: []PlannedResource{tool, variation("config/first"), variation("config/second")}})
+
+	require.Len(t, groups, 1)
+	assert.Len(t, groups[0].resources, 3)
+	assert.Equal(t, toolID, groups[0].resources[0].ID)
 }
 
 func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
@@ -267,7 +306,7 @@ func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
 			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
 		nil,
 	)
 
@@ -292,7 +331,7 @@ func TestRunWorkspaceSyncAbortsConflictWithoutWriting(t *testing.T) {
 			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
 		nil,
 	)
 
@@ -318,7 +357,7 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
 		nil,
 	)
 
@@ -349,7 +388,7 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
 		nil,
 	)
 
@@ -416,7 +455,7 @@ func divergentPlan(t *testing.T) Plan {
 	})
 }
 
-func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomain.Variation) (synclocal.Store, manifestStore) {
+func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomain.Variation) (synclocal.Store, syncmanifest.Baselines) {
 	t.Helper()
 
 	command := exec.Command("git", "init", "--quiet")
@@ -445,16 +484,13 @@ type memoryManifestStore struct {
 	manifest syncmanifest.Manifest
 }
 
-func (store *memoryManifestStore) Load([]string) (syncmanifest.Manifest, error) {
-	return store.manifest, nil
+func (store *memoryManifestStore) Load([]string) (syncmanifest.Baseline, error) {
+	return syncmanifest.Baseline{Lock: store.manifest}, nil
 }
 
-func (store *memoryManifestStore) Update(
-	_ syncmanifest.Manifest,
-	next syncmanifest.Manifest,
-) (syncmanifest.Manifest, error) {
+func (store *memoryManifestStore) Save(_ syncmanifest.Baseline, next syncmanifest.Manifest) (syncmanifest.Baseline, error) {
 	store.manifest = next
-	return next, nil
+	return syncmanifest.Baseline{Lock: next}, nil
 }
 
 type conflictAPI struct {

@@ -1,11 +1,13 @@
 package sdk
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model/mocks"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +56,7 @@ func TestBuildPollResponse(t *testing.T) {
 	}
 
 	t.Run("no basis sends xfer-full with payload-missing", func(t *testing.T) {
-		resp, err := buildInitialResponse(payloadID, currentVersion, flags, "")
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, "", fdv2ServerObjects)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3) // server-intent + put-objects + payload-transferred
@@ -64,7 +67,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 	t.Run("up-to-date basis sends none with up-to-date", func(t *testing.T) {
 		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion)
-		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis)
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis, fdv2ServerObjects)
 		require.NoError(t, err)
 
 		require.Len(t, resp.Events, 1)
@@ -73,7 +76,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 	t.Run("basis ahead of current version sends full transfer (e.g. project recreated)", func(t *testing.T) {
 		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion+10)
-		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis)
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis, fdv2ServerObjects)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
@@ -83,7 +86,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 	t.Run("stale basis sends xfer-full with cant-catchup", func(t *testing.T) {
 		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion-1)
-		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis)
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis, fdv2ServerObjects)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
@@ -93,7 +96,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 	t.Run("basis with wrong payload ID sends xfer-full", func(t *testing.T) {
 		basis := fmt.Sprintf("(p:%s:%d)", "other-project", currentVersion)
-		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis)
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis, fdv2ServerObjects)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
@@ -106,7 +109,7 @@ func TestBuildPollResponse(t *testing.T) {
 			"flag-a": model.FlagState{Value: ldvalue.Bool(true), Version: 1},
 			"flag-b": model.FlagState{Value: ldvalue.String("hello"), Version: 2},
 		}
-		resp, err := buildInitialResponse(payloadID, currentVersion, multiFlags, "")
+		resp, err := buildInitialResponse(payloadID, currentVersion, multiFlags, "", fdv2ServerObjects)
 		require.NoError(t, err)
 
 		// server-intent + 2 put-objects + payload-transferred
@@ -117,13 +120,136 @@ func TestBuildPollResponse(t *testing.T) {
 				var put subsystems.PutObject
 				require.NoError(t, json.Unmarshal(event.Data, &put))
 				putKeys[put.Key] = true
-				assert.Equal(t, currentVersion, put.Version)
+				assert.Equal(t, multiFlags[put.Key].Version, put.Version)
 				assert.Equal(t, subsystems.FlagKind, put.Kind)
 			}
 		}
 		assert.True(t, putKeys["flag-a"])
 		assert.True(t, putKeys["flag-b"])
 	})
+
+	// Client-side SDKs compare put-object versions to find changed flags. If the version
+	// follows the payload version, every override will mark every flag as changed.
+	t.Run("put-object versions of unchanged flags stay the same when the payload version changes", func(t *testing.T) {
+		before := model.FlagsState{
+			"unchanged": model.FlagState{Value: ldvalue.Int(10), Version: 1},
+			"changed":   model.FlagState{Value: ldvalue.Bool(false), Version: 3},
+		}
+		after := model.FlagsState{
+			"unchanged": before["unchanged"],
+			"changed":   model.FlagState{Value: ldvalue.Bool(true), Version: 4},
+		}
+		for name, objects := range map[string]fdv2ObjectEncoder{"server": fdv2ServerObjects, "client": fdv2ClientObjects(false)} {
+			t.Run(name, func(t *testing.T) {
+				beforeResp, err := buildInitialResponse(payloadID, currentVersion, before, "", objects)
+				require.NoError(t, err)
+				afterResp, err := buildInitialResponse(payloadID, currentVersion+1, after, "", objects)
+				require.NoError(t, err)
+
+				assert.Equal(t, map[string]int{"unchanged": 1, "changed": 3}, putObjectVersions(t, beforeResp))
+				assert.Equal(t, map[string]int{"unchanged": 1, "changed": 4}, putObjectVersions(t, afterResp))
+			})
+		}
+	})
+}
+
+type overrideEventRecorder struct {
+	events []model.OverrideEvent
+}
+
+func (r *overrideEventRecorder) Handle(event interface{}) {
+	if overrideEvent, ok := event.(model.OverrideEvent); ok {
+		r.events = append(r.events, overrideEvent)
+	}
+}
+
+// TestPutObjectVersionsWithOverridesInStore uses the real SQLite store. Each change to an
+// override must give the flag a higher version. Otherwise an SDK can ignore the change.
+func TestPutObjectVersionsWithOverridesInStore(t *testing.T) {
+	ctx := context.Background()
+	store, err := db.NewSqlite(ctx, filepath.Join(t.TempDir(), "test.db"))
+	require.NoError(t, err)
+	ctx = model.ContextWithStore(ctx, store)
+	recorder := &overrideEventRecorder{}
+	observers := model.NewObservers()
+	observers.RegisterObserver(recorder)
+	ctx = model.SetObserversOnContext(ctx, observers)
+
+	require.NoError(t, store.InsertProject(ctx, model.Project{
+		Key:                  exampleProjectKey,
+		SourceEnvironmentKey: "test",
+		Context:              ldcontext.New("user"),
+		AllFlagsState: model.FlagsState{
+			"overridden": model.FlagState{Value: ldvalue.Bool(false), Version: 3},
+			"untouched":  model.FlagState{Value: ldvalue.Int(10), Version: 1},
+		},
+		AvailableVariations: []model.FlagVariation{},
+	}))
+
+	fullTransferVersions := func() map[string]int {
+		project, err := store.GetDevProject(ctx, exampleProjectKey)
+		require.NoError(t, err)
+		flags, err := project.GetFlagStateWithOverridesForProject(ctx)
+		require.NoError(t, err)
+		payload, err := buildInitialResponse(exampleProjectKey, project.PayloadVersion, flags, "", fdv2ClientObjects(false))
+		require.NoError(t, err)
+		return putObjectVersions(t, payload)
+	}
+
+	steps := []struct {
+		name  string
+		apply func() error
+	}{
+		{"set override", func() error {
+			_, err := model.UpsertOverride(ctx, exampleProjectKey, "overridden", ldvalue.Bool(true))
+			return err
+		}},
+		{"set the same value again", func() error {
+			_, err := model.UpsertOverride(ctx, exampleProjectKey, "overridden", ldvalue.Bool(true))
+			return err
+		}},
+		{"remove override", func() error {
+			return model.DeleteOverride(ctx, exampleProjectKey, "overridden")
+		}},
+		{"set override after removal", func() error {
+			_, err := model.UpsertOverride(ctx, exampleProjectKey, "overridden", ldvalue.Bool(true))
+			return err
+		}},
+	}
+
+	previous := fullTransferVersions()
+	assert.Equal(t, map[string]int{"overridden": 3, "untouched": 1}, previous)
+	for i, step := range steps {
+		t.Run(step.name, func(t *testing.T) {
+			require.NoError(t, step.apply())
+			require.Len(t, recorder.events, i+1)
+			event := recorder.events[i]
+
+			changeEvents, err := buildFlagChangeEvents(exampleProjectKey, event.PayloadVersion, event.FlagKey, event.FlagState, fdv2ClientObjects(false))
+			require.NoError(t, err)
+			var put subsystems.PutObject
+			require.NoError(t, json.Unmarshal(changeEvents[1].Data, &put))
+
+			current := fullTransferVersions()
+			assert.Greater(t, put.Version, previous["overridden"], "the streamed version must go up")
+			assert.Equal(t, current["overridden"], put.Version, "the streamed version must match the next full transfer")
+			assert.Equal(t, 1, current["untouched"], "a flag that did not change must keep its version")
+			previous = current
+		})
+	}
+}
+
+func putObjectVersions(t *testing.T, payload subsystems.PollingPayload) map[string]int {
+	t.Helper()
+	versions := make(map[string]int)
+	for _, event := range payload.Events {
+		if event.Name == subsystems.EventPutObject {
+			var put subsystems.PutObject
+			require.NoError(t, json.Unmarshal(event.Data, &put))
+			versions[put.Key] = put.Version
+		}
+	}
+	return versions
 }
 
 func TestPollV2Handler(t *testing.T) {
