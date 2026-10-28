@@ -14,6 +14,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
+	"github.com/aws/aws-sdk-go-v2/service/devopsagent/document"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
@@ -68,6 +69,88 @@ type fakeAgent struct {
 	// paginate makes every list API return one item per page, so callers are
 	// exercised against the NextToken AWS sends for a long list.
 	paginate bool
+	// assets holds the skill assets of every space.
+	assets []agenttypes.Asset
+	// skillFiles holds the SKILL.md text by asset ID.
+	skillFiles map[string]string
+	// skillBytes holds a SKILL.md that AWS sends as bytes, by asset ID.
+	skillBytes    map[string][]byte
+	listAssetsErr error
+	getFileErr    error
+	// onGetFile runs at the start of each GetAssetFile call.
+	onGetFile      func()
+	createAssetErr error
+	createAssets   []*devopsagent.CreateAssetInput
+	// updateAssociations holds the allowlist updates.
+	updateAssociations   []*devopsagent.UpdateAssociationInput
+	updateAssociationErr error
+	updateAssets         []*devopsagent.UpdateAssetInput
+}
+
+// skillAsset is a skill asset named name.
+func skillAsset(id, name string) agenttypes.Asset {
+	return agenttypes.Asset{
+		AssetId:   aws.String(id),
+		AssetType: aws.String("skill"),
+		Metadata:  document.NewLazyDocument(map[string]any{"name": name, "agent_types": []string{"GENERIC"}}),
+	}
+}
+
+func (f *fakeAgent) CreateAsset(_ context.Context, in *devopsagent.CreateAssetInput, _ ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	f.calls = append(f.calls, "CreateAsset")
+	f.createAssets = append(f.createAssets, in)
+	if f.createAssetErr != nil {
+		return nil, f.createAssetErr
+	}
+	asset := agenttypes.Asset{AssetId: aws.String("ki-created"), AssetType: in.AssetType, Metadata: in.Metadata}
+	f.assets = append(f.assets, asset)
+
+	return &devopsagent.CreateAssetOutput{Asset: &asset}, nil
+}
+
+func (f *fakeAgent) GetAssetFile(_ context.Context, in *devopsagent.GetAssetFileInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetAssetFileOutput, error) {
+	f.calls = append(f.calls, "GetAssetFile")
+	if f.onGetFile != nil {
+		f.onGetFile()
+	}
+	if f.getFileErr != nil {
+		return nil, f.getFileErr
+	}
+	if aws.ToString(in.Path) != "SKILL.md" {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+	if body, ok := f.skillBytes[aws.ToString(in.AssetId)]; ok {
+		return &devopsagent.GetAssetFileOutput{File: &agenttypes.AssetFile{
+			Path:    in.Path,
+			Content: &agenttypes.AssetFileBodyMemberBytes{Value: body},
+		}}, nil
+	}
+	text, ok := f.skillFiles[aws.ToString(in.AssetId)]
+	if !ok {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+
+	return &devopsagent.GetAssetFileOutput{File: &agenttypes.AssetFile{
+		Path:    in.Path,
+		Content: &agenttypes.AssetFileBodyMemberText{Value: text},
+	}}, nil
+}
+
+func (f *fakeAgent) ListAssets(_ context.Context, in *devopsagent.ListAssetsInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAssetsOutput, error) {
+	f.calls = append(f.calls, "ListAssets")
+	if f.listAssetsErr != nil {
+		return nil, f.listAssetsErr
+	}
+	items, next := page(f.assets, in.NextToken, f.paginate)
+
+	return &devopsagent.ListAssetsOutput{Items: items, NextToken: next}, nil
+}
+
+func (f *fakeAgent) UpdateAsset(_ context.Context, in *devopsagent.UpdateAssetInput, _ ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error) {
+	f.calls = append(f.calls, "UpdateAsset")
+	f.updateAssets = append(f.updateAssets, in)
+
+	return &devopsagent.UpdateAssetOutput{Asset: &agenttypes.Asset{AssetId: in.AssetId}}, nil
 }
 
 func page[T any](items []T, token *string, paginate bool) ([]T, *string) {
@@ -241,6 +324,16 @@ func (f *fakeAgent) ListAssociations(_ context.Context, in *devopsagent.ListAsso
 	return &devopsagent.ListAssociationsOutput{Associations: items, NextToken: next}, nil
 }
 
+func (f *fakeAgent) UpdateAssociation(_ context.Context, in *devopsagent.UpdateAssociationInput, _ ...func(*devopsagent.Options)) (*devopsagent.UpdateAssociationOutput, error) {
+	f.calls = append(f.calls, "UpdateAssociation")
+	f.updateAssociations = append(f.updateAssociations, in)
+	if f.updateAssociationErr != nil {
+		return nil, f.updateAssociationErr
+	}
+
+	return &devopsagent.UpdateAssociationOutput{}, nil
+}
+
 func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.RegisterServiceOutput, error) {
 	f.calls = append(f.calls, "RegisterService")
 	f.registerInputs = append(f.registerInputs, in)
@@ -384,6 +477,7 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Equal(t, "mcp-1", result.MCPServiceID)
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
 	assert.Equal(t, "https://space-1.aidevops.global.app.aws", result.OperatorAppURL)
+	assert.Equal(t, "ki-created", result.SkillAssetID)
 	assert.Equal(t, map[string]string{awsdevops.ManagedTagKey: awsdevops.ManagedTagValue}, agent.createdTags)
 	assert.Equal(t, []string{awsdevops.AgentSpaceRoleName, awsdevops.OperatorAppRoleName}, iamClient.createdRoles)
 	assert.Equal(t, awsdevops.AgentSpacePolicyARN, iamClient.attachedPolicy[awsdevops.AgentSpaceRoleName])
@@ -392,8 +486,11 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Equal(
 		t,
 		// The plan does not look for the server of a new space. The check
-		// before the MCP step looks, because the space exists by then.
-		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
+		// before the MCP step looks, because the space exists by then,
+		// then the skill last.
+		[]string{
+			"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService", "ListAssets", "CreateAsset",
+		},
 		agent.calls,
 	)
 }
@@ -916,6 +1013,7 @@ func TestMCPAssociationClassifiesTheSkillTools(t *testing.T) {
 		"toggle-flag", "create-flag", "update-rollout", "archive-flag", "create-experiment",
 		"start-experiment-iteration", "stop-experiment-iteration", "start-guarded-rollout", "stop-guarded-rollout",
 		"update-targeting-rules", "update-individual-targets", "create-approval-request",
+		"apply-approval-request",
 	} {
 		assert.Equal(t, agenttypes.ToolClassificationMutative, classes[tool], tool)
 	}

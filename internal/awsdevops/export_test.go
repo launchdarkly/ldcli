@@ -22,6 +22,20 @@ func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (S
 	return ConnectPlan(ctx, clients, opts, plan)
 }
 
+// ShipSkill adds text to the shipped skill versions until the test ends.
+func ShipSkill(text string) func() {
+	saved := shippedSkillHashes
+	shippedSkillHashes = append(append([]string(nil), saved...), skillHash(text))
+
+	return func() { shippedSkillHashes = saved }
+}
+
+// ShippedSkillHashes are the hashes of the shipped skill versions.
+func ShippedSkillHashes() []string { return shippedSkillHashes }
+
+// SkillHash is the hash that setup compares.
+func SkillHash(text string) string { return skillHash(text) }
+
 // MCPTools lists every tool in the allowlist, for tests.
 func MCPTools() []string {
 	return append(append([]string{}, mcpReadOnlyTools...), mcpMutativeTools...)
