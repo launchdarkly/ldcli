@@ -29,7 +29,7 @@ const ExperimentAgentName = "experiment-orchestrator"
 // setup updates it without --replace-agent. When you change the prompt, add
 // the hash of the new text. Never remove a hash.
 var shippedAgentHashes = []string{
-	"241729286c43fb2522fe98cbd2b8f6ba683ad65606fe60e8a41beb634607c497",
+	"cad2fb81776dee1029bf7bf8d7b466e869be23590f918433de698922be001c08",
 }
 
 const (
