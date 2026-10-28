@@ -18,17 +18,7 @@
       "name": "Production",
       "operatorAppUrl": "",
       "operatorAppEnabled": false,
-      "operatorAppError": "AccessDeniedException",
-      "skill": {
-        "assetId": "ki-skill",
-        "state": "edited"
-      },
-      "agent": {
-        "assetId": "ki-agent",
-        "state": "outdated",
-        "tools": ["LaunchDarkly_get-flag"],
-        "skillAttached": false
-      }
+      "operatorAppError": "AccessDeniedException"
     }
   ],
   "missingSetup": [

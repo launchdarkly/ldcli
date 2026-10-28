@@ -107,70 +107,9 @@ func printStatus(out io.Writer, status awsdevops.Status) {
 			_, _ = fmt.Fprintf(out, "    %s: %s\n",
 				associationLabel(status, association), associationState(association))
 		}
-		if space.Skill != nil {
-			_, _ = fmt.Fprintf(out, "  Skill %s: %s\n",
-				assetLabel(awsdevops.ExperimentSkillName, *space.Skill),
-				assetLine(*space.Skill, "SKILL.md", "--replace-skill"))
-		}
-		if space.Agent != nil {
-			_, _ = fmt.Fprintf(out, "  Custom agent %s: %s\n",
-				assetLabel(awsdevops.ExperimentAgentName, space.Agent.AssetStatus), agentLine(*space.Agent))
-		}
 	}
 
 	printConsoleURL(out, status.Region)
-}
-
-// assetLabel is the name of the skill or the agent, with its asset ID.
-func assetLabel(name string, asset awsdevops.AssetStatus) string {
-	if asset.AssetID == "" {
-		return name
-	}
-
-	return name + " (" + asset.AssetID + ")"
-}
-
-// assetLine gives the state of the skill or the agent, and what setup does
-// with it. file is the file that setup writes, and flag is the setup flag that
-// overwrites an edited one.
-func assetLine(asset awsdevops.AssetStatus, file, flag string) string {
-	switch asset.State {
-	case awsdevops.AssetCurrent:
-		return "this ldcli version"
-	case awsdevops.AssetOutdated:
-		return "an older ldcli version. Setup updates it"
-	case awsdevops.AssetEdited:
-		return "edited. Setup leaves it" + leaveHint(flag)
-	case awsdevops.AssetNoFile:
-		return "has no " + file + ". Setup leaves it" + leaveHint(flag)
-	case awsdevops.AssetMissing:
-		return "missing. " + setupHint
-	}
-
-	return "unknown (" + asset.Error + ")"
-}
-
-// leaveHint names the flag that overwrites an asset. The custom agent has no
-// such flag.
-func leaveHint(flag string) string {
-	if flag == "" {
-		return ""
-	}
-
-	return " unless you pass " + flag
-}
-
-func agentLine(agent awsdevops.AgentStatus) string {
-	line := assetLine(agent.AssetStatus, awsdevops.ExperimentAgentName+".md", "")
-	if agent.State == awsdevops.AssetMissing || agent.AssetID == "" {
-		return line
-	}
-	line += fmt.Sprintf(". It has %d tools", len(agent.Tools))
-	if agent.SkillAttached != nil && !*agent.SkillAttached {
-		line += " and not skill " + awsdevops.ExperimentSkillName
-	}
-
-	return line
 }
 
 func printConsoleURL(out io.Writer, region string) {

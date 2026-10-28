@@ -1,10 +1,6 @@
 package awsdevopsagent
 
-import (
-	"github.com/aws/aws-sdk-go-v2/aws"
-
-	"github.com/launchdarkly/ldcli/internal/awsdevops"
-)
+import "github.com/launchdarkly/ldcli/internal/awsdevops"
 
 func realisticStatus() awsdevops.Status {
 	return awsdevops.Status{
@@ -44,12 +40,6 @@ func partialStatus() awsdevops.Status {
 			AgentSpaceID:     "as-prod01",
 			Name:             "Production",
 			OperatorAppError: "AccessDeniedException",
-			Skill:            &awsdevops.AssetStatus{AssetID: "ki-skill", State: awsdevops.AssetEdited},
-			Agent: &awsdevops.AgentStatus{
-				AssetStatus:   awsdevops.AssetStatus{AssetID: "ki-agent", State: awsdevops.AssetOutdated},
-				Tools:         []string{"LaunchDarkly_get-flag"},
-				SkillAttached: aws.Bool(false),
-			},
 		}},
 		MissingSetup: []string{"IAM role " + awsdevops.OperatorAppRoleName + " does not exist"},
 	}

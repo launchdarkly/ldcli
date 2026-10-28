@@ -244,114 +244,11 @@ func TestPlanSetupLeavesAgentWithoutPromptFile(t *testing.T) {
 	assert.Contains(t, plan.Text().Agent, "because it has no experiment-orchestrator.md")
 }
 
-func TestStatusReportsSkillAndAgent(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
-		assets: []agenttypes.Asset{
-			skillAsset("ki-ours", "experiment-orchestration"),
-			agentAsset("ki-agent", "experiment-orchestrator", []string{"LaunchDarkly_get-flag"}, []string{"ki-ours"}),
-		},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
-		agentFiles: map[string]string{"ki-agent": "# Edited by the customer"},
-	}
-
-	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
-	require.NoError(t, err)
-
-	require.Len(t, status.AgentSpaces, 1)
-	space := status.AgentSpaces[0]
-	assert.Equal(t, &awsdevops.AssetStatus{AssetID: "ki-ours", State: awsdevops.AssetCurrent}, space.Skill)
-	assert.Equal(t, &awsdevops.AgentStatus{
-		AssetStatus:   awsdevops.AssetStatus{AssetID: "ki-agent", State: awsdevops.AssetEdited},
-		Tools:         []string{"LaunchDarkly_get-flag"},
-		SkillAttached: aws.Bool(true),
-	}, space.Agent)
-}
-
 // Setup updates an agent with the ldcli prompt but without the skill or an
 // allowed tool, so status calls it outdated.
-func TestStatusReportsAgentWithoutToolsAsOutdated(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
-		associations: []agenttypes.Association{{
-			AgentSpaceId: aws.String("space-1"),
-			ServiceId:    aws.String("mcp-1"),
-			Configuration: &agenttypes.ServiceConfigurationMemberMcpserver{
-				Value: agenttypes.MCPServerConfiguration{Tools: []string{"get-flag", "toggle-flag"}},
-			},
-		}},
-		assets: []agenttypes.Asset{
-			skillAsset("ki-ours", "experiment-orchestration"),
-			agentAsset("ki-agent", "experiment-orchestrator", []string{"Prod-LD_get-flag"}, []string{"ki-ours"}),
-		},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
-		agentFiles: map[string]string{"ki-agent": awsdevops.ExperimentAgentPrompt},
-	}
-	clients := newTestClients(agent, newFakeIAM())
-
-	status, err := awsdevops.GetStatus(context.Background(), clients, "")
-	require.NoError(t, err)
-	assert.Equal(t, awsdevops.AssetOutdated, status.AgentSpaces[0].Agent.State)
-
-	agent.assets[1] = agentAsset("ki-agent", "experiment-orchestrator",
-		[]string{"Prod-LD_get-flag", "Prod-LD_toggle-flag"}, []string{"ki-ours"})
-	status, err = awsdevops.GetStatus(context.Background(), clients, "")
-	require.NoError(t, err)
-	assert.Equal(t, awsdevops.AssetCurrent, status.AgentSpaces[0].Agent.State)
-}
-
-func TestStatusReportsMissingSkillAndAgent(t *testing.T) {
-	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")}}
-
-	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
-	require.NoError(t, err)
-
-	assert.Equal(t, awsdevops.AssetMissing, status.AgentSpaces[0].Skill.State)
-	assert.Equal(t, awsdevops.AssetMissing, status.AgentSpaces[0].Agent.State)
-	assert.Nil(t, status.AgentSpaces[0].Agent.SkillAttached)
-}
-
 // A skill without SKILL.md is not ours, and setup leaves it.
-func TestStatusReportsSkillWithoutFile(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
-		assets:      []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-	}
-
-	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
-	require.NoError(t, err)
-
-	assert.Equal(t, &awsdevops.AssetStatus{AssetID: "ki-ours", State: awsdevops.AssetNoFile}, status.AgentSpaces[0].Skill)
-}
-
 // An older ldcli prompt is one that setup updates.
-func TestStatusReportsOutdatedAgent(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
-		assets:      []agenttypes.Asset{agentAsset("ki-agent", "experiment-orchestrator", nil, nil)},
-		agentFiles:  map[string]string{"ki-agent": ""},
-	}
-
-	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
-	require.NoError(t, err)
-
-	assert.Equal(t, awsdevops.AssetOutdated, status.AgentSpaces[0].Agent.State)
-}
-
 // Like the operator app, assets that status cannot read do not stop it.
-func TestStatusReportsUnreadableAssets(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces:   []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
-		listAssetsErr: accessDenied("aidevops:ListAssets"),
-	}
-
-	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
-	require.NoError(t, err)
-
-	assert.Equal(t, "AccessDeniedException", status.AgentSpaces[0].Skill.Error)
-	assert.Equal(t, "AccessDeniedException", status.AgentSpaces[0].Agent.Error)
-}
-
 // Setup registers one OAuth server for the account, so the agent's tools start
 // with the name of that server.
 func TestPlanSetupNamesAgentToolsAfterANewServer(t *testing.T) {
