@@ -268,6 +268,8 @@ func TestPlanTextOfAConnectPlan(t *testing.T) {
 
 			text := plan.Text()
 
+			assert.Contains(t, text.Scope, "Connect the MCP server only")
+			assert.Contains(t, text.Scope, "--full-setup")
 			assert.Equal(t, "Connect to agent space platform (space-7)", text.AgentSpace)
 			assert.Equal(t, "No change", text.Association)
 			assert.Equal(t, []string{"No change"}, text.Roles)

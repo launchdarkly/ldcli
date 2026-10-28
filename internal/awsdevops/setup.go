@@ -94,6 +94,8 @@ type SetupOptions struct {
 	AgentSpaceID   string
 	AgentSpaceName string
 	NewAgentSpace  bool
+	// FullSetup: the user passed --full-setup.
+	FullSetup bool
 
 	AuthFlow string
 	// AuthFlowSet: the user passed --auth-flow.
@@ -400,6 +402,8 @@ type SetupPlan struct {
 
 // PlanText is the plan as lines for a person to read.
 type PlanText struct {
+	// Scope tells if the run is a full setup.
+	Scope       string
 	AgentSpace  string
 	Association string
 	Roles       []string
@@ -409,8 +413,10 @@ type PlanText struct {
 
 // Text describes each step of the plan.
 func (p SetupPlan) Text() PlanText {
-	text := PlanText{AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe()}
+	text := PlanText{Scope: "Full setup", AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe()}
 	if p.Space.Action == SpaceConnect {
+		text.Scope = "Connect the MCP server only. To also update the IAM roles, " +
+			"account association, and operator app of the space, run setup again with --full-setup"
 		text.Association = "No change"
 		text.Roles = []string{"No change"}
 		text.OperatorApp = "No change"

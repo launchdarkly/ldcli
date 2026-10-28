@@ -20,6 +20,7 @@ const (
 	agentSpaceNameFlag  = "agent-space-name"
 	newAgentSpaceFlag   = "new-agent-space"
 	authFlowFlag        = "auth-flow"
+	fullSetupFlag       = "full-setup"
 	idcInstanceARNFlag  = "idc-instance-arn"
 	issuerURLFlag       = "issuer-url"
 	idpClientIDFlag     = "idp-client-id"
@@ -39,7 +40,7 @@ LaunchDarkly MCP server connection the AWS DevOps Agent needs.
 
 When the account already has agent spaces, setup asks which one to connect
 LaunchDarkly to. On a space that setup did not make, setup only registers the
-MCP server. On a space that setup made, or with --auth-flow, setup runs the
+MCP server. On a space that setup made, or with --full-setup, setup runs the
 full setup. Pass --agent-space-id to pick a space without the list, or
 --new-agent-space to provision another space. A new space needs a name: pass
 --agent-space-name, or type one when setup asks. The run ends with the
@@ -61,10 +62,11 @@ for --access-token.`,
 
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
-	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --auth-flow runs full setup on a space that setup did not make")
+	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --full-setup runs full setup on a space that setup did not make")
 	cmd.Flags().String(agentSpaceNameFlag, "", "Name of the agent space to use or create. In a terminal, setup asks for a name if it needs one")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Provision a new agent space instead of asking which existing one to use")
 	cmd.MarkFlagsMutuallyExclusive(agentSpaceIDFlag, newAgentSpaceFlag)
+	cmd.Flags().Bool(fullSetupFlag, false, "Run the full setup on an agent space that setup did not make. Setup can change its IAM roles, account association, and operator app sign-in")
 	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
 	cmd.Flags().String(idcInstanceARNFlag, "", "IAM Identity Center instance ARN, required when --auth-flow=idc")
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
@@ -132,6 +134,14 @@ func setupWith(
 	if err != nil {
 		return err
 	}
+	if !provision && opts.AuthFlowSet {
+		// A connect run ignores --auth-flow, so stop and name --full-setup.
+		return fmt.Errorf(
+			"only a full setup changes the operator app sign-in. To use --%s on agent space %s (%s), also pass --%s. "+
+				"To only connect the MCP server, remove --%s",
+			authFlowFlag, plan.Space.Name, plan.Space.ID, fullSetupFlag, authFlowFlag,
+		)
+	}
 	if plan.MCP.Action == awsdevops.MCPAsk && !ask {
 		return fmt.Errorf("create a service token at %s, then pass --access-token", awsdevops.AccessTokenURL(opts.LDBaseURI))
 	}
@@ -189,7 +199,7 @@ func setupWith(
 
 // resolveAgentSpace picks the agent space for this run. If no flag picks one,
 // it asks in a terminal. A space that setup made gets the full setup. Another
-// space gets only the MCP server, unless --auth-flow is passed. It returns true
+// space gets only the MCP server, unless --full-setup is passed. It returns true
 // if setup must provision a new space, and then sets opts.AgentSpaceName.
 // Otherwise, it sets opts.AgentSpaceID.
 func resolveAgentSpace(
@@ -211,12 +221,12 @@ func resolveAgentSpace(
 			)
 		case err != nil:
 			return false, err
-		case space.TagErr != nil && !opts.AuthFlowSet:
+		case space.TagErr != nil && !opts.FullSetup:
 			// The owner is unknown, so do only what is safe on any space.
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 				"Setup could not read the tags of agent space %s (%s), so it only connects the MCP server. "+
 					"To run the full setup on it, pass --%s: %v\n",
-				space.Name, space.AgentSpaceID, authFlowFlag, space.TagErr)
+				space.Name, space.AgentSpaceID, fullSetupFlag, space.TagErr)
 
 			return false, nil
 		}
@@ -246,7 +256,7 @@ func resolveAgentSpace(
 	if !interactive {
 		provision, err := pickWithoutAsking(spaces, opts, clients.Region)
 		if err == nil && opts.AgentSpaceID != "" {
-			warnAuthFlow(cmd, *opts, summaryOf(spaces, opts.AgentSpaceID))
+			warnFullSetup(cmd, *opts, summaryOf(spaces, opts.AgentSpaceID))
 		}
 
 		return provision, err
@@ -268,24 +278,24 @@ func resolveAgentSpace(
 }
 
 // fullSetupOn reports whether the chosen space gets the full setup. A space
-// that setup made gets it. --auth-flow forces it on another space, with a
+// that setup made gets it. --full-setup forces it on another space, with a
 // warning.
 func fullSetupOn(cmd *cobra.Command, opts awsdevops.SetupOptions, space awsdevops.AgentSpaceSummary) bool {
-	warnAuthFlow(cmd, opts, space)
+	warnFullSetup(cmd, opts, space)
 
-	return opts.AuthFlowSet || space.ManagedByLDCLI
+	return opts.FullSetup || space.ManagedByLDCLI
 }
 
-// warnAuthFlow warns that --auth-flow runs the full setup on a space that
+// warnFullSetup warns that --full-setup runs the full setup on a space that
 // setup did not make, so that a wrong --agent-space-id shows before the plan.
-func warnAuthFlow(cmd *cobra.Command, opts awsdevops.SetupOptions, space awsdevops.AgentSpaceSummary) {
-	if !opts.AuthFlowSet || space.ManagedByLDCLI {
+func warnFullSetup(cmd *cobra.Command, opts awsdevops.SetupOptions, space awsdevops.AgentSpaceSummary) {
+	if !opts.FullSetup || space.ManagedByLDCLI {
 		return
 	}
 	_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 		"Warning: setup did not make agent space %s (%s). --%s runs the full setup on it, "+
 			"so setup can change its IAM roles, account association, and operator app sign-in.\n",
-		space.Name, space.AgentSpaceID, authFlowFlag)
+		space.Name, space.AgentSpaceID, fullSetupFlag)
 }
 
 // summaryOf returns the summary of the space with this ID.
@@ -327,7 +337,7 @@ func pickWithoutAsking(all []awsdevops.AgentSpaceSummary, opts *awsdevops.SetupO
 		if i := spaceNamed(spaces, name); i >= 0 {
 			opts.AgentSpaceID = spaces[i].AgentSpaceID
 
-			return opts.AuthFlowSet || spaces[i].ManagedByLDCLI, nil
+			return opts.FullSetup || spaces[i].ManagedByLDCLI, nil
 		}
 		if !hasSpaceNamed(spaces, name) {
 			opts.NewAgentSpace = true
@@ -489,6 +499,7 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	_, _ = fmt.Fprintf(out, "  Region:        %s\n", plan.Region)
 	_, _ = fmt.Fprintf(out, "  AWS profile:   %s\n", profileLabel(cmd))
 	text := plan.Text()
+	_, _ = fmt.Fprintf(out, "  Setup:         %s\n", text.Scope)
 	for _, role := range text.Roles {
 		_, _ = fmt.Fprintf(out, "  IAM role:      %s\n", role)
 	}
@@ -672,6 +683,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		AgentSpaceName:  mustString(cmd, agentSpaceNameFlag),
 		AuthFlow:        strings.ToLower(mustString(cmd, authFlowFlag)),
 		AuthFlowSet:     cmd.Flags().Changed(authFlowFlag),
+		FullSetup:       mustBool(cmd, fullSetupFlag),
 		IdcInstanceARN:  mustString(cmd, idcInstanceARNFlag),
 		IssuerURL:       mustString(cmd, issuerURLFlag),
 		IdpClientID:     mustString(cmd, idpClientIDFlag),
