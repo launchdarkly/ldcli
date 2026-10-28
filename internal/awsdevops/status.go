@@ -63,7 +63,8 @@ const (
 	// Setup updates it.
 	AssetOutdated = "outdated"
 	// AssetEdited is a text that no ldcli version sent. Setup leaves it
-	// without --replace-skill or --replace-agent.
+	// without --replace-skill, and it never changes an
+	// edited custom agent.
 	AssetEdited = "edited"
 	// AssetNoFile is an asset without the file that setup writes, for example
 	// a skill that someone made from a PDF. Setup leaves it too.

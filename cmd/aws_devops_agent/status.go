@@ -140,9 +140,9 @@ func assetLine(asset awsdevops.AssetStatus, file, flag string) string {
 	case awsdevops.AssetOutdated:
 		return "an older ldcli version. Setup updates it"
 	case awsdevops.AssetEdited:
-		return "edited. Setup leaves it unless you pass " + flag
+		return "edited. Setup leaves it" + leaveHint(flag)
 	case awsdevops.AssetNoFile:
-		return "has no " + file + ". Setup leaves it unless you pass " + flag
+		return "has no " + file + ". Setup leaves it" + leaveHint(flag)
 	case awsdevops.AssetMissing:
 		return "missing. " + setupHint
 	}
@@ -150,8 +150,18 @@ func assetLine(asset awsdevops.AssetStatus, file, flag string) string {
 	return "unknown (" + asset.Error + ")"
 }
 
+// leaveHint names the flag that overwrites an asset. The custom agent has no
+// such flag.
+func leaveHint(flag string) string {
+	if flag == "" {
+		return ""
+	}
+
+	return " unless you pass " + flag
+}
+
 func agentLine(agent awsdevops.AgentStatus) string {
-	line := assetLine(agent.AssetStatus, awsdevops.ExperimentAgentName+".md", "--replace-agent")
+	line := assetLine(agent.AssetStatus, awsdevops.ExperimentAgentName+".md", "")
 	if agent.State == awsdevops.AssetMissing || agent.AssetID == "" {
 		return line
 	}

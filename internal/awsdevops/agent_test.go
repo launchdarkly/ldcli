@@ -128,29 +128,13 @@ func TestSetupLeavesEditedAgent(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseOptions(), true)
 	require.NoError(t, err)
 	assert.Equal(t, awsdevops.AgentLeave, plan.Agent.Action)
-	assert.Contains(t, plan.Text().Agent, "--replace-agent")
+	assert.Contains(t, plan.Text().Agent, "delete the agent in the AWS console")
 
 	result, err := awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
 	require.NoError(t, err)
 	assert.Empty(t, agent.updateAgents)
 	assert.Equal(t, awsdevops.AgentLeft, result.AgentAction)
 	assert.Empty(t, result.AgentError)
-}
-
-func TestSetupOverwritesEditedAgentWithFlag(t *testing.T) {
-	agent := &fakeAgent{
-		assets:     []agenttypes.Asset{agentAsset("ki-agent", "experiment-orchestrator", nil, nil)},
-		agentFiles: map[string]string{"ki-agent": "# Edited by the customer"},
-	}
-	opts := reuseOptions()
-	opts.ReplaceAgent = true
-
-	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), opts)
-	require.NoError(t, err)
-
-	require.Len(t, agent.updateAgents, 1)
-	assert.Equal(t, "ki-agent", aws.ToString(agent.updateAgents[0].AssetId))
-	assert.Equal(t, awsdevops.AgentOverwritten, result.AgentAction)
 }
 
 // Without the skill, the agent could not run, so setup does not make it.

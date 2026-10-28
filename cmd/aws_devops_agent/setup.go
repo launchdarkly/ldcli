@@ -28,7 +28,6 @@ const (
 	mcpEndpointFlag     = "mcp-endpoint"
 	replaceSkillFlag    = "replace-skill"
 	addMCPToolsFlag     = "add-mcp-tools"
-	replaceAgentFlag    = "replace-agent"
 	yesFlag             = "yes"
 )
 
@@ -94,7 +93,6 @@ server and the skill: if its step fails, setup warns and does the other steps.`,
 	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
 	cmd.Flags().Bool(addMCPToolsFlag, false, "Add the ldcli tools that the MCP server allowlist of an existing agent space misses. "+
 		"Every tool gets the ldcli classification")
-	cmd.Flags().Bool(replaceAgentFlag, false, "Overwrite the "+awsdevops.ExperimentAgentName+" custom agent if someone edited it")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -655,7 +653,6 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		OpenURL:         browser.OpenURL,
 		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
 		AddMCPTools:     mustBool(cmd, addMCPToolsFlag),
-		ReplaceAgent:    mustBool(cmd, replaceAgentFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""

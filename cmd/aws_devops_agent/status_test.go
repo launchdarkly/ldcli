@@ -343,7 +343,7 @@ func TestStatusShowsSkillAndAgent(t *testing.T) {
 
 	assert.Equal(t, "  Skill experiment-orchestration (ki-skill): this ldcli version", lineWith(t, section, "Skill"))
 	assert.Equal(t,
-		"  Custom agent experiment-orchestrator (ki-agent): edited. Setup leaves it unless you pass --replace-agent. "+
+		"  Custom agent experiment-orchestrator (ki-agent): edited. Setup leaves it. "+
 			"It has 2 tools",
 		lineWith(t, section, "Custom agent"))
 }

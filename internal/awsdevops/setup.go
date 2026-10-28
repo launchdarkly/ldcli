@@ -146,9 +146,6 @@ type SetupOptions struct {
 	// server association misses. AWS does not send back the classification of
 	// each tool, so the rewrite gives every tool the ldcli classification.
 	AddMCPTools bool
-	// ReplaceAgent overwrites the experiment-orchestrator custom agent if
-	// someone edited its prompt.
-	ReplaceAgent bool
 
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)

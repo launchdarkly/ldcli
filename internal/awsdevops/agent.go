@@ -26,11 +26,15 @@ const ExperimentAgentName = "experiment-orchestrator"
 
 // shippedAgentHashes holds the SHA-256 of each system prompt that an ldcli
 // release sent. An agent with one of these prompts has no customer edits, so
-// setup updates it without --replace-agent. When you change the prompt, add
+// setup updates it. When you change the prompt, add
 // the hash of the new text. Never remove a hash.
 var shippedAgentHashes = []string{
 	"d3d2124c29e290df9cadd38e9bae2619ac8622cabb180fa0ad4fc59d5358dee5",
 }
+
+// agentResetHint says how to get the ldcli prompt back. Setup never
+// overwrites an edited prompt.
+const agentResetHint = "To use the ldcli version, delete the agent in the AWS console and run setup again"
 
 const (
 	agentAssetType = "custom_agent"
@@ -91,9 +95,8 @@ const (
 	// version the prompt, the tools, and the skill of this version.
 	AgentUpdate
 	// AgentLeave means that someone edited the prompt, so setup does not
-	// change the agent without --replace-agent.
+	// change the agent.
 	AgentLeave
-	AgentReplace
 	// AgentSkip means that setup could not read the custom agents of the
 	// space. The agent is optional, so the run continues without it.
 	AgentSkip
@@ -129,9 +132,7 @@ func (s AgentStep) describe() string {
 	case AgentUpdate:
 		return fmt.Sprintf("Update custom agent %s to the prompt and tools of this ldcli version", label)
 	case AgentLeave:
-		return fmt.Sprintf("Leave custom agent %s unchanged because %s. Pass --replace-agent to overwrite it", label, why)
-	case AgentReplace:
-		return fmt.Sprintf("Overwrite custom agent %s, which is not the ldcli version because %s", label, why)
+		return fmt.Sprintf("Leave custom agent %s unchanged because %s. %s", label, why, agentResetHint)
 	case AgentSkip:
 		return agentFailure(fmt.Errorf("Skip custom agent %s: %w", ExperimentAgentName, s.Err))
 	default:
@@ -182,8 +183,6 @@ func planAgent(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 	case found && (prompt == "" || slices.Contains(shippedAgentHashes, skillHash(prompt))):
 		// An empty prompt has nothing to lose.
 		step.Action = AgentUpdate
-	case opts.ReplaceAgent:
-		step.Action = AgentReplace
 	default:
 		step.Action = AgentLeave
 	}
@@ -262,13 +261,12 @@ func checkAgent(ctx context.Context, clients Clients, spaceID string, step Agent
 
 // The values of SetupResult.AgentAction.
 const (
-	AgentCreated     = "created"
-	AgentKept        = "kept"
-	AgentUpdated     = "updated"
-	AgentLeft        = "left"
-	AgentOverwritten = "overwritten"
-	AgentSkipped     = "skipped"
-	AgentFailed      = "failed"
+	AgentCreated = "created"
+	AgentKept    = "kept"
+	AgentUpdated = "updated"
+	AgentLeft    = "left"
+	AgentSkipped = "skipped"
+	AgentFailed  = "failed"
 )
 
 // installAgent does the custom agent step after the MCP server and skill
@@ -311,7 +309,7 @@ func doAgentStep(
 
 		return AgentKept, nil
 	case AgentLeave:
-		logf("Left custom agent %s (%s) unchanged. Pass --replace-agent to overwrite it", ExperimentAgentName, step.AssetID)
+		logf("Left custom agent %s (%s) unchanged. %s", ExperimentAgentName, step.AssetID, agentResetHint)
 
 		return AgentLeft, nil
 	case AgentSkip:
@@ -382,9 +380,5 @@ func doAgentStep(
 		return "", fmt.Errorf("unable to update custom agent %s (%s): %w", ExperimentAgentName, step.AssetID, err)
 	}
 	logf("Updated custom agent %s (%s)", ExperimentAgentName, step.AssetID)
-	if step.Action == AgentReplace {
-		return AgentOverwritten, nil
-	}
-
 	return AgentUpdated, nil
 }
