@@ -41,10 +41,11 @@ LaunchDarkly MCP server connection the AWS DevOps Agent needs.
 When the account already has agent spaces, setup asks which one to connect
 LaunchDarkly to. On a space that setup did not make, setup only registers the
 MCP server. On a space that setup made, or with --full-setup, setup runs the
-full setup. Pass --agent-space-id to pick a space without the list, or
---new-agent-space to provision another space. A new space needs a name: pass
---agent-space-name, or type one when setup asks. The run ends with the
-operator app URL, where the agent is used.
+full setup. A full setup turns on elevated actions on the space. Pass
+--agent-space-id to pick a space without the list, or --new-agent-space to
+provision another space. A new space needs a name: pass --agent-space-name,
+or type one when setup asks. The run ends with the operator app URL, where
+the agent is used.
 
 Each agent space gets its own LaunchDarkly MCP server registration, so each
 space can use a different token. The MCP server is connected with
