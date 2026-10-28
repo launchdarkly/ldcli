@@ -51,15 +51,20 @@ var (
 type AgentAPI interface {
 	AssociateService(context.Context, *devopsagent.AssociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.AssociateServiceOutput, error)
 	CreateAgentSpace(context.Context, *devopsagent.CreateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAgentSpaceOutput, error)
+	CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error)
 	EnableOperatorApp(context.Context, *devopsagent.EnableOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error)
 	GetOperatorApp(context.Context, *devopsagent.GetOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error)
 	ListTagsForResource(context.Context, *devopsagent.ListTagsForResourceInput, ...func(*devopsagent.Options)) (*devopsagent.ListTagsForResourceOutput, error)
 	GetAgentSpace(context.Context, *devopsagent.GetAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.GetAgentSpaceOutput, error)
+	GetAssetFile(context.Context, *devopsagent.GetAssetFileInput, ...func(*devopsagent.Options)) (*devopsagent.GetAssetFileOutput, error)
 	ListAgentSpaces(context.Context, *devopsagent.ListAgentSpacesInput, ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error)
+	ListAssets(context.Context, *devopsagent.ListAssetsInput, ...func(*devopsagent.Options)) (*devopsagent.ListAssetsOutput, error)
 	ListAssociations(context.Context, *devopsagent.ListAssociationsInput, ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error)
 	ListServices(context.Context, *devopsagent.ListServicesInput, ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error)
 	RegisterService(context.Context, *devopsagent.RegisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.RegisterServiceOutput, error)
 	UpdateAgentSpace(context.Context, *devopsagent.UpdateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAgentSpaceOutput, error)
+	UpdateAsset(context.Context, *devopsagent.UpdateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error)
+	UpdateAssociation(context.Context, *devopsagent.UpdateAssociationInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssociationOutput, error)
 }
 
 // IAMAPI is the subset of the IAM API this package uses.

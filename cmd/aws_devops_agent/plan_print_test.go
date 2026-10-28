@@ -65,6 +65,17 @@ func TestSetupPlanNamesRolesAndOperatorApp(t *testing.T) {
 	assert.Contains(t, out.String(), awsdevops.AgentSpaceRoleName)
 	assert.Contains(t, out.String(), awsdevops.OperatorAppRoleName)
 	assert.Contains(t, out.String(), "operator app")
+	assert.Contains(t, out.String(), "Skill:         Create skill "+awsdevops.ExperimentSkillName)
+}
+
+// A canceled plan does not create the skill.
+func TestSetupCanceledCreatesNoSkill(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "n\n")
+	clients, w := countingClients()
+
+	require.Error(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+
+	assert.NotContains(t, w.calls, "CreateAsset")
 }
 
 // Progress goes to stderr, so a json run shows it, and stdout stays JSON.
@@ -356,4 +367,41 @@ func TestSetupFailureNamesTheNewSpace(t *testing.T) {
 	assert.Contains(t, err.Error(), "Setup created agent space ld-devops-agent (space-new)")
 	// The same flags stop on the name of the new space, so give the ID.
 	assert.Contains(t, err.Error(), "To use it, run setup again with --agent-space-id space-new")
+}
+
+type failingSkillAgent struct{ countingAgent }
+
+func (failingSkillAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	return nil, &agenttypes.AccessDeniedException{Message: aws.String("not authorized to perform: aidevops:CreateAsset")}
+}
+
+// A failed skill step warns at the end, and setup still prints the app URL.
+func TestSetupWarnsWhenSkillFails(t *testing.T) {
+	cmd, errOut := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, w := countingClients()
+	clients.Agent = failingSkillAgent{clients.Agent.(countingAgent)}
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, false))
+
+	assert.Contains(t, w.calls, "RegisterService")
+	assert.Contains(t, stdoutOf(cmd), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
+	assert.Contains(t, stdoutOf(cmd), "aidevops:CreateAsset")
+	assert.Contains(t, stdoutOf(cmd), "Open the DevOps Agent at:")
+	// The warning shows one time.
+	assert.Equal(t, 1, strings.Count(errOut.String()+stdoutOf(cmd), "unable to create skill"))
+}
+
+// stdout holds only the JSON, so the warning goes to stderr.
+func TestSetupJSONWarnsOnStderrWhenSkillFails(t *testing.T) {
+	cmd, errOut := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, _ := countingClients()
+	clients.Agent = failingSkillAgent{clients.Agent.(countingAgent)}
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), false, false))
+
+	assert.True(t, json.Valid([]byte(stdoutOf(cmd))), "stdout is not JSON: %s", stdoutOf(cmd))
+	assert.Contains(t, stdoutOf(cmd), `"skillAction": "failed"`)
+	assert.Contains(t, errOut.String(), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
 }

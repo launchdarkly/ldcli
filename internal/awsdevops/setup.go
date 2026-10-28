@@ -64,9 +64,13 @@ var oauthPollInterval = 5 * time.Second
 // The agent invokes read-only tools without asking for approval, so anything
 // that changes LaunchDarkly state has to be classified explicitly. The lists
 // cover the steps of the experiment-orchestration skill: find a flag, create
-// it, run an experiment, read its results, and ramp or clean up the flag.
+// it, run an experiment, read its results, and ramp or clean up the flag. The
+// skill keeps its experiment record in the flag description and creates a
+// missing primary metric, so the lists include update-flag-settings and
+// create-metric.
 // They also cover incident work: turn a change off for one segment or
-// context, and ask for approval where an environment needs it.
+// context, and ask for approval where an environment needs it, then apply
+// the request after a reviewer approves it.
 var (
 	mcpReadOnlyTools = []string{
 		"list-projects",
@@ -92,6 +96,8 @@ var (
 	mcpMutativeTools = []string{
 		"toggle-flag",
 		"create-flag",
+		"update-flag-settings",
+		"create-metric",
 		"update-rollout",
 		"archive-flag",
 		"create-experiment",
@@ -102,6 +108,7 @@ var (
 		"update-targeting-rules",
 		"update-individual-targets",
 		"create-approval-request",
+		"apply-approval-request",
 	}
 )
 
@@ -131,6 +138,15 @@ type SetupOptions struct {
 	// OpenURL, when set, opens the OAuth approval page in a browser.
 	OpenURL func(url string) error
 
+	// ReplaceSkill overwrites the SKILL.md of an existing
+	// experiment-orchestration skill that someone edited. Setup updates a
+	// SKILL.md from an older ldcli version without this option.
+	ReplaceSkill bool
+	// AddMCPTools adds the ldcli tools that the allowlist of an existing MCP
+	// server association misses. AWS does not send back the classification of
+	// each tool, so the rewrite gives every tool the ldcli classification.
+	AddMCPTools bool
+
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
 }
@@ -148,6 +164,18 @@ type SetupResult struct {
 	OperatorAppEnabled bool   `json:"operatorAppEnabled"`
 	MCPServiceID       string `json:"mcpServiceId,omitempty"`
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
+	// MCPToolsAdded lists the ldcli tools that setup added to the allowlist of
+	// an existing MCP server association.
+	MCPToolsAdded []string `json:"mcpToolsAdded,omitempty"`
+	// MCPToolsError is set if the allowlist of an existing association misses
+	// ldcli tools that setup could not add. The rest of the setup ran.
+	MCPToolsError string `json:"mcpToolsError,omitempty"`
+	SkillAssetID  string `json:"skillAssetId,omitempty"`
+	// SkillAction is what the skill step did, for example "kept" or "left".
+	SkillAction string `json:"skillAction,omitempty"`
+	// SkillError is set if the skill step failed or was skipped. The skill is
+	// optional, so the rest of the setup ran.
+	SkillError string `json:"skillError,omitempty"`
 }
 
 // ErrPlanChanged means AWS changed after the plan.
@@ -373,6 +401,13 @@ type MCPStep struct {
 	Spaces []string
 	// SpaceID is the agent space of the step. It is empty for a new space.
 	SpaceID string
+	// MissingTools are the ldcli tools that the allowlist of the existing
+	// association in the space misses. CanAddTools says whether setup can add
+	// them.
+	MissingTools []string
+	CanAddTools  bool
+	// AddTools is set by --add-mcp-tools.
+	AddTools bool
 }
 
 // shared reports whether other spaces use the server.
@@ -409,6 +444,7 @@ type SetupPlan struct {
 	// AuthFlow is the sign-in that a full setup sets.
 	AuthFlow string
 	MCP      MCPStep
+	Skill    SkillStep
 }
 
 // PlanText is the plan as lines for a person to read.
@@ -420,11 +456,12 @@ type PlanText struct {
 	Roles       []string
 	OperatorApp string
 	MCPServer   string
+	Skill       string
 }
 
 // Text describes each step of the plan.
 func (p SetupPlan) Text() PlanText {
-	text := PlanText{Scope: "Full setup", AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe()}
+	text := PlanText{Scope: "Full setup", AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe(), Skill: p.Skill.describe()}
 	if p.Space.Action == SpaceConnect {
 		text.Scope = "Connect the MCP server only. To also update the IAM roles, " +
 			"account association, and operator app of the space, run setup again with --full-setup"
@@ -508,6 +545,19 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	if err != nil {
 		return plan, err
 	}
+
+	if plan.MCP.Action == MCPReuse && plan.Space.Action != SpaceCreate {
+		association, err := findMCPAssociation(ctx, clients, plan.Space.ID, plan.MCP.ServiceID)
+		if err != nil {
+			return plan, err
+		}
+		if association != nil {
+			plan.MCP.MissingTools, plan.MCP.CanAddTools = missingTools(*association)
+			plan.MCP.AddTools = opts.AddMCPTools
+		}
+	}
+
+	plan.Skill = planSkill(ctx, clients, opts, plan.Space)
 
 	if !provision {
 		// Read the app, so the run does not print a URL that does not work.
@@ -764,6 +814,18 @@ func (m MCPStep) describe() string {
 	if m.shared() {
 		line += fmt.Sprintf(". Agent spaces %s also use it", strings.Join(m.otherSpaces(), ", "))
 	}
+	switch {
+	case len(m.MissingTools) == 0:
+	case m.CanAddTools && m.AddTools:
+		line += ", and add " + strings.Join(m.MissingTools, ", ") +
+			" to its allowlist. The rewrite gives each tool the ldcli classification"
+	case m.CanAddTools:
+		line += ". Its allowlist misses " + strings.Join(m.MissingTools, ", ") +
+			". Pass --add-mcp-tools to add them"
+	default:
+		line += ". Its allowlist misses " + strings.Join(m.MissingTools, ", ") +
+			", which setup cannot add because the allowlist has tools that ldcli does not classify"
+	}
 
 	return line
 }
@@ -943,6 +1005,9 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
+	// The skill goes last, so a failure of the optional step cannot stop the
+	// MCP server step.
+	installSkill(ctx, clients, plan.Skill, &result, logf)
 
 	return result, nil
 }
@@ -1001,6 +1066,7 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
+	installSkill(ctx, clients, plan.Skill, &result, logf)
 
 	return result, nil
 }
@@ -1101,10 +1167,10 @@ func registerMCPServer(
 		result.MCPServiceID = step.ServiceID
 		logf("Reused MCP server %s (%s)", step.name(), step.ServiceID)
 
-		return associateMCPServer(ctx, clients, step.name(), result, logf)
+		return associateMCPServer(ctx, clients, opts, step, step.name(), result, logf)
 	}
 
-	return registerOAuthMCPServer(ctx, clients, opts, result, logf)
+	return registerOAuthMCPServer(ctx, clients, opts, step, result, logf)
 }
 
 // registerOAuthMCPServer registers the MCP server of the AWS account with
@@ -1115,6 +1181,7 @@ func registerOAuthMCPServer(
 	ctx context.Context,
 	clients Clients,
 	opts SetupOptions,
+	step MCPStep,
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
@@ -1159,7 +1226,7 @@ func registerOAuthMCPServer(
 	}
 	logf("Registered MCP server %s (%s)", MCPOAuthServerName, result.MCPServiceID)
 
-	return associateMCPServer(ctx, clients, MCPOAuthServerName, result, logf)
+	return associateMCPServer(ctx, clients, opts, step, MCPOAuthServerName, result, logf)
 }
 
 // waitForOAuthServer looks for the OAuth server of the account until it
@@ -1215,17 +1282,20 @@ func spacesWith(ctx context.Context, clients Clients, serviceID string) ([]strin
 func associateMCPServer(
 	ctx context.Context,
 	clients Clients,
+	opts SetupOptions,
+	step MCPStep,
 	name string,
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
-	existing, err := FindAssociation(ctx, clients, result.AgentSpaceID, result.MCPServiceID)
+	existing, err := findMCPAssociation(ctx, clients, result.AgentSpaceID, result.MCPServiceID)
 	if err != nil {
 		return err
 	}
-	if existing != "" {
-		result.MCPAssociationID = existing
+	if existing != nil {
+		result.MCPAssociationID = aws.ToString(existing.AssociationId)
 		logf("MCP server %s is already associated with the agent space", name)
+		extendAllowlist(ctx, clients, opts, step, *existing, result, logf)
 
 		return nil
 	}
@@ -1238,6 +1308,93 @@ func associateMCPServer(
 	logf("Associated MCP server %s with the agent space", name)
 
 	return nil
+}
+
+func findMCPAssociation(ctx context.Context, clients Clients, agentSpaceID, serviceID string) (*agenttypes.Association, error) {
+	associations, err := listAssociations(ctx, clients, agentSpaceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, association := range associations {
+		if aws.ToString(association.ServiceId) == serviceID {
+			return &association, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// missingTools returns the ldcli tools that the allowlist of an association
+// misses, and whether setup can add them. AWS replaces the whole configuration
+// on an update and does not send the classification of each tool back, so
+// setup can rewrite the allowlist only if it holds ldcli tools alone. An
+// unclassified tool counts as read-only, so a rewrite would let a mutative
+// tool that the customer added run without approval.
+func missingTools(association agenttypes.Association) (missing []string, canAdd bool) {
+	if _, ok := association.Configuration.(*agenttypes.ServiceConfigurationMemberMcpserver); !ok {
+		// Not an allowlist that setup knows how to read, so leave it.
+		return nil, false
+	}
+	allowed := associationTools(association.Configuration)
+	ldcli := slices.Concat(mcpReadOnlyTools, mcpMutativeTools)
+	for _, tool := range ldcli {
+		if !slices.Contains(allowed, tool) {
+			missing = append(missing, tool)
+		}
+	}
+	canAdd = !slices.ContainsFunc(allowed, func(tool string) bool { return !slices.Contains(ldcli, tool) })
+
+	return missing, canAdd
+}
+
+// extendAllowlist adds the ldcli tools that an existing association misses,
+// for example after an ldcli upgrade that allows more tools. Setup cannot tell
+// an older ldcli allowlist from one that someone trimmed, so it adds tools only
+// with --add-mcp-tools. A failure does not stop setup, because the server works
+// with the tools that it has.
+func extendAllowlist(
+	ctx context.Context,
+	clients Clients,
+	opts SetupOptions,
+	step MCPStep,
+	association agenttypes.Association,
+	result *SetupResult,
+	logf func(string, ...any),
+) {
+	missing, canAdd := missingTools(association)
+	tools := strings.Join(missing, ", ")
+	switch {
+	case len(missing) == 0:
+		return
+	case !canAdd:
+		result.MCPToolsError = fmt.Sprintf("the MCP server allowlist of the agent space misses %s, and it has tools "+
+			"that ldcli does not classify, so setup did not change it. Add the missing tools in the AWS console", tools)
+
+		return
+	case !opts.AddMCPTools:
+		result.MCPToolsError = fmt.Sprintf("the MCP server allowlist of the agent space misses %s, which the "+
+			"experiment-orchestration skill uses. To add them, run setup again with --add-mcp-tools", tools)
+
+		return
+	case !slices.Equal(missing, step.MissingTools) || canAdd != step.CanAddTools:
+		// The plan showed another change, so do not make this one.
+		result.MCPToolsError = "the MCP server allowlist changed after the plan, so setup did not change it. Run setup again"
+
+		return
+	}
+	_, err := clients.Agent.UpdateAssociation(ctx, &devopsagent.UpdateAssociationInput{
+		AgentSpaceId:  association.AgentSpaceId,
+		AssociationId: association.AssociationId,
+		Configuration: &agenttypes.ServiceConfigurationMemberMcpserver{Value: mcpServerConfiguration()},
+		Capabilities:  association.Capabilities,
+	})
+	if err != nil {
+		result.MCPToolsError = fmt.Sprintf("unable to add %s to the MCP server allowlist: %v", strings.Join(missing, ", "), err)
+
+		return
+	}
+	result.MCPToolsAdded = missing
+	logf("Added %s to the MCP server allowlist", strings.Join(missing, ", "))
 }
 
 func associateMCPServerWith(ctx context.Context, clients Clients, agentSpaceID, serviceID string) (string, error) {

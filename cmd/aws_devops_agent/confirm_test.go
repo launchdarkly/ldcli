@@ -43,6 +43,12 @@ func (a countingAgent) CreateAgentSpace(context.Context, *devopsagent.CreateAgen
 	return &devopsagent.CreateAgentSpaceOutput{AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: aws.String("space-new")}}, nil
 }
 
+func (a countingAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	a.writes.add("CreateAsset")
+
+	return &devopsagent.CreateAssetOutput{Asset: &agenttypes.Asset{AssetId: aws.String("ki-1")}}, nil
+}
+
 func (a countingAgent) EnableOperatorApp(context.Context, *devopsagent.EnableOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error) {
 	a.writes.add("EnableOperatorApp")
 
@@ -69,6 +75,12 @@ func (a countingAgent) RegisterService(context.Context, *devopsagent.RegisterSer
 	a.writes.add("RegisterService")
 
 	return &devopsagent.RegisterServiceOutput{ServiceId: aws.String("mcp-1")}, nil
+}
+
+func (a countingAgent) UpdateAsset(context.Context, *devopsagent.UpdateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error) {
+	a.writes.add("UpdateAsset")
+
+	return &devopsagent.UpdateAssetOutput{}, nil
 }
 
 type countingIAM struct{ writes *writes }

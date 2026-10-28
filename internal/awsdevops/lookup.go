@@ -352,3 +352,25 @@ func serviceName(service agenttypes.RegisteredService) string {
 
 	return aws.ToString(service.Name)
 }
+
+func listAssets(ctx context.Context, clients Clients, agentSpaceID, assetType string) ([]agenttypes.Asset, error) {
+	var (
+		assets    []agenttypes.Asset
+		nextToken *string
+	)
+	for {
+		page, err := clients.Agent.ListAssets(ctx, &devopsagent.ListAssetsInput{
+			AgentSpaceId: aws.String(agentSpaceID),
+			AssetType:    aws.String(assetType),
+			NextToken:    nextToken,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to list the %s assets of agent space %s: %w", assetType, agentSpaceID, err)
+		}
+		assets = append(assets, page.Items...)
+		if page.NextToken == nil {
+			return assets, nil
+		}
+		nextToken = page.NextToken
+	}
+}

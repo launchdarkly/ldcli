@@ -26,6 +26,8 @@ const (
 	idpClientSecretFlag = "idp-client-secret"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	replaceSkillFlag    = "replace-skill"
+	addMCPToolsFlag     = "add-mcp-tools"
 	yesFlag             = "yes"
 )
 
@@ -33,24 +35,37 @@ func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Provision the AWS DevOps Agent for LaunchDarkly",
-		Long: `Create the IAM roles, agent space, AWS account association, operator app and
-LaunchDarkly MCP server connection the AWS DevOps Agent needs.
+		Long: `Create the IAM roles, agent space, AWS account association, operator app,
+LaunchDarkly MCP server connection and experimentation skill the AWS DevOps
+Agent needs.
 
 When the account already has agent spaces, setup asks which one to connect
 LaunchDarkly to. On a space that setup did not make, setup only registers the
-MCP server. On a space that setup made, or with --full-setup, setup runs the
-full setup. A full setup turns on elevated actions on the space. Pass
---agent-space-id to pick a space without the list, or --new-agent-space to
-provision another space. A new space needs a name: pass --agent-space-name,
-or type one when setup asks. The run ends with the operator app URL, where
-the agent is used.
+MCP server and adds the skill. On a space that setup made, or with
+--full-setup, setup runs the full setup. A full setup turns on elevated
+actions on the space. Pass --agent-space-id to pick a space without the list,
+or --new-agent-space to provision another space. A new space needs a name:
+pass --agent-space-name, or type one when setup asks. The run ends with the
+operator app URL, where the agent is used.
 
 The AWS account gets one LaunchDarkly MCP server, which all agent spaces use.
 If the account has no server, setup registers one with OAuth. It opens a
 browser, where you approve access to LaunchDarkly, and waits until AWS
 registers the server. AWS can ask you to sign in to the AWS console first.
 The agent then acts as the LaunchDarkly member who approved access, in every
-agent space. If the agent space already has an MCP server, setup keeps it.`,
+agent space. If the agent space already has an MCP server, setup keeps it.
+
+A space that reuses a server keeps its tool allowlist. If the allowlist misses
+tools that this ldcli version allows, setup warns. To add them, pass
+--add-mcp-tools. AWS does not send back the classification of each tool, so
+the rewrite gives every tool the ldcli classification.
+
+The experiment-orchestration skill tells the agent how to run an experiment
+from a goal to a report. Every agent type in the space can load it. If the
+skill has the text of an older ldcli version, setup updates it. If someone
+edited it, setup does not change it. To overwrite the edits, pass
+--replace-skill. The skill is optional: if its step fails, setup warns and
+does the other steps.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -70,6 +85,9 @@ agent space. If the agent space already has an MCP server, setup keeps it.`,
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the AWS account")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
+	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
+	cmd.Flags().Bool(addMCPToolsFlag, false, "Add the ldcli tools that the MCP server allowlist of an existing agent space misses. "+
+		"Every tool gets the ldcli classification")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -152,7 +170,22 @@ func setupWith(
 	}
 
 	if !plaintext {
+		// stdout holds only the JSON, so a CI log shows the warning on stderr.
+		if result.MCPToolsError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.MCPToolsError)
+		}
+		if result.SkillError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.SkillError)
+		}
+
 		return printJSON(cmd, result)
+	}
+
+	if result.MCPToolsError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.MCPToolsError)
+	}
+	if result.SkillError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.SkillError)
 	}
 
 	// Only a connect run leaves the app off, on a space that setup did not
@@ -478,7 +511,8 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	_, _ = fmt.Fprintf(out, "  Agent space:   %s\n", text.AgentSpace)
 	_, _ = fmt.Fprintf(out, "  Association:   %s\n", text.Association)
 	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", text.OperatorApp)
-	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n\n", text.MCPServer)
+	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n", text.MCPServer)
+	_, _ = fmt.Fprintf(out, "  Skill:         %s\n\n", text.Skill)
 	if !ask {
 		return nil
 	}
@@ -605,6 +639,8 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
 		OpenURL:         browser.OpenURL,
+		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
+		AddMCPTools:     mustBool(cmd, addMCPToolsFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""
