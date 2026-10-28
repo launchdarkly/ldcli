@@ -963,8 +963,7 @@ func TestOAuthPollsUntilTheServerAppears(t *testing.T) {
 	}
 	polls := 0
 	agent.onListServices = func() {
-		// The custom agent step lists the servers again after the poll.
-		if !opened || polls == 3 {
+		if !opened {
 			return
 		}
 		polls++

@@ -61,15 +61,21 @@ func TestPlanSetupNamesAgentToolsAfterTheExistingServer(t *testing.T) {
 	server.Name = aws.String("Prod-LD")
 	server.AdditionalServiceDetails.(*agenttypes.AdditionalServiceDetailsMemberMcpserver).Value.Name = aws.String("Prod-LD")
 	agent := &fakeAgent{services: []agenttypes.RegisteredService{server}}
+	clients := newTestClients(agent, newFakeIAM())
 	opts := reuseOptions()
 
-	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
 	require.NoError(t, err)
 
 	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
 	assert.Equal(t, "Prod-LD", plan.Agent.ServerName)
 	assert.Equal(t, "Create custom agent experiment-orchestrator with skill experiment-orchestration "+
 		"and the MCP tools of server Prod-LD", plan.Text().Agent)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+	require.Len(t, agent.createAgents, 1, result.AgentError)
+	assert.Contains(t, metadataOf(t, agent.createAgents[0].Metadata)["tools"], "Prod-LD_get-flag")
 }
 
 func TestSetupKeepsCurrentAgent(t *testing.T) {

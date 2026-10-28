@@ -510,7 +510,7 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 		[]string{
 			"ListServices", "ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp",
 			"ListServices", "ListServices", "RegisterService", "AssociateService",
-			"ListAssets", "CreateAsset", "ListServices", "ListAssets", "CreateAsset",
+			"ListAssets", "CreateAsset", "ListAssets", "CreateAsset",
 		},
 		agent.calls,
 	)

@@ -181,6 +181,9 @@ type SetupResult struct {
 	AgentAction string `json:"agentAction,omitempty"`
 	// AgentError is set if the custom agent step failed or was skipped.
 	AgentError string `json:"agentError,omitempty"`
+	// mcpServerName is the name of the server in AWS, which the tool IDs of
+	// the custom agent start with.
+	mcpServerName string
 }
 
 // ErrPlanChanged means AWS changed after the plan.
@@ -1316,6 +1319,7 @@ func associateMCPServer(
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
+	result.mcpServerName = name
 	existing, err := findMCPAssociation(ctx, clients, result.AgentSpaceID, result.MCPServiceID)
 	if err != nil {
 		return err

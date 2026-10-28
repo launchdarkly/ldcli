@@ -162,22 +162,6 @@ func planAgent(ctx context.Context, clients Clients, space SpaceStep, mcp MCPSte
 	return step
 }
 
-// serverName reads the name of the server at run time, because the name in the
-// plan can be out of date.
-func serverName(ctx context.Context, clients Clients, serviceID string) (string, error) {
-	services, err := listServices(ctx, clients)
-	if err != nil {
-		return "", err
-	}
-	for _, service := range services {
-		if aws.ToString(service.ServiceId) == serviceID {
-			return serviceName(service), nil
-		}
-	}
-
-	return "", fmt.Errorf("MCP server %s is not registered", serviceID)
-}
-
 func agentMetadata(asset agenttypes.Asset) (tools, skills []string) {
 	if asset.Metadata == nil {
 		return nil, nil
@@ -282,11 +266,7 @@ func doAgentStep(
 		return "", fmt.Errorf("setup skipped custom agent %s, because skill %s is not ready: %w",
 			ExperimentAgentName, ExperimentSkillName, errAgentNeeds)
 	}
-	name, err := serverName(ctx, clients, result.MCPServiceID)
-	if err != nil {
-		return "", err
-	}
-	tools, err := spaceAgentTools(ctx, clients, result.AgentSpaceID, result.MCPServiceID, name)
+	tools, err := spaceAgentTools(ctx, clients, result.AgentSpaceID, result.MCPServiceID, result.mcpServerName)
 	if err != nil {
 		return "", err
 	}
