@@ -1,4 +1,11 @@
-.PHONY: build generate log test vendor
+.PHONY: aws-devops-agent-check aws-devops-agent-sync build generate log test vendor
+
+aws-devops-agent-check:
+	make aws-devops-agent-sync
+	./scripts/check-aws-devops-agent-changed.sh
+
+aws-devops-agent-sync:
+	./scripts/sync-aws-devops-agent.sh
 
 build:
 	go build -o ldcli

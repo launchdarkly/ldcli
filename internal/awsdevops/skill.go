@@ -17,6 +17,8 @@ import (
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 )
 
+//go:generate ../../scripts/sync-aws-devops-agent.sh
+
 // ExperimentSkill is the SKILL.md of the experimentation skill. Its front
 // matter gives the name and the description that setup sends as metadata.
 //
