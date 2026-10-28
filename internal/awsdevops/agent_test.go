@@ -245,3 +245,29 @@ func TestPlanSetupNamesAgentToolsAfterANewServer(t *testing.T) {
 
 	assert.Contains(t, plan.Text().Agent, "the MCP tools of server "+awsdevops.MCPOAuthServerName)
 }
+
+func TestSetupGivesAgentTheToolsThatAddMCPToolsAdds(t *testing.T) {
+	old := awsdevops.AgentTools(awsdevops.MCPServerName)[:1]
+	agent := &fakeAgent{
+		services:     []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+		associations: []agenttypes.Association{mcpAssociation("list-projects")},
+		assets: []agenttypes.Asset{
+			skillAsset("ki-ours", "experiment-orchestration"),
+			agentAsset("ki-agent", "experiment-orchestrator", old, []string{"ki-ours"}),
+		},
+		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
+		agentFiles: map[string]string{"ki-agent": awsdevops.ExperimentAgentPrompt},
+	}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := reuseOptions()
+	opts.AddMCPTools = true
+
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.AgentUpdate, plan.Agent.Action)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+	require.Len(t, agent.updateAgents, 1, result.AgentError)
+	assert.ElementsMatch(t, awsdevops.AgentTools(awsdevops.MCPServerName), metadataOf(t, agent.updateAgents[0].Metadata)["tools"])
+}

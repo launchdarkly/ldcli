@@ -343,6 +343,11 @@ func (f *fakeAgent) UpdateAssociation(_ context.Context, in *devopsagent.UpdateA
 	if f.updateAssociationErr != nil {
 		return nil, f.updateAssociationErr
 	}
+	for i, association := range f.associations {
+		if aws.ToString(association.AssociationId) == aws.ToString(in.AssociationId) {
+			f.associations[i].Configuration = in.Configuration
+		}
+	}
 
 	return &devopsagent.UpdateAssociationOutput{}, nil
 }
