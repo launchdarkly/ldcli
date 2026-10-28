@@ -1046,3 +1046,22 @@ func TestMCPServiceIDPicksOneOfTwoOAuthServers(t *testing.T) {
 	assert.Equal(t, "mcp-b", result.MCPServiceID)
 	assert.NotContains(t, agent.calls, "RegisterService")
 }
+
+// A server with the name and a token passes the plan, so the error from AWS
+// must say what to do.
+func TestOAuthNameClashSaysWhatToDo(t *testing.T) {
+	agent := &fakeAgent{registerErr: errors.New("ConflictException: a service named LaunchDarkly-OAuth already exists")}
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "an MCP server named LaunchDarkly-OAuth is already registered")
+	assert.ErrorContains(t, err, "Rename or delete that server in the AWS console")
+	assert.ErrorContains(t, err, "--mcp-service-id <id>")
+	assert.ErrorContains(t, err, "ConflictException")
+	// Only the AWS account association, and no MCP server association.
+	assert.Equal(t, awsAssociationInputs(agent), agent.associationInputs)
+}

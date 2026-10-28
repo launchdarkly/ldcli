@@ -1202,6 +1202,16 @@ func registerOAuthMCPServer(
 		},
 	}
 	registration, err := registerWithRetry(ctx, clients, input, logf, endpoint)
+	if err != nil && strings.Contains(err.Error(), "already exists") {
+		// Setup reuses only an OAuth server at the endpoint, so this server
+		// uses a token or another endpoint, or it appeared after the check.
+		return fmt.Errorf(
+			"an MCP server named %s is already registered on this AWS account, so setup cannot register one. "+
+				"Rename or delete that server in the AWS console, then run setup again. "+
+				"Or, to connect a server that is already registered, pass --mcp-service-id <id>: %w",
+			MCPOAuthServerName, err,
+		)
+	}
 	if err != nil {
 		return fmt.Errorf("unable to register the LaunchDarkly MCP server: %w", err)
 	}
