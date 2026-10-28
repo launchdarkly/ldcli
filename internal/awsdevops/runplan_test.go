@@ -913,13 +913,16 @@ func oauthMCPService(serviceID string) agenttypes.RegisteredService {
 	return service
 }
 
-func TestOAuthRegistersAfterApproval(t *testing.T) {
-	defer awsdevops.SetOAuthPollInterval(time.Millisecond)()
-	agent := &fakeAgent{registerOutput: &devopsagent.RegisterServiceOutput{
+func oauthStepAgent() *fakeAgent {
+	return &fakeAgent{registerOutput: &devopsagent.RegisterServiceOutput{
 		AdditionalStep: &agenttypes.AdditionalServiceRegistrationStepMemberOauth{
 			Value: agenttypes.OAuthAdditionalStepDetails{AuthorizationUrl: aws.String("https://example.com/approve")},
 		},
 	}}
+}
+
+func TestOAuthRegistersAfterApproval(t *testing.T) {
+	agent := oauthStepAgent()
 	clients := newTestClients(agent, newFakeIAM())
 	opts := runPlanOptions()
 	var opened string
@@ -943,6 +946,39 @@ func TestOAuthRegistersAfterApproval(t *testing.T) {
 	details := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver).Value
 	assert.Equal(t, awsdevops.MCPOAuthServerName, aws.ToString(details.Name))
 	assert.IsType(t, &agenttypes.MCPServerAuthorizationConfigMemberAuthorizationDiscovery{}, details.AuthorizationConfig)
+	assert.Contains(t, agent.calls, "AssociateService")
+}
+
+// The approval takes time, so setup polls until AWS registers the server.
+func TestOAuthPollsUntilTheServerAppears(t *testing.T) {
+	defer awsdevops.SetOAuthPollInterval(time.Millisecond)()
+	agent := oauthStepAgent()
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opened := false
+	opts.OpenURL = func(string) error {
+		opened = true
+
+		return nil
+	}
+	polls := 0
+	agent.onListServices = func() {
+		if !opened {
+			return
+		}
+		polls++
+		if polls == 3 {
+			agent.services = append(agent.services, oauthMCPService("mcp-account"))
+		}
+	}
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, polls)
+	assert.Equal(t, "mcp-account", result.MCPServiceID)
 	assert.Contains(t, agent.calls, "AssociateService")
 }
 

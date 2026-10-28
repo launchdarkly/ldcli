@@ -46,9 +46,11 @@ type fakeAgent struct {
 	// operatorApps holds enabled apps by space.
 	operatorApps map[string]*devopsagent.GetOperatorAppOutput
 	// operatorAppErr fails every GetOperatorApp call.
-	operatorAppErr    error
-	calls             []string
-	services          []agenttypes.RegisteredService
+	operatorAppErr error
+	calls          []string
+	services       []agenttypes.RegisteredService
+	// onListServices runs before ListServices returns.
+	onListServices    func()
 	associationInputs []*devopsagent.AssociateServiceInput
 	registerOutput    *devopsagent.RegisterServiceOutput
 	registerErr       error
@@ -278,6 +280,9 @@ func (f *fakeAgent) ListAgentSpaces(_ context.Context, in *devopsagent.ListAgent
 
 func (f *fakeAgent) ListServices(_ context.Context, in *devopsagent.ListServicesInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error) {
 	f.calls = append(f.calls, "ListServices")
+	if f.onListServices != nil {
+		f.onListServices()
+	}
 	items, next := page(f.services, in.NextToken, f.paginate)
 
 	return &devopsagent.ListServicesOutput{Services: items, NextToken: next}, nil
