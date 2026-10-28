@@ -179,8 +179,7 @@ type SetupResult struct {
 	AgentAssetID string `json:"agentAssetId,omitempty"`
 	// AgentAction is what the custom agent step did, for example "created".
 	AgentAction string `json:"agentAction,omitempty"`
-	// AgentError is set if the custom agent step failed or was skipped. The
-	// agent is optional, so the rest of the setup ran.
+	// AgentError is set if the custom agent step failed or was skipped.
 	AgentError string `json:"agentError,omitempty"`
 }
 
@@ -809,8 +808,7 @@ func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string
 }
 
 // name is the name of the server in AWS. A new server gets
-// MCPOAuthServerName. An existing server without a name in AWS gets
-// MCPServerName.
+// MCPOAuthServerName.
 func (m MCPStep) name() string {
 	if m.Action == MCPRegister {
 		return MCPOAuthServerName
@@ -1024,8 +1022,7 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
-	// The skill and the agent go last, so a failure of the optional steps
-	// cannot stop the MCP server step.
+	// The optional skill and agent steps go last.
 	installSkill(ctx, clients, plan.Skill, &result, logf)
 	installAgent(ctx, clients, plan.Agent, &result, logf)
 

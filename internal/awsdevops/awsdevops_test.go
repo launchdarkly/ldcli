@@ -62,10 +62,8 @@ type fakeAgent struct {
 	failAssociateFor map[string]bool
 	// paginate makes every list API return one item per page, so callers are
 	// exercised against the NextToken AWS sends for a long list.
-	paginate bool
-	// assets holds the skill and custom agent assets of every space.
-	assets []agenttypes.Asset
-	// agentFiles holds the prompt of each custom agent by asset ID.
+	paginate   bool
+	assets     []agenttypes.Asset
 	agentFiles map[string]string
 	// skillFiles holds the SKILL.md text by asset ID.
 	skillFiles map[string]string
@@ -81,14 +79,11 @@ type fakeAgent struct {
 	updateAssociations   []*devopsagent.UpdateAssociationInput
 	updateAssociationErr error
 	updateAssets         []*devopsagent.UpdateAssetInput
-	// createAgents and updateAgents hold the custom agent writes, apart from
-	// the skill writes.
-	createAgents   []*devopsagent.CreateAssetInput
-	updateAgents   []*devopsagent.UpdateAssetInput
-	createAgentErr error
+	createAgents         []*devopsagent.CreateAssetInput
+	updateAgents         []*devopsagent.UpdateAssetInput
+	createAgentErr       error
 }
 
-// agentAsset is a custom agent asset named name with these tools and skills.
 func agentAsset(id, name string, tools, skills []string) agenttypes.Asset {
 	return agenttypes.Asset{
 		AssetId:   aws.String(id),
@@ -362,7 +357,6 @@ func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterS
 		return f.registerOutput, nil
 	}
 
-	// AWS lists the new server, so a later step can read its name.
 	name := aws.ToString(in.Name)
 	if details, ok := in.ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver); ok && details.Value.Name != nil {
 		name = aws.ToString(details.Value.Name)
@@ -512,8 +506,7 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 		// The plan and the first check look only for the server of the
 		// account, because a new space has no server. The check before the
 		// MCP step also looks for the server of the space, which exists by
-		// then. The skill and the custom agent are last. The custom agent
-		// step reads the name of the server.
+		// then. The skill and the custom agent are last.
 		[]string{
 			"ListServices", "ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp",
 			"ListServices", "ListServices", "RegisterService", "AssociateService",

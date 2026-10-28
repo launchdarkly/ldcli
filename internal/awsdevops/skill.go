@@ -180,8 +180,6 @@ func findSkill(ctx context.Context, clients Clients, spaceID, name string) (*age
 	return findAsset(ctx, clients, spaceID, skillAssetType, name)
 }
 
-// findAsset returns the asset of this type and name in the space, or nil if
-// there is none.
 func findAsset(ctx context.Context, clients Clients, spaceID, assetType, name string) (*agenttypes.Asset, error) {
 	assets, err := listAssets(ctx, clients, spaceID, assetType)
 	if err != nil {
@@ -223,8 +221,6 @@ func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (t
 	return assetText(ctx, clients, spaceID, assetID, skillFilePath)
 }
 
-// assetText returns the file at path in the asset. found is false if the
-// asset has no such file.
 func assetText(ctx context.Context, clients Clients, spaceID, assetID, path string) (text string, found bool, err error) {
 	file, err := clients.Agent.GetAssetFile(ctx, &devopsagent.GetAssetFileInput{
 		AgentSpaceId: aws.String(spaceID),

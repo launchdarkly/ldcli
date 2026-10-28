@@ -20,7 +20,6 @@ func TestShippedAgentHashesHoldTheCurrentPrompt(t *testing.T) {
 		"add the hash of the new prompt to shippedAgentHashes")
 }
 
-// AWS names a tool of an MCP server "<server name>_<tool name>".
 func TestAgentToolsStartWithTheServerName(t *testing.T) {
 	tools := awsdevops.AgentTools("LaunchDarkly")
 
@@ -57,8 +56,6 @@ func TestSetupCreatesAgentInNewSpace(t *testing.T) {
 	assert.Empty(t, result.AgentError)
 }
 
-// The tool IDs use the name of the server in AWS, which the customer can
-// change.
 func TestPlanSetupNamesAgentToolsAfterTheExistingServer(t *testing.T) {
 	server := oauthMCPService("mcp-1")
 	server.Name = aws.String("Prod-LD")
@@ -94,8 +91,6 @@ func TestSetupKeepsCurrentAgent(t *testing.T) {
 	assert.Equal(t, awsdevops.AgentKept, result.AgentAction)
 }
 
-// A newer ldcli allows more tools, so an agent with the ldcli prompt and
-// fewer tools gets the new list.
 func TestSetupUpdatesAgentWithOldTools(t *testing.T) {
 	agent := &fakeAgent{
 		assets: []agenttypes.Asset{
@@ -113,7 +108,6 @@ func TestSetupUpdatesAgentWithOldTools(t *testing.T) {
 	metadata := metadataOf(t, agent.updateAgents[0].Metadata)
 	assert.ElementsMatch(t, awsdevops.AgentTools(awsdevops.MCPOAuthServerName), metadata["tools"])
 	assert.Equal(t, []any{"ki-ours"}, metadata["skills"])
-	// AWS keeps the keys that the request leaves out, such as memory stores.
 	assert.NotContains(t, metadata, "memory_stores")
 	assert.Equal(t, awsdevops.AgentUpdated, result.AgentAction)
 }
@@ -137,7 +131,6 @@ func TestSetupLeavesEditedAgent(t *testing.T) {
 	assert.Empty(t, result.AgentError)
 }
 
-// Without the skill, the agent could not run, so setup does not make it.
 func TestSetupSkipsAgentWhenSkillFails(t *testing.T) {
 	agent := &fakeAgent{createAssetErr: errors.New("AccessDeniedException: not allowed")}
 
@@ -150,7 +143,6 @@ func TestSetupSkipsAgentWhenSkillFails(t *testing.T) {
 	assert.Contains(t, result.AgentError, "skill experiment-orchestration is not ready")
 }
 
-// The agent is optional, so its failure does not fail setup.
 func TestSetupWarnsWhenAgentCreateFails(t *testing.T) {
 	agent := &fakeAgent{createAgentErr: accessDenied("aidevops:CreateAsset")}
 
@@ -172,8 +164,6 @@ func TestPlanSetupSkipsAgentWhenAssetsCannotBeListed(t *testing.T) {
 	assert.Contains(t, plan.Text().Agent, "The custom agent step needs aidevops:ListAssets")
 }
 
-// A customer can give the agent more tools or skills. The ldcli ones are
-// there, so setup keeps the agent.
 func TestPlanSetupKeepsAgentWithAddedTools(t *testing.T) {
 	tools := append(awsdevops.AgentTools(awsdevops.MCPOAuthServerName), "Datadog_query-logs")
 	agent := &fakeAgent{
@@ -191,8 +181,6 @@ func TestPlanSetupKeepsAgentWithAddedTools(t *testing.T) {
 	assert.Equal(t, awsdevops.AgentKeep, plan.Agent.Action)
 }
 
-// An update adds the ldcli tools and skill, and keeps the ones that the
-// customer added.
 func TestSetupUpdateKeepsAddedToolsAndSkills(t *testing.T) {
 	agent := &fakeAgent{
 		assets: []agenttypes.Asset{
@@ -211,8 +199,6 @@ func TestSetupUpdateKeepsAddedToolsAndSkills(t *testing.T) {
 	assert.Equal(t, []any{"ki-other", "ki-created"}, metadata["skills"])
 }
 
-// Setup keeps the allowlist of an existing association, and an agent can use
-// only the tools that it allows.
 func TestSetupGivesAgentOnlyTheToolsTheSpaceAllows(t *testing.T) {
 	agent := &fakeAgent{
 		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
@@ -244,13 +230,6 @@ func TestPlanSetupLeavesAgentWithoutPromptFile(t *testing.T) {
 	assert.Contains(t, plan.Text().Agent, "because it has no experiment-orchestrator.md")
 }
 
-// Setup updates an agent with the ldcli prompt but without the skill or an
-// allowed tool, so status calls it outdated.
-// A skill without SKILL.md is not ours, and setup leaves it.
-// An older ldcli prompt is one that setup updates.
-// Like the operator app, assets that status cannot read do not stop it.
-// Setup registers one OAuth server for the account, so the agent's tools start
-// with the name of that server.
 func TestPlanSetupNamesAgentToolsAfterANewServer(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",

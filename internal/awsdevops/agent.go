@@ -14,37 +14,25 @@ import (
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 )
 
-// ExperimentAgentPrompt is the system prompt of the custom agent that runs the
-// experimentation skill.
-//
 //go:embed agents/experiment-orchestrator.md
 var ExperimentAgentPrompt string
 
-// ExperimentAgentName is the name of the custom agent. AWS keeps custom agent
-// names unique in a space.
 const ExperimentAgentName = "experiment-orchestrator"
 
-// shippedAgentHashes holds the SHA-256 of each system prompt that an ldcli
-// release sent. An agent with one of these prompts has no customer edits, so
-// setup updates it. When you change the prompt, add
-// the hash of the new text. Never remove a hash.
+// shippedAgentHashes are the prompts that ldcli releases sent. When you change
+// the prompt, add its hash. Never remove a hash.
 var shippedAgentHashes = []string{
 	"d3d2124c29e290df9cadd38e9bae2619ac8622cabb180fa0ad4fc59d5358dee5",
 }
 
-// agentResetHint says how to get the ldcli prompt back. Setup never
-// overwrites an edited prompt.
 const agentResetHint = "To use the ldcli version, delete the agent in the AWS console and run setup again"
 
 const (
 	agentAssetType = "custom_agent"
-	// agentFilePath is where the console keeps the system prompt of a custom
-	// agent.
-	agentFilePath = ExperimentAgentName + ".md"
+	agentFilePath  = ExperimentAgentName + ".md"
 )
 
-// agentTools are the IDs of the MCP tools that the agent can use. AWS names a
-// tool of an MCP server "<server name>_<tool name>".
+// AWS names a tool of an MCP server "<server name>_<tool name>".
 func agentTools(serverName string) []string {
 	return toolIDs(serverName, slices.Concat(mcpReadOnlyTools, mcpMutativeTools))
 }
@@ -58,10 +46,8 @@ func toolIDs(serverName string, tools []string) []string {
 	return ids
 }
 
-// spaceAgentTools are the tool IDs of agentTools that the space allows. An
-// agent can use only the tools that the association of the server allows, and
-// setup keeps the allowlist of an existing association. With no association
-// yet, setup makes one that allows every ldcli tool.
+// spaceAgentTools are the ldcli tools that the association of the server
+// allows, because an agent can use no others.
 func spaceAgentTools(ctx context.Context, clients Clients, spaceID, serviceID, serverName string) ([]string, error) {
 	tools := slices.Concat(mcpReadOnlyTools, mcpMutativeTools)
 	if spaceID == "" || serviceID == "" {
@@ -85,39 +71,27 @@ func spaceAgentTools(ctx context.Context, clients Clients, spaceID, serviceID, s
 	return toolIDs(serverName, tools), nil
 }
 
-// AgentAction is the planned custom agent action.
 type AgentAction int
 
 const (
 	AgentCreate AgentAction = iota
 	AgentKeep
-	// AgentUpdate gives an agent with the prompt of this or an older ldcli
-	// version the prompt, the tools, and the skill of this version.
 	AgentUpdate
-	// AgentLeave means that someone edited the prompt, so setup does not
-	// change the agent.
 	AgentLeave
-	// AgentSkip means that setup could not read the custom agents of the
-	// space. The agent is optional, so the run continues without it.
 	AgentSkip
 )
 
-// AgentStep is the planned custom agent step.
 type AgentStep struct {
 	Action  AgentAction
 	AssetID string
 	// Version is the asset version at plan time. A write stops if it changed.
-	Version int32
-	// ServerName is the name of the MCP server, which the tool IDs start with.
+	Version    int32
 	ServerName string
-	// Tools and Skills are what the existing agent has. An update adds the
-	// ldcli tools and skill to them, so the ones that the customer added stay.
+	// Tools and Skills are what the existing agent has.
 	Tools  []string
 	Skills []string
-	// NoFile means that the agent has no prompt file of this name.
 	NoFile bool
-	// Err says why the step is skipped.
-	Err error
+	Err    error
 }
 
 func (s AgentStep) describe() string {
@@ -141,8 +115,6 @@ func (s AgentStep) describe() string {
 	}
 }
 
-// agentFailure is the text of a failed agent step. A missing permission is the
-// most likely cause, so it names the permissions that the step needs.
 func agentFailure(err error) string {
 	if errorCode(err) != "AccessDeniedException" {
 		return err.Error()
@@ -190,9 +162,8 @@ func planAgent(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 	return step
 }
 
-// serverName is the name of the registered MCP server in AWS, which the tool
-// IDs start with. The run reads it, because the name in the plan can be out of
-// date.
+// serverName reads the name of the server at run time, because the name in the
+// plan can be out of date.
 func serverName(ctx context.Context, clients Clients, serviceID string) (string, error) {
 	services, err := listServices(ctx, clients)
 	if err != nil {
@@ -207,7 +178,6 @@ func serverName(ctx context.Context, clients Clients, serviceID string) (string,
 	return "", fmt.Errorf("MCP server %s is not registered", serviceID)
 }
 
-// agentMetadata reads the tools and the skills of a custom agent.
 func agentMetadata(asset agenttypes.Asset) (tools, skills []string) {
 	if asset.Metadata == nil {
 		return nil, nil
@@ -227,7 +197,6 @@ func agentMetadata(asset agenttypes.Asset) (tools, skills []string) {
 	return metadata.Tools, metadata.Skills
 }
 
-// union is a followed by the items of b that a does not have.
 func union(a, b []string) []string {
 	out := slices.Clone(a)
 	for _, item := range b {
@@ -239,8 +208,6 @@ func union(a, b []string) []string {
 	return out
 }
 
-// checkAgent compares the space with a step that writes. A change to the
-// version means that someone edited the agent after the plan.
 func checkAgent(ctx context.Context, clients Clients, spaceID string, step AgentStep) error {
 	asset, err := findAsset(ctx, clients, spaceID, agentAssetType, ExperimentAgentName)
 	switch {
@@ -269,10 +236,8 @@ const (
 	AgentFailed  = "failed"
 )
 
-// installAgent does the custom agent step after the MCP server and skill
-// steps, because the agent needs both. The agent is optional, so a failure does
-// not stop setup. The failure goes in result.AgentError, and the caller reports
-// it.
+// installAgent runs after the MCP server and skill steps, because the agent
+// needs both. A failure does not stop setup.
 func installAgent(
 	ctx context.Context,
 	clients Clients,
@@ -292,8 +257,6 @@ func installAgent(
 	}
 }
 
-// errAgentNeeds means that an earlier step left the agent without its MCP
-// server or its skill, so setup does not write the agent.
 var errAgentNeeds = errors.New("the custom agent needs the MCP server and the skill")
 
 func doAgentStep(
@@ -320,8 +283,6 @@ func doAgentStep(
 		return "", fmt.Errorf("setup skipped custom agent %s, because no MCP server is connected: %w",
 			ExperimentAgentName, errAgentNeeds)
 	case result.SkillAssetID == "" || result.SkillAction == SkillSkipped:
-		// A skipped skill step can keep the ID of a skill that someone
-		// deleted.
 		return "", fmt.Errorf("setup skipped custom agent %s, because skill %s is not ready: %w",
 			ExperimentAgentName, ExperimentSkillName, errAgentNeeds)
 	}
@@ -338,8 +299,6 @@ func doAgentStep(
 			ExperimentAgentName, errAgentNeeds)
 	}
 
-	// The other steps can take minutes, so check the agent right before the
-	// write.
 	if err := checkAgent(ctx, clients, result.AgentSpaceID, step); err != nil {
 		return "", err
 	}
@@ -369,8 +328,7 @@ func doAgentStep(
 		return AgentCreated, nil
 	}
 
-	// AWS updates only the metadata keys in the request, so the memory stores
-	// that the customer attached stay.
+	// AWS keeps the metadata keys that the request leaves out.
 	if _, err := clients.Agent.UpdateAsset(ctx, &devopsagent.UpdateAssetInput{
 		AgentSpaceId: aws.String(result.AgentSpaceID),
 		AssetId:      aws.String(step.AssetID),
