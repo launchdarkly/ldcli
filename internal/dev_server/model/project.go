@@ -7,7 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"

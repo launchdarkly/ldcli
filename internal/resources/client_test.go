@@ -186,6 +186,32 @@ func TestMakeUnauthenticatedRequest(t *testing.T) {
 	})
 }
 
+func TestMakeRequestAPIVersion(t *testing.T) {
+	tests := map[string]struct {
+		isBeta   bool
+		expected string
+	}{
+		"non-beta requests send the current API version": {isBeta: false, expected: "20240415"},
+		"beta requests send beta":                        {isBeta: true, expected: "beta"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			var got []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				got = r.Header.Values("LD-API-Version")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			c := resources.NewClient("test-version")
+
+			_, err := c.MakeRequest("token", "GET", server.URL, "application/json", nil, nil, tt.isBeta)
+
+			require.NoError(t, err)
+			assert.Equal(t, []string{tt.expected}, got)
+		})
+	}
+}
+
 func makeServer(t *testing.T, statusResponse int, responseBody string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))

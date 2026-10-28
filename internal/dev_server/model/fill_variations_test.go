@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/stretchr/testify/assert"

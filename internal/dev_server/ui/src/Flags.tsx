@@ -19,6 +19,7 @@ import Theme from '@launchpad-ui/tokens';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { apiRoute, sortFlags } from './util.ts';
+import { OverrideControl, sendUiAnalytics, valueKind } from './uiAnalytics';
 import { FlagVariation } from './api.ts';
 import VariationValues from './Flag.tsx';
 import fuzzysort from 'fuzzysort';
@@ -131,7 +132,7 @@ function Flags({
   }, [filteredFlags, currentPage]);
 
   const updateOverride = useCallback(
-    (flagKey: string, overrideValue: LDFlagValue) => {
+    (flagKey: string, overrideValue: LDFlagValue, control: OverrideControl) => {
       const updatedOverrides = {
         ...overrides,
         [flagKey]: {
@@ -141,6 +142,10 @@ function Flags({
       };
 
       setOverrides(updatedOverrides);
+      const analytics = {
+        value_kind: valueKind(overrideValue),
+        control,
+      };
       fetch(apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`), {
         method: 'PUT',
         body: JSON.stringify(overrideValue),
@@ -151,9 +156,17 @@ function Flags({
               `got ${res.status} ${res.statusText}. ${await res.text()}`,
             );
           }
+          sendUiAnalytics('Dev Server UI Flag Override Set', {
+            ...analytics,
+            outcome: 'success',
+          });
         })
         .catch((err) => {
           setOverrides(overrides);
+          sendUiAnalytics('Dev Server UI Flag Override Set', {
+            ...analytics,
+            outcome: 'error',
+          });
           console.error('unable to update override', err);
         });
     },
@@ -179,9 +192,17 @@ function Flags({
             `got ${res.status} ${res.statusText}. ${await res.text()}`,
           );
         }
+        sendUiAnalytics('Dev Server UI Flag Override Removed', {
+          scope: 'one',
+          outcome: 'success',
+        });
       } catch (err) {
         console.error('unable to remove override', err);
         setOverrides(overrides);
+        sendUiAnalytics('Dev Server UI Flag Override Removed', {
+          scope: 'one',
+          outcome: 'error',
+        });
       }
     },
     [overrides, selectedProject],
@@ -202,9 +223,17 @@ function Flags({
           `got ${res.status} ${res.statusText}. ${await res.text()}`,
         );
       }
+      sendUiAnalytics('Dev Server UI Flag Override Removed', {
+        scope: 'all',
+        outcome: 'success',
+      });
     } catch (err) {
       console.error('unable to remove all overrides', err);
       setOverrides(overrides);
+      sendUiAnalytics('Dev Server UI Flag Override Removed', {
+        scope: 'all',
+        outcome: 'error',
+      });
     }
   }, [overrides, selectedProject]);
 

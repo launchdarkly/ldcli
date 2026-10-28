@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/launchdarkly/ldcli/internal/dev_server/db/backup"
 	"github.com/stretchr/testify/require"
@@ -93,6 +94,20 @@ func TestDbRestore(t *testing.T) {
 		require.Equal(t, "", restoredLocation)
 	})
 
+	t.Run("Failed restore removes its temp file", func(t *testing.T) {
+		tempDir := t.TempDir()
+		t.Setenv("TMPDIR", tempDir)
+		manager := backup.NewManager(originalDbPathOrigin, "main", "ld_cli_backup_test*.bak", "ld_cli_restore_test*.bak")
+		manager.AddValidationQueries("select count(1) from my_table")
+
+		restoredLocation, err := manager.RestoreToFile(ctx, strings.NewReader("not a sqlite database"))
+		require.Error(t, err)
+		require.Equal(t, "", restoredLocation)
+
+		entries, err := os.ReadDir(tempDir)
+		require.NoError(t, err)
+		require.Empty(t, entries)
+	})
 }
 
 const createTable = `CREATE TABLE IF NOT EXISTS my_table (

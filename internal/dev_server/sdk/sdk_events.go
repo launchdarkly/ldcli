@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -17,6 +18,10 @@ func SdkEventsReceiveHandler(writer http.ResponseWriter, request *http.Request) 
 	bodyStr, err := io.ReadAll(request.Body)
 	if err != nil {
 		log.Printf("SdkEventsReceiveHandler: error reading request body: %v", err)
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(writer, "request body too large", http.StatusRequestEntityTooLarge)
+		}
 		return
 	}
 	observers := model.GetObserversFromContext(request.Context())

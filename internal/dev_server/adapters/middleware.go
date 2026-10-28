@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 )
 
 type ctxKey string
