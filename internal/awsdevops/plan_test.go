@@ -274,15 +274,13 @@ func TestPlanTextOfAConnectPlan(t *testing.T) {
 			assert.Equal(t, "No change", text.Association)
 			assert.Equal(t, []string{"No change"}, text.Roles)
 			assert.Equal(t, tc.want, text.OperatorApp)
-			assert.Equal(t, "Register a new MCP server for this agent space at "+awsdevops.MCPServerEndpoint, text.MCPServer)
+			assert.Equal(t,
+				"Register MCP server LaunchDarkly-OAuth for the AWS account at "+awsdevops.MCPServerEndpoint+
+					". You approve access to LaunchDarkly in a browser",
+				text.MCPServer,
+			)
 		})
 	}
-}
-
-func TestPlanTextOfASkippedMCPServer(t *testing.T) {
-	plan := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPSkip}}
-
-	assert.Equal(t, "Skip the MCP server of this agent space, because no token was given", plan.Text().MCPServer)
 }
 
 // The plan names the server by its name in AWS, which the customer can change.
@@ -325,20 +323,6 @@ func TestPlanConnectWithoutANameAsksForTheID(t *testing.T) {
 	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), opts, false)
 
 	assert.EqualError(t, err, "no agent space to connect to. Pass --agent-space-id")
-}
-
-// A replace plan on a shared server names the spaces that keep it.
-func TestPlanReplaceNamesEachSpace(t *testing.T) {
-	opts := runPlanOptions()
-	opts.ReplaceMCPToken = true
-
-	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(replaceAcrossSpaces(), newFakeIAM()), opts, true)
-
-	require.NoError(t, err)
-	assert.Equal(t,
-		"Register a new MCP server for this agent space at "+awsdevops.MCPServerEndpoint+
-			". MCP server LaunchDarkly (mcp-old) keeps its token for space-3",
-		plan.Text().MCPServer)
 }
 
 // Two spaces with one name leave no safe choice.
@@ -430,7 +414,7 @@ func TestFindAWSAssociationMatchesOnlyTheMonitorOfTheAccount(t *testing.T) {
 }
 
 func runPlanOptions() awsdevops.SetupOptions {
-	return awsdevops.SetupOptions{AgentSpaceName: "launchdarkly", AuthFlow: "iam", LDAccessToken: "api-token"}
+	return awsdevops.SetupOptions{AgentSpaceName: "launchdarkly", AuthFlow: "iam"}
 }
 
 func reuseWithApp(app *devopsagent.GetOperatorAppOutput) *fakeAgent {
@@ -449,7 +433,7 @@ func idcApp() *devopsagent.GetOperatorAppOutput {
 	}
 }
 
-func replaceAcrossSpaces() *fakeAgent {
+func sharedAcrossSpaces() *fakeAgent {
 	return &fakeAgent{
 		agentSpaces: []agenttypes.AgentSpace{
 			namedSpace("space-1", "launchdarkly"), namedSpace("space-2", "other"), namedSpace("space-3", "third"),
@@ -457,14 +441,6 @@ func replaceAcrossSpaces() *fakeAgent {
 		services:   []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")},
 		spaceLinks: map[string][]agenttypes.Association{"space-1": mcpLink("mcp-old"), "space-3": mcpLink("mcp-old")},
 	}
-}
-
-// replaceOnOneSpace is replaceAcrossSpaces with mcp-old on space-1 only.
-func replaceOnOneSpace() *fakeAgent {
-	agent := replaceAcrossSpaces()
-	agent.spaceLinks = map[string][]agenttypes.Association{"space-1": mcpLink("mcp-old")}
-
-	return agent
 }
 
 func mcpLink(serviceID string) []agenttypes.Association {

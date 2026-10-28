@@ -43,18 +43,6 @@ func (a countingAgent) CreateAgentSpace(context.Context, *devopsagent.CreateAgen
 	return &devopsagent.CreateAgentSpaceOutput{AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: aws.String("space-new")}}, nil
 }
 
-func (a countingAgent) DeregisterService(context.Context, *devopsagent.DeregisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error) {
-	a.writes.add("DeregisterService")
-
-	return &devopsagent.DeregisterServiceOutput{}, nil
-}
-
-func (a countingAgent) DisassociateService(context.Context, *devopsagent.DisassociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error) {
-	a.writes.add("DisassociateService")
-
-	return &devopsagent.DisassociateServiceOutput{}, nil
-}
-
 func (a countingAgent) EnableOperatorApp(context.Context, *devopsagent.EnableOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error) {
 	a.writes.add("EnableOperatorApp")
 
@@ -161,7 +149,7 @@ func setupTestCmd(t *testing.T, stdin string) (*cobra.Command, *bytes.Buffer) {
 }
 
 func newSpaceOptions() awsdevops.SetupOptions {
-	return awsdevops.SetupOptions{AgentSpaceName: "ld-devops-agent", AuthFlow: "iam", LDAccessToken: "api-token"}
+	return awsdevops.SetupOptions{AgentSpaceName: "ld-devops-agent", AuthFlow: "iam"}
 }
 
 // A json run in a terminal asks too, because the question goes to stderr.

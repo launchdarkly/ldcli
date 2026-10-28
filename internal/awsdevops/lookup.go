@@ -197,19 +197,28 @@ func agentSpaceARN(region, accountID, spaceID string) string {
 	return fmt.Sprintf("arn:aws:aidevops:%s:%s:agentspace/%s", region, accountID, spaceID)
 }
 
-// mcpServerIDLength is the length to truncate the agent space ID to in the
-// server name.
-const mcpServerIDLength = 12
-
-// MCPServerNameFor is the name of the MCP server that setup registers for an
-// agent space. AWS needs a unique name of letters, digits, "_" and "-", and
-// the end of the ID ties the server to the space.
-func MCPServerNameFor(agentSpaceID string) string {
-	if len(agentSpaceID) > mcpServerIDLength {
-		agentSpaceID = agentSpaceID[len(agentSpaceID)-mcpServerIDLength:]
+// accountMCPServer finds the MCP server of the AWS account: a server at
+// endpoint that signs in with OAuth. A server with a token is never a match,
+// even with the name MCPServerName, because its token belongs to one
+// LaunchDarkly account and not to the AWS account.
+func accountMCPServer(ctx context.Context, clients Clients, endpoint string) (mcpRef, error) {
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return mcpRef{}, err
+	}
+	for _, service := range services {
+		if mcpEndpointOf(service) == endpoint && usesOAuth(service) {
+			return mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}, nil
+		}
 	}
 
-	return MCPServerName + "-" + agentSpaceID
+	return mcpRef{}, nil
+}
+
+func usesOAuth(service agenttypes.RegisteredService) bool {
+	details, ok := service.AdditionalServiceDetails.(*agenttypes.AdditionalServiceDetailsMemberMcpserver)
+
+	return ok && details.Value.AuthorizationMethod == agenttypes.MCPServerAuthorizationMethodOauth3lo
 }
 
 // mcpRef identifies a registered MCP server.
@@ -218,21 +227,18 @@ type mcpRef struct {
 	Name string
 }
 
-// spaceMCPServers finds the LaunchDarkly MCP servers at endpoint of an agent
-// space. linked is the server that the space is connected to. own is the
-// server with the name that setup gives the space, which can be the same
-// server. AWS keeps MCP servers at the account level, and each one has the
-// token of one LaunchDarkly account, so the server of another space is never
-// a match. A space connected to more than one server is an error, because
-// setup cannot tell which one to use.
-func spaceMCPServers(ctx context.Context, clients Clients, agentSpaceID, endpoint string) (linked, own mcpRef, err error) {
+// linkedMCPServer finds the LaunchDarkly MCP server at endpoint that an agent
+// space is connected to. Setup keeps that server, so a space that someone
+// connected by hand keeps its server. A space connected to more than one
+// server is an error, because setup cannot tell which one to use.
+func linkedMCPServer(ctx context.Context, clients Clients, agentSpaceID, endpoint string) (mcpRef, error) {
 	// A new space has no ID and no server yet.
 	if agentSpaceID == "" {
-		return mcpRef{}, mcpRef{}, nil
+		return mcpRef{}, nil
 	}
 	associations, err := listAssociations(ctx, clients, agentSpaceID)
 	if err != nil {
-		return mcpRef{}, mcpRef{}, err
+		return mcpRef{}, err
 	}
 	links := make(map[string]bool, len(associations))
 	for _, association := range associations {
@@ -240,31 +246,29 @@ func spaceMCPServers(ctx context.Context, clients Clients, agentSpaceID, endpoin
 	}
 	services, err := listServices(ctx, clients)
 	if err != nil {
-		return mcpRef{}, mcpRef{}, err
+		return mcpRef{}, err
 	}
-	var all []string
+	var (
+		linked mcpRef
+		all    []string
+	)
 	for _, service := range services {
-		if mcpEndpointOf(service) != endpoint {
+		ref := mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}
+		if mcpEndpointOf(service) != endpoint || !links[ref.ID] {
 			continue
 		}
-		ref := mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}
-		if links[ref.ID] {
-			linked = ref
-			all = append(all, fmt.Sprintf("%s (%s)", ref.Name, ref.ID))
-		}
-		if own.ID == "" && ref.Name == MCPServerNameFor(agentSpaceID) {
-			own = ref
-		}
+		linked = ref
+		all = append(all, fmt.Sprintf("%s (%s)", ref.Name, ref.ID))
 	}
 	if len(all) > 1 {
-		return mcpRef{}, mcpRef{}, fmt.Errorf(
+		return mcpRef{}, fmt.Errorf(
 			"agent space %s is connected to %d LaunchDarkly MCP servers: %s. "+
 				"Disconnect all but one in the AWS console, then run setup again",
 			agentSpaceID, len(all), strings.Join(all, ", "),
 		)
 	}
 
-	return linked, own, nil
+	return linked, nil
 }
 
 // spacesNamed lists IDs of spaces named name.

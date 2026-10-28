@@ -36,14 +36,6 @@ func (s stubAgent) CreateAgentSpace(context.Context, *devopsagent.CreateAgentSpa
 	return nil, nil
 }
 
-func (s stubAgent) DeregisterService(context.Context, *devopsagent.DeregisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error) {
-	return nil, nil
-}
-
-func (s stubAgent) DisassociateService(context.Context, *devopsagent.DisassociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error) {
-	return nil, nil
-}
-
 func (s stubAgent) GetOperatorApp(context.Context, *devopsagent.GetOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
 	return nil, &agenttypes.ResourceNotFoundException{}
 }

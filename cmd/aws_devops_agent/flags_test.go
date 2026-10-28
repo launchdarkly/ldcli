@@ -6,11 +6,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 )
 
@@ -55,7 +53,6 @@ func spaceIDRun(t *testing.T, flags map[string]string) []string {
 	})
 	opts, err := setupOptions(cmd)
 	require.NoError(t, err)
-	opts.LDAccessToken = "api-token"
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, false))
 
@@ -153,20 +150,4 @@ func TestSetupOptionsRecordsAuthFlow(t *testing.T) {
 	opts, err = setupOptions(cmd)
 	require.NoError(t, err)
 	assert.True(t, opts.FullSetup)
-}
-
-// Setup does not ask for the replacement token, so the flag needs one.
-func TestReplaceMCPTokenNeedsAToken(t *testing.T) {
-	viper.Set(cliflags.AccessTokenFlag, "")
-	t.Cleanup(func() { viper.Set(cliflags.AccessTokenFlag, "") })
-	cmd := NewSetupCmd(nil)
-	require.NoError(t, cmd.Flags().Set(replaceMCPTokenFlag, "true"))
-
-	_, err := setupOptions(cmd)
-	assert.EqualError(t, err, "--replace-mcp-token needs a token. Pass --access-token")
-
-	viper.Set(cliflags.AccessTokenFlag, "api-token")
-	opts, err := setupOptions(cmd)
-	require.NoError(t, err)
-	assert.True(t, opts.ReplaceMCPToken)
 }
