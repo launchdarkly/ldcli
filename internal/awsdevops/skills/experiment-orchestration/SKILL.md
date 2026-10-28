@@ -94,7 +94,7 @@ Watch for statistical significance on the primary metric:
 - **Significant + negative lift** → declare a loser, stop the iteration with control as the winner, turn the flag off (do not archive it while the code still evaluates it), skip Phase 2, go straight to the Step 8 report.
 - **No significance after a reasonable ceiling (e.g. 4 weeks)** → report "inconclusive, need more traffic", stop the iteration with control as the winner, and stop; don't proceed to Phase 2.
 
-Never declare a winner off a single data point or before your stats engine confirms significance. Do not decide on a lift before the experiment has run 2 full weeks.
+Never declare a winner off a single data point or before your stats engine confirms significance.
 
 **Phase 2 — Guarded rollout ramp (only after Phase 1 proves the change):**
 
