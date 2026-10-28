@@ -70,11 +70,8 @@ edited it, setup does not change it. To overwrite the edits, pass
 does the other steps.
 
 The experiment-orchestrator custom agent runs the skill with the LaunchDarkly
-MCP tools that the space allows. Setup updates an agent with the prompt of an
-older ldcli version. If someone edited the prompt, setup does not change the
-agent. To overwrite the edits, pass --replace-agent. The agent is optional and
-needs the MCP server and the skill: if its step fails, setup warns and does
-the other steps.`,
+MCP tools that the space allows. The agent is optional and needs the MCP
+server and the skill: if its step fails, setup warns and does the other steps.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
