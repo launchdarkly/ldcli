@@ -51,7 +51,8 @@ operator app URL, where the agent is used.
 The AWS account gets one LaunchDarkly MCP server, which all agent spaces use.
 If the account has no server, setup registers one with OAuth. It opens a
 browser, where you approve access to LaunchDarkly, and waits until AWS
-registers the server. AWS can ask you to sign in to the AWS console first.
+registers the server. After the approval, the browser opens the AWS console,
+which can ask you to sign in. Setup does not need that sign-in.
 The agent then acts as the LaunchDarkly member who approved access, in every
 agent space. If the agent space already has an MCP server, setup keeps it.
 
