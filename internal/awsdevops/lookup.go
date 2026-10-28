@@ -200,19 +200,33 @@ func agentSpaceARN(region, accountID, spaceID string) string {
 // accountMCPServer finds the MCP server of the AWS account: a server at
 // endpoint that signs in with OAuth. A server with a token is never a match,
 // even with the name MCPServerName, because its token belongs to one
-// LaunchDarkly account and not to the AWS account.
+// LaunchDarkly account and not to the AWS account. Each server acts as the
+// member who approved it, so with more than one, the user must pick one.
 func accountMCPServer(ctx context.Context, clients Clients, endpoint string) (mcpRef, error) {
 	services, err := listServices(ctx, clients)
 	if err != nil {
 		return mcpRef{}, err
 	}
+	var (
+		found mcpRef
+		all   []string
+	)
 	for _, service := range services {
-		if mcpEndpointOf(service) == endpoint && usesOAuth(service) {
-			return mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}, nil
+		if mcpEndpointOf(service) != endpoint || !usesOAuth(service) {
+			continue
 		}
+		found = mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}
+		all = append(all, fmt.Sprintf("%s (%s)", found.Name, found.ID))
+	}
+	if len(all) > 1 {
+		return mcpRef{}, fmt.Errorf(
+			"the AWS account has %d LaunchDarkly MCP servers that use OAuth: %s. "+
+				"To pick one, pass --mcp-service-id <id>",
+			len(all), strings.Join(all, ", "),
+		)
 	}
 
-	return mcpRef{}, nil
+	return found, nil
 }
 
 func usesOAuth(service agenttypes.RegisteredService) bool {

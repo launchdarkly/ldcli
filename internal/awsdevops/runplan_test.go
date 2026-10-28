@@ -1015,3 +1015,34 @@ func TestOAuthDoesNotReuseAServerWithAToken(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, awsdevops.MCPRegister, plan.MCP.Action)
 }
+
+// Each OAuth server acts as the member who approved it, so setup does not
+// pick between two of them.
+func TestPlanStopsOnAnAccountWithTwoOAuthServers(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{oauthMCPService("mcp-a"), oauthMCPService("mcp-b")}}
+	clients := newTestClients(agent, newFakeIAM())
+
+	_, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "the AWS account has 2 LaunchDarkly MCP servers that use OAuth")
+	assert.ErrorContains(t, err, "(mcp-a)")
+	assert.ErrorContains(t, err, "(mcp-b)")
+	assert.ErrorContains(t, err, "--mcp-service-id")
+}
+
+func TestMCPServiceIDPicksOneOfTwoOAuthServers(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{oauthMCPService("mcp-a"), oauthMCPService("mcp-b")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.MCPServiceID = "mcp-b"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, "mcp-b", result.MCPServiceID)
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
