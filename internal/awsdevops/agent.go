@@ -49,10 +49,10 @@ func toolIDs(serverName string, tools []string) []string {
 // spaceAgentTools are the ldcli tools that the association of the server
 // allows, because an agent can use no others.
 func spaceAgentTools(ctx context.Context, clients Clients, spaceID, serviceID, serverName string) ([]string, error) {
-	tools := slices.Concat(mcpReadOnlyTools, mcpMutativeTools)
 	if spaceID == "" || serviceID == "" {
-		return toolIDs(serverName, tools), nil
+		return agentTools(serverName), nil
 	}
+	tools := slices.Concat(mcpReadOnlyTools, mcpMutativeTools)
 	associations, err := listAssociations(ctx, clients, spaceID)
 	if err != nil {
 		return nil, err
@@ -121,10 +121,10 @@ func agentFailure(err error) string {
 	}
 
 	return fmt.Sprintf("%v. The custom agent step needs aidevops:ListAssets, aidevops:GetAssetFile, "+
-		"aidevops:CreateAsset, and aidevops:UpdateAsset", err)
+		"aidevops:CreateAsset, aidevops:UpdateAsset, and aidevops:ListAssociations", err)
 }
 
-func planAgent(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep, mcp MCPStep, skill SkillStep) AgentStep {
+func planAgent(ctx context.Context, clients Clients, space SpaceStep, mcp MCPStep, skill SkillStep) AgentStep {
 	step := AgentStep{ServerName: mcp.name()}
 	if space.Action == SpaceCreate {
 		return step
@@ -257,7 +257,7 @@ func installAgent(
 	}
 }
 
-var errAgentNeeds = errors.New("the custom agent needs the MCP server and the skill")
+var errAgentNeeds = errors.New("the custom agent needs the skill")
 
 func doAgentStep(
 	ctx context.Context,
@@ -278,11 +278,7 @@ func doAgentStep(
 	case AgentSkip:
 		return "", fmt.Errorf("setup skipped custom agent %s: %w", ExperimentAgentName, step.Err)
 	}
-	switch {
-	case result.MCPServiceID == "":
-		return "", fmt.Errorf("setup skipped custom agent %s, because no MCP server is connected: %w",
-			ExperimentAgentName, errAgentNeeds)
-	case result.SkillAssetID == "" || result.SkillAction == SkillSkipped:
+	if result.SkillAssetID == "" || result.SkillAction == SkillSkipped {
 		return "", fmt.Errorf("setup skipped custom agent %s, because skill %s is not ready: %w",
 			ExperimentAgentName, ExperimentSkillName, errAgentNeeds)
 	}

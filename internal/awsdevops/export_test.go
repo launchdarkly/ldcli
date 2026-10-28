@@ -2,7 +2,6 @@ package awsdevops
 
 import (
 	"context"
-	"slices"
 	"time"
 )
 
@@ -53,8 +52,6 @@ func SetOAuthPollInterval(d time.Duration) func() {
 
 	return func() { oauthPollInterval = old }
 }
-
-func AllowedTools() []string { return slices.Concat(mcpReadOnlyTools, mcpMutativeTools) }
 
 func ShippedAgentHashes() []string { return shippedAgentHashes }
 

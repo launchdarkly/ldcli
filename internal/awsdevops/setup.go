@@ -571,7 +571,7 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	}
 
 	plan.Skill = planSkill(ctx, clients, opts, plan.Space)
-	plan.Agent = planAgent(ctx, clients, opts, plan.Space, plan.MCP, plan.Skill)
+	plan.Agent = planAgent(ctx, clients, plan.Space, plan.MCP, plan.Skill)
 
 	if !provision {
 		// Read the app, so the run does not print a URL that does not work.
