@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 )
@@ -77,8 +79,7 @@ var errConflictAborted = errors.New("sync conflict left unresolved")
 // conflictGroup is one conflict choice. Variations that share a changed
 // attachment are in one group, because the attachment can have only one state.
 type conflictGroup struct {
-	resources  []PlannedResource
-	attachment bool
+	resources []PlannedResource
 }
 
 type conflictResolutionResult struct {
@@ -91,6 +92,15 @@ type conflictChoice struct {
 	resolution     ConflictResolution
 	aborted        bool
 	sourcesChanged bool
+}
+
+// missingConflictChoiceError names the flags that choose a side without a
+// terminal. Only sync prompts has --resolve.
+func missingConflictChoiceError(scope syncdomain.Scope) error {
+	if scope == "" || scope == syncdomain.ScopePrompts {
+		return errors.New("conflict resolution requires --conflict or --resolve without interactive input")
+	}
+	return errors.New("conflict resolution requires --conflict without interactive input")
 }
 
 // resolveConflicts shows each conflict and gets a choice from the policy or
@@ -107,6 +117,7 @@ func resolveConflicts(
 		return conflictResolutionResult{}, nil
 	}
 
+	_ = syncconsole.New(options.ErrorOutput).Line(planSummary(plan))
 	result := conflictResolutionResult{resolutions: make(map[ResourceID]ConflictResolution)}
 	for _, group := range groups {
 		if err := writeConflict(options.ErrorOutput, group); err != nil {
@@ -126,9 +137,7 @@ func resolveConflicts(
 				return conflictResolutionResult{}, errConflictAborted
 			}
 		case !interactive:
-			return conflictResolutionResult{}, errors.New(
-				"conflict resolution requires --conflict or --resolve without interactive input",
-			)
+			return conflictResolutionResult{}, missingConflictChoiceError(options.Scope)
 		case watched != nil:
 			choice, err = promptWatchedConflictResolution(options.Context, options.Input, options.ErrorOutput, *watched)
 		default:
@@ -149,30 +158,43 @@ func resolveConflicts(
 	return result, nil
 }
 
-// writeConflict shows the diff of each resource in a group that has one.
+// writeConflict shows one line that names the resources of the group, and
+// then the diff of each resource that has one.
 func writeConflict(output io.Writer, group conflictGroup) error {
-	visible := slices.DeleteFunc(slices.Clone(group.resources), func(resource PlannedResource) bool {
-		return len(resource.Diff) == 0
-	})
-	if len(visible) == 0 {
-		visible = group.resources[:1]
-	}
-	if err := writePlanReview(output, "plaintext", Plan{Resources: visible}, terminalWidth(output)); err != nil {
-		return err
-	}
-	if group.attachment && len(group.resources) > 1 {
-		console := syncconsole.New(output)
-		_ = console.Printf("This attachment conflict affects %d variations:\n", len(group.resources))
-		for _, resource := range group.resources {
-			_ = console.Printf("- %s\n", resource.ID)
+	console := syncconsole.New(output)
+	header := fmt.Sprintf("\nConflict: %s changed on both sides.", group.resources[0].ID.Label())
+	if others := group.resources[1:]; len(others) != 0 {
+		labels := make([]string, 0, len(others))
+		for _, resource := range others {
+			labels = append(labels, resource.ID.Label())
 		}
+		header += fmt.Sprintf(" It shares a changed tool or skill with %s, so one choice covers them all.", strings.Join(labels, ", "))
+	}
+	_ = console.Line(header)
+
+	width := terminalWidth(output)
+	for _, resource := range group.resources {
+		if len(resource.Diff) == 0 {
+			continue
+		}
+		if len(group.resources) > 1 {
+			_ = console.Printf("\n  %s\n", resource.ID.Label())
+		}
+		rendered, err := renderVariationDiff(resource.Diff, outputPlaintext, width, diffPresentation(resource.Action))
+		if err != nil {
+			return err
+		}
+		_ = console.Write(rendered)
 	}
 	return nil
 }
 
 // groupConflicts returns one group for each conflict. A group also has every
 // other variation that shares a changed attachment with it, directly or
-// through another variation in the group.
+// through another variation in the group. An error row does not join a group.
+// A tool or skill that LaunchDarkly deleted does not join either, because a
+// local choice would create it again. checkResolvedAttachmentDeletes decides
+// that row after the choice.
 func groupConflicts(plan Plan) []conflictGroup {
 	var groups []conflictGroup
 	visited := make([]bool, len(plan.Resources))
@@ -184,9 +206,14 @@ func groupConflicts(plan Plan) []conflictGroup {
 		members := []int{start}
 		for next := 0; next < len(members); next++ {
 			for candidate := range plan.Resources {
+				row := plan.Resources[candidate]
+				// A row that only conflicts need keeps its own action, unless
+				// it is a conflict itself. applyConflictResolutions decides it.
 				if visited[candidate] ||
-					plan.Resources[candidate].Action == ActionError ||
-					!sharesChangedAttachment(plan.Resources[members[next]], plan.Resources[candidate]) {
+					row.Action == ActionError ||
+					(len(row.conflictUses) != 0 && row.Action != ActionConflict) ||
+					(row.ID.Kind != syncdomain.KindVariation && row.Action == ActionDeleteLocal) ||
+					!sharesChangedAttachment(plan.Resources[members[next]], row) {
 					continue
 				}
 				visited[candidate] = true
@@ -194,7 +221,7 @@ func groupConflicts(plan Plan) []conflictGroup {
 			}
 		}
 
-		group := conflictGroup{attachment: len(members) > 1}
+		var group conflictGroup
 		for _, index := range members {
 			group.resources = append(group.resources, plan.Resources[index])
 		}
@@ -288,27 +315,46 @@ func writeConflictChoice(output io.Writer, choice conflictChoice) {
 // resource has the action for its chosen side. The original plan stays as
 // the reviewed record.
 func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictResolution) Plan {
-	resolved := Plan{Resources: slices.Clone(plan.Resources)}
-	for index := range resolved.Resources {
-		resource := &resolved.Resources[index]
-		if resolution, ok := resolutions[resource.ID]; ok {
-			resource.Action = resolvedConflictAction(*resource, resolution)
+	resolved := plan
+	resolved.Resources = make([]PlannedResource, 0, len(plan.Resources))
+	for _, resource := range plan.Resources {
+		if !chosenSideUses(resource, resolutions) {
+			continue
 		}
+		if resolution, ok := resolutions[resource.ID]; ok {
+			resource.Action = resolvedConflictAction(resource, resolution)
+		}
+		resolved.Resources = append(resolved.Resources, resource)
 	}
+	checkResolvedAttachmentDeletes(resolved.Resources)
 	return resolved
+}
+
+// chosenSideUses reports whether a row stays after the conflict choices. A
+// row that only conflicts need stays when the side that the user chose for
+// one of them uses its tool or skill. Then the row keeps its own action, so
+// that the variation does not write its own copy over the other side.
+func chosenSideUses(resource PlannedResource, resolutions map[ResourceID]ConflictResolution) bool {
+	if len(resource.conflictUses) == 0 || resource.Action == ActionConflict {
+		return true
+	}
+	return slices.ContainsFunc(resource.conflictUses, func(use conflictUse) bool {
+		resolution := resolutions[use.variation]
+		return use.local && resolution == ConflictUseLocal || !use.local && resolution == ConflictUseLaunchDarkly
+	})
 }
 
 // resolvedConflictAction returns the action that makes the chosen side win.
 func resolvedConflictAction(resource PlannedResource, resolution ConflictResolution) Action {
 	switch resolution {
 	case ConflictUseLaunchDarkly:
-		if resource.Server == nil {
+		if !resource.hasServer() {
 			return ActionDeleteLocal
 		}
 		return ActionUpdateLocal
 	case ConflictUseLocal:
 		// A conflict always has a local file, because a missing file is restored.
-		if resource.Server == nil {
+		if !resource.hasServer() {
 			return ActionCreateServer
 		}
 		return ActionUpdateServer

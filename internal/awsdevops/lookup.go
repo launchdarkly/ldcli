@@ -70,37 +70,221 @@ func listAssociations(ctx context.Context, clients Clients, agentSpaceID string)
 	}
 }
 
-// FindMCPServer returns the ID of the MCP server registered at endpoint, if the
-// account has one. AWS keeps MCP servers at the account level, so a second
-// agent space reuses the existing registration.
-func FindMCPServer(ctx context.Context, clients Clients, endpoint string) (string, error) {
-	services, err := listServices(ctx, clients)
-	if err != nil {
-		return "", err
-	}
-	for _, service := range services {
-		if mcpEndpointOf(service) == endpoint {
-			return aws.ToString(service.ServiceId), nil
-		}
-	}
-
-	return "", nil
+// AgentSpaceSummary identifies an agent space the account already has, for a
+// caller that has to pick one.
+type AgentSpaceSummary struct {
+	AgentSpaceID string `json:"agentSpaceId"`
+	Name         string `json:"name"`
+	Description  string `json:"description,omitempty"`
+	// ManagedByLDCLI means that setup made the space.
+	ManagedByLDCLI bool `json:"managedByLdcli"`
+	// TagErr is set if setup could not read the tags of the space. The owner
+	// of the space is then unknown, and ManagedByLDCLI is false.
+	TagErr error `json:"-"`
 }
 
-// FindAgentSpace returns the ID of the agent space with the given name, or an
-// empty string when the account has none.
-func FindAgentSpace(ctx context.Context, clients Clients, name string) (string, error) {
+// AgentSpaces lists the agent spaces in the account and region. A space that
+// setup made has the ldcli:managed tag. A user can change the description, so
+// only the tag counts. Each space costs one tag lookup.
+//
+// If a tag lookup fails, the summary of that space has TagErr, and the other
+// spaces stay in the list. Setup uses the tag to decide if it can change the
+// roles and the operator app of a space, so a caller must not use a space with
+// TagErr as if its owner is known. If every lookup fails, for example without
+// aidevops:ListTagsForResource, AgentSpaces returns the first error. The
+// status command does not call AgentSpaces.
+func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil || len(spaces) == 0 {
+		return nil, err
+	}
+	accountID, err := clients.AccountID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]AgentSpaceSummary, 0, len(spaces))
+	var firstErr error
+	failed := 0
+	for _, space := range spaces {
+		summary := AgentSpaceSummary{
+			AgentSpaceID: aws.ToString(space.AgentSpaceId),
+			Name:         aws.ToString(space.Name),
+			Description:  aws.ToString(space.Description),
+		}
+		summary.ManagedByLDCLI, summary.TagErr = hasManagedTag(ctx, clients, accountID, summary.AgentSpaceID)
+		if summary.TagErr != nil {
+			failed++
+			if firstErr == nil {
+				firstErr = summary.TagErr
+			}
+		}
+		summaries = append(summaries, summary)
+	}
+	if failed == len(summaries) {
+		return nil, firstErr
+	}
+
+	return summaries, nil
+}
+
+// AgentSpaceNames lists the agent spaces without their tags, for a caller
+// that needs only the names, such as a check that a new name is free. It
+// makes no tag lookups, so ManagedByLDCLI is always false. A caller must not
+// use these summaries to decide who made a space.
+func AgentSpaceNames(ctx context.Context, clients Clients) ([]AgentSpaceSummary, error) {
 	spaces, err := listAgentSpaces(ctx, clients)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	summaries := make([]AgentSpaceSummary, 0, len(spaces))
+	for _, space := range spaces {
+		summaries = append(summaries, AgentSpaceSummary{
+			AgentSpaceID: aws.ToString(space.AgentSpaceId),
+			Name:         aws.ToString(space.Name),
+			Description:  aws.ToString(space.Description),
+		})
+	}
+
+	return summaries, nil
+}
+
+// AgentSpace reads one agent space, with the same ownership check as
+// AgentSpaces, for a caller that already has the space ID. If setup cannot
+// read the tags, the summary has TagErr.
+func AgentSpace(ctx context.Context, clients Clients, spaceID string) (AgentSpaceSummary, error) {
+	out, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(spaceID)})
+	if err != nil {
+		return AgentSpaceSummary{}, fmt.Errorf("unable to read agent space %s: %w", spaceID, err)
+	}
+	accountID, err := clients.AccountID(ctx)
+	if err != nil {
+		return AgentSpaceSummary{}, err
+	}
+	summary := AgentSpaceSummary{
+		AgentSpaceID: spaceID,
+		Name:         aws.ToString(out.AgentSpace.Name),
+		Description:  aws.ToString(out.AgentSpace.Description),
+	}
+	// A tag error goes on the summary, as in AgentSpaces. The caller decides
+	// what to do with a space whose owner is unknown.
+	summary.ManagedByLDCLI, summary.TagErr = hasManagedTag(ctx, clients, accountID, spaceID)
+
+	return summary, nil
+}
+
+// hasManagedTag reports the ldcli:managed tag on an agent space.
+func hasManagedTag(ctx context.Context, clients Clients, accountID, spaceID string) (bool, error) {
+	out, err := clients.Agent.ListTagsForResource(ctx, &devopsagent.ListTagsForResourceInput{
+		ResourceArn: aws.String(agentSpaceARN(clients.Region, accountID, spaceID)),
+	})
+	// The SDK retries a throttle or a server error before it returns. Only an
+	// access error points to the permission.
+	if err != nil && errorCode(err) == "AccessDeniedException" {
+		return false, fmt.Errorf(
+			"unable to read the tags of agent space %s. Setup needs aidevops:ListTagsForResource: %w", spaceID, err)
+	}
+	if err != nil {
+		return false, fmt.Errorf("unable to read the tags of agent space %s: %w", spaceID, err)
+	}
+
+	return out.Tags[ManagedTagKey] == ManagedTagValue, nil
+}
+
+// agentSpaceARN builds the ARN that the tag API needs. An agent space does not
+// report its ARN.
+func agentSpaceARN(region, accountID, spaceID string) string {
+	return fmt.Sprintf("arn:aws:aidevops:%s:%s:agentspace/%s", region, accountID, spaceID)
+}
+
+// mcpServerIDLength is the length to truncate the agent space ID to in the
+// server name.
+const mcpServerIDLength = 12
+
+// MCPServerNameFor is the name of the MCP server that setup registers for an
+// agent space. AWS needs a unique name of letters, digits, "_" and "-", and
+// the end of the ID ties the server to the space.
+func MCPServerNameFor(agentSpaceID string) string {
+	if len(agentSpaceID) > mcpServerIDLength {
+		agentSpaceID = agentSpaceID[len(agentSpaceID)-mcpServerIDLength:]
+	}
+
+	return MCPServerName + "-" + agentSpaceID
+}
+
+// mcpRef identifies a registered MCP server.
+type mcpRef struct {
+	ID   string
+	Name string
+}
+
+// spaceMCPServers finds the LaunchDarkly MCP servers at endpoint of an agent
+// space. linked is the server that the space is connected to. own is the
+// server with the name that setup gives the space, which can be the same
+// server. AWS keeps MCP servers at the account level, and each one has the
+// token of one LaunchDarkly account, so the server of another space is never
+// a match. A space connected to more than one server is an error, because
+// setup cannot tell which one to use.
+func spaceMCPServers(ctx context.Context, clients Clients, agentSpaceID, endpoint string) (linked, own mcpRef, err error) {
+	// A new space has no ID and no server yet.
+	if agentSpaceID == "" {
+		return mcpRef{}, mcpRef{}, nil
+	}
+	associations, err := listAssociations(ctx, clients, agentSpaceID)
+	if err != nil {
+		return mcpRef{}, mcpRef{}, err
+	}
+	links := make(map[string]bool, len(associations))
+	for _, association := range associations {
+		links[aws.ToString(association.ServiceId)] = true
+	}
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return mcpRef{}, mcpRef{}, err
+	}
+	var all []string
+	for _, service := range services {
+		if mcpEndpointOf(service) != endpoint {
+			continue
+		}
+		ref := mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}
+		if links[ref.ID] {
+			linked = ref
+			all = append(all, fmt.Sprintf("%s (%s)", ref.Name, ref.ID))
+		}
+		if own.ID == "" && ref.Name == MCPServerNameFor(agentSpaceID) {
+			own = ref
+		}
+	}
+	if len(all) > 1 {
+		return mcpRef{}, mcpRef{}, fmt.Errorf(
+			"agent space %s is connected to %d LaunchDarkly MCP servers: %s. "+
+				"Disconnect all but one in the AWS console, then run setup again",
+			agentSpaceID, len(all), strings.Join(all, ", "),
+		)
+	}
+
+	return linked, own, nil
+}
+
+// spacesNamed lists IDs of spaces named name.
+func spacesNamed(ctx context.Context, clients Clients, name string) ([]string, error) {
+	// An empty name names no space, even a space without a name.
+	if name == "" {
+		return nil, nil
+	}
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
 	for _, space := range spaces {
 		if strings.EqualFold(aws.ToString(space.Name), name) {
-			return aws.ToString(space.AgentSpaceId), nil
+			ids = append(ids, aws.ToString(space.AgentSpaceId))
 		}
 	}
 
-	return "", nil
+	return ids, nil
 }
 
 // FindAssociation returns the ID of an existing association between an agent
@@ -112,6 +296,28 @@ func FindAssociation(ctx context.Context, clients Clients, agentSpaceID, service
 	}
 	for _, association := range associations {
 		if aws.ToString(association.ServiceId) == serviceID {
+			return aws.ToString(association.AssociationId), nil
+		}
+	}
+
+	return "", nil
+}
+
+// FindAWSAssociation returns the ID of the association between an agent space
+// and its own AWS account. An agent space can also read other AWS accounts.
+// Those associations have the service ID "aws" too, so the match uses the
+// monitor configuration and the account ID.
+func FindAWSAssociation(ctx context.Context, clients Clients, agentSpaceID, accountID string) (string, error) {
+	associations, err := listAssociations(ctx, clients, agentSpaceID)
+	if err != nil {
+		return "", err
+	}
+	for _, association := range associations {
+		if aws.ToString(association.ServiceId) != awsServiceID {
+			continue
+		}
+		id, kind := associationAccount(association.Configuration)
+		if kind == string(agenttypes.MonitorAccountTypeMonitor) && id == accountID {
 			return aws.ToString(association.AssociationId), nil
 		}
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
+	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/api"
@@ -38,6 +39,7 @@ type ServerParams struct {
 	StreamFlagStartup      bool
 	SdkInitTimeout         time.Duration
 	InitialProjectSettings model.InitialProjectSettings
+	Tracker                analytics.Tracker
 }
 
 type LDClient struct {
@@ -51,17 +53,41 @@ func NewClient(cliVersion string) LDClient {
 }
 
 func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
-	ldClient := client.New(serverParams.AccessToken, serverParams.BaseURI, c.cliVersion)
-	dbPath := getDBPath()
-	log.Printf("Using database at %s", dbPath)
-	sqlStore, err := db.NewSqlite(ctx, getDBPath())
+	handler, err := c.httpHandler(ctx, serverParams)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	host := serverParams.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, serverParams.Port)
+	log.Printf("Server running on %s", addr)
+	if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
+		log.Printf("The dev server now listens on %s by default, so other machines and containers can't reach it. Pass --host 0.0.0.0 to accept their connections", host)
+	}
+	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
+
+	server := http.Server{
+		Addr:    addr,
+		Handler: handler,
+	}
+	log.Fatal(server.ListenAndServe())
+}
+
+func (c LDClient) httpHandler(ctx context.Context, serverParams ServerParams) (http.Handler, error) {
+	ldClient := client.New(serverParams.AccessToken, serverParams.BaseURI, c.cliVersion)
+	dbPath := getDBPath()
+	log.Printf("Using database at %s", dbPath)
+	sqlStore, err := db.NewSqlite(ctx, dbPath)
+	if err != nil {
+		return nil, err
+	}
+
 	sqlEventStore, err := events_db.NewSqlite(ctx, getEventsDBPath())
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	observers := model.NewObservers()
@@ -88,6 +114,8 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 
 	events.BindRoutes(r)
 	sdk.BindRoutes(r)
+	// This route is not under /dev, so the CORS middleware does not apply.
+	r.Handle(uiAnalyticsPath, newUIAnalyticsHandler(serverParams.Tracker)).Methods(http.MethodPost)
 
 	apiRouter := r.PathPrefix("/dev").Subrouter()
 	if serverParams.CorsEnabled {
@@ -112,26 +140,9 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	ctx = model.WithStreamStartup(ctx, serverParams.StreamFlagStartup)
 	syncErr := model.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings)
 	if syncErr != nil {
-		log.Fatal(syncErr)
+		return nil, syncErr
 	}
-	handler := handlers.CombinedLoggingHandler(os.Stdout, r)
-
-	host := serverParams.Host
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	addr := net.JoinHostPort(host, serverParams.Port)
-	log.Printf("Server running on %s", addr)
-	if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
-		log.Printf("The dev server now listens on %s by default, so other machines and containers can't reach it. Pass --host 0.0.0.0 to accept their connections", host)
-	}
-	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
-
-	server := http.Server{
-		Addr:    addr,
-		Handler: handler,
-	}
-	log.Fatal(server.ListenAndServe())
+	return handlers.CombinedLoggingHandler(os.Stdout, r), nil
 }
 
 func getDBPath() string {

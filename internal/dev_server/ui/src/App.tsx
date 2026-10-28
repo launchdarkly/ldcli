@@ -1,11 +1,26 @@
 import './App.css';
-import { Routes, Route, Navigate } from 'react-router';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router';
+import { pageNameFromPath, sendUiAnalytics } from './uiAnalytics';
 import { Box } from '@launchpad-ui/core';
 import RouteSelector from './RouteSelector.tsx';
 import FlagsPage from './FlagsPage.tsx';
 import EventsPage from './EventsPage.tsx';
 import DebugSessionsPage from './DebugSessionsPage.tsx';
 import DebugSessionEventsPage from './DebugSessionEventsPage.tsx';
+
+export function PageAnalytics() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const page = pageNameFromPath(location.pathname);
+    if (page) {
+      sendUiAnalytics('Dev Server UI Page Viewed', { page });
+    }
+  }, [location.pathname]);
+
+  return null;
+}
 
 function App() {
   return (
@@ -26,6 +41,7 @@ function App() {
         minWidth="600px"
         padding="2rem"
       >
+        <PageAnalytics />
         <Box display="flex" justifyContent="flex-start" width="100%">
           <RouteSelector />
         </Box>

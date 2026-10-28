@@ -183,6 +183,36 @@ func TestCreateToolIncludesItsKey(t *testing.T) {
 	assert.Equal(t, "search", body["key"])
 }
 
+func TestCreateSkillSendsKeyNameAndContent(t *testing.T) {
+	tests := map[string]struct {
+		name string
+		want string
+	}{
+		"name from the skill file": {name: "Human handoff", want: "Human handoff"},
+		"name from the key":        {want: "Incident summary"},
+	}
+
+	for title, test := range tests {
+		t.Run(title, func(t *testing.T) {
+			transport := &recordingClient{Responses: [][]byte{[]byte(`{}`)}}
+			client := NewClient(transport, "token", "https://example.com")
+			skill := syncdomain.Skill{Key: "incident-summary", Name: test.name, Description: "Summarize", Markdown: "# Summary\n"}
+
+			err := client.CreateAttachment("project", syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &skill})
+
+			require.NoError(t, err)
+			require.Len(t, transport.Requests, 1)
+			assert.Equal(t, http.MethodPost, transport.Requests[0].Method)
+			assert.Equal(t, "https://example.com/api/v2/projects/project/ai-configs/skills", transport.Requests[0].Path)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(transport.Requests[0].Body, &body))
+			assert.Equal(t, map[string]any{
+				"key": "incident-summary", "name": test.want, "description": "Summarize", "markdown": "# Summary\n",
+			}, body)
+		})
+	}
+}
+
 func TestReadAttachmentRequiresMatchingVersionedIdentity(t *testing.T) {
 	for name, response := range map[string]string{
 		"key":     `{"key":"other","schema":{},"version":2}`,

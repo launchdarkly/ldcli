@@ -59,24 +59,3 @@ func TestManifestPreservesExistingAttachmentBaselineWhenAddingConsumer(t *testin
 	require.Len(t, manifest.Resources, 1)
 	assert.Equal(t, "sha256:existing", manifest.Resources[0].Fingerprint)
 }
-
-func TestManifestRemovesOnlyUnreferencedAttachments(t *testing.T) {
-	manifest := New()
-	manifest.Resources = []Resource{
-		{ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/default"},
-		{ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"},
-		{ResourceKind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "support"},
-	}
-	search := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "search"}}
-	variations := []syncdomain.SyncedResource{{
-		ProjectKey: "project",
-		Variation:  syncdomain.Variation{Attachments: []syncdomain.Attachment{search}},
-	}}
-
-	manifest.RemoveUnusedAttachments(variations)
-
-	assert.Equal(t, []Resource{
-		{ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/default"},
-		{ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"},
-	}, manifest.Resources)
-}
