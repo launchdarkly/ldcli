@@ -62,6 +62,7 @@ paths:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -94,6 +95,7 @@ paths:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -349,6 +351,7 @@ components:
       properties:
         _id:
           type: string
+          x-go-name: Id
         name:
           type: string
         description:
@@ -389,6 +392,7 @@ components:
               $ref: '#/components/schemas/Variation'
         _lastSyncedFromSource:
           type: integer
+          x-go-name: LastSyncedFromSource
           x-go-type: int64
           description: unix timestamp for the lat time the flag values were synced from the source environment
     Environment:
