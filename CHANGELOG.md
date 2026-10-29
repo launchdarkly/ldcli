@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.16.0](https://github.com/launchdarkly/ldcli/compare/v3.15.0...v3.16.0) (2026-10-29)
+
+
+### Features
+
+* add the create flags of sync prompts add ([#954](https://github.com/launchdarkly/ldcli/issues/954)) ([afd238e](https://github.com/launchdarkly/ldcli/commit/afd238e674405abd2f26c35a3b465775cd315e3b))
+* add the experiment-orchestrator custom agent to aws-devops-agent setup ([#972](https://github.com/launchdarkly/ldcli/issues/972)) ([66a30c6](https://github.com/launchdarkly/ldcli/commit/66a30c6e3b0c3b1e1ca76d516bd5c3335550ad36))
+
 ## [3.15.0](https://github.com/launchdarkly/ldcli/compare/v3.14.0...v3.15.0) (2026-10-28)
 
 
