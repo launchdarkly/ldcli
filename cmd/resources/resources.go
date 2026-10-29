@@ -65,6 +65,12 @@ type OperationData struct {
 	RequiresBody          bool
 	Path                  string
 	SupportsSemanticPatch bool
+	Examples              []RequestExample
+}
+
+type RequestExample struct {
+	Summary string
+	Data    string
 }
 
 type Param struct {
@@ -133,6 +139,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				RequiresBody:          requiresBody,
 				Path:                  path,
 				SupportsSemanticPatch: supportsSemanticPatch,
+				Examples:              getRequestExamples(op),
 			}
 
 			for _, p := range op.Parameters {
@@ -388,8 +395,32 @@ func NewOperationCmd(
 	_ = opCmd.initFlags()
 
 	parentCmd.AddCommand(cmd)
+	cmd.Example = buildExample(cmd.CommandPath(), op)
 
 	return cmd
+}
+
+func buildExample(commandPath string, op OperationData) string {
+	cmdLine := commandPath
+	for _, p := range op.Params {
+		if p.In == "path" || p.Required {
+			flagName := getFlagName(p.Name)
+			cmdLine += fmt.Sprintf(" --%s <%s>", flagName, flagName)
+		}
+	}
+
+	examples := make([]string, 0, len(op.Examples))
+	for _, ex := range op.Examples {
+		data := strings.ReplaceAll(ex.Data, "'", `'\''`)
+		data = strings.ReplaceAll(data, "\n", "\n  ")
+		example := fmt.Sprintf("  %s --%s '%s'", cmdLine, cliflags.DataFlag, data)
+		if ex.Summary != "" {
+			example = fmt.Sprintf("  # %s\n%s", ex.Summary, example)
+		}
+		examples = append(examples, example)
+	}
+
+	return strings.Join(examples, "\n\n")
 }
 
 func SubcommandUsageTemplate() string {

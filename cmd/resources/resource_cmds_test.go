@@ -1,6 +1,7 @@
 package resources_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,6 +56,34 @@ func TestCreateTeam(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Contains(t, string(output), "Create a team.")
+	})
+	t.Run("help example runs with the documented data", func(t *testing.T) {
+		helpOutput, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{},
+			analytics.NoopClientFn{}.Tracker(),
+			[]string{"teams", "create", "--help"},
+		)
+		require.NoError(t, err)
+
+		help := string(helpOutput)
+		prefix := "ldcli teams create --data '"
+		start := strings.Index(help, prefix)
+		require.NotEqual(t, -1, start, "help should contain an example command")
+		data := help[start+len(prefix):]
+		data = data[:strings.Index(data, "'")]
+
+		mockClient := &resources.MockClient{Response: []byte(`{"key": "team-key-123abc"}`)}
+		_, err = cmd.CallCmd(
+			t,
+			cmd.APIClients{ResourcesClient: mockClient},
+			analytics.NoopClientFn{}.Tracker(),
+			[]string{"teams", "create", "--access-token", "abcd1234", "--data", data},
+		)
+
+		require.NoError(t, err)
+		assert.Contains(t, data, `"key": "team-key-123abc"`)
+		assert.JSONEq(t, data, string(mockClient.Input))
 	})
 	t.Run("with valid flags calls makeRequest function", func(t *testing.T) {
 		t.Skip("TODO: add back when mock client is added")

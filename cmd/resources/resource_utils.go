@@ -1,8 +1,10 @@
 package resources
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -192,4 +194,42 @@ func getFlagName(paramName string) string {
 
 func replaceBackticks(s string) string {
 	return strings.Replace(s, "`", "'", -1)
+}
+
+func getRequestExamples(op *openapi3.Operation) []RequestExample {
+	if op.RequestBody == nil || op.RequestBody.Value == nil {
+		return nil
+	}
+	mediaType := op.RequestBody.Value.Content.Get("application/json")
+	if mediaType == nil {
+		return nil
+	}
+
+	var examples []RequestExample
+	if mediaType.Example != nil {
+		examples = append(examples, newRequestExample("", mediaType.Example))
+	}
+
+	names := make([]string, 0, len(mediaType.Examples))
+	for name := range mediaType.Examples {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		ex := mediaType.Examples[name]
+		if ex == nil || ex.Value == nil || ex.Value.Value == nil {
+			continue
+		}
+		examples = append(examples, newRequestExample(ex.Value.Summary, ex.Value.Value))
+	}
+
+	return examples
+}
+
+func newRequestExample(summary string, value any) RequestExample {
+	data, _ := json.MarshalIndent(value, "", "  ")
+	return RequestExample{
+		Summary: jsonString(summary),
+		Data:    jsonString(string(data)),
+	}
 }
