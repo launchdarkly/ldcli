@@ -1,0 +1,56 @@
+import React from 'react';
+import { render, screen, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { BrowserRouter, useParams } from 'react-router';
+import App from '../App.tsx';
+
+vi.mock('../FlagsPage.tsx', () => ({ default: () => <div>stub:flags</div> }));
+vi.mock('../EventsPage.tsx', () => ({ default: () => <div>stub:events</div> }));
+vi.mock('../DebugSessionsPage.tsx', () => ({
+  default: () => <div>stub:debug-sessions</div>,
+}));
+vi.mock('../DebugSessionEventsPage.tsx', () => ({
+  default: function Stub() {
+    const { debugSessionKey } = useParams<{ debugSessionKey: string }>();
+    return <div>stub:debug-session-events:{debugSessionKey}</div>;
+  },
+}));
+
+const renderAt = (path: string) => {
+  window.history.replaceState({}, '', path);
+  render(
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>,
+  );
+};
+
+afterEach(() => cleanup());
+
+describe('ldcli dev-server UI routing (App.tsx under BrowserRouter)', () => {
+  it.each([
+    ['/', '/ui/flags', 'stub:flags', 'Flags'],
+    ['/ui', '/ui/flags', 'stub:flags', 'Flags'],
+    ['/ui/flags', '/ui/flags', 'stub:flags', 'Flags'],
+    ['/ui/events', '/ui/events', 'stub:events', 'Events'],
+    ['/ui/events/', '/ui/events/', 'stub:events', 'Select a view'],
+    ['/ui/debug-sessions', '/ui/debug-sessions', 'stub:debug-sessions', 'Debug Sessions'],
+  ])('%s renders %s', async (start, end, page, selector) => {
+    renderAt(start);
+    expect(await screen.findByText(page)).toBeTruthy();
+    expect(window.location.pathname).toBe(end);
+    expect(screen.getAllByText(selector).length).toBeGreaterThan(0);
+  });
+
+  it('passes the :debugSessionKey route parameter', async () => {
+    renderAt('/ui/debug-sessions/sess%20one-42/events');
+    expect(
+      await screen.findByText('stub:debug-session-events:sess one-42'),
+    ).toBeTruthy();
+  });
+
+  it('renders no page for an unknown path', () => {
+    renderAt('/ui/nope');
+    expect(screen.queryByText(/^stub:/)).toBeNull();
+  });
+});

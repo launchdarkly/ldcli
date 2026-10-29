@@ -1,0 +1,12 @@
+{
+  "pr": 722,
+  "why": "#722 moves googleapis/release-please-action from v4 to v5. Neither version declares outputs in action.yml. The action sets release_created and tag_name at run time. On 2026-10-06 the verifier blocked it because it counted those outputs as removed. It must ask only the decision about upstream changes that no local check can prove.",
+  "head": "51c1ae5260672c85fd50d79ec2d0b2937eeb0c8d",
+  "base": "9197f925f3ce12da4eb7864a0644451d12977788",
+  "agent_inputs": "agent-inputs/pr-722",
+  "expect": {
+    "verdict": "needs-human",
+    "checks": {"actions-coverage": "decide"},
+    "decisions_contain": ["release-please.yml"]
+  }
+}

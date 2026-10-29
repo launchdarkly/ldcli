@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "launchpad-exports-guard",
+      "title": "Every @launchpad-ui name that the UI imports is still exported at the locked versions",
+      "kind": "guard",
+      "rationale": "14 files in internal/dev_server/ui/src import 38 names from @launchpad-ui/components (including ToastContainer in src/main.tsx and ToastQueue in src/Sync.tsx) and 6 from @launchpad-ui/core. The check reads the versions from package-lock.json, downloads those tarballs with `npm pack` (network: npm registry), and checks each named import against the package type entry point. It does not need npm ci, so it runs even when the peer conflict stops the install.",
+      "script": "launchpad-exports-guard.sh",
+      "timeout": 300
+    },
+    {
+      "id": "ui-routing-guard",
+      "title": "Dev-server UI routes, redirects, and route params behave the same",
+      "kind": "guard",
+      "rationale": "react-router 7.18.2 to 8.3.0. ldcli uses react-router in declarative mode only: BrowserRouter (src/main.tsx), Routes/Route/Navigate (src/App.tsx), useLocation (src/RouteSelector.tsx), and useParams (src/DebugSessionEventsPage.tsx). The test renders the real App.tsx route table under BrowserRouter in jsdom and checks the / and /ui redirects to /ui/flags, each page route, a trailing slash, the :debugSessionKey param, and an unknown path.",
+      "script": "ui-routing-guard.sh",
+      "timeout": 600
+    },
+    {
+      "id": "ui-singlefile-guard",
+      "title": "The vite build still writes one self-contained dist/index.html",
+      "kind": "guard",
+      "rationale": "vite 6.4.3 to 8.2.1 replaces esbuild and Rollup with Rolldown and minifies CSS with lightningcss. internal/dev_server/ui/vite.config.ts uses vite-plugin-singlefile, and the Go binary embeds dist/ (internal/dev_server/ui/asset_handler.go). The check builds and asserts: only index.html and the favicon in dist/, no external script or stylesheet, an inline module script, <div id=\"root\">, and a size within 20% of base.",
+      "script": "ui-singlefile-guard.sh",
+      "timeout": 600
+    }
+  ]
+}

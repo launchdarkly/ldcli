@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "summary": "actions/setup-go moves from v4 (go.yml) and v5 (dependency-scan.yml) to the floating v6 tag (v6.5.0 today). v5 moved to node20, added the architecture to the cache key, and moved to the new cache service. v6.0.0 moves to node24, needs runner v2.327.1 or later, and prefers a go.mod toolchain directive. v6.3.0 keys the module cache on go.mod instead of go.sum. ldcli passes only go-version-file: go.mod, and today's go.mod has 'go 1.25' with no toolchain directive. Both workflows have a pull_request trigger. The PR head moved from c3c375a to 348e5d8, a merge of main, with the same two-line diff.",
+  "tier": "high",
+  "changelog": [
+    {
+      "package": "actions/setup-go",
+      "range": "v4..v6",
+      "notes": "v5.0.0: node20 runtime. v5.1.0: architecture in the cache key (old cache keys stop matching). v5.3.0: new cache service (@actions/cache 4). v6.0.0: toolchain selection prefers the go.mod toolchain directive (#460, breaking), node24 runtime, runner v2.327.1 or later. v6.1.0: .tool-versions support, go.dev/dl fallback. v6.3.0: default module cache key uses go.mod. v6.4.0: optional go-download-base-url. v6.5.0: dependency updates.",
+      "breaking": true,
+      "url": "https://github.com/actions/setup-go/compare/v4...v6"
+    }
+  ],
+  "usage": [
+    ".github/workflows/go.yml",
+    ".github/workflows/dependency-scan.yml"
+  ],
+  "behavior_changes_reachable": false,
+  "findings": [
+    {
+      "severity": "info",
+      "text": "The breaking toolchain change (#460) has no effect: today's go.mod has no toolchain directive, and each setup-go step passes only go-version-file: go.mod (guard). The real setup-go code at v4 and v5 (base) and v6 (PR) installs the same Go 1.25 release from the merged go.mod (guard). The cache-key changes (v5.1.0, v6.3.0) only invalidate the Go cache one time.",
+      "evidence": ["https://github.com/actions/setup-go/pull/460", "generated/setup-go-inputs-resolve-same-go.sh", "generated/setup-go-action-resolves-gomod-go.sh"]
+    },
+    {
+      "severity": "info",
+      "text": "PR CI did not run on the current head 348e5d8. On 2026-10-07 the Go and dev-server UI runs (37655494912, 37655494844) failed with zero jobs, and Dependency Scan and Lint PR title (37655495127, 37655495561) are still queued. Main's own runs at the same minute also failed oddly, so this looks like a GitHub Actions problem, not setup-go. The 3 green checks that ci-status counts are Bugbot, Semgrep, and the bot-oversight check. The same diff passed all 9 CI checks on the old head c3c375a against main 9197f92. Re-run the Go and Dependency Scan workflows on the PR before merge.",
+      "evidence": ["https://github.com/launchdarkly/ldcli/actions/runs/37655494912", "https://github.com/launchdarkly/ldcli/actions/runs/37655495127", "https://github.com/launchdarkly/ldcli/actions/runs/37655451882"]
+    },
+    {
+      "severity": "info",
+      "text": "The PR uses the floating tag actions/setup-go@v6, as main uses @v4 and @v5. actions-pinning exempts actions/*. No composite action in .github/actions uses setup-go. The PR also clears the actionlint finding 'the runner of actions/setup-go@v4 action is too old' on go.yml.",
+      "evidence": ["state/checks/actionlint", "state/checks/actions-pinning"]
+    }
+  ]
+}

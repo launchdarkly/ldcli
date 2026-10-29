@@ -1,0 +1,14 @@
+{
+  "pr": 621,
+  "why": "#621 is a single Dependabot update (go.uber.org/mock 0.5.2 → 0.6.0). mock 0.6.0 needs golang.org/x/term 0.34.0 through x/tools and x/net, so the x/term bump is forced. On the second 2026-10-06 run, pr-disclosure called #621 a grouped update and asked to accept x/term, with impossible advice. The PR conflicts, so its old head is tested. That tree tags the release image instead of pinning a digest, and release-snapshot reported incomplete.",
+  "head": "da09a1573e3da00eaacd32b406ca32f1a1cfbd25",
+  "base": "9197f925f3ce12da4eb7864a0644451d12977788",
+  "profile": "full",
+  "pr_meta": "pr-meta/pr-621.json",
+  "expect": {
+    "verdict": "block",
+    "checks": {"pr-state": "fail", "pr-disclosure": "info", "release-snapshot": "pass"},
+    "summaries_contain": {"pr-disclosure": "required by go.uber.org/mock v0.6.0", "release-snapshot": "All 8 release targets build"},
+    "decisions_exclude": ["golang.org/x/term"]
+  }
+}

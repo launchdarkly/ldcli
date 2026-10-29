@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "updated-action-runtime-supported",
+      "title": "Each step that uses actions/setup-python declares a runtime that GitHub Actions supports",
+      "kind": "discriminating",
+      "rationale": "go.yml (PR CI build job) runs actions/setup-python@v3 before pre-commit/action. v3 declares the node16 runtime. GitHub removed node16 from runners and forces such actions onto a newer Node.js, and actionlint 1.7.7 reports the step as too old to run. setup-python v6 declares node24. The check runs actionlint on the worktree and keeps only the runtime findings for the updated action.",
+      "script": "updated-action-runtime-supported.sh",
+      "timeout": 300
+    }
+  ]
+}

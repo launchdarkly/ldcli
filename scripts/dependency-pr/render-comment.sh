@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+# Usage: render-comment.sh <result.json>  — prints the PR comment as Markdown.
+set -euo pipefail
+
+RESULT="${1:?usage: render-comment.sh <result.json>}"
+MAX_CHARS=60000 # GitHub caps comments at 65536 characters.
+LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+# The upstream repository of each direct update, from the upstream-changes
+# check of the same run, to qualify bare #N references in its notes.
+UPSTREAM="$(dirname "$RESULT")/state/checks/upstream-changes/pr/report.json"
+[ -f "$UPSTREAM" ] || UPSTREAM=/dev/null
+
+render() {
+  local with_details="$1"
+  jq -r --argjson with_details "$with_details" --slurpfile upstream <(cat "$UPSTREAM" 2>/dev/null; echo '[]') '
+    def esc: tostring | gsub("\\|"; "\\|") | gsub("\n"; " ");
+    # A bare #N links to an ldcli issue or PR. In upstream text it means the
+    # upstream repository, so it becomes owner/repo#N.
+    def qualify($repo): if $repo == null or $repo == "launchdarkly/ldcli" then .
+      else gsub("(?<![A-Za-z0-9_/.#-])#(?<n>[0-9]+)\\b"; "\($repo)#\(.n)") end;
+    def url_repo: (. // "") | capture("github\\.com/(?<r>[^/]+/[^/#?]+)").r // null;
+    def rlabel:
+      {"pass": "pass", "info": "pass (note)", "fail": "**FAIL**", "decide": "decision", "skip": "does not apply",
+       "incomplete": "**not run**", "error": "**ERROR**",
+       "regression": "**FAIL** (passes on base)", "changed": "**FAIL** (differs from base)",
+       "pre-existing": "fails on base too", "base-inconclusive": "**FAIL** (base not compared)"}[.] // .;
+    def glabel:
+      {"proven": "proven (fails on base, passes on PR)", "not-discriminating": "passes on both: does not count",
+       "regression": "**REGRESSION** (passes on base, fails on PR)", "fails-both": "**fails on both**",
+       "holds": "holds on both", "invalid": "**invalid** (fails on base)",
+       "error": "**ERROR**", "incomplete": "**not run**"}[.] // .;
+    def sha7: if . == null then "?" else .[0:7] end;
+
+    ([$upstream[0][]? | select(type == "object" and .repo != null) | {key: .name, value: .repo}] | from_entries) as $repos
+    | . as $r
+    | $r.pr as $pr
+    | $r.classification as $c
+    | ($c.updates | map(select(.direct))) as $direct
+    | ($c.updates | map(select(.direct | not))) as $transitive
+    | [
+        "<!-- ldcli-dependency-verify -->",
+        "## Dependency verification: \({"safe-to-merge": "SAFE TO MERGE", "needs-human": "NEEDS A HUMAN DECISION", "block": "BLOCK", "incomplete": "INCOMPLETE"}[$r.verdict])",
+        "",
+        "Risk tier **\($r.tier)**\(if ($c.tags | length) > 0 then " (" + ($c.tags | join(", ")) + ")" else "" end) · ecosystems: \($c.ecosystems | join(", ")) · head `\($pr.head_sha | sha7)` "
+          + (if $pr.merge.status == "merged"
+             then "tested as merged into `\($pr.base_ref)` @ `\($pr.base_sha | sha7)`"
+             else "conflicts with `\($pr.base_ref)`, so it was tested as it is against merge base `\($pr.merge_base | sha7)`" end),
+        "",
+        (if (($r.impact.tier_reasons // []) | length) > 0 and $r.tier != $c.tier then
+          "The impact review raised the tier from \($c.tier) to \($r.tier): \($r.impact.tier_reasons | join("; "))", ""
+         else empty end),
+        (if $r.verdict == "safe-to-merge" then
+          "Every required check ran and passed. No decision is necessary.", ""
+         else empty end),
+
+        (if ($r.blocks | length) > 0 then
+          "### Must fix before merge", "",
+          ($r.blocks[]
+           | "- **\(.title)**: \(.problem)",
+             (.fix[] | "  - Fix: \(.)"),
+             (if .recipe != null and .recipe.kind == "commit" then
+                "  - Mechanical fix: `\(.recipe.command)` (changes \(.recipe.paths | map("`\(.)`") | join(", ")))"
+              else empty end)),
+          ""
+         else empty end),
+
+        (if ($r.decisions | length) > 0 then
+          "### Decisions for a human", "",
+          "Verification is complete for these items. Each one needs a choice, not more checks."
+            + (if ($r.incomplete | length) > 0 then " The verdict stays incomplete until the items under \"Incomplete verification\" are closed." else "" end), "",
+          ($r.decisions | to_entries[]
+           | "\(.key + 1). **\(.value.question)**",
+             (.value.evidence[] | "   - \(.)")),
+          ""
+         else empty end),
+
+        (if ($r.incomplete | length) > 0 then
+          "### Incomplete verification", "",
+          "These items are not verified yet. The fix under each item closes it. A person does not have to repeat a check.", "",
+          ($r.incomplete[] | "- \(.reason)", ((.fix // [])[] | "  - Fix: \(.)")),
+          ""
+         else empty end),
+
+        "### Updates",
+        "",
+        (if ($direct | length) == 0 and ($transitive | length) == 0 then "No dependency version change was found.", ""
+         else
+          "| Package | From | To | Change | Ecosystem | Tier |",
+          "|---|---|---|---|---|---|",
+          ($direct[] | "| `\(.name)` | \(.from // "∅") | \(.to // "∅") | \(.semver)\(if .breaking and .semver != "major" then " (0.x: breaking allowed)" else "" end) | \(.ecosystem)\(if .test_only then ", test-only" elif .dev then ", dev" else "" end) | \(.tier) |"),
+          (if ($transitive | length) > 0 then
+            "",
+            "<details><summary>\($transitive | length) transitive update(s)</summary>",
+            "",
+            ($transitive[0:60][] | "- `\(.name)` \(.from // "∅") → \(.to // "∅") (\(if .breaking and .semver == "minor" then "0.x minor" else .semver end))"),
+            (if ($transitive | length) > 60 then "- …" else empty end),
+            "</details>"
+           else empty end),
+          ""
+         end),
+        (if ($c.go_directive.from != $c.go_directive.to) then "Go directive: `\($c.go_directive.from)` → `\($c.go_directive.to)`", "" else empty end),
+
+        "### What the verifier checked",
+        "",
+        "| Check | Result | Summary |",
+        "|---|---|---|",
+        ($r.checks[] | select((.pr.profile_skipped // false) | not) | select(.outcome != "skip")
+          | "| \(.title | esc) | \(.outcome | rlabel) | \(.pr.summary | esc) |"),
+        (if ($r.not_run | length) > 0 then
+          "", "Optional checks that did not run: \($r.not_run | map(.source) | join(", "))."
+         else empty end),
+        "",
+
+        (if ($r.pre_existing | length) > 0 then
+          "### Already failing on `\($pr.base_ref)` (not caused by this PR)",
+          "",
+          ($r.pre_existing[] | "- **\(.title)**: \(.summary)"),
+          ""
+         else empty end),
+
+        "### Generated checks",
+        "",
+        (if ($r.generated_checks | length) == 0 then
+          "None for this PR.", ""
+         else
+          "A generated check counts only when it fails on the old version and passes on the new one. \($r.generated_proven) of \($r.generated_checks | length) proven.",
+          "",
+          "| Check | Kind | Base | PR | Outcome |",
+          "|---|---|---|---|---|",
+          ($r.generated_checks[] | "| \(.title | esc) | \(.kind) | \(.base.status) | \(.pr.status) | \(.outcome | glabel) |"),
+          ""
+         end),
+
+        (if $r.impact != null then
+          "### Impact review",
+          "",
+          ($r.impact.summary // empty),
+          "",
+          (($r.impact.changelog // [])[] | ((.url | url_repo) // $repos[.package]) as $repo
+            | "- **\(.package)** \(.range // ""): \(.notes | qualify($repo))\(if .breaking then " **(breaking)**" else "" end)\(if .url then " ([source](\(.url)))" else "" end)"),
+          (if (($r.impact.usage // []) | length) > 0 then "- Used in: " + ($r.impact.usage | map("`\(.)`") | join(", ")) else empty end),
+          (if ($r.impact | has("behavior_changes_reachable")) then
+             "- Upstream behavior changes that reach ldcli: \(if $r.impact.behavior_changes_reachable then "yes" else "no" end)"
+           else empty end),
+          (($r.impact.findings // [])[] | select(.severity == "info") | "- Note: \(.text)\(if ((.evidence // []) | length) > 0 then " (" + (.evidence | join(", ")) + ")" else "" end)"),
+          ""
+         else empty end),
+
+        (if $with_details then
+          ([$r.checks[], ($r.generated_checks[] | . + {id: ("generated: " + .id)})]
+           | map(select(.pr.details != null or (.base.details // null) != null))) as $d
+          | if ($d | length) > 0 then
+              "<details><summary>Check details</summary>",
+              "",
+              # A generated check runs on both versions. A discriminating check is
+              # proven by the difference, so show both sides when they differ.
+              ($d[] | "#### \(.id)", "",
+                (if (.kind // null) != null and (.base.details // null) != null and (.pr.details // null) != null
+                     and .base.details != .pr.details
+                 then "Base (\(.base.status)):", "", .base.details, "", "PR (\(.pr.status)):", "", .pr.details
+                 else (.pr.details // .base.details) end), ""),
+              "</details>",
+              ""
+            else empty end
+         else
+          "_The check details are not shown because of the GitHub comment size limit. See the run logs._", ""
+         end),
+
+        "<sub>Generated by `scripts/dependency-pr/verify.sh` (profile \($r.profile)) at \($r.generated_at). The verifier does not approve or merge.</sub>"
+      ]
+    | .[]' "$RESULT"
+}
+
+# Bare @-tokens (npm scopes, action refs) and raw <...> text go in backticks,
+# so that GitHub shows them as text, not as mentions or HTML.
+out=$(render true | python3 "$LIB/comment_safe.py")
+if [ "${#out}" -gt "$MAX_CHARS" ]; then
+  out=$(render false | python3 "$LIB/comment_safe.py")
+fi
+printf '%s\n' "$out"

@@ -1,0 +1,13 @@
+{
+  "pr": 829,
+  "why": "#829 (go-sqlite3 1.14.28 → 1.14.52) is a cgo update, so the release cross-compile is a gate. Without access to the private release image, the check falls back to the public goreleaser-cross image with musl.cc toolchains. All 8 release targets must build on base and PR, and the verdict must be safe to merge.",
+  "head": "b33da96cead782480bfd69c6baffe1ce24442f8c",
+  "base": "6c1740f8932352cdc2696e7aee20dfef676abfac",
+  "profile": "full",
+  "agent_inputs": "agent-inputs/pr-829",
+  "expect": {
+    "verdict": "safe-to-merge",
+    "checks": {"release-snapshot": "pass", "golangci-lint": "pass"},
+    "summaries_contain": {"release-snapshot": "All 8 release targets build"}
+  }
+}
