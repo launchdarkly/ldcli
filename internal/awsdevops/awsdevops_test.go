@@ -909,14 +909,14 @@ func TestMCPAssociationClassifiesTheSkillTools(t *testing.T) {
 		assert.Contains(t, classes, tool)
 	}
 	for _, tool := range []string{
-		"toggle-flag", "create-flag", "update-rollout", "archive-flag", "create-experiment",
+		"toggle-flag", "create-flag", "update-off-variation", "update-rollout", "archive-flag", "create-experiment",
 		"start-experiment-iteration", "stop-experiment-iteration", "start-guarded-rollout", "stop-guarded-rollout",
 		"update-targeting-rules", "update-individual-targets", "create-approval-request",
 		"apply-approval-request",
 	} {
 		assert.Equal(t, agenttypes.ToolClassificationMutative, classes[tool], tool)
 	}
-	for _, tool := range []string{"get-flag", "list-experiments", "get-experiment-results", "query-change-history"} {
+	for _, tool := range []string{"get-flag", "list-experiments", "get-experiment-results", "query-change-history", "list-metric-events"} {
 		assert.Equal(t, agenttypes.ToolClassificationReadOnly, classes[tool], tool)
 	}
 }

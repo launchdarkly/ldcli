@@ -246,7 +246,7 @@ func TestPlanSetupNamesAgentToolsAfterANewServer(t *testing.T) {
 	assert.Contains(t, plan.Text().Agent, "the MCP tools of server "+awsdevops.MCPOAuthServerName)
 }
 
-func TestSetupGivesAgentTheToolsThatAddMCPToolsAdds(t *testing.T) {
+func TestSetupGivesAgentTheToolsThatSetupAddsToTheAllowlist(t *testing.T) {
 	old := awsdevops.AgentTools(awsdevops.MCPServerName)[:1]
 	agent := &fakeAgent{
 		services:     []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
@@ -260,7 +260,6 @@ func TestSetupGivesAgentTheToolsThatAddMCPToolsAdds(t *testing.T) {
 	}
 	clients := newTestClients(agent, newFakeIAM())
 	opts := reuseOptions()
-	opts.AddMCPTools = true
 
 	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
 	require.NoError(t, err)

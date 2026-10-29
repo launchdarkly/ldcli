@@ -27,13 +27,6 @@ func mcpAssociation(tools ...string) agenttypes.Association {
 	}
 }
 
-func reuseServerOptions() awsdevops.SetupOptions {
-	opts := reuseOptions()
-	opts.AddMCPTools = true
-
-	return opts
-}
-
 // An older ldcli allowed fewer tools. A re-run adds the new ones, so the skill
 // can use them.
 func TestSetupAddsMissingToolsToAnExistingAllowlist(t *testing.T) {
@@ -43,13 +36,13 @@ func TestSetupAddsMissingToolsToAnExistingAllowlist(t *testing.T) {
 	}
 	clients := newTestClients(agent, newFakeIAM())
 
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseServerOptions(), true)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseOptions(), true)
 	require.NoError(t, err)
 	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
 	assert.Contains(t, plan.Text().MCPServer, "and add get-project, get-environment, list-flags,")
 	assert.Contains(t, plan.Text().MCPServer, "update-flag-settings")
 
-	result, err := awsdevops.RunPlan(context.Background(), clients, reuseServerOptions(), plan)
+	result, err := awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
 	require.NoError(t, err)
 
 	require.Len(t, agent.updateAssociations, 1)
@@ -75,7 +68,7 @@ func TestSetupKeepsACompleteAllowlist(t *testing.T) {
 		associations: []agenttypes.Association{mcpAssociation(awsdevops.MCPTools()...)},
 	}
 
-	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseServerOptions())
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
 	require.NoError(t, err)
 
 	assert.Empty(t, agent.updateAssociations)
@@ -92,37 +85,15 @@ func TestSetupLeavesAnAllowlistWithForeignTools(t *testing.T) {
 	}
 	clients := newTestClients(agent, newFakeIAM())
 
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseServerOptions(), true)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseOptions(), true)
 	require.NoError(t, err)
 	assert.Contains(t, plan.Text().MCPServer, "which setup cannot add")
 
-	result, err := awsdevops.RunPlan(context.Background(), clients, reuseServerOptions(), plan)
+	result, err := awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
 	require.NoError(t, err)
 
 	assert.Empty(t, agent.updateAssociations)
 	assert.Contains(t, result.MCPToolsError, "Add the missing tools in the AWS console")
-}
-
-// Setup cannot tell an older ldcli allowlist from one that someone trimmed,
-// so without --add-mcp-tools it only warns.
-func TestSetupWarnsAboutMissingToolsWithoutTheFlag(t *testing.T) {
-	agent := &fakeAgent{
-		services:     []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
-		associations: []agenttypes.Association{mcpAssociation("get-flag")},
-	}
-	clients := newTestClients(agent, newFakeIAM())
-	opts := reuseServerOptions()
-	opts.AddMCPTools = false
-
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-	assert.Contains(t, plan.Text().MCPServer, "Pass --add-mcp-tools to add them")
-
-	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
-	require.NoError(t, err)
-
-	assert.Empty(t, agent.updateAssociations)
-	assert.Contains(t, result.MCPToolsError, "--add-mcp-tools")
 }
 
 // The run makes only the change that the plan showed.
@@ -133,11 +104,11 @@ func TestSetupSkipsAnAllowlistThatChangedAfterThePlan(t *testing.T) {
 	}
 	clients := newTestClients(agent, newFakeIAM())
 
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseServerOptions(), true)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseOptions(), true)
 	require.NoError(t, err)
 	agent.associations = []agenttypes.Association{mcpAssociation("get-flag")}
 
-	result, err := awsdevops.RunPlan(context.Background(), clients, reuseServerOptions(), plan)
+	result, err := awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
 	require.NoError(t, err)
 
 	assert.Empty(t, agent.updateAssociations)
@@ -153,7 +124,7 @@ func TestSetupWarnsWhenTheAllowlistUpdateFails(t *testing.T) {
 		updateAssociationErr: errors.New("AccessDeniedException: not allowed"),
 	}
 
-	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseServerOptions())
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
 	require.NoError(t, err)
 
 	assert.Contains(t, result.MCPToolsError, "unable to add")

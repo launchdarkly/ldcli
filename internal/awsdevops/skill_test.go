@@ -3,6 +3,7 @@ package awsdevops_test
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -39,6 +40,19 @@ func TestExperimentSkillFrontMatter(t *testing.T) {
 func TestShippedSkillHashesHoldTheCurrentSkill(t *testing.T) {
 	assert.Contains(t, awsdevops.ShippedSkillHashes(), awsdevops.SkillHash(awsdevops.ExperimentSkill),
 		"add the hash of the new SKILL.md to shippedSkillHashes")
+}
+
+// skillToolPattern matches an MCP tool name in backticks, such as `get-flag`.
+var skillToolPattern = regexp.MustCompile("`((?:list|get|create|update|start|stop|toggle|archive|apply|check|query|match|delete|copy|save|search|find|manage|run|clone|setup|preview|link|invite|restrict|unrestrict)-[a-z-]+)`")
+
+// The agent can call only the allowlisted tools, so every tool that SKILL.md
+// names must be in the allowlist.
+func TestMCPAllowlistHoldsTheSkillTools(t *testing.T) {
+	matches := skillToolPattern.FindAllStringSubmatch(awsdevops.ExperimentSkill, -1)
+	require.NotEmpty(t, matches)
+	for _, match := range matches {
+		assert.Contains(t, awsdevops.MCPTools(), match[1], "add the tool that SKILL.md names to the MCP allowlist")
+	}
 }
 
 func TestSetupCreatesSkillInNewSpace(t *testing.T) {

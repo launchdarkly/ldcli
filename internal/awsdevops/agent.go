@@ -146,7 +146,7 @@ func planAgent(ctx context.Context, clients Clients, space SpaceStep, mcp MCPSte
 		return step
 	}
 	want, err := spaceAgentTools(ctx, clients, space.ID, mcp.ServiceID, step.ServerName)
-	if mcp.AddTools && mcp.CanAddTools {
+	if mcp.CanAddTools {
 		// The MCP step adds these tools to the allowlist before the agent step.
 		want = union(want, toolIDs(step.ServerName, mcp.MissingTools))
 	}

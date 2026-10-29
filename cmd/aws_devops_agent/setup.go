@@ -56,10 +56,10 @@ which can ask you to sign in. The agent then acts as the LaunchDarkly member
 who approved access, in every agent space. If the agent space already has an
 MCP server, setup keeps it.
 
-A space that reuses a server keeps its tool allowlist. If the allowlist misses
-tools that this ldcli version allows, setup warns. To add them, pass
---add-mcp-tools. AWS does not send back the classification of each tool, so
-the rewrite gives every tool the ldcli classification.
+A space that reuses a server keeps the tools in its allowlist. If the
+allowlist misses tools that this ldcli version allows, setup adds them. AWS
+does not send back the classification of each tool, so the rewrite gives
+every tool the ldcli classification.
 
 The experiment-orchestration skill tells the agent how to run an experiment
 from a goal to a report. Every agent type in the space can load it. If the
@@ -92,8 +92,8 @@ does the other steps.`,
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the AWS account")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
 	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
-	cmd.Flags().Bool(addMCPToolsFlag, false, "Add the ldcli tools that the MCP server allowlist of an existing agent space misses. "+
-		"Every tool gets the ldcli classification")
+	cmd.Flags().Bool(addMCPToolsFlag, false, "Has no effect. Setup adds the missing tools without it")
+	_ = cmd.Flags().MarkDeprecated(addMCPToolsFlag, "setup now adds the missing MCP tools without it")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -653,7 +653,6 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
 		OpenURL:         browser.OpenURL,
 		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
-		AddMCPTools:     mustBool(cmd, addMCPToolsFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""

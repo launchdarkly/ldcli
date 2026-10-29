@@ -67,7 +67,12 @@ var oauthPollInterval = 5 * time.Second
 // it, run an experiment, read its results, and ramp or clean up the flag. The
 // skill keeps its experiment record in the flag description and creates a
 // missing primary metric, so the lists include update-flag-settings and
-// create-metric.
+// create-metric. It checks that the metric's event arrives with
+// list-metric-events, and sets the off variation with update-off-variation
+// when create-flag does not take defaults. The lists also have the tools for
+// the rest of that work that the skill does not name: change an experiment
+// between iterations, check exposures and contexts before a rollout, and
+// record an automated rollout for the change.
 // They also cover incident work: turn a change off for one segment or
 // context, and ask for approval where an environment needs it, then apply
 // the request after a reviewer approves it.
@@ -83,10 +88,14 @@ var (
 		"query-change-history",
 		"list-metrics",
 		"get-metric",
+		"list-metric-events",
 		"list-experiments",
 		"get-experiment",
 		"get-experiment-results",
 		"get-experiment-metric-results",
+		"get-flag-health",
+		"get-flag-unique-context-exposures",
+		"search-contexts",
 		"list-segments",
 		"get-segment",
 		"list-approval-requests",
@@ -97,14 +106,18 @@ var (
 		"toggle-flag",
 		"create-flag",
 		"update-flag-settings",
+		"update-off-variation",
 		"create-metric",
 		"update-rollout",
 		"archive-flag",
 		"create-experiment",
+		"update-experiment",
 		"start-experiment-iteration",
+		"save-and-start-experiment-iteration",
 		"stop-experiment-iteration",
 		"start-guarded-rollout",
 		"stop-guarded-rollout",
+		"create-automated-rollout-config",
 		"update-targeting-rules",
 		"update-individual-targets",
 		"create-approval-request",
@@ -142,10 +155,6 @@ type SetupOptions struct {
 	// experiment-orchestration skill that someone edited. Setup updates a
 	// SKILL.md from an older ldcli version without this option.
 	ReplaceSkill bool
-	// AddMCPTools adds the ldcli tools that the allowlist of an existing MCP
-	// server association misses. AWS does not send back the classification of
-	// each tool, so the rewrite gives every tool the ldcli classification.
-	AddMCPTools bool
 
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
@@ -414,8 +423,6 @@ type MCPStep struct {
 	// them.
 	MissingTools []string
 	CanAddTools  bool
-	// AddTools is set by --add-mcp-tools.
-	AddTools bool
 }
 
 // shared reports whether other spaces use the server.
@@ -569,7 +576,6 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		}
 		if association != nil {
 			plan.MCP.MissingTools, plan.MCP.CanAddTools = missingTools(*association)
-			plan.MCP.AddTools = opts.AddMCPTools
 		}
 	}
 
@@ -836,12 +842,9 @@ func (m MCPStep) describe() string {
 	}
 	switch {
 	case len(m.MissingTools) == 0:
-	case m.CanAddTools && m.AddTools:
+	case m.CanAddTools:
 		line += ", and add " + strings.Join(m.MissingTools, ", ") +
 			" to its allowlist. The rewrite gives each tool the ldcli classification"
-	case m.CanAddTools:
-		line += ". Its allowlist misses " + strings.Join(m.MissingTools, ", ") +
-			". Pass --add-mcp-tools to add them"
 	default:
 		line += ". Its allowlist misses " + strings.Join(m.MissingTools, ", ") +
 			", which setup cannot add because the allowlist has tools that ldcli does not classify"
@@ -1380,10 +1383,8 @@ func missingTools(association agenttypes.Association) (missing []string, canAdd 
 }
 
 // extendAllowlist adds the ldcli tools that an existing association misses,
-// for example after an ldcli upgrade that allows more tools. Setup cannot tell
-// an older ldcli allowlist from one that someone trimmed, so it adds tools only
-// with --add-mcp-tools. A failure does not stop setup, because the server works
-// with the tools that it has.
+// for example after an ldcli upgrade that allows more tools. A failure does not
+// stop setup, because the server works with the tools that it has.
 func extendAllowlist(
 	ctx context.Context,
 	clients Clients,
@@ -1401,11 +1402,6 @@ func extendAllowlist(
 	case !canAdd:
 		result.MCPToolsError = fmt.Sprintf("the MCP server allowlist of the agent space misses %s, and it has tools "+
 			"that ldcli does not classify, so setup did not change it. Add the missing tools in the AWS console", tools)
-
-		return
-	case !opts.AddMCPTools:
-		result.MCPToolsError = fmt.Sprintf("the MCP server allowlist of the agent space misses %s, which the "+
-			"experiment-orchestration skill uses. To add them, run setup again with --add-mcp-tools", tools)
 
 		return
 	case !slices.Equal(missing, step.MissingTools) || canAdd != step.CanAddTools:
