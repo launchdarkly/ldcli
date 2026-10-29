@@ -26,6 +26,11 @@ func (r GitHubRepo) FullName() string {
 	return r.Owner + "/" + r.Name
 }
 
+// GitHubRegisterURL is the console form that registers GitHub for a region.
+func GitHubRegisterURL(region string) string {
+	return ConsoleURL(region) + "#/services/register/github"
+}
+
 // GitHubRegistration finds the account-level GitHub registration for owner.
 // It returns an empty ID when the account has none. AWS registers GitHub only
 // through the console, where the AWS DevOps Agent GitHub App is installed, so
@@ -54,7 +59,7 @@ func GitHubRegistration(ctx context.Context, clients Clients, owner string) (str
 // WaitForGitHubRegistration polls until the GitHub registration for owner
 // appears, while the person installs the GitHub App in the console.
 func WaitForGitHubRegistration(ctx context.Context, clients Clients, owner string, logf func(string, ...any)) (string, error) {
-	logf("Waiting for the GitHub registration for %s to appear in AWS", owner)
+	logf("Waiting for you to finish in the browser")
 	deadline := time.Now().Add(oauthTimeout)
 	for {
 		id, err := GitHubRegistration(ctx, clients, owner)

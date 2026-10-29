@@ -26,7 +26,6 @@ const (
 	kiroSecretName       = "KIRO_API_KEY"
 	defaultBranchMarker  = "__DEFAULT_BRANCH__"
 	kiroAPIKeyPortalURL  = "https://app.kiro.dev"
-	githubConsoleSteps   = "Capabilities > Pipeline > Add > GitHub. Pick Read & Write, and install the app only on "
 	kiroFileDescriptions = "the Kiro agent and the implement and merge workflows"
 )
 
@@ -79,11 +78,19 @@ func setupGitHubAndKiro(cmd *cobra.Command, clients awsdevops.Clients, agentSpac
 		return err
 	}
 	if serviceID == "" {
-		console := awsdevops.ConsoleURL(clients.Region)
-		logf("This AWS account has no GitHub registration for %s.", repo.Owner)
-		logf("In the AWS console, open %s%s.", githubConsoleSteps, repo.FullName())
-		logf("  %s", console)
-		_ = openURL(console)
+		registerURL := awsdevops.GitHubRegisterURL(clients.Region)
+		logf("Connect GitHub to the AWS DevOps Agent. Setup opens this page in your browser:")
+		logf("  %s", registerURL)
+		logf("")
+		if repo.Organization {
+			logf("  1. Choose Organization and enter %s.", repo.Owner)
+			logf("  2. Choose Submit.")
+		} else {
+			logf("  1. Choose Submit.")
+		}
+		logf("  %d. In GitHub, authorize the app. If GitHub asks where to install it, pick %s.", stepAfterSubmit(repo), repo.Name)
+		logf("")
+		_ = openURL(registerURL)
 		serviceID, err = awsdevops.WaitForGitHubRegistration(cmd.Context(), clients, repo.Owner, logf)
 		if err != nil {
 			return err
@@ -137,6 +144,16 @@ func setupGitHubAndKiro(cmd *cobra.Command, clients awsdevops.Clients, agentSpac
 }
 
 var openURL = browser.OpenURL
+
+// stepAfterSubmit numbers the GitHub step, which comes after the Organization
+// step only for an organization.
+func stepAfterSubmit(repo awsdevops.GitHubRepo) int {
+	if repo.Organization {
+		return 3
+	}
+
+	return 2
+}
 
 // lookUpRepo reads the repository ID, owner type and default branch.
 func lookUpRepo(fullName string) (awsdevops.GitHubRepo, string, error) {
