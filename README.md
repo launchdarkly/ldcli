@@ -107,6 +107,19 @@ LaunchDarkly CLI commands:
 - `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 - `dev-server` lets you start a local server and retrieve flag values from a LaunchDarkly source environment so you can test your code locally. For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
 
+### Observability Commands
+
+The `observability` commands (alias `o11y`) query logs, traces, aggregations, and attribute keys from LaunchDarkly observability. They take the LaunchDarkly project key and your access token. You do not need the observability project ID.
+
+```sh-session
+ldcli observability logs search --project default --query 'level=error' --start 15m
+ldcli observability traces search --project default --query 'service_name=api' --sort-column duration
+ldcli observability aggregate --project default --product-type logs --query 'level=error' --group-by service_name --bucket-count 1
+ldcli observability keys --project default --product-type logs --key service_name
+```
+
+These commands print compact text by default, also when stdout is not a terminal. To get the full records as JSON, use `--json`. If `aggregate` shows a sample factor, the values are estimates. For exact counts, use a shorter time range.
+
 ### Resource Commands
 
 Resource commands mirror the LaunchDarkly API and make requests for a given resource. To see a full list of resources supported by the CLI, enter `ldcli --help` into your terminal.

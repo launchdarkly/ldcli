@@ -30,6 +30,7 @@ Common resource commands:
   {{rpad "segments" 29}} List, create, modify, and delete segments
   {{rpad "sourcemaps" 29}} Manage sourcemaps for error monitoring
   {{rpad "symbols" 29}} Manage symbol files for error monitoring
+  {{rpad "observability" 29}} Query logs, traces, and aggregations from observability
   {{rpad "..." 29}} To see more resource commands, run 'ldcli resources'
 
 Flags:

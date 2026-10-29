@@ -24,6 +24,7 @@ import (
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
+	observabilitycmd "github.com/launchdarkly/ldcli/cmd/observability"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	setupcmd "github.com/launchdarkly/ldcli/cmd/setup"
@@ -39,6 +40,7 @@ import (
 	errs "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/flags"
 	"github.com/launchdarkly/ldcli/internal/members"
+	"github.com/launchdarkly/ldcli/internal/observability"
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/launchdarkly/ldcli/internal/setup"
@@ -50,10 +52,13 @@ type APIClients struct {
 	EnvironmentsClient environments.Client
 	FlagsClient        flags.Client
 	MembersClient      members.Client
-	ProjectsClient     projects.Client
-	ResourcesClient    resources.Client
-	Detector           setup.Detector
-	Installer          setup.Installer
+	// ObservabilityClient is optional. If it is nil, the observability commands use
+	// an HTTP client.
+	ObservabilityClient observability.Client
+	ProjectsClient      projects.Client
+	ResourcesClient     resources.Client
+	Detector            setup.Detector
+	Installer           setup.Installer
 }
 
 type Command interface {
@@ -305,6 +310,14 @@ func NewRootCommand(
 	cmd.AddCommand(awsdevopsagentcmd.NewAWSDevOpsAgentCmd(analyticsTrackerFn))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(symbolscmd.NewSymbolsCmd(clients.ResourcesClient, analyticsTrackerFn))
+	observabilityClient := clients.ObservabilityClient
+	if observabilityClient == nil {
+		observabilityClient = observability.NewClient(version)
+	}
+	cmd.AddCommand(observabilitycmd.NewObservabilityCmd(
+		observabilitycmd.Clients{Resources: clients.ResourcesClient, Observability: observabilityClient},
+		analyticsTrackerFn,
+	))
 	cmd.AddCommand(synccmd.NewSyncCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(whoamicmd.NewWhoAmICmd(clients.ResourcesClient))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
