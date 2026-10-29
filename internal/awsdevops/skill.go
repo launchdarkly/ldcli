@@ -2,12 +2,9 @@ package awsdevops
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -19,16 +16,6 @@ import (
 // ExperimentSkillName is the name of the experimentation skill. Setup finds
 // the skill by this name, so it does not come from the downloaded SKILL.md.
 const ExperimentSkillName = "experiment-orchestration"
-
-// shippedSkillHashes holds the SHA-256 of each SKILL.md that a released ldcli
-// embedded. A skill with one of these texts has no customer edits, so setup
-// updates it without --replace-skill. The list is frozen, because setup now
-// downloads SKILL.md from ai-tooling. Never remove a hash.
-var shippedSkillHashes = []string{
-	"57844bc3c5aca292ef88b5f949cd791206074b5cfc850ea52ebdd40020ead695",
-	"c4c4e12aeff900402dc17ff370bc1e78eadcb34abac5b256319c7cd793bd73f3",
-	"cbda81714171e1f725db7a7e10973c38ae0b71550e14636d8d463919349bd9e8",
-}
 
 const (
 	skillAssetType = "skill"
@@ -53,24 +40,17 @@ func frontMatterField(text, key string) string {
 	return ""
 }
 
-func skillHash(text string) string {
-	sum := sha256.Sum256([]byte(text))
-
-	return hex.EncodeToString(sum[:])
-}
-
 // SkillAction is the planned skill action.
 type SkillAction int
 
 const (
 	SkillCreate SkillAction = iota
 	SkillKeep
-	// SkillUpdate replaces a SKILL.md that an older ldcli sent, or one that
-	// is empty.
-	SkillUpdate
-	// SkillLeave means that someone edited the SKILL.md, or that the skill has
-	// none, so setup does not change it without --replace-skill.
+	// SkillLeave means that the SKILL.md of the space is not the latest one on
+	// ai-tooling main, or that the skill has none, so setup skips it without
+	// --replace-skill.
 	SkillLeave
+	// SkillReplace writes the latest SKILL.md over the one in the space.
 	SkillReplace
 	// SkillSkip means that setup could not read the skills of the space. The
 	// skill is optional, so the run continues without it.
@@ -95,27 +75,22 @@ type SkillStep struct {
 
 func (s SkillStep) describe() string {
 	label := fmt.Sprintf("%s (%s)", ExperimentSkillName, s.AssetID)
-	why := "someone edited it"
+	why := "it differs from the latest version on the main branch of " + aiToolingRepo
 	if s.NoFile {
 		why = "it has no " + skillFilePath
 	}
-	var line string
 	switch s.Action {
 	case SkillKeep:
-		line = "Keep skill " + label
-	case SkillUpdate:
-		line = fmt.Sprintf("Update skill %s to the instructions on the main branch of %s", label, aiToolingRepo)
+		return "Keep skill " + label
 	case SkillLeave:
-		return fmt.Sprintf("Leave skill %s unchanged because %s. Pass --replace-skill to overwrite it", label, why)
+		return fmt.Sprintf("Skip skill %s because %s. Pass --replace-skill to update it to the latest version", label, why)
 	case SkillReplace:
-		line = fmt.Sprintf("Overwrite skill %s, which is not the ldcli version because %s", label, why)
+		return fmt.Sprintf("Update skill %s to the latest version on the main branch of %s", label, aiToolingRepo)
 	case SkillSkip:
 		return skillFailure(fmt.Errorf("Skip skill %s: %w", ExperimentSkillName, s.Err))
 	default:
-		line = fmt.Sprintf("Create skill %s for every agent type in the space", ExperimentSkillName)
+		return fmt.Sprintf("Create skill %s for every agent type in the space", ExperimentSkillName)
 	}
-
-	return line
 }
 
 // skillFailure is the text of a failed skill step. A missing permission is
@@ -175,8 +150,6 @@ func planSkillAction(ctx context.Context, clients Clients, opts SetupOptions, sp
 		return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Err: err}
 	case found && text == want:
 		step.Action = SkillKeep
-	case isOurs(shippedSkillHashes, text, found):
-		step.Action = SkillUpdate
 	case opts.ReplaceSkill:
 		step.Action = SkillReplace
 	default:
@@ -184,14 +157,6 @@ func planSkillAction(ctx context.Context, clients Clients, opts SetupOptions, sp
 	}
 
 	return step
-}
-
-// isOurs reports whether text, the file of an asset, came from a released
-// ldcli, so setup can replace it without losing an edit. shipped holds the
-// hashes of the texts that those versions embedded. An empty file has nothing
-// to lose.
-func isOurs(shipped []string, text string, found bool) bool {
-	return found && (text == "" || slices.Contains(shipped, skillHash(text)))
 }
 
 // findSkill returns the skill with this name in the space, or nil if there is
@@ -291,7 +256,6 @@ func checkSkill(ctx context.Context, clients Clients, spaceID string, step Skill
 const (
 	SkillCreated     = "created"
 	SkillKept        = "kept"
-	SkillUpdated     = "updated"
 	SkillLeft        = "left"
 	SkillOverwritten = "overwritten"
 	SkillSkipped     = "skipped"
@@ -335,7 +299,7 @@ func doSkillStep(
 
 		return SkillKept, nil
 	case SkillLeave:
-		logf("Left skill %s (%s) unchanged. Pass --replace-skill to overwrite it", ExperimentSkillName, step.AssetID)
+		logf("Skipped skill %s (%s). Pass --replace-skill to update it to the latest version", ExperimentSkillName, step.AssetID)
 
 		return SkillLeft, nil
 	case SkillSkip:
@@ -383,9 +347,6 @@ func doSkillStep(
 		return "", fmt.Errorf("unable to update skill %s (%s): %w", ExperimentSkillName, step.AssetID, err)
 	}
 	logf("Updated skill %s (%s)", ExperimentSkillName, step.AssetID)
-	if step.Action == SkillReplace {
-		return SkillOverwritten, nil
-	}
 
-	return SkillUpdated, nil
+	return SkillOverwritten, nil
 }

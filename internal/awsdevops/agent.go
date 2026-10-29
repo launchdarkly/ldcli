@@ -15,14 +15,7 @@ import (
 
 const ExperimentAgentName = "experiment-orchestrator"
 
-// shippedAgentHashes are the prompts that released ldcli versions embedded.
-// The list is frozen, because setup now downloads the prompt from ai-tooling.
-// Never remove a hash.
-var shippedAgentHashes = []string{
-	"d3d2124c29e290df9cadd38e9bae2619ac8622cabb180fa0ad4fc59d5358dee5",
-}
-
-const agentResetHint = "To use the ldcli version, delete the agent in the AWS console and run setup again"
+const agentResetHint = "To use the latest version, delete the agent in the AWS console and run setup again"
 
 const (
 	agentAssetType = "custom_agent"
@@ -96,7 +89,7 @@ type AgentStep struct {
 
 func (s AgentStep) describe() string {
 	label := fmt.Sprintf("%s (%s)", ExperimentAgentName, s.AssetID)
-	why := "someone edited its prompt"
+	why := "its prompt differs from the latest version on the main branch of " + aiToolingRepo
 	if s.NoFile {
 		why = "it has no " + agentFilePath
 	}
@@ -104,10 +97,9 @@ func (s AgentStep) describe() string {
 	case AgentKeep:
 		return "Keep custom agent " + label
 	case AgentUpdate:
-		return fmt.Sprintf("Update custom agent %s to the prompt on the main branch of %s and the tools of this ldcli version",
-			label, aiToolingRepo)
+		return fmt.Sprintf("Add the tools of this ldcli version and the skill to custom agent %s", label)
 	case AgentLeave:
-		return fmt.Sprintf("Leave custom agent %s unchanged because %s. %s", label, why, agentResetHint)
+		return fmt.Sprintf("Skip custom agent %s because %s. %s", label, why, agentResetHint)
 	case AgentSkip:
 		return agentFailure(fmt.Errorf("Skip custom agent %s: %w", ExperimentAgentName, s.Err))
 	default:
@@ -172,7 +164,7 @@ func planAgent(
 	case current && skill.AssetID != "" && slices.Contains(step.Skills, skill.AssetID) &&
 		!slices.ContainsFunc(want, func(tool string) bool { return !slices.Contains(step.Tools, tool) }):
 		step.Action = AgentKeep
-	case current || isOurs(shippedAgentHashes, text, found):
+	case current:
 		step.Action = AgentUpdate
 	default:
 		step.Action = AgentLeave

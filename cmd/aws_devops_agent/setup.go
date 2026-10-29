@@ -67,12 +67,10 @@ the download fails, setup skips both steps and warns.
 
 The experiment-orchestration skill tells the agent how to run an experiment
 from a goal to a report. Every agent type in the space can load it. If the
-skill has the text of an older ldcli version or of an earlier version on
-ai-tooling, setup updates it. If someone edited it, setup does not change it.
-To overwrite the edits, pass --replace-skill. Setting up the skill is
-optional: if its step fails, setup warns and does the other steps. If the
-skill names MCP tools that this ldcli version does not allow, setup warns,
-because the agent cannot call them.
+space already has the skill and it differs from the latest version, setup
+skips it. To update it to the latest version, pass --replace-skill. Setting
+up the skill is optional: if its step fails, setup warns and does the other
+steps.
 
 The experiment-orchestrator custom agent runs the skill with the LaunchDarkly
 MCP tools that the space allows. It needs the MCP server and the skill.
@@ -97,7 +95,7 @@ does the other steps.`,
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the AWS account")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
-	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
+	cmd.Flags().Bool(replaceSkillFlag, false, "Update the "+awsdevops.ExperimentSkillName+" skill to the latest version if it differs")
 	cmd.Flags().Bool(addMCPToolsFlag, false, "Has no effect. Setup adds the missing tools without it")
 	_ = cmd.Flags().MarkDeprecated(addMCPToolsFlag, "setup now adds the missing MCP tools without it")
 

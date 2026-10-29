@@ -108,8 +108,8 @@ func TestPlanSetupKeepsSameSkillSentAsBytes(t *testing.T) {
 	assert.Equal(t, awsdevops.SkillKeep, plan.Skill.Action)
 }
 
-// An empty SKILL.md has no edits to lose, so setup updates it without the flag.
-func TestPlanSetupUpdatesEmptySkill(t *testing.T) {
+// An empty SKILL.md is not the latest one, so setup skips it without the flag.
+func TestPlanSetupLeavesEmptySkill(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
 		skillFiles: map[string]string{"ki-ours": ""},
@@ -118,7 +118,7 @@ func TestPlanSetupUpdatesEmptySkill(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
 	require.NoError(t, err)
 
-	assert.Equal(t, awsdevops.SkillUpdate, plan.Skill.Action)
+	assert.Equal(t, awsdevops.SkillLeave, plan.Skill.Action)
 }
 
 // A skill without SKILL.md, for example one made from a PDF, is not ours.
@@ -130,29 +130,8 @@ func TestPlanSetupLeavesSkillWithoutFile(t *testing.T) {
 
 	assert.Equal(t, awsdevops.SkillLeave, plan.Skill.Action)
 	assert.Equal(t,
-		"Leave skill experiment-orchestration (ki-ours) unchanged because it has no SKILL.md. Pass --replace-skill to overwrite it",
+		"Skip skill experiment-orchestration (ki-ours) because it has no SKILL.md. Pass --replace-skill to update it to the latest version",
 		plan.Text().Skill)
-}
-
-// A copy from an older ldcli has no edits, so setup updates it without the flag.
-func TestSetupUpdatesOlderShippedSkill(t *testing.T) {
-	t.Cleanup(awsdevops.ShipSkill("# Instructions of an older ldcli"))
-	agent := &fakeAgent{
-		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-		skillFiles: map[string]string{"ki-ours": "# Instructions of an older ldcli"},
-	}
-	clients := newTestClients(agent, newFakeIAM())
-
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseOptions(), true)
-	require.NoError(t, err)
-	assert.Equal(t, awsdevops.SkillUpdate, plan.Skill.Action)
-	assert.Contains(t, plan.Text().Skill, "Update skill experiment-orchestration (ki-ours)")
-
-	result, err := awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
-	require.NoError(t, err)
-	require.Len(t, agent.updateAssets, 1)
-	assert.Equal(t, "ki-ours", aws.ToString(agent.updateAssets[0].AssetId))
-	assert.Equal(t, awsdevops.SkillUpdated, result.SkillAction)
 }
 
 func TestSetupLeavesEditedSkill(t *testing.T) {

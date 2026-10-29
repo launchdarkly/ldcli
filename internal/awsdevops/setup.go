@@ -151,9 +151,8 @@ type SetupOptions struct {
 	// OpenURL, when set, opens the OAuth approval page in a browser.
 	OpenURL func(url string) error
 
-	// ReplaceSkill overwrites the SKILL.md of an existing
-	// experiment-orchestration skill that someone edited. Setup updates a
-	// SKILL.md from an older ldcli version without this option.
+	// ReplaceSkill writes the latest SKILL.md over an existing
+	// experiment-orchestration skill that differs from it.
 	ReplaceSkill bool
 
 	// Logf, when set, reports progress as each step completes.
