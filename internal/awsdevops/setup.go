@@ -567,7 +567,7 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		}
 	}
 
-	// The run writes these texts, so a later change on main does not reach it.
+	// Download once, so the run writes the same texts that the plan compared.
 	skill, prompt, fetchErr := fetchSources(ctx, clients.Sources)
 	plan.Skill = planSkill(ctx, clients, opts, plan.Space, skill, fetchErr)
 	plan.Agent = planAgent(ctx, clients, plan.Space, plan.MCP, plan.Skill, prompt, fetchErr)
