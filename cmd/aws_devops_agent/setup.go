@@ -65,12 +65,13 @@ The experiment-orchestration skill tells the agent how to run an experiment
 from a goal to a report. Every agent type in the space can load it. If the
 skill has the text of an older ldcli version, setup updates it. If someone
 edited it, setup does not change it. To overwrite the edits, pass
---replace-skill. The skill is optional: if its step fails, setup warns and
-does the other steps.
+--replace-skill. Setting up the skill is optional: if its step fails, setup
+warns and does the other steps.
 
 The experiment-orchestrator custom agent runs the skill with the LaunchDarkly
-MCP tools that the space allows. The agent is optional and needs the MCP
-server and the skill: if its step fails, setup warns and does the other steps.`,
+MCP tools that the space allows. It needs the MCP server and the skill.
+Setting up the custom agent is optional: if its step fails, setup warns and
+does the other steps.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
