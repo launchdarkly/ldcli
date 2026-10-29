@@ -12,13 +12,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@launchpad-ui/components": "0.4.4",
+    "@launchpad-ui/components": "0.25.0",
     "@launchpad-ui/core": "0.49.22",
     "@launchpad-ui/icons": "0.18.13",
     "@launchpad-ui/tokens": "0.11.3",
     "@testing-library/react": "16.3.3",
     "fuzzysort": "3.0.2",
-    "launchdarkly-js-client-sdk": "3.4.0",
+    "launchdarkly-js-client-sdk": "3.9.6",
     "lodash": "4.18.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -42,10 +42,10 @@
     "prettier": "3.9.10",
     "typescript": "5.2.2",
     "typescript-eslint": "8.71.1",
-    "vite": "6.4.3",
+    "vite": "6.4.5",
     "vite-plugin-singlefile": "2.3.3",
     "vite-plugin-svgr": "5.2.0",
-    "vitest": "3.2.7"
+    "vitest": "5.0.5"
   },
   "overrides": {
     "react-router-dom": "6.30.1",
