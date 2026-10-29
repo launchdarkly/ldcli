@@ -184,11 +184,8 @@ type SetupResult struct {
 	SkillAction string `json:"skillAction,omitempty"`
 	// SkillError is set if the skill step failed or was skipped. The skill is
 	// optional, so the rest of the setup ran.
-	SkillError string `json:"skillError,omitempty"`
-	// SkillUnknownTools lists the MCP tools that the skill names and that this
-	// ldcli version does not allow, so the agent cannot call them.
-	SkillUnknownTools []string `json:"skillUnknownTools,omitempty"`
-	AgentAssetID      string   `json:"agentAssetId,omitempty"`
+	SkillError   string `json:"skillError,omitempty"`
+	AgentAssetID string `json:"agentAssetId,omitempty"`
 	// AgentAction is what the custom agent step did, for example "created".
 	AgentAction string `json:"agentAction,omitempty"`
 	// AgentError is set if the custom agent step failed or was skipped.

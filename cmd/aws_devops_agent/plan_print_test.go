@@ -406,18 +406,3 @@ func TestSetupJSONWarnsOnStderrWhenSkillFails(t *testing.T) {
 	assert.Contains(t, stdoutOf(cmd), `"skillAction": "failed"`)
 	assert.Contains(t, errOut.String(), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
 }
-
-// A skill that names tools outside the allowlist goes in, and setup warns.
-func TestSetupWarnsWhenSkillNamesUnknownTools(t *testing.T) {
-	cmd, errOut := setupTestCmd(t, "")
-	cmd.SetIn(noReadStdin{t})
-	clients, _ := countingClients()
-	clients.Sources = stubSources{skill: "---\nname: experiment-orchestration\n---\nCall `delete-everything`.\n"}
-
-	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), false, false))
-
-	assert.Contains(t, stdoutOf(cmd), `"skillUnknownTools": [`)
-	assert.Contains(t, errOut.String(), "The skill names MCP tools that this ldcli version does not allow: delete-everything")
-	assert.Contains(t, errOut.String(), "Warning: skill "+awsdevops.ExperimentSkillName+
-		" names MCP tools that this ldcli version does not allow, so the agent cannot call them: delete-everything")
-}

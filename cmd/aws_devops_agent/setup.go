@@ -31,13 +31,6 @@ const (
 	yesFlag             = "yes"
 )
 
-// unknownToolsWarning says that the skill names tools that the agent cannot
-// call.
-func unknownToolsWarning(tools []string) string {
-	return fmt.Sprintf("skill %s names MCP tools that this ldcli version does not allow, so the agent cannot call them: %s",
-		awsdevops.ExperimentSkillName, strings.Join(tools, ", "))
-}
-
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "setup",
@@ -196,9 +189,6 @@ func setupWith(
 		if result.SkillError != "" {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.SkillError)
 		}
-		if len(result.SkillUnknownTools) > 0 {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", unknownToolsWarning(result.SkillUnknownTools))
-		}
 		if result.AgentError != "" {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.AgentError)
 		}
@@ -211,9 +201,6 @@ func setupWith(
 	}
 	if result.SkillError != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.SkillError)
-	}
-	if len(result.SkillUnknownTools) > 0 {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", unknownToolsWarning(result.SkillUnknownTools))
 	}
 	if result.AgentError != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.AgentError)

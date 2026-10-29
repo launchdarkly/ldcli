@@ -33,10 +33,6 @@ func ShipSkill(text string) func() {
 	return func() { shippedSkillHashes = saved }
 }
 
-// UnknownSkillTools returns the tools that a SKILL.md names and that the
-// allowlist misses, for tests.
-func UnknownSkillTools(text string) []string { return unknownSkillTools(text) }
-
 // SkillSourcePath and AgentSourcePath are the paths of the files in ai-tooling.
 const (
 	SkillSourcePath = skillSourcePath

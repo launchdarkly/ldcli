@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -23,9 +22,8 @@ const ExperimentSkillName = "experiment-orchestration"
 
 // shippedSkillHashes holds the SHA-256 of each SKILL.md that a released ldcli
 // embedded. A skill with one of these texts has no customer edits, so setup
-// updates it without --replace-skill. The list is frozen: setup now downloads
-// SKILL.md from ai-tooling and compares its history there, so nobody adds to
-// it. Never remove a hash.
+// updates it without --replace-skill. The list is frozen, because setup now
+// downloads SKILL.md from ai-tooling. Never remove a hash.
 var shippedSkillHashes = []string{
 	"57844bc3c5aca292ef88b5f949cd791206074b5cfc850ea52ebdd40020ead695",
 	"c4c4e12aeff900402dc17ff370bc1e78eadcb34abac5b256319c7cd793bd73f3",
@@ -53,24 +51,6 @@ func frontMatterField(text, key string) string {
 	}
 
 	return ""
-}
-
-// skillToolPattern matches an MCP tool name in backticks, such as `get-flag`.
-var skillToolPattern = regexp.MustCompile("`((?:list|get|create|update|start|stop|toggle|archive|apply|check|query|match|delete|copy|save|search|find|manage|run|clone|setup|preview|link|invite|restrict|unrestrict)-[a-z-]+)`")
-
-// unknownSkillTools returns the MCP tools that a SKILL.md names and that this
-// ldcli version does not allow. The agent cannot call them.
-func unknownSkillTools(text string) []string {
-	var unknown []string
-	for _, match := range skillToolPattern.FindAllStringSubmatch(text, -1) {
-		tool := match[1]
-		if slices.Contains(mcpReadOnlyTools, tool) || slices.Contains(mcpMutativeTools, tool) || slices.Contains(unknown, tool) {
-			continue
-		}
-		unknown = append(unknown, tool)
-	}
-
-	return unknown
 }
 
 func skillHash(text string) string {
@@ -109,9 +89,6 @@ type SkillStep struct {
 	// Text is the SKILL.md on ai-tooling main at plan time, which the step
 	// writes.
 	Text string
-	// UnknownTools are the MCP tools that Text names and that this ldcli
-	// version does not allow.
-	UnknownTools []string
 	// Err says why the step is skipped.
 	Err error
 }
@@ -137,15 +114,8 @@ func (s SkillStep) describe() string {
 	default:
 		line = fmt.Sprintf("Create skill %s for every agent type in the space", ExperimentSkillName)
 	}
-	if len(s.UnknownTools) > 0 {
-		line += ". " + unknownToolsText(s.UnknownTools)
-	}
 
 	return line
-}
-
-func unknownToolsText(tools []string) string {
-	return "The skill names MCP tools that this ldcli version does not allow: " + strings.Join(tools, ", ")
 }
 
 // skillFailure is the text of a failed skill step. A missing permission is
@@ -167,7 +137,7 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 	}
 	step := planSkillAction(ctx, clients, opts, space, want)
 	if step.Action != SkillSkip && step.Action != SkillLeave {
-		step.Text, step.UnknownTools = want, unknownSkillTools(want)
+		step.Text = want
 	}
 
 	return step
@@ -205,14 +175,7 @@ func planSkillAction(ctx context.Context, clients Clients, opts SetupOptions, sp
 		return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Err: err}
 	case found && text == want:
 		step.Action = SkillKeep
-
-		return step
-	}
-	ours, err := isOurs(ctx, clients, shippedSkillHashes, skillSourcePath, text, found)
-	switch {
-	case err != nil:
-		return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Err: err}
-	case ours:
+	case isOurs(shippedSkillHashes, text, found):
 		step.Action = SkillUpdate
 	case opts.ReplaceSkill:
 		step.Action = SkillReplace
@@ -223,22 +186,12 @@ func planSkillAction(ctx context.Context, clients Clients, opts SetupOptions, sp
 	return step
 }
 
-// isOurs reports whether text, the file of an asset, came from ldcli or
-// ai-tooling, so setup can replace it without losing an edit. shipped holds
-// the hashes of the texts that released ldcli versions embedded. The history
-// of path on ai-tooling main is read only when nothing else matches.
-func isOurs(ctx context.Context, clients Clients, shipped []string, path, text string, found bool) (bool, error) {
-	switch {
-	case !found:
-		return false, nil
-	case text == "":
-		// An empty file has nothing to lose.
-		return true, nil
-	case slices.Contains(shipped, skillHash(text)):
-		return true, nil
-	}
-
-	return pastVersion(ctx, clients.Sources, path, text)
+// isOurs reports whether text, the file of an asset, came from a released
+// ldcli, so setup can replace it without losing an edit. shipped holds the
+// hashes of the texts that those versions embedded. An empty file has nothing
+// to lose.
+func isOurs(shipped []string, text string, found bool) bool {
+	return found && (text == "" || slices.Contains(shipped, skillHash(text)))
 }
 
 // findSkill returns the skill with this name in the space, or nil if there is
@@ -358,10 +311,6 @@ func installSkill(
 	result.SkillAssetID = step.AssetID
 	action, err := doSkillStep(ctx, clients, step, result, logf)
 	result.SkillAction = action
-	if err == nil {
-		// The skill in the space now names these tools.
-		result.SkillUnknownTools = step.UnknownTools
-	}
 	if err != nil {
 		result.SkillAction = SkillFailed
 		// A plan change stops the step before the write, so setup tried

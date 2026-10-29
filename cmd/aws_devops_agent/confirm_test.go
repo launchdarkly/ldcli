@@ -148,8 +148,6 @@ func (s stubSources) File(_ context.Context, _, path string) (string, error) {
 	return "# Experiment orchestrator\n", nil
 }
 
-func (stubSources) Commits(context.Context, string) ([]string, error) { return nil, nil }
-
 // noReadStdin fails the test on any read.
 type noReadStdin struct{ t *testing.T }
 

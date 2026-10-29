@@ -16,8 +16,8 @@ import (
 const ExperimentAgentName = "experiment-orchestrator"
 
 // shippedAgentHashes are the prompts that released ldcli versions embedded.
-// The list is frozen: setup now downloads the prompt from ai-tooling and
-// compares its history there, so nobody adds to it. Never remove a hash.
+// The list is frozen, because setup now downloads the prompt from ai-tooling.
+// Never remove a hash.
 var shippedAgentHashes = []string{
 	"d3d2124c29e290df9cadd38e9bae2619ac8622cabb180fa0ad4fc59d5358dee5",
 }
@@ -169,23 +169,10 @@ func planAgent(
 	switch {
 	case err != nil:
 		step.Action, step.Err = AgentSkip, err
-
-		return step
 	case current && skill.AssetID != "" && slices.Contains(step.Skills, skill.AssetID) &&
 		!slices.ContainsFunc(want, func(tool string) bool { return !slices.Contains(step.Tools, tool) }):
 		step.Action = AgentKeep
-
-		return step
-	case current:
-		step.Action = AgentUpdate
-
-		return step
-	}
-	ours, err := isOurs(ctx, clients, shippedAgentHashes, agentSourcePath, text, found)
-	switch {
-	case err != nil:
-		step.Action, step.Err = AgentSkip, err
-	case ours:
+	case current || isOurs(shippedAgentHashes, text, found):
 		step.Action = AgentUpdate
 	default:
 		step.Action = AgentLeave
