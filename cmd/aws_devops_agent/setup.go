@@ -57,15 +57,24 @@ who approved access, in every agent space. If the agent space already has an
 MCP server, setup keeps it.
 
 A space that reuses a server keeps its tool allowlist. If the allowlist misses
-tools that this ldcli version allows, setup warns. To add them, pass
---add-mcp-tools. AWS does not send back the classification of each tool, so
-the rewrite gives every tool the ldcli classification.
+tools that this ldcli version allows, setup adds them. AWS does not send back
+the classification of each tool, so the rewrite gives every tool the ldcli
+classification.
+
+Setup downloads the skill and the custom agent prompt from the main branch of
+launchdarkly/ai-tooling on GitHub, so those steps need access to GitHub. If
+the download fails, setup skips both steps and warns.
 
 The experiment-orchestration skill tells the agent how to run an experiment
 from a goal to a report. Every agent type in the space can load it. If the
-skill has the text of an older ldcli version, setup updates it. If someone
-edited it, setup does not change it. To overwrite the edits, pass
---replace-skill. The skill is optional: if its step fails, setup warns and
+space already has the skill and it differs from the latest version, setup
+skips it. To update it to the latest version, pass --replace-skill. Setting
+up the skill is optional: if its step fails, setup warns and does the other
+steps.
+
+The experiment-orchestrator custom agent runs the skill with the LaunchDarkly
+MCP tools that the space allows. It needs the MCP server and the skill.
+Setting up the custom agent is optional: if its step fails, setup warns and
 does the other steps.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
@@ -86,9 +95,9 @@ does the other steps.`,
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the AWS account")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
-	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if someone edited it")
-	cmd.Flags().Bool(addMCPToolsFlag, false, "Add the ldcli tools that the MCP server allowlist of an existing agent space misses. "+
-		"Every tool gets the ldcli classification")
+	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if it differs from the latest version")
+	cmd.Flags().Bool(addMCPToolsFlag, false, "Has no effect. Setup adds the missing tools without it")
+	_ = cmd.Flags().MarkDeprecated(addMCPToolsFlag, "setup now adds the missing MCP tools without it")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -178,6 +187,9 @@ func setupWith(
 		if result.SkillError != "" {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.SkillError)
 		}
+		if result.AgentError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.AgentError)
+		}
 
 		return printJSON(cmd, result)
 	}
@@ -187,6 +199,9 @@ func setupWith(
 	}
 	if result.SkillError != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.SkillError)
+	}
+	if result.AgentError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.AgentError)
 	}
 
 	// Only a connect run leaves the app off, on a space that setup did not
@@ -513,7 +528,8 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	_, _ = fmt.Fprintf(out, "  Association:   %s\n", text.Association)
 	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", text.OperatorApp)
 	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n", text.MCPServer)
-	_, _ = fmt.Fprintf(out, "  Skill:         %s\n\n", text.Skill)
+	_, _ = fmt.Fprintf(out, "  Skill:         %s\n", text.Skill)
+	_, _ = fmt.Fprintf(out, "  Custom agent:  %s\n\n", text.Agent)
 	if !ask {
 		return nil
 	}
@@ -641,7 +657,6 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
 		OpenURL:         browser.OpenURL,
 		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
-		AddMCPTools:     mustBool(cmd, addMCPToolsFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""

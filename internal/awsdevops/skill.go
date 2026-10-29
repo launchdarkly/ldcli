@@ -2,13 +2,9 @@ package awsdevops
 
 import (
 	"context"
-	"crypto/sha256"
-	_ "embed"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,25 +13,7 @@ import (
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 )
 
-// ExperimentSkill is the SKILL.md of the experimentation skill. Its front
-// matter gives the name and the description that setup sends as metadata.
-//
-//go:embed skills/experiment-orchestration/SKILL.md
-var ExperimentSkill string
-
-var (
-	ExperimentSkillName        = frontMatterField(ExperimentSkill, "name")
-	experimentSkillDescription = frontMatterField(ExperimentSkill, "description")
-)
-
-// shippedSkillHashes holds the SHA-256 of each SKILL.md that an ldcli release
-// sent. A skill with one of these texts has no customer edits, so setup
-// updates it without --replace-skill. When you change SKILL.md, add the hash
-// of the new text. Never remove a hash.
-var shippedSkillHashes = []string{
-	"57844bc3c5aca292ef88b5f949cd791206074b5cfc850ea52ebdd40020ead695",
-	"c4c4e12aeff900402dc17ff370bc1e78eadcb34abac5b256319c7cd793bd73f3",
-}
+const ExperimentSkillName = "experiment-orchestration"
 
 const (
 	skillAssetType = "skill"
@@ -60,27 +38,19 @@ func frontMatterField(text, key string) string {
 	return ""
 }
 
-func skillHash(text string) string {
-	sum := sha256.Sum256([]byte(text))
-
-	return hex.EncodeToString(sum[:])
-}
-
 // SkillAction is the planned skill action.
 type SkillAction int
 
 const (
 	SkillCreate SkillAction = iota
 	SkillKeep
-	// SkillUpdate replaces a SKILL.md that an older ldcli sent, or one that
-	// is empty.
-	SkillUpdate
-	// SkillLeave means that someone edited the SKILL.md, or that the skill has
-	// none, so setup does not change it without --replace-skill.
+	// SkillLeave means that the SKILL.md differs from the latest one, or that
+	// the skill has none, so setup does not change it without --replace-skill.
 	SkillLeave
 	SkillReplace
-	// SkillSkip means that setup could not read the skills of the space. The
-	// skill is optional, so the run continues without it.
+	// SkillSkip means that setup could not download the skill or read the
+	// skills of the space. The skill is optional, so the run continues without
+	// it.
 	SkillSkip
 )
 
@@ -93,25 +63,25 @@ type SkillStep struct {
 	// NoFile means that the skill has no SKILL.md, for example a skill that
 	// someone made from a PDF.
 	NoFile bool
+	// Text is the SKILL.md downloaded at plan time.
+	Text string
 	// Err says why the step is skipped.
 	Err error
 }
 
 func (s SkillStep) describe() string {
 	label := fmt.Sprintf("%s (%s)", ExperimentSkillName, s.AssetID)
-	why := "someone edited it"
+	why := "it differs from the latest version on the main branch of " + aiToolingRepo
 	if s.NoFile {
 		why = "it has no " + skillFilePath
 	}
 	switch s.Action {
 	case SkillKeep:
 		return "Keep skill " + label
-	case SkillUpdate:
-		return fmt.Sprintf("Update skill %s to the instructions of this ldcli version", label)
 	case SkillLeave:
-		return fmt.Sprintf("Leave skill %s unchanged because %s. Pass --replace-skill to overwrite it", label, why)
+		return fmt.Sprintf("Skip skill %s because %s. Pass --replace-skill to update it to the latest version", label, why)
 	case SkillReplace:
-		return fmt.Sprintf("Overwrite skill %s, which is not the ldcli version because %s", label, why)
+		return fmt.Sprintf("Update skill %s to the latest version on the main branch of %s", label, aiToolingRepo)
 	case SkillSkip:
 		return skillFailure(fmt.Errorf("Skip skill %s: %w", ExperimentSkillName, s.Err))
 	default:
@@ -130,18 +100,21 @@ func skillFailure(err error) string {
 		"aidevops:CreateAsset, and aidevops:UpdateAsset", err)
 }
 
-func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep) SkillStep {
-	if space.Action == SpaceCreate {
-		return SkillStep{Action: SkillCreate}
+func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep, want string, fetchErr error) SkillStep {
+	switch {
+	case fetchErr != nil:
+		return SkillStep{Action: SkillSkip, Err: fetchErr}
+	case space.Action == SpaceCreate:
+		return SkillStep{Action: SkillCreate, Text: want}
 	}
 	asset, err := findSkill(ctx, clients, space.ID, ExperimentSkillName)
 	if err != nil {
 		return SkillStep{Action: SkillSkip, Err: err}
 	}
 	if asset == nil {
-		return SkillStep{Action: SkillCreate}
+		return SkillStep{Action: SkillCreate, Text: want}
 	}
-	step := SkillStep{AssetID: aws.ToString(asset.AssetId), Version: aws.ToInt32(asset.Version)}
+	step := SkillStep{AssetID: aws.ToString(asset.AssetId), Version: aws.ToInt32(asset.Version), Text: want}
 	text, found, err := skillText(ctx, clients, space.ID, step.AssetID)
 	if err == nil && !found {
 		// AWS also sends ResourceNotFoundException for an asset that someone
@@ -151,7 +124,7 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 		case err != nil:
 			return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Err: err}
 		case asset == nil:
-			return SkillStep{Action: SkillCreate}
+			return SkillStep{Action: SkillCreate, Text: want}
 		case aws.ToString(asset.AssetId) != step.AssetID:
 			return SkillStep{Action: SkillSkip, Err: planChanged("skill %s changed during the plan", ExperimentSkillName)}
 		}
@@ -160,11 +133,8 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 	switch {
 	case err != nil:
 		return SkillStep{Action: SkillSkip, AssetID: step.AssetID, Err: err}
-	case text == ExperimentSkill:
+	case found && text == want:
 		step.Action = SkillKeep
-	case found && (text == "" || slices.Contains(shippedSkillHashes, skillHash(text))):
-		// An empty file has nothing to lose.
-		step.Action = SkillUpdate
 	case opts.ReplaceSkill:
 		step.Action = SkillReplace
 	default:
@@ -177,7 +147,11 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 // findSkill returns the skill with this name in the space, or nil if there is
 // none. AWS keeps skill names unique in a space.
 func findSkill(ctx context.Context, clients Clients, spaceID, name string) (*agenttypes.Asset, error) {
-	assets, err := listAssets(ctx, clients, spaceID, skillAssetType)
+	return findAsset(ctx, clients, spaceID, skillAssetType, name)
+}
+
+func findAsset(ctx context.Context, clients Clients, spaceID, assetType, name string) (*agenttypes.Asset, error) {
+	assets, err := listAssets(ctx, clients, spaceID, assetType)
 	if err != nil {
 		return nil, err
 	}
@@ -214,10 +188,14 @@ func assetName(asset agenttypes.Asset) string {
 // skillText returns the SKILL.md of the skill. found is false if the skill
 // has no SKILL.md.
 func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (text string, found bool, err error) {
+	return assetText(ctx, clients, spaceID, assetID, skillFilePath)
+}
+
+func assetText(ctx context.Context, clients Clients, spaceID, assetID, path string) (text string, found bool, err error) {
 	file, err := clients.Agent.GetAssetFile(ctx, &devopsagent.GetAssetFileInput{
 		AgentSpaceId: aws.String(spaceID),
 		AssetId:      aws.String(assetID),
-		Path:         aws.String(skillFilePath),
+		Path:         aws.String(path),
 	})
 	var missing *agenttypes.ResourceNotFoundException
 	switch {
@@ -225,7 +203,7 @@ func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (t
 		return "", false, nil
 	case err != nil:
 		// The caller names the skill.
-		return "", false, fmt.Errorf("unable to read %s of asset %s: %w", skillFilePath, assetID, err)
+		return "", false, fmt.Errorf("unable to read %s of asset %s: %w", path, assetID, err)
 	case file.File == nil:
 		return "", false, nil
 	}
@@ -263,7 +241,6 @@ func checkSkill(ctx context.Context, clients Clients, spaceID string, step Skill
 const (
 	SkillCreated     = "created"
 	SkillKept        = "kept"
-	SkillUpdated     = "updated"
 	SkillLeft        = "left"
 	SkillOverwritten = "overwritten"
 	SkillSkipped     = "skipped"
@@ -307,7 +284,7 @@ func doSkillStep(
 
 		return SkillKept, nil
 	case SkillLeave:
-		logf("Left skill %s (%s) unchanged. Pass --replace-skill to overwrite it", ExperimentSkillName, step.AssetID)
+		logf("Skipped skill %s (%s). Pass --replace-skill to update it to the latest version", ExperimentSkillName, step.AssetID)
 
 		return SkillLeft, nil
 	case SkillSkip:
@@ -321,8 +298,9 @@ func doSkillStep(
 	}
 	content := &agenttypes.AssetContentMemberFile{Value: agenttypes.AssetFileContent{
 		Path: aws.String(skillFilePath),
-		Body: &agenttypes.AssetFileBodyMemberText{Value: ExperimentSkill},
+		Body: &agenttypes.AssetFileBodyMemberText{Value: step.Text},
 	}}
+	description := frontMatterField(step.Text, "description")
 	if step.Action == SkillCreate {
 		created, err := clients.Agent.CreateAsset(ctx, &devopsagent.CreateAssetInput{
 			AgentSpaceId: aws.String(result.AgentSpaceID),
@@ -330,7 +308,7 @@ func doSkillStep(
 			Content:      content,
 			Metadata: document.NewLazyDocument(map[string]any{
 				"name":        ExperimentSkillName,
-				"description": experimentSkillDescription,
+				"description": description,
 				"agent_types": []string{"GENERIC"},
 			}),
 		})
@@ -349,14 +327,11 @@ func doSkillStep(
 		AgentSpaceId: aws.String(result.AgentSpaceID),
 		AssetId:      aws.String(step.AssetID),
 		Content:      content,
-		Metadata:     document.NewLazyDocument(map[string]any{"description": experimentSkillDescription}),
+		Metadata:     document.NewLazyDocument(map[string]any{"description": description}),
 	}); err != nil {
 		return "", fmt.Errorf("unable to update skill %s (%s): %w", ExperimentSkillName, step.AssetID, err)
 	}
 	logf("Updated skill %s (%s)", ExperimentSkillName, step.AssetID)
-	if step.Action == SkillReplace {
-		return SkillOverwritten, nil
-	}
 
-	return SkillUpdated, nil
+	return SkillOverwritten, nil
 }

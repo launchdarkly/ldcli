@@ -85,10 +85,11 @@ type STSAPI interface {
 // Clients bundles the AWS clients and the resolved session details the
 // provisioning steps run against.
 type Clients struct {
-	Agent  AgentAPI
-	IAM    IAMAPI
-	STS    STSAPI
-	Region string
+	Agent   AgentAPI
+	IAM     IAMAPI
+	STS     STSAPI
+	Sources Sources
+	Region  string
 }
 
 // NewClients builds AWS clients from the ambient credential chain: environment
@@ -130,10 +131,11 @@ func NewClients(ctx context.Context, region, profile string) (Clients, error) {
 	}
 
 	return Clients{
-		Agent:  devopsagent.NewFromConfig(cfg),
-		IAM:    iam.NewFromConfig(cfg),
-		STS:    sts.NewFromConfig(cfg),
-		Region: cfg.Region,
+		Agent:   devopsagent.NewFromConfig(cfg),
+		IAM:     iam.NewFromConfig(cfg),
+		STS:     sts.NewFromConfig(cfg),
+		Sources: NewGitHubSources(),
+		Region:  cfg.Region,
 	}, nil
 }
 

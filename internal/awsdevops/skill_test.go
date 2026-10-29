@@ -29,18 +29,6 @@ func metadataOf(t *testing.T, doc document.Interface) map[string]any {
 	return metadata
 }
 
-func TestExperimentSkillFrontMatter(t *testing.T) {
-	assert.Equal(t, "experiment-orchestration", awsdevops.ExperimentSkillName)
-	assert.Contains(t, awsdevops.ExperimentSkill, "# Automated Experimentation")
-}
-
-// A change to SKILL.md must add its hash, so the next release updates the
-// copies that this release sends.
-func TestShippedSkillHashesHoldTheCurrentSkill(t *testing.T) {
-	assert.Contains(t, awsdevops.ShippedSkillHashes(), awsdevops.SkillHash(awsdevops.ExperimentSkill),
-		"add the hash of the new SKILL.md to shippedSkillHashes")
-}
-
 func TestSetupCreatesSkillInNewSpace(t *testing.T) {
 	agent := &fakeAgent{}
 
@@ -56,13 +44,13 @@ func TestSetupCreatesSkillInNewSpace(t *testing.T) {
 	assert.Equal(t, "skill", aws.ToString(in.AssetType))
 	metadata := metadataOf(t, in.Metadata)
 	assert.Equal(t, awsdevops.ExperimentSkillName, metadata["name"])
-	assert.Contains(t, metadata["description"], "Orchestrates automated experimentation lifecycle")
+	assert.Equal(t, testDescription, metadata["description"])
 	assert.Equal(t, []any{"GENERIC"}, metadata["agent_types"])
 	assert.NotContains(t, metadata, "status")
 	file, ok := in.Content.(*agenttypes.AssetContentMemberFile)
 	require.True(t, ok)
 	assert.Equal(t, "SKILL.md", aws.ToString(file.Value.Path))
-	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: awsdevops.ExperimentSkill}, file.Value.Body)
+	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: testSkill}, file.Value.Body)
 	assert.Equal(t, "ki-created", result.SkillAssetID)
 }
 
@@ -71,13 +59,13 @@ func TestPlanSetupFindsSkillOnLaterPage(t *testing.T) {
 	agent := &fakeAgent{
 		paginate:   true,
 		assets:     []agenttypes.Asset{skillAsset("ki-sample", "sample-skip-scheduled-maintenance"), skillAsset("ki-ours", "experiment-orchestration")},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
+		skillFiles: map[string]string{"ki-ours": testSkill},
 	}
 
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
 	require.NoError(t, err)
 
-	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillKeep, AssetID: "ki-ours"}, plan.Skill)
+	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillKeep, AssetID: "ki-ours", Text: testSkill}, plan.Skill)
 	assert.Equal(t, "Keep skill experiment-orchestration (ki-ours)", plan.Text().Skill)
 }
 
@@ -94,7 +82,7 @@ func TestPlanSetupCreatesMissingSkill(t *testing.T) {
 func TestSetupKeepsSameSkill(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
+		skillFiles: map[string]string{"ki-ours": testSkill},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
@@ -111,7 +99,7 @@ func TestSetupKeepsSameSkill(t *testing.T) {
 func TestPlanSetupKeepsSameSkillSentAsBytes(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-		skillBytes: map[string][]byte{"ki-ours": []byte(awsdevops.ExperimentSkill)},
+		skillBytes: map[string][]byte{"ki-ours": []byte(testSkill)},
 	}
 
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
@@ -120,8 +108,8 @@ func TestPlanSetupKeepsSameSkillSentAsBytes(t *testing.T) {
 	assert.Equal(t, awsdevops.SkillKeep, plan.Skill.Action)
 }
 
-// An empty SKILL.md has no edits to lose, so setup updates it without the flag.
-func TestPlanSetupUpdatesEmptySkill(t *testing.T) {
+// An empty SKILL.md is not the latest one, so setup skips it without the flag.
+func TestPlanSetupLeavesEmptySkill(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
 		skillFiles: map[string]string{"ki-ours": ""},
@@ -130,7 +118,7 @@ func TestPlanSetupUpdatesEmptySkill(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
 	require.NoError(t, err)
 
-	assert.Equal(t, awsdevops.SkillUpdate, plan.Skill.Action)
+	assert.Equal(t, awsdevops.SkillLeave, plan.Skill.Action)
 }
 
 // A skill without SKILL.md, for example one made from a PDF, is not ours.
@@ -142,29 +130,8 @@ func TestPlanSetupLeavesSkillWithoutFile(t *testing.T) {
 
 	assert.Equal(t, awsdevops.SkillLeave, plan.Skill.Action)
 	assert.Equal(t,
-		"Leave skill experiment-orchestration (ki-ours) unchanged because it has no SKILL.md. Pass --replace-skill to overwrite it",
+		"Skip skill experiment-orchestration (ki-ours) because it has no SKILL.md. Pass --replace-skill to update it to the latest version",
 		plan.Text().Skill)
-}
-
-// A copy from an older ldcli has no edits, so setup updates it without the flag.
-func TestSetupUpdatesOlderShippedSkill(t *testing.T) {
-	t.Cleanup(awsdevops.ShipSkill("# Instructions of an older ldcli"))
-	agent := &fakeAgent{
-		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-		skillFiles: map[string]string{"ki-ours": "# Instructions of an older ldcli"},
-	}
-	clients := newTestClients(agent, newFakeIAM())
-
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, reuseOptions(), true)
-	require.NoError(t, err)
-	assert.Equal(t, awsdevops.SkillUpdate, plan.Skill.Action)
-	assert.Contains(t, plan.Text().Skill, "Update skill experiment-orchestration (ki-ours)")
-
-	result, err := awsdevops.RunPlan(context.Background(), clients, reuseOptions(), plan)
-	require.NoError(t, err)
-	require.Len(t, agent.updateAssets, 1)
-	assert.Equal(t, "ki-ours", aws.ToString(agent.updateAssets[0].AssetId))
-	assert.Equal(t, awsdevops.SkillUpdated, result.SkillAction)
 }
 
 func TestSetupLeavesEditedSkill(t *testing.T) {
@@ -209,14 +176,14 @@ func TestSetupOverwritesEditedSkillWithFlag(t *testing.T) {
 	assert.Equal(t, []string{"description"}, keysOf(metadataOf(t, in.Metadata)))
 	file, ok := in.Content.(*agenttypes.AssetContentMemberFile)
 	require.True(t, ok)
-	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: awsdevops.ExperimentSkill}, file.Value.Body)
+	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: testSkill}, file.Value.Body)
 }
 
 // The flag does nothing to a skill that is already the same.
 func TestPlanSetupKeepsSameSkillWithFlag(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
+		skillFiles: map[string]string{"ki-ours": testSkill},
 	}
 	opts := reuseOptions()
 	opts.ReplaceSkill = true
@@ -354,7 +321,7 @@ func TestPlanSetupCreatesSkillDeletedDuringPlan(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
 	require.NoError(t, err)
 
-	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillCreate}, plan.Skill)
+	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillCreate, Text: testSkill}, plan.Skill)
 }
 
 func TestSetupWarnsOnSkillCreateFailure(t *testing.T) {
