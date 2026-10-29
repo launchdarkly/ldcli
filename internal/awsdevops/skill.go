@@ -20,6 +20,7 @@ const (
 	skillFilePath  = "SKILL.md"
 )
 
+// frontMatterField reads one key from the front matter of a SKILL.md.
 func frontMatterField(text, key string) string {
 	lines := strings.Split(text, "\n")
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
@@ -37,28 +38,35 @@ func frontMatterField(text, key string) string {
 	return ""
 }
 
+// SkillAction is the planned skill action.
 type SkillAction int
 
 const (
 	SkillCreate SkillAction = iota
 	SkillKeep
-	// SkillLeave: the space has a SKILL.md that differs from main, or none.
+	// SkillLeave means that the SKILL.md differs from the latest one, or that
+	// the skill has none, so setup does not change it without --replace-skill.
 	SkillLeave
 	SkillReplace
-	// SkillSkip: setup could not download or read the skill.
+	// SkillSkip means that setup could not download the skill or read the
+	// skills of the space. The skill is optional, so the run continues without
+	// it.
 	SkillSkip
 )
 
+// SkillStep is the planned experimentation skill step.
 type SkillStep struct {
 	Action  SkillAction
 	AssetID string
 	// Version is the asset version at plan time. A write stops if it changed.
 	Version int32
-	// NoFile: the skill has no SKILL.md, for example one made from a PDF.
+	// NoFile means that the skill has no SKILL.md, for example a skill that
+	// someone made from a PDF.
 	NoFile bool
 	// Text is the SKILL.md downloaded at plan time.
 	Text string
-	Err  error
+	// Err says why the step is skipped.
+	Err error
 }
 
 func (s SkillStep) describe() string {
@@ -81,7 +89,8 @@ func (s SkillStep) describe() string {
 	}
 }
 
-// skillFailure names the permissions the step needs, the most likely cause.
+// skillFailure is the text of a failed skill step. A missing permission is
+// the most likely cause, so it names the permissions that the step needs.
 func skillFailure(err error) string {
 	if errorCode(err) != "AccessDeniedException" {
 		return err.Error()
@@ -106,7 +115,7 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 		return SkillStep{Action: SkillCreate, Text: want}
 	}
 	step := SkillStep{AssetID: aws.ToString(asset.AssetId), Version: aws.ToInt32(asset.Version), Text: want}
-	text, found, err := assetText(ctx, clients, space.ID, step.AssetID, skillFilePath)
+	text, found, err := skillText(ctx, clients, space.ID, step.AssetID)
 	if err == nil && !found {
 		// AWS also sends ResourceNotFoundException for an asset that someone
 		// deleted after the list. A deleted skill gets a new one.
@@ -135,7 +144,8 @@ func planSkill(ctx context.Context, clients Clients, opts SetupOptions, space Sp
 	return step
 }
 
-// findSkill returns nil if the space has no skill with this name.
+// findSkill returns the skill with this name in the space, or nil if there is
+// none. AWS keeps skill names unique in a space.
 func findSkill(ctx context.Context, clients Clients, spaceID, name string) (*agenttypes.Asset, error) {
 	return findAsset(ctx, clients, spaceID, skillAssetType, name)
 }
@@ -175,6 +185,12 @@ func assetName(asset agenttypes.Asset) string {
 	return metadata.Name
 }
 
+// skillText returns the SKILL.md of the skill. found is false if the skill
+// has no SKILL.md.
+func skillText(ctx context.Context, clients Clients, spaceID, assetID string) (text string, found bool, err error) {
+	return assetText(ctx, clients, spaceID, assetID, skillFilePath)
+}
+
 func assetText(ctx context.Context, clients Clients, spaceID, assetID, path string) (text string, found bool, err error) {
 	file, err := clients.Agent.GetAssetFile(ctx, &devopsagent.GetAssetFileInput{
 		AgentSpaceId: aws.String(spaceID),
@@ -186,6 +202,7 @@ func assetText(ctx context.Context, clients Clients, spaceID, assetID, path stri
 	case errors.As(err, &missing):
 		return "", false, nil
 	case err != nil:
+		// The caller names the skill.
 		return "", false, fmt.Errorf("unable to read %s of asset %s: %w", path, assetID, err)
 	case file.File == nil:
 		return "", false, nil
@@ -200,7 +217,8 @@ func assetText(ctx context.Context, clients Clients, spaceID, assetID, path stri
 	return "", false, nil
 }
 
-// checkSkill stops a write if the skill changed after the plan.
+// checkSkill compares the space with a step that writes. A change to the
+// version means that someone edited the skill after the plan.
 func checkSkill(ctx context.Context, clients Clients, spaceID string, step SkillStep) error {
 	asset, err := findSkill(ctx, clients, spaceID, ExperimentSkillName)
 	switch {
@@ -229,8 +247,9 @@ const (
 	SkillFailed      = "failed"
 )
 
-// installSkill reports a failure in result.SkillError instead of stopping
-// setup, because the skill is optional.
+// installSkill does the skill step. The skill is optional, so a failure does
+// not stop setup. The failure goes in result.SkillError, and the caller
+// reports it.
 func installSkill(
 	ctx context.Context,
 	clients Clients,
@@ -243,6 +262,8 @@ func installSkill(
 	result.SkillAction = action
 	if err != nil {
 		result.SkillAction = SkillFailed
+		// A plan change stops the step before the write, so setup tried
+		// nothing.
 		if step.Action == SkillSkip || errors.Is(err, ErrPlanChanged) {
 			result.SkillAction = SkillSkipped
 		}
@@ -270,6 +291,8 @@ func doSkillStep(
 		return "", fmt.Errorf("setup skipped skill %s: %w", ExperimentSkillName, step.Err)
 	}
 
+	// The other steps can take minutes, so check the skill right before the
+	// write.
 	if err := checkSkill(ctx, clients, result.AgentSpaceID, step); err != nil {
 		return "", err
 	}

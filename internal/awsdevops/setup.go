@@ -61,10 +61,14 @@ const (
 // registers after a person approves access. Tests make it shorter.
 var oauthPollInterval = 5 * time.Second
 
-// The agent calls read-only tools without approval, so every tool that
-// changes LaunchDarkly state must be in mcpMutativeTools. The lists cover the
-// experiment flow (flags, metrics, experiments, rollouts, approvals) and
-// incident work (targeting changes for a segment or context).
+// The agent invokes read-only tools without asking for approval, so anything
+// that changes LaunchDarkly state has to be classified explicitly. The lists
+// cover the steps of the experiment-orchestration skill: find a flag, create
+// it, run an experiment, read its results, and ramp or clean up the flag. The
+// skill creates a missing primary metric, so the lists include create-metric.
+// They also cover incident work: turn a change off for one segment or
+// context, and ask for approval where an environment needs it, then apply
+// the request after a reviewer approves it.
 var (
 	mcpReadOnlyTools = []string{
 		"list-projects",
@@ -140,8 +144,8 @@ type SetupOptions struct {
 	// OpenURL, when set, opens the OAuth approval page in a browser.
 	OpenURL func(url string) error
 
-	// ReplaceSkill writes the latest SKILL.md over an existing
-	// experiment-orchestration skill that differs from it.
+	// ReplaceSkill overwrites the SKILL.md of an existing
+	// experiment-orchestration skill that differs from the latest one.
 	ReplaceSkill bool
 
 	// Logf, when set, reports progress as each step completes.
@@ -1018,7 +1022,8 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
-	// The optional skill and agent steps go last.
+	// The skill and the agent go last, so a failure of the optional steps
+	// cannot stop the MCP server step.
 	installSkill(ctx, clients, plan.Skill, &result, logf)
 	installAgent(ctx, clients, plan.Agent, &result, logf)
 

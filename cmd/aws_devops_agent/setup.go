@@ -56,10 +56,10 @@ which can ask you to sign in. The agent then acts as the LaunchDarkly member
 who approved access, in every agent space. If the agent space already has an
 MCP server, setup keeps it.
 
-A space that reuses a server keeps the tools in its allowlist. If the
-allowlist misses tools that this ldcli version allows, setup adds them. AWS
-does not send back the classification of each tool, so the rewrite gives
-every tool the ldcli classification.
+A space that reuses a server keeps its tool allowlist. If the allowlist misses
+tools that this ldcli version allows, setup adds them. AWS does not send back
+the classification of each tool, so the rewrite gives every tool the ldcli
+classification.
 
 Setup downloads the skill and the custom agent prompt from the main branch of
 launchdarkly/ai-tooling on GitHub, so those steps need access to GitHub. If
@@ -95,7 +95,7 @@ does the other steps.`,
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the AWS account")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
-	cmd.Flags().Bool(replaceSkillFlag, false, "Update the "+awsdevops.ExperimentSkillName+" skill to the latest version if it differs")
+	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if it differs from the latest version")
 	cmd.Flags().Bool(addMCPToolsFlag, false, "Has no effect. Setup adds the missing tools without it")
 	_ = cmd.Flags().MarkDeprecated(addMCPToolsFlag, "setup now adds the missing MCP tools without it")
 
