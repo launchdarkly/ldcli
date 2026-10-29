@@ -3,7 +3,6 @@ package awsdevops_test
 import (
 	"context"
 	"encoding/json"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -30,31 +29,6 @@ func metadataOf(t *testing.T, doc document.Interface) map[string]any {
 	return metadata
 }
 
-func TestExperimentSkillFrontMatter(t *testing.T) {
-	assert.Equal(t, "experiment-orchestration", awsdevops.ExperimentSkillName)
-	assert.Contains(t, awsdevops.ExperimentSkill, "# Automated Experimentation")
-}
-
-// A change to SKILL.md must add its hash, so the next release updates the
-// copies that this release sends.
-func TestShippedSkillHashesHoldTheCurrentSkill(t *testing.T) {
-	assert.Contains(t, awsdevops.ShippedSkillHashes(), awsdevops.SkillHash(awsdevops.ExperimentSkill),
-		"add the hash of the new SKILL.md to shippedSkillHashes")
-}
-
-// skillToolPattern matches an MCP tool name in backticks, such as `get-flag`.
-var skillToolPattern = regexp.MustCompile("`((?:list|get|create|update|start|stop|toggle|archive|apply|check|query|match|delete|copy|save|search|find|manage|run|clone|setup|preview|link|invite|restrict|unrestrict)-[a-z-]+)`")
-
-// The agent can call only the allowlisted tools, so every tool that SKILL.md
-// names must be in the allowlist.
-func TestMCPAllowlistHoldsTheSkillTools(t *testing.T) {
-	matches := skillToolPattern.FindAllStringSubmatch(awsdevops.ExperimentSkill, -1)
-	require.NotEmpty(t, matches)
-	for _, match := range matches {
-		assert.Contains(t, awsdevops.MCPTools(), match[1], "add the tool that SKILL.md names to the MCP allowlist")
-	}
-}
-
 func TestSetupCreatesSkillInNewSpace(t *testing.T) {
 	agent := &fakeAgent{}
 
@@ -70,13 +44,13 @@ func TestSetupCreatesSkillInNewSpace(t *testing.T) {
 	assert.Equal(t, "skill", aws.ToString(in.AssetType))
 	metadata := metadataOf(t, in.Metadata)
 	assert.Equal(t, awsdevops.ExperimentSkillName, metadata["name"])
-	assert.Equal(t, awsdevops.ExperimentSkillDescription(), metadata["description"])
+	assert.Equal(t, testDescription, metadata["description"])
 	assert.Equal(t, []any{"GENERIC"}, metadata["agent_types"])
 	assert.NotContains(t, metadata, "status")
 	file, ok := in.Content.(*agenttypes.AssetContentMemberFile)
 	require.True(t, ok)
 	assert.Equal(t, "SKILL.md", aws.ToString(file.Value.Path))
-	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: awsdevops.ExperimentSkill}, file.Value.Body)
+	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: testSkill}, file.Value.Body)
 	assert.Equal(t, "ki-created", result.SkillAssetID)
 }
 
@@ -85,13 +59,13 @@ func TestPlanSetupFindsSkillOnLaterPage(t *testing.T) {
 	agent := &fakeAgent{
 		paginate:   true,
 		assets:     []agenttypes.Asset{skillAsset("ki-sample", "sample-skip-scheduled-maintenance"), skillAsset("ki-ours", "experiment-orchestration")},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
+		skillFiles: map[string]string{"ki-ours": testSkill},
 	}
 
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
 	require.NoError(t, err)
 
-	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillKeep, AssetID: "ki-ours"}, plan.Skill)
+	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillKeep, AssetID: "ki-ours", Text: testSkill}, plan.Skill)
 	assert.Equal(t, "Keep skill experiment-orchestration (ki-ours)", plan.Text().Skill)
 }
 
@@ -108,7 +82,7 @@ func TestPlanSetupCreatesMissingSkill(t *testing.T) {
 func TestSetupKeepsSameSkill(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
+		skillFiles: map[string]string{"ki-ours": testSkill},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
@@ -125,7 +99,7 @@ func TestSetupKeepsSameSkill(t *testing.T) {
 func TestPlanSetupKeepsSameSkillSentAsBytes(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-		skillBytes: map[string][]byte{"ki-ours": []byte(awsdevops.ExperimentSkill)},
+		skillBytes: map[string][]byte{"ki-ours": []byte(testSkill)},
 	}
 
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
@@ -223,14 +197,14 @@ func TestSetupOverwritesEditedSkillWithFlag(t *testing.T) {
 	assert.Equal(t, []string{"description"}, keysOf(metadataOf(t, in.Metadata)))
 	file, ok := in.Content.(*agenttypes.AssetContentMemberFile)
 	require.True(t, ok)
-	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: awsdevops.ExperimentSkill}, file.Value.Body)
+	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: testSkill}, file.Value.Body)
 }
 
 // The flag does nothing to a skill that is already the same.
 func TestPlanSetupKeepsSameSkillWithFlag(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
+		skillFiles: map[string]string{"ki-ours": testSkill},
 	}
 	opts := reuseOptions()
 	opts.ReplaceSkill = true
@@ -368,7 +342,7 @@ func TestPlanSetupCreatesSkillDeletedDuringPlan(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
 	require.NoError(t, err)
 
-	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillCreate}, plan.Skill)
+	assert.Equal(t, awsdevops.SkillStep{Action: awsdevops.SkillCreate, Text: testSkill}, plan.Skill)
 }
 
 func TestSetupWarnsOnSkillCreateFailure(t *testing.T) {

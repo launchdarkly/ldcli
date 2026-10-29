@@ -478,10 +478,11 @@ func (f fakeSTS) GetCallerIdentity(_ context.Context, _ *sts.GetCallerIdentityIn
 
 func newTestClients(agent *fakeAgent, iamClient *fakeIAM) awsdevops.Clients {
 	return awsdevops.Clients{
-		Agent:  agent,
-		IAM:    iamClient,
-		STS:    fakeSTS{account: testAccountID},
-		Region: "us-east-1",
+		Agent:   agent,
+		IAM:     iamClient,
+		STS:     fakeSTS{account: testAccountID},
+		Sources: newFakeSources(),
+		Region:  "us-east-1",
 	}
 }
 

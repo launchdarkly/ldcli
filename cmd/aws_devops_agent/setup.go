@@ -31,6 +31,13 @@ const (
 	yesFlag             = "yes"
 )
 
+// unknownToolsWarning says that the skill names tools that the agent cannot
+// call.
+func unknownToolsWarning(tools []string) string {
+	return fmt.Sprintf("skill %s names MCP tools that this ldcli version does not allow, so the agent cannot call them: %s",
+		awsdevops.ExperimentSkillName, strings.Join(tools, ", "))
+}
+
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "setup",
@@ -61,12 +68,18 @@ allowlist misses tools that this ldcli version allows, setup adds them. AWS
 does not send back the classification of each tool, so the rewrite gives
 every tool the ldcli classification.
 
+Setup downloads the skill and the custom agent prompt from the main branch of
+launchdarkly/ai-tooling on GitHub, so those steps need access to GitHub. If
+the download fails, setup skips both steps and warns.
+
 The experiment-orchestration skill tells the agent how to run an experiment
 from a goal to a report. Every agent type in the space can load it. If the
-skill has the text of an older ldcli version, setup updates it. If someone
-edited it, setup does not change it. To overwrite the edits, pass
---replace-skill. Setting up the skill is optional: if its step fails, setup
-warns and does the other steps.
+skill has the text of an older ldcli version or of an earlier version on
+ai-tooling, setup updates it. If someone edited it, setup does not change it.
+To overwrite the edits, pass --replace-skill. Setting up the skill is
+optional: if its step fails, setup warns and does the other steps. If the
+skill names MCP tools that this ldcli version does not allow, setup warns,
+because the agent cannot call them.
 
 The experiment-orchestrator custom agent runs the skill with the LaunchDarkly
 MCP tools that the space allows. It needs the MCP server and the skill.
@@ -183,6 +196,9 @@ func setupWith(
 		if result.SkillError != "" {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.SkillError)
 		}
+		if len(result.SkillUnknownTools) > 0 {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", unknownToolsWarning(result.SkillUnknownTools))
+		}
 		if result.AgentError != "" {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.AgentError)
 		}
@@ -195,6 +211,9 @@ func setupWith(
 	}
 	if result.SkillError != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.SkillError)
+	}
+	if len(result.SkillUnknownTools) > 0 {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", unknownToolsWarning(result.SkillUnknownTools))
 	}
 	if result.AgentError != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.AgentError)

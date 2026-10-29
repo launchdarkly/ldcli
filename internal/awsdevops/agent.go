@@ -2,7 +2,6 @@ package awsdevops
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,13 +13,11 @@ import (
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 )
 
-//go:embed agents/experiment-orchestrator.md
-var ExperimentAgentPrompt string
-
 const ExperimentAgentName = "experiment-orchestrator"
 
-// shippedAgentHashes are the prompts that ldcli releases sent. When you change
-// the prompt, add its hash. Never remove a hash.
+// shippedAgentHashes are the prompts that released ldcli versions embedded.
+// The list is frozen: setup now downloads the prompt from ai-tooling and
+// compares its history there, so nobody adds to it. Never remove a hash.
 var shippedAgentHashes = []string{
 	"d3d2124c29e290df9cadd38e9bae2619ac8622cabb180fa0ad4fc59d5358dee5",
 }
@@ -91,6 +88,9 @@ type AgentStep struct {
 	Tools  []string
 	Skills []string
 	NoFile bool
+	// Prompt is the prompt on ai-tooling main at plan time, which the step
+	// writes.
+	Prompt string
 	Err    error
 }
 
@@ -104,7 +104,8 @@ func (s AgentStep) describe() string {
 	case AgentKeep:
 		return "Keep custom agent " + label
 	case AgentUpdate:
-		return fmt.Sprintf("Update custom agent %s to the prompt and tools of this ldcli version", label)
+		return fmt.Sprintf("Update custom agent %s to the prompt on the main branch of %s and the tools of this ldcli version",
+			label, aiToolingRepo)
 	case AgentLeave:
 		return fmt.Sprintf("Leave custom agent %s unchanged because %s. %s", label, why, agentResetHint)
 	case AgentSkip:
@@ -124,8 +125,22 @@ func agentFailure(err error) string {
 		"aidevops:CreateAsset, aidevops:UpdateAsset, and aidevops:ListAssociations", err)
 }
 
-func planAgent(ctx context.Context, clients Clients, space SpaceStep, mcp MCPStep, skill SkillStep) AgentStep {
-	step := AgentStep{ServerName: mcp.name()}
+// planAgent compares the custom agent of the space with prompt, the prompt on
+// ai-tooling main. fetchErr is set if the download failed.
+func planAgent(
+	ctx context.Context,
+	clients Clients,
+	space SpaceStep,
+	mcp MCPStep,
+	skill SkillStep,
+	prompt string,
+	fetchErr error,
+) AgentStep {
+	step := AgentStep{ServerName: mcp.name(), Prompt: prompt}
+	if fetchErr != nil {
+		step.Action, step.Err = AgentSkip, fetchErr
+		return step
+	}
 	if space.Action == SpaceCreate {
 		return step
 	}
@@ -139,7 +154,7 @@ func planAgent(ctx context.Context, clients Clients, space SpaceStep, mcp MCPSte
 	}
 	step.AssetID, step.Version = aws.ToString(asset.AssetId), aws.ToInt32(asset.Version)
 	step.Tools, step.Skills = agentMetadata(*asset)
-	prompt, found, err := assetText(ctx, clients, space.ID, step.AssetID, agentFilePath)
+	text, found, err := assetText(ctx, clients, space.ID, step.AssetID, agentFilePath)
 	step.NoFile = !found
 	if err != nil {
 		step.Action, step.Err = AgentSkip, err
@@ -150,14 +165,27 @@ func planAgent(ctx context.Context, clients Clients, space SpaceStep, mcp MCPSte
 		// The MCP step adds these tools to the allowlist before the agent step.
 		want = union(want, toolIDs(step.ServerName, mcp.MissingTools))
 	}
+	current := found && text == prompt
 	switch {
 	case err != nil:
 		step.Action, step.Err = AgentSkip, err
-	case prompt == ExperimentAgentPrompt && skill.AssetID != "" && slices.Contains(step.Skills, skill.AssetID) &&
+
+		return step
+	case current && skill.AssetID != "" && slices.Contains(step.Skills, skill.AssetID) &&
 		!slices.ContainsFunc(want, func(tool string) bool { return !slices.Contains(step.Tools, tool) }):
 		step.Action = AgentKeep
-	case found && (prompt == "" || slices.Contains(shippedAgentHashes, skillHash(prompt))):
-		// An empty prompt has nothing to lose.
+
+		return step
+	case current:
+		step.Action = AgentUpdate
+
+		return step
+	}
+	ours, err := isOurs(ctx, clients, shippedAgentHashes, agentSourcePath, text, found)
+	switch {
+	case err != nil:
+		step.Action, step.Err = AgentSkip, err
+	case ours:
 		step.Action = AgentUpdate
 	default:
 		step.Action = AgentLeave
@@ -284,7 +312,7 @@ func doAgentStep(
 	}
 	content := &agenttypes.AssetContentMemberFile{Value: agenttypes.AssetFileContent{
 		Path: aws.String(agentFilePath),
-		Body: &agenttypes.AssetFileBodyMemberText{Value: ExperimentAgentPrompt},
+		Body: &agenttypes.AssetFileBodyMemberText{Value: step.Prompt},
 	}}
 	skills := []string{result.SkillAssetID}
 	if step.Action == AgentUpdate {

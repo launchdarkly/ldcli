@@ -184,8 +184,11 @@ type SetupResult struct {
 	SkillAction string `json:"skillAction,omitempty"`
 	// SkillError is set if the skill step failed or was skipped. The skill is
 	// optional, so the rest of the setup ran.
-	SkillError   string `json:"skillError,omitempty"`
-	AgentAssetID string `json:"agentAssetId,omitempty"`
+	SkillError string `json:"skillError,omitempty"`
+	// SkillUnknownTools lists the MCP tools that the skill names and that this
+	// ldcli version does not allow, so the agent cannot call them.
+	SkillUnknownTools []string `json:"skillUnknownTools,omitempty"`
+	AgentAssetID      string   `json:"agentAssetId,omitempty"`
 	// AgentAction is what the custom agent step did, for example "created".
 	AgentAction string `json:"agentAction,omitempty"`
 	// AgentError is set if the custom agent step failed or was skipped.
@@ -579,8 +582,11 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		}
 	}
 
-	plan.Skill = planSkill(ctx, clients, opts, plan.Space)
-	plan.Agent = planAgent(ctx, clients, plan.Space, plan.MCP, plan.Skill)
+	// The skill and the prompt come from ai-tooling main. Both steps compare
+	// and write these texts, so a later change there does not reach the run.
+	skill, prompt, fetchErr := fetchSources(ctx, clients.Sources)
+	plan.Skill = planSkill(ctx, clients, opts, plan.Space, skill, fetchErr)
+	plan.Agent = planAgent(ctx, clients, plan.Space, plan.MCP, plan.Skill, prompt, fetchErr)
 
 	if !provision {
 		// Read the app, so the run does not print a URL that does not work.

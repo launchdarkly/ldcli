@@ -13,13 +13,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-// A change to the prompt must add its hash, so the next release updates the
-// agents that this release makes.
-func TestShippedAgentHashesHoldTheCurrentPrompt(t *testing.T) {
-	assert.Contains(t, awsdevops.ShippedAgentHashes(), awsdevops.SkillHash(awsdevops.ExperimentAgentPrompt),
-		"add the hash of the new prompt to shippedAgentHashes")
-}
-
 func TestAgentToolsStartWithTheServerName(t *testing.T) {
 	tools := awsdevops.AgentTools("LaunchDarkly")
 
@@ -50,7 +43,7 @@ func TestSetupCreatesAgentInNewSpace(t *testing.T) {
 	file, ok := in.Content.(*agenttypes.AssetContentMemberFile)
 	require.True(t, ok)
 	assert.Equal(t, "experiment-orchestrator.md", aws.ToString(file.Value.Path))
-	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: awsdevops.ExperimentAgentPrompt}, file.Value.Body)
+	assert.Equal(t, &agenttypes.AssetFileBodyMemberText{Value: testAgentPrompt}, file.Value.Body)
 	assert.Equal(t, "ki-agent-created", result.AgentAssetID)
 	assert.Equal(t, awsdevops.AgentCreated, result.AgentAction)
 	assert.Empty(t, result.AgentError)
@@ -84,8 +77,8 @@ func TestSetupKeepsCurrentAgent(t *testing.T) {
 			skillAsset("ki-ours", "experiment-orchestration"),
 			agentAsset("ki-agent", "experiment-orchestrator", awsdevops.AgentTools(awsdevops.MCPOAuthServerName), []string{"ki-ours"}),
 		},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
-		agentFiles: map[string]string{"ki-agent": awsdevops.ExperimentAgentPrompt},
+		skillFiles: map[string]string{"ki-ours": testSkill},
+		agentFiles: map[string]string{"ki-agent": testAgentPrompt},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
@@ -103,8 +96,8 @@ func TestSetupUpdatesAgentWithOldTools(t *testing.T) {
 			skillAsset("ki-ours", "experiment-orchestration"),
 			agentAsset("ki-agent", "experiment-orchestrator", []string{awsdevops.MCPOAuthServerName + "_get-flag"}, []string{"ki-ours"}),
 		},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
-		agentFiles: map[string]string{"ki-agent": awsdevops.ExperimentAgentPrompt},
+		skillFiles: map[string]string{"ki-ours": testSkill},
+		agentFiles: map[string]string{"ki-agent": testAgentPrompt},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
@@ -177,8 +170,8 @@ func TestPlanSetupKeepsAgentWithAddedTools(t *testing.T) {
 			skillAsset("ki-ours", "experiment-orchestration"),
 			agentAsset("ki-agent", "experiment-orchestrator", tools, []string{"ki-other", "ki-ours"}),
 		},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
-		agentFiles: map[string]string{"ki-agent": awsdevops.ExperimentAgentPrompt},
+		skillFiles: map[string]string{"ki-ours": testSkill},
+		agentFiles: map[string]string{"ki-agent": testAgentPrompt},
 	}
 
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions(), true)
@@ -192,7 +185,7 @@ func TestSetupUpdateKeepsAddedToolsAndSkills(t *testing.T) {
 		assets: []agenttypes.Asset{
 			agentAsset("ki-agent", "experiment-orchestrator", []string{"Datadog_query-logs"}, []string{"ki-other"}),
 		},
-		agentFiles: map[string]string{"ki-agent": awsdevops.ExperimentAgentPrompt},
+		agentFiles: map[string]string{"ki-agent": testAgentPrompt},
 	}
 
 	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), reuseOptions())
@@ -255,8 +248,8 @@ func TestSetupGivesAgentTheToolsThatSetupAddsToTheAllowlist(t *testing.T) {
 			skillAsset("ki-ours", "experiment-orchestration"),
 			agentAsset("ki-agent", "experiment-orchestrator", old, []string{"ki-ours"}),
 		},
-		skillFiles: map[string]string{"ki-ours": awsdevops.ExperimentSkill},
-		agentFiles: map[string]string{"ki-agent": awsdevops.ExperimentAgentPrompt},
+		skillFiles: map[string]string{"ki-ours": testSkill},
+		agentFiles: map[string]string{"ki-agent": testAgentPrompt},
 	}
 	clients := newTestClients(agent, newFakeIAM())
 	opts := reuseOptions()

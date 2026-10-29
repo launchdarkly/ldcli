@@ -33,14 +33,15 @@ func ShipSkill(text string) func() {
 	return func() { shippedSkillHashes = saved }
 }
 
-// ShippedSkillHashes are the hashes of the shipped skill versions.
-func ShippedSkillHashes() []string { return shippedSkillHashes }
+// UnknownSkillTools returns the tools that a SKILL.md names and that the
+// allowlist misses, for tests.
+func UnknownSkillTools(text string) []string { return unknownSkillTools(text) }
 
-// ExperimentSkillDescription is the description in the front matter of SKILL.md.
-func ExperimentSkillDescription() string { return experimentSkillDescription }
-
-// SkillHash is the hash that setup compares.
-func SkillHash(text string) string { return skillHash(text) }
+// SkillSourcePath and AgentSourcePath are the paths of the files in ai-tooling.
+const (
+	SkillSourcePath = skillSourcePath
+	AgentSourcePath = agentSourcePath
+)
 
 // MCPTools lists every tool in the allowlist, for tests.
 func MCPTools() []string {
@@ -55,7 +56,5 @@ func SetOAuthPollInterval(d time.Duration) func() {
 
 	return func() { oauthPollInterval = old }
 }
-
-func ShippedAgentHashes() []string { return shippedAgentHashes }
 
 func AgentTools(serverName string) []string { return agentTools(serverName) }

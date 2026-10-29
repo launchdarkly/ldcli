@@ -129,12 +129,26 @@ func countingClients(spaces ...agenttypes.AgentSpace) (awsdevops.Clients, *write
 	w := &writes{}
 
 	return awsdevops.Clients{
-		Agent:  countingAgent{stubAgent: stubAgent{spaces: spaces}, writes: w},
-		IAM:    countingIAM{writes: w},
-		STS:    accountSTS{},
-		Region: "eu-west-2",
+		Agent:   countingAgent{stubAgent: stubAgent{spaces: spaces}, writes: w},
+		IAM:     countingIAM{writes: w},
+		STS:     accountSTS{},
+		Sources: stubSources{skill: "---\nname: experiment-orchestration\ndescription: Run experiments.\n---\n"},
+		Region:  "eu-west-2",
 	}, w
 }
+
+// stubSources serves the files of ai-tooling main from memory.
+type stubSources struct{ skill string }
+
+func (s stubSources) File(_ context.Context, _, path string) (string, error) {
+	if strings.HasSuffix(path, "SKILL.md") {
+		return s.skill, nil
+	}
+
+	return "# Experiment orchestrator\n", nil
+}
+
+func (stubSources) Commits(context.Context, string) ([]string, error) { return nil, nil }
 
 // noReadStdin fails the test on any read.
 type noReadStdin struct{ t *testing.T }
