@@ -5,7 +5,7 @@
 # script, and add the new hashes in internal/awsdevops.
 set -euo pipefail
 
-AI_TOOLING_COMMIT=bbdf962eb696d649d24ff128d4db0ff894c6943c
+AI_TOOLING_COMMIT=887d4cb5022ccda7e57dcef9b23aa9bd9d8cf75d
 BASE_URL="https://raw.githubusercontent.com/launchdarkly/ai-tooling/${AI_TOOLING_COMMIT}/skills/aws-devops-agent"
 ROOT=$(git rev-parse --show-toplevel)
 DEST="${ROOT}/internal/awsdevops"

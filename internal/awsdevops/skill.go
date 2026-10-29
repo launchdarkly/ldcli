@@ -37,6 +37,7 @@ var (
 var shippedSkillHashes = []string{
 	"57844bc3c5aca292ef88b5f949cd791206074b5cfc850ea52ebdd40020ead695",
 	"c4c4e12aeff900402dc17ff370bc1e78eadcb34abac5b256319c7cd793bd73f3",
+	"cbda81714171e1f725db7a7e10973c38ae0b71550e14636d8d463919349bd9e8",
 }
 
 const (

@@ -56,7 +56,7 @@ func TestSetupCreatesSkillInNewSpace(t *testing.T) {
 	assert.Equal(t, "skill", aws.ToString(in.AssetType))
 	metadata := metadataOf(t, in.Metadata)
 	assert.Equal(t, awsdevops.ExperimentSkillName, metadata["name"])
-	assert.Contains(t, metadata["description"], "Orchestrates automated experimentation lifecycle")
+	assert.Equal(t, awsdevops.ExperimentSkillDescription(), metadata["description"])
 	assert.Equal(t, []any{"GENERIC"}, metadata["agent_types"])
 	assert.NotContains(t, metadata, "status")
 	file, ok := in.Content.(*agenttypes.AssetContentMemberFile)

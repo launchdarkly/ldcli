@@ -36,6 +36,9 @@ func ShipSkill(text string) func() {
 // ShippedSkillHashes are the hashes of the shipped skill versions.
 func ShippedSkillHashes() []string { return shippedSkillHashes }
 
+// ExperimentSkillDescription is the description in the front matter of SKILL.md.
+func ExperimentSkillDescription() string { return experimentSkillDescription }
+
 // SkillHash is the hash that setup compares.
 func SkillHash(text string) string { return skillHash(text) }
 
