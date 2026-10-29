@@ -177,6 +177,34 @@ func TestRunUsesExplicitVariationSelectorsWithoutTerminal(t *testing.T) {
 	assert.Contains(t, output.String(), "  .launchdarkly/project/configs/config/variation.prompt.md   +9")
 }
 
+func TestRunNamesTheCreateFlagsOfAMissingVariation(t *testing.T) {
+	catalog := &fakeCatalog{config: syncapi.Config{Key: "support", Mode: syncdomain.VariationModeAgent}}
+
+	err := Run(Options{
+		Catalog: catalog, Store: synclocal.NewStore(t.TempDir()), Output: &bytes.Buffer{},
+		Selections: []syncdomain.ResourceID{syncdomain.VariationID("demo", "support", "escalation")},
+	})
+
+	require.EqualError(t, err, `variation "escalation" does not exist in config "support" in project "demo". `+
+		"To create it, run ldcli sync prompts add --project demo --config-key support --key escalation "+
+		"with --model-config-key and --content.")
+}
+
+func TestRunExplainsThatASelectedVariationIsArchived(t *testing.T) {
+	catalog := &fakeCatalog{config: syncapi.Config{
+		Key: "support", Mode: syncdomain.VariationModeAgent, ArchivedVariationKeys: []string{"escalation"},
+	}}
+
+	err := Run(Options{
+		Catalog: catalog, Store: synclocal.NewStore(t.TempDir()), Output: &bytes.Buffer{},
+		Selections: []syncdomain.ResourceID{syncdomain.VariationID("demo", "support", "escalation")},
+	})
+
+	require.EqualError(t, err,
+		`variation "escalation" in config "support" in project "demo" is archived in LaunchDarkly. `+
+			"Restore it in LaunchDarkly, or pass another --key.")
+}
+
 func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
 	root := t.TempDir()
 	var output bytes.Buffer

@@ -151,7 +151,8 @@ func createInput(cmd *cobra.Command) *synccreate.Input {
 		return &text
 	}
 	input := synccreate.Input{
-		Content: value(contentFlag), JSONSchema: value(jsonSchemaFlag), Name: value(nameFlag), Description: value(descriptionFlag),
+		Content: value(contentFlag), JSONSchema: value(jsonSchemaFlag), Name: value(nameFlag),
+		Description: value(descriptionFlag), ModelConfigKey: value(modelConfigKeyFlag),
 	}
 	if !set {
 		return nil
