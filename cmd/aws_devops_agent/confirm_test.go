@@ -137,10 +137,9 @@ func countingClients(spaces ...agenttypes.AgentSpace) (awsdevops.Clients, *write
 	}, w
 }
 
-// stubSources serves the files of ai-tooling main from memory.
 type stubSources struct{ skill string }
 
-func (s stubSources) File(_ context.Context, _, path string) (string, error) {
+func (s stubSources) File(_ context.Context, path string) (string, error) {
 	if strings.HasSuffix(path, "SKILL.md") {
 		return s.skill, nil
 	}

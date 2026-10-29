@@ -85,10 +85,9 @@ type STSAPI interface {
 // Clients bundles the AWS clients and the resolved session details the
 // provisioning steps run against.
 type Clients struct {
-	Agent AgentAPI
-	IAM   IAMAPI
-	STS   STSAPI
-	// Sources reads the skill and the custom agent prompt from ai-tooling.
+	Agent   AgentAPI
+	IAM     IAMAPI
+	STS     STSAPI
 	Sources Sources
 	Region  string
 }

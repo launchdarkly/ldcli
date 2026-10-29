@@ -111,7 +111,7 @@ func TestSetupUpdatesAgentWithOldTools(t *testing.T) {
 	assert.Equal(t, awsdevops.AgentUpdated, result.AgentAction)
 }
 
-func TestSetupLeavesEditedAgent(t *testing.T) {
+func TestSetupSkipsDifferentAgent(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{agentAsset("ki-agent", "experiment-orchestrator", nil, nil)},
 		agentFiles: map[string]string{"ki-agent": "# Edited by the customer"},

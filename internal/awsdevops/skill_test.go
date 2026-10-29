@@ -134,7 +134,7 @@ func TestPlanSetupLeavesSkillWithoutFile(t *testing.T) {
 		plan.Text().Skill)
 }
 
-func TestSetupLeavesEditedSkill(t *testing.T) {
+func TestSetupSkipsDifferentSkill(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
 		skillFiles: map[string]string{"ki-ours": "# Edited by the customer"},
@@ -155,7 +155,7 @@ func TestSetupLeavesEditedSkill(t *testing.T) {
 	assert.Empty(t, result.SkillError)
 }
 
-func TestSetupOverwritesEditedSkillWithFlag(t *testing.T) {
+func TestSetupUpdatesDifferentSkillWithFlag(t *testing.T) {
 	agent := &fakeAgent{
 		assets:     []agenttypes.Asset{skillAsset("ki-ours", "experiment-orchestration")},
 		skillFiles: map[string]string{"ki-ours": "# Edited by the customer"},

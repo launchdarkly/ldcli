@@ -61,21 +61,10 @@ const (
 // registers after a person approves access. Tests make it shorter.
 var oauthPollInterval = 5 * time.Second
 
-// The agent invokes read-only tools without asking for approval, so anything
-// that changes LaunchDarkly state has to be classified explicitly. The lists
-// cover the steps of the experiment-orchestration skill: find a flag, create
-// it, run an experiment, read its results, and ramp or clean up the flag. The
-// skill keeps its experiment record in the flag description and creates a
-// missing primary metric, so the lists include update-flag-settings and
-// create-metric. It checks that the metric's event arrives with
-// list-metric-events, and sets the off variation with update-off-variation
-// when create-flag does not take defaults. The lists also have the tools for
-// the rest of that work that the skill does not name: change an experiment
-// between iterations, check exposures and contexts before a rollout, and
-// record an automated rollout for the change.
-// They also cover incident work: turn a change off for one segment or
-// context, and ask for approval where an environment needs it, then apply
-// the request after a reviewer approves it.
+// The agent calls read-only tools without approval, so every tool that
+// changes LaunchDarkly state must be in mcpMutativeTools. The lists cover the
+// experiment flow (flags, metrics, experiments, rollouts, approvals) and
+// incident work (targeting changes for a segment or context).
 var (
 	mcpReadOnlyTools = []string{
 		"list-projects",
@@ -578,8 +567,7 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		}
 	}
 
-	// The skill and the prompt come from ai-tooling main. Both steps compare
-	// and write these texts, so a later change there does not reach the run.
+	// The run writes these texts, so a later change on main does not reach it.
 	skill, prompt, fetchErr := fetchSources(ctx, clients.Sources)
 	plan.Skill = planSkill(ctx, clients, opts, plan.Space, skill, fetchErr)
 	plan.Agent = planAgent(ctx, clients, plan.Space, plan.MCP, plan.Skill, prompt, fetchErr)

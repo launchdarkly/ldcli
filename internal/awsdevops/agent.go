@@ -81,8 +81,7 @@ type AgentStep struct {
 	Tools  []string
 	Skills []string
 	NoFile bool
-	// Prompt is the prompt on ai-tooling main at plan time, which the step
-	// writes.
+	// Prompt is the prompt downloaded at plan time.
 	Prompt string
 	Err    error
 }
@@ -117,8 +116,6 @@ func agentFailure(err error) string {
 		"aidevops:CreateAsset, aidevops:UpdateAsset, and aidevops:ListAssociations", err)
 }
 
-// planAgent compares the custom agent of the space with prompt, the prompt on
-// ai-tooling main. fetchErr is set if the download failed.
 func planAgent(
 	ctx context.Context,
 	clients Clients,
@@ -152,17 +149,17 @@ func planAgent(
 		step.Action, step.Err = AgentSkip, err
 		return step
 	}
-	want, err := spaceAgentTools(ctx, clients, space.ID, mcp.ServiceID, step.ServerName)
+	wantTools, err := spaceAgentTools(ctx, clients, space.ID, mcp.ServiceID, step.ServerName)
 	if mcp.CanAddTools {
-		// The MCP step adds these tools to the allowlist before the agent step.
-		want = union(want, toolIDs(step.ServerName, mcp.MissingTools))
+		// The MCP step adds these before the agent step runs.
+		wantTools = union(wantTools, toolIDs(step.ServerName, mcp.MissingTools))
 	}
 	current := found && text == prompt
 	switch {
 	case err != nil:
 		step.Action, step.Err = AgentSkip, err
 	case current && skill.AssetID != "" && slices.Contains(step.Skills, skill.AssetID) &&
-		!slices.ContainsFunc(want, func(tool string) bool { return !slices.Contains(step.Tools, tool) }):
+		!slices.ContainsFunc(wantTools, func(tool string) bool { return !slices.Contains(step.Tools, tool) }):
 		step.Action = AgentKeep
 	case current:
 		step.Action = AgentUpdate
@@ -267,7 +264,7 @@ func doAgentStep(
 
 		return AgentKept, nil
 	case AgentLeave:
-		logf("Left custom agent %s (%s) unchanged. %s", ExperimentAgentName, step.AssetID, agentResetHint)
+		logf("Skipped custom agent %s (%s). %s", ExperimentAgentName, step.AssetID, agentResetHint)
 
 		return AgentLeft, nil
 	case AgentSkip:
@@ -325,5 +322,6 @@ func doAgentStep(
 		return "", fmt.Errorf("unable to update custom agent %s (%s): %w", ExperimentAgentName, step.AssetID, err)
 	}
 	logf("Updated custom agent %s (%s)", ExperimentAgentName, step.AssetID)
+
 	return AgentUpdated, nil
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-// testSkill and testAgentPrompt stand in for the files on ai-tooling main.
 const (
 	testSkill = "---\n" +
 		"name: experiment-orchestration\n" +
@@ -25,7 +24,6 @@ const (
 	testDescription = "Run an experiment from a goal to a report."
 )
 
-// fakeSources serves ai-tooling from memory. files maps "ref path" to text.
 type fakeSources struct {
 	files   map[string]string
 	fileErr error
@@ -33,16 +31,16 @@ type fakeSources struct {
 
 func newFakeSources() *fakeSources {
 	return &fakeSources{files: map[string]string{
-		"main " + awsdevops.SkillSourcePath: testSkill,
-		"main " + awsdevops.AgentSourcePath: testAgentPrompt,
+		awsdevops.SkillSourcePath: testSkill,
+		awsdevops.AgentSourcePath: testAgentPrompt,
 	}}
 }
 
-func (f *fakeSources) File(_ context.Context, ref, path string) (string, error) {
+func (f *fakeSources) File(_ context.Context, path string) (string, error) {
 	if f.fileErr != nil {
 		return "", f.fileErr
 	}
-	text, ok := f.files[ref+" "+path]
+	text, ok := f.files[path]
 	if !ok {
 		return "", errors.New("GitHub sent 404 Not Found")
 	}
@@ -112,10 +110,10 @@ func TestGitHubSourcesReadFiles(t *testing.T) {
 	defer server.Close()
 	sources := awsdevops.GitHubSources{Client: server.Client(), RawURL: server.URL}
 
-	text, err := sources.File(context.Background(), "main", awsdevops.SkillSourcePath)
+	text, err := sources.File(context.Background(), awsdevops.SkillSourcePath)
 	require.NoError(t, err)
 	assert.Equal(t, testSkill, text)
 
-	_, err = sources.File(context.Background(), "main", awsdevops.AgentSourcePath)
+	_, err = sources.File(context.Background(), awsdevops.AgentSourcePath)
 	assert.ErrorContains(t, err, "GitHub sent 429 Too Many Requests")
 }

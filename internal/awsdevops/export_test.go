@@ -25,7 +25,6 @@ func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (S
 	return ConnectPlan(ctx, clients, opts, plan)
 }
 
-// SkillSourcePath and AgentSourcePath are the paths of the files in ai-tooling.
 const (
 	SkillSourcePath = skillSourcePath
 	AgentSourcePath = agentSourcePath
