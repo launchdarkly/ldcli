@@ -17,17 +17,65 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	command := NewPromptCmd(nil)
 
 	assert.Equal(t, "prompts", command.Use)
-	for _, name := range []string{"watch", "add", "attach", "detach"} {
+	for _, name := range []string{"watch", "add", "attach", "detach", "link"} {
 		child, _, err := command.Find([]string{name})
 		require.NoError(t, err)
 		assert.Equal(t, name, child.Name())
 	}
-	for _, name := range []string{"add", "attach-tool", "attach-skill", "detach", "watch"} {
+	for _, name := range []string{"add", "attach-tool", "attach-skill", "detach", "link", "watch"} {
 		assert.Nil(t, command.Flags().Lookup(name), "legacy --%s should not exist", name)
 	}
 	add, _, err := command.Find([]string{"add"})
 	require.NoError(t, err)
 	assert.Equal(t, "add [project-key/config-key/variation-key...]", add.Use)
+	link, _, err := command.Find([]string{"link"})
+	require.NoError(t, err)
+	assert.Nil(t, link.Flags().Lookup(toFlag))
+	assert.Nil(t, link.Flags().Lookup(modelConfigKeyFlag))
+}
+
+func TestSourceLinkFlagsBuildTargetAndMappings(t *testing.T) {
+	command := newLinkCmd(nil)
+	require.NoError(t, command.ParseFlags([]string{
+		"--file", "agents.py",
+		"--format", "python",
+		"--select", `agents[id="support"]`,
+		"--map", "prompt=instructions",
+		"--project", "production",
+		"--config-key", "support",
+		"--key", "default",
+	}))
+
+	id, err := sourceLinkID(command, syncdomain.KindVariation)
+	require.NoError(t, err)
+	assert.Equal(t, syncdomain.VariationID("production", "support", "default"), id)
+	mappings, err := parseFieldMappings(mustStringArray(command, mapFlag))
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"prompt": "instructions"}, mappings)
+}
+
+func TestSyncProblemRendersStableFields(t *testing.T) {
+	problem := syncdomain.NewProblem(
+		syncdomain.ErrorPathNotFound,
+		"mapped field was not found",
+		"Update the map path.",
+	).WithResource(syncdomain.VariationID("project", "config", "default")).
+		WithFile("agents.py", 4, 12)
+
+	jsonError := syncCommandOutputError(problem, "json")
+	require.JSONEq(t, `{
+		"code": "path_not_found",
+		"message": "mapped field was not found",
+		"resource": "variation project/config/default",
+		"file": "agents.py",
+		"line": 4,
+		"column": 12,
+		"suggestion": "Update the map path."
+	}`, jsonError.Error())
+
+	plainError := syncCommandOutputError(problem, "plaintext")
+	assert.Contains(t, plainError.Error(), "mapped field was not found (code: path_not_found)")
+	assert.Contains(t, plainError.Error(), "Suggestion: Update the map path.")
 }
 
 func TestSyncCommandIncludesExamples(t *testing.T) {
@@ -53,6 +101,7 @@ func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 		"attach tool":  {"attach", "tool"},
 		"attach skill": {"attach", "skill"},
 		"detach":       {"detach"},
+		"link":         {"link"},
 	}
 
 	for name, path := range tests {
@@ -107,6 +156,7 @@ func TestPromptCommandsRegisterTargetFlags(t *testing.T) {
 		"add":         {path: []string{"add"}, help: questionFlagHelp},
 		"detach":      {path: []string{"detach"}, help: questionFlagHelp},
 		"attach tool": {path: []string{"attach", "tool"}, help: targetFlagHelp{project: questionFlagHelp.project}},
+		"link":        {path: []string{"link"}, help: questionFlagHelp},
 	}
 
 	for name, test := range tests {

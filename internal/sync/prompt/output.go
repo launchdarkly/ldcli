@@ -57,6 +57,26 @@ func newResourceOutput(id ResourceID) resourceOutput {
 	return resourceOutput{ResourceKind: string(id.Kind), ProjectKey: id.ProjectKey, LookupKey: id.LookupKey}
 }
 
+type sourceOutput struct {
+	File         string                   `json:"file"`
+	Format       string                   `json:"format"`
+	Select       string                   `json:"select"`
+	Map          map[string]string        `json:"map"`
+	Direction    syncdomain.SyncDirection `json:"direction"`
+	Dependencies []string                 `json:"dependencies,omitempty"`
+}
+
+func plannedSource(resource PlannedResource) *sourceOutput {
+	if resource.Source == nil {
+		return nil
+	}
+	return &sourceOutput{
+		File: resource.Source.File, Format: resource.Source.Format,
+		Select: resource.Source.Select, Map: resource.Source.Map,
+		Direction: resource.Direction, Dependencies: resource.SourceDependencies,
+	}
+}
+
 // writePlanOutput writes the plan in the selected output kind. Plain text and
 // Markdown show a full diff for a conflict, and for every row when showDiffs
 // is true.
@@ -71,22 +91,37 @@ func writePlanOutput(out io.Writer, outputKind string, plan Plan, showDiffs bool
 
 	type planResourceOutput struct {
 		resourceOutput
-		Action          Action              `json:"action"`
-		SyncedElsewhere bool                `json:"syncedElsewhere,omitempty"`
-		Suggestion      string              `json:"suggestion,omitempty"`
-		Error           string              `json:"error,omitempty"`
-		Diff            variationDiffFields `json:"diff,omitempty"`
+		Action          Action               `json:"action"`
+		SyncedElsewhere bool                 `json:"syncedElsewhere,omitempty"`
+		Suggestion      string               `json:"suggestion,omitempty"`
+		Error           string               `json:"error,omitempty"`
+		ErrorCode       syncdomain.ErrorCode `json:"errorCode,omitempty"`
+		ErrorFile       string               `json:"errorFile,omitempty"`
+		ErrorLine       int                  `json:"errorLine,omitempty"`
+		ErrorColumn     int                  `json:"errorColumn,omitempty"`
+		NextStep        string               `json:"nextStep,omitempty"`
+		Diff            variationDiffFields  `json:"diff,omitempty"`
+		Source          *sourceOutput        `json:"source,omitempty"`
 	}
 	resources := make([]planResourceOutput, 0, len(plan.Resources))
 	for _, resource := range plan.Resources {
-		resources = append(resources, planResourceOutput{
+		item := planResourceOutput{
 			resourceOutput:  newResourceOutput(resource.ID),
 			Action:          resource.Action,
 			SyncedElsewhere: resource.SyncedElsewhere,
 			Suggestion:      staleSuggestion(resource),
 			Error:           resource.Error,
 			Diff:            resource.Diff,
-		})
+			Source:          plannedSource(resource),
+		}
+		if resource.Problem != nil {
+			item.ErrorCode = resource.Problem.Code
+			item.ErrorFile = resource.Problem.File
+			item.ErrorLine = resource.Problem.Line
+			item.ErrorColumn = resource.Problem.Column
+			item.NextStep = resource.Problem.Suggestion
+		}
+		resources = append(resources, item)
 	}
 	return writeJSON(out, map[string]any{"resources": resources})
 }
@@ -108,11 +143,13 @@ func writeOutcomeOutput(out io.Writer, outputKind string, plan Plan, outcomes []
 			resourceOutput
 			ResourceOutcome
 			Create *skillCreateOutput `json:"create,omitempty"`
+			Source *sourceOutput      `json:"source,omitempty"`
 		}
 		resources := make([]outcomeOutput, 0, len(outcomes))
 		for _, outcome := range outcomes {
 			resources = append(resources, outcomeOutput{
-				resourceOutput: newResourceOutput(outcome.ID), ResourceOutcome: outcome, Create: skillCreate(planned[outcome.ID]),
+				resourceOutput: newResourceOutput(outcome.ID), ResourceOutcome: outcome,
+				Create: skillCreate(planned[outcome.ID]), Source: plannedSource(planned[outcome.ID]),
 			})
 		}
 		return writeJSON(out, map[string]any{"resources": resources})
@@ -439,6 +476,9 @@ func resultReason(resource PlannedResource, outcome ResourceOutcome) string {
 func changedFieldsReason(resource PlannedResource, verb string) string {
 	var fields []string
 	if part, ok := resource.Diff["variation"]; ok {
+		fields = append(fields, changedKeys(part.Before, part.After)...)
+	}
+	if part, ok := resource.Diff["projection"]; ok {
 		fields = append(fields, changedKeys(part.Before, part.After)...)
 	}
 	for _, name := range []string{"tools", "skills"} {

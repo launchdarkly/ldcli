@@ -171,6 +171,22 @@ func checkSourcePublications(repositoryRoot string, resources []PlannedResource)
 	}
 }
 
+func allowReviewedSourceChange(repositoryRoot string, plan *Plan, id ResourceID) {
+	for index := range plan.Resources {
+		resource := &plan.Resources[index]
+		if resource.ID != id || resource.Source == nil || resource.Problem == nil ||
+			resource.Problem.Code != syncdomain.ErrorBindingStale &&
+				resource.Problem.Code != syncdomain.ErrorIndexedSelectionChanged {
+			continue
+		}
+		resource.Error, resource.Problem = "", nil
+		resource.Action = chooseAction(resource.BaselineFingerprint != "", *resource)
+		enforceDirection(resource, resource.Direction)
+		checkSourcePublications(repositoryRoot, plan.Resources)
+		return
+	}
+}
+
 func applySourceDirections(client syncapi.Client, resources []PlannedResource) error {
 	byProject := make(map[string][]ResourceID)
 	for _, resource := range resources {
