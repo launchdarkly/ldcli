@@ -276,25 +276,3 @@ func (lock *memoryLock) WriteLock(content []byte) error {
 	lock.content = content
 	return nil
 }
-
-func TestLockKeepsTheLinkOfAVariation(t *testing.T) {
-	manifest := Manifest{Resources: []Resource{{
-		ResourceKind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default",
-		Fingerprint: fingerprint("a"), Version: 1,
-	}}}
-	ref := &syncdomain.Reference{File: "prompts/support.md", Format: "plain-markdown"}
-	manifest.SetRefs([]syncdomain.SyncedResource{{
-		Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default", Ref: ref,
-	}})
-
-	content, err := encodeLock(manifest)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "    ref:\n      file: prompts/support.md\n      format: plain-markdown\n")
-	decoded, err := decodeLock(content)
-	require.NoError(t, err)
-	assert.Equal(t, ref, decoded.Ref(variationID()))
-
-	// A variation without a local file keeps its recorded link.
-	manifest.SetRefs(nil)
-	assert.Equal(t, ref, manifest.Ref(variationID()))
-}

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 // stagedFile is one file in a replace transaction. The original content lets
@@ -25,9 +24,8 @@ type stagedFile struct {
 }
 
 // ReplaceVariations replaces a batch of variation files in one transaction.
-// The transaction also writes each linked file and each tool and skill file
-// that the variations use. ReplaceVariations returns the replaced variation
-// paths.
+// The transaction also writes each tool and skill file that the variations
+// use. ReplaceVariations returns the replaced variation paths.
 //
 // The transaction has three steps. First, it writes every new file to a
 // temporary path. Then it makes sure that no original changed during the
@@ -138,12 +136,11 @@ func (store Store) prepareReplacements(replacements []VariationReplacement) ([]s
 		if err != nil {
 			return nil, err
 		}
-		// Upsert and ref describe the local file, not LaunchDarkly. Keep them.
+		// Upsert describes the local file, not LaunchDarkly. Keep it.
 		content, err := renderVariationFile(VariationFile{
 			ProjectKey: replacement.ProjectKey,
 			ConfigKey:  replacement.ConfigKey,
 			Upsert:     existing.frontMatter.Upsert,
-			Ref:        existing.frontMatter.Ref,
 			Variation:  replacement.Variation,
 		})
 		if err != nil {
@@ -157,15 +154,6 @@ func (store Store) prepareReplacements(replacements []VariationReplacement) ([]s
 			return nil, err
 		}
 
-		if ref := existing.frontMatter.Ref; ref != nil {
-			linked, err := store.prepareLinkedFile(*ref, replacement)
-			if err != nil {
-				return nil, err
-			}
-			if err := add(linked); err != nil {
-				return nil, err
-			}
-		}
 		attachmentSources = append(attachmentSources, VariationFile{
 			ProjectKey: replacement.ProjectKey, Variation: replacement.Variation,
 		})
@@ -188,8 +176,7 @@ func (store Store) prepareReplacements(replacements []VariationReplacement) ([]s
 }
 
 // missingVariation describes a variation file that does not exist yet. A new
-// file has upsert, so that a later sync can create the variation again, and
-// it keeps the link of the variation that it restores.
+// file has upsert, so that a later sync can create the variation again.
 func missingVariation(replacement VariationReplacement) (existingVariation, error) {
 	relativePath, err := variationPath(replacement.ProjectKey, replacement.ConfigKey, replacement.Variation.Key)
 	if err != nil {
@@ -198,32 +185,7 @@ func missingVariation(replacement VariationReplacement) (existingVariation, erro
 	return existingVariation{
 		relativePath: relativePath,
 		mode:         0o644,
-		frontMatter:  variationFrontMatter{Upsert: true, Ref: replacement.Ref},
-	}, nil
-}
-
-// prepareLinkedFile renders the new content of the external file that a
-// linked variation uses.
-func (store Store) prepareLinkedFile(ref Reference, replacement VariationReplacement) (stagedFile, error) {
-	path, err := resolveReferencePath(store.repositoryRoot, ref)
-	if err != nil {
-		return stagedFile{}, err
-	}
-	content, err := syncreference.Render(ref.Format, replacement.Variation)
-	if err != nil {
-		return stagedFile{}, err
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return stagedFile{}, fmt.Errorf("inspect referenced file %q: %w", ref.File, err)
-	}
-	original, err := os.ReadFile(path)
-	if err != nil {
-		return stagedFile{}, fmt.Errorf("read referenced file %q: %w", ref.File, err)
-	}
-	return stagedFile{
-		displayPath: ref.File, path: path, original: original, originalExists: true,
-		replacement: content, mode: info.Mode().Perm(),
+		frontMatter:  variationFrontMatter{Upsert: true},
 	}, nil
 }
 
@@ -299,8 +261,12 @@ func verifyOriginals(files []stagedFile) error {
 // commitFiles renames each staged file into place. Each rename is atomic, but
 // the batch is not, so a failure restores the files that commitFiles replaced.
 func commitFiles(files []stagedFile) error {
+	return commitFilesWithRename(files, os.Rename)
+}
+
+func commitFilesWithRename(files []stagedFile, rename func(string, string) error) error {
 	for index, file := range files {
-		if err := os.Rename(file.stagedPath, file.path); err != nil {
+		if err := rename(file.stagedPath, file.path); err != nil {
 			return errors.Join(fmt.Errorf("replace variation %s: %w", file.displayPath, err), restoreFiles(files[:index]))
 		}
 	}

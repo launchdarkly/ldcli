@@ -15,10 +15,8 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
-	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	syncdetach "github.com/launchdarkly/ldcli/internal/sync/detach"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
-	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
@@ -37,7 +35,6 @@ type Runner struct {
 	client     resources.Client
 	bootstrap  func(syncbootstrap.Options) error
 	detach     func(syncdetach.Options) error
-	link       func(synclink.Options) (string, error)
 	watch      watchRunner
 	isTerminal func(io.Reader, io.Writer) bool
 }
@@ -48,7 +45,6 @@ func NewRunner(client resources.Client) Runner {
 		client:     client,
 		bootstrap:  syncbootstrap.Run,
 		detach:     syncdetach.Run,
-		link:       synclink.Run,
 		watch:      watchWorkspace,
 		isTerminal: syncinteractive.StreamsAreTerminal,
 	}
@@ -81,11 +77,6 @@ func (runner Runner) Run(options Options) error {
 		return runner.runAdd(options, workspace, action)
 	case DetachAction:
 		return runner.runDetach(options, workspace, action)
-	case LinkAction:
-		linked, err := runner.runLink(options, workspace, action)
-		if err != nil || !linked {
-			return err
-		}
 	case AttachAction:
 		attached, err := runner.runAttach(options, workspace, action)
 		if err != nil || !attached {
@@ -177,29 +168,6 @@ func (runner Runner) runDetach(options Options, workspace syncWorkspace, action 
 		Yes:            options.Yes,
 		Context:        options.Context,
 	})
-}
-
-// runLink creates the linked variation file. It reports false when the user
-// cancels.
-func (runner Runner) runLink(options Options, workspace syncWorkspace, action LinkAction) (bool, error) {
-	path, err := runner.link(synclink.Options{
-		Catalog:          runner.api(options),
-		Store:            workspace.local,
-		RepositoryRoot:   workspace.root,
-		WorkingDirectory: options.WorkingDirectory,
-		File:             action.File,
-		Format:           action.Format,
-		Input:            options.Input,
-		Output:           options.Output,
-		ProjectKey:       action.ProjectKey,
-		Target:           action.Target,
-		NoInput:          options.NoInput,
-	})
-	if err != nil || path == "" {
-		return false, err
-	}
-	_ = syncconsole.New(options.Output).Printf("Linked %s/%s.\n", syncdomain.RootDir, path)
-	return true, nil
 }
 
 // runAttach adds the attachment to a local variation. It reports false when

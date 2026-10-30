@@ -25,17 +25,14 @@ var syncCommandFlags = map[string][]string{
 	"sync prompts attach tool":  {"conflict", "diff", "no-input", "project", "resolve", "to", "yes"},
 	"sync prompts attach skill": {"conflict", "diff", "no-input", "project", "resolve", "to", "yes"},
 	"sync prompts detach":       {"archive", "config-key", "key", "no-input", "project", "yes"},
-	"sync prompts link": {
-		"conflict", "content", "diff", "format", "model-config-key", "name", "no-input", "project", "resolve", "to", "yes",
-	},
-	"sync tools":         {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
-	"sync tools watch":   {"conflict", "diff", "key", "no-input", "project", "yes"},
-	"sync tools add":     {"description", "diff", "dry-run", "json-schema", "key", "no-input", "project", "yes"},
-	"sync tools detach":  {"key", "no-input", "project", "yes"},
-	"sync skills":        {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
-	"sync skills watch":  {"conflict", "diff", "key", "no-input", "project", "yes"},
-	"sync skills add":    {"content", "description", "diff", "dry-run", "key", "name", "no-input", "project", "yes"},
-	"sync skills detach": {"key", "no-input", "project", "yes"},
+	"sync tools":                {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
+	"sync tools watch":          {"conflict", "diff", "key", "no-input", "project", "yes"},
+	"sync tools add":            {"description", "diff", "dry-run", "json-schema", "key", "no-input", "project", "yes"},
+	"sync tools detach":         {"key", "no-input", "project", "yes"},
+	"sync skills":               {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
+	"sync skills watch":         {"conflict", "diff", "key", "no-input", "project", "yes"},
+	"sync skills add":           {"content", "description", "diff", "dry-run", "key", "name", "no-input", "project", "yes"},
+	"sync skills detach":        {"key", "no-input", "project", "yes"},
 }
 
 func TestSyncCommandsHaveExactFlags(t *testing.T) {
@@ -75,11 +72,7 @@ func TestSyncCommandsReadSyncFlagsOnlyFromTheCommandLine(t *testing.T) {
 
 	for _, command := range runnableSyncCommands(NewSyncCmd(nil, nil)) {
 		require.NoError(t, command.ParseFlags(nil))
-		var args []string
-		if command.Name() == "link" {
-			args = []string{"prompt.md"}
-		}
-		require.NoError(t, command.Args(command, args), command.CommandPath())
+		require.NoError(t, command.Args(command, nil), command.CommandPath())
 		command.LocalNonPersistentFlags().VisitAll(func(flag *pflag.Flag) {
 			assert.False(t, flag.Changed, "%s --%s", command.CommandPath(), flag.Name)
 		})

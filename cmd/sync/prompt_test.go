@@ -17,21 +17,17 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	command := NewPromptCmd(nil)
 
 	assert.Equal(t, "prompts", command.Use)
-	for _, name := range []string{"watch", "add", "attach", "detach", "link"} {
+	for _, name := range []string{"watch", "add", "attach", "detach"} {
 		child, _, err := command.Find([]string{name})
 		require.NoError(t, err)
 		assert.Equal(t, name, child.Name())
 	}
-	for _, name := range []string{"add", "attach-tool", "attach-skill", "detach", "link", "watch"} {
+	for _, name := range []string{"add", "attach-tool", "attach-skill", "detach", "watch"} {
 		assert.Nil(t, command.Flags().Lookup(name), "legacy --%s should not exist", name)
 	}
 	add, _, err := command.Find([]string{"add"})
 	require.NoError(t, err)
 	assert.Equal(t, "add [project-key/config-key/variation-key...]", add.Use)
-	link, _, err := command.Find([]string{"link"})
-	require.NoError(t, err)
-	assert.NotNil(t, link.Flags().Lookup(modelConfigKeyFlag))
-	assert.Nil(t, link.Flags().Lookup("model-config"))
 }
 
 func TestSyncCommandIncludesExamples(t *testing.T) {
@@ -57,7 +53,6 @@ func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 		"attach tool":  {"attach", "tool"},
 		"attach skill": {"attach", "skill"},
 		"detach":       {"detach"},
-		"link":         {"link"},
 	}
 
 	for name, path := range tests {
@@ -112,7 +107,6 @@ func TestPromptCommandsRegisterTargetFlags(t *testing.T) {
 		"add":         {path: []string{"add"}, help: questionFlagHelp},
 		"detach":      {path: []string{"detach"}, help: questionFlagHelp},
 		"attach tool": {path: []string{"attach", "tool"}, help: targetFlagHelp{project: questionFlagHelp.project}},
-		"link":        {path: []string{"link"}, help: targetFlagHelp{project: questionFlagHelp.project}},
 	}
 
 	for name, test := range tests {
