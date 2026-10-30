@@ -35,6 +35,31 @@ prompt = PromptTemplate.from_template("Hello {customer}.")
 	assert.Contains(t, string(updated), `"Welcome {customer_name}."`)
 }
 
+func TestDollarPlaceholderTranslationRoundTrip(t *testing.T) {
+	source := []byte(`import { generateText } from "ai";
+const result = generateText({ prompt: "Hello ${customer}." });
+`)
+	id := syncdomain.VariationID("project", "config", "default")
+	reference := syncdomain.Reference{
+		File: "prompt.ts", Format: "typescript", Select: `prompts[id="result"]`,
+		Map: map[string]string{"prompt": "prompt"},
+	}
+	projection, err := ParseSource(
+		sourceBundle(reference.File, source), id, syncdomain.VariationModeAgent, reference,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello {{customer}}.", *projection.(syncdomain.VariationProjection).Instructions)
+
+	next := "Welcome {{customer_name}}."
+	result, err := UpdateSource(
+		sourceBundle(reference.File, source), id, syncdomain.VariationModeAgent, reference,
+		syncdomain.VariationProjection{Mode: syncdomain.VariationModeAgent, Instructions: &next},
+	)
+	require.NoError(t, err)
+	updated := applyConformanceEdits(t, source, directEdits(t, result))
+	assert.Contains(t, string(updated), `"Welcome ${customer_name}."`)
+}
+
 func TestAmbiguousPlaceholdersAreReadOnly(t *testing.T) {
 	tests := []struct {
 		name, template string

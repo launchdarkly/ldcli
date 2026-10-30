@@ -285,3 +285,105 @@ func TestCompletionMessagesEditContentButRejectStructure(t *testing.T) {
 	assert.Equal(t, CapabilityReadOnly, result.Fields[syncdomain.FieldMessages].Capability)
 	assert.Contains(t, result.Fields[syncdomain.FieldMessages].Reason, "add or remove messages by hand")
 }
+
+func TestTypeScriptLangChainAndQualifiedConstant(t *testing.T) {
+	source := fixtureFile(t, "typescript/langchain.ts")
+	id := syncdomain.VariationID("project", "config", "default")
+	tests := []struct {
+		name, selectPath, field, mapPath string
+		mode                             syncdomain.VariationMode
+	}{
+		{name: "messages", selectPath: `prompts[id="chat"]`, field: "messages", mapPath: "messages", mode: syncdomain.VariationModeCompletion},
+		{name: "constant messages", selectPath: `prompts[id="sharedChat"]`, field: "messages", mapPath: "messages", mode: syncdomain.VariationModeCompletion},
+		{name: "template", selectPath: `prompts[id="simple"]`, field: "prompt", mapPath: "template", mode: syncdomain.VariationModeAgent},
+		{name: "constructor", selectPath: `prompts[id="constructor"]`, field: "messages", mapPath: "messages", mode: syncdomain.VariationModeCompletion},
+		{name: "function constant", selectPath: `constants[id="build.prompt"]`, field: "prompt", mapPath: "$", mode: syncdomain.VariationModeAgent},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reference := syncdomain.Reference{
+				File: "langchain.ts", Format: "typescript", Select: test.selectPath,
+				Map: map[string]string{test.field: test.mapPath},
+			}
+			projection, err := ParseSource(sourceBundle(reference.File, source), id, test.mode, reference)
+			require.NoError(t, err)
+			assert.NotNil(t, projection)
+		})
+	}
+}
+
+func TestMutationAndSpreadStayLocalToTheirFields(t *testing.T) {
+	pythonSource := []byte(`PROMPT = "Initial"
+PROMPT += " changed"
+CONFIG = {"prompt": "Initial"}
+CONFIG["prompt"] = "changed"
+`)
+	pythonRoot, err := parseSourceDocument(Document{Path: "settings.py", Data: pythonSource}, "python")
+	require.NoError(t, err)
+	prompt, err := resolveSourcePath(pythonRoot, `constants[id="PROMPT"]`)
+	require.NoError(t, err)
+	assert.Equal(t, CapabilityReadOnly, prompt.capability)
+	assert.Contains(t, prompt.reason, "mutated")
+	config, err := resolveSourcePath(pythonRoot, `constants[id="CONFIG"]`)
+	require.NoError(t, err)
+	assert.Equal(t, CapabilityReadOnly, config.capability)
+
+	typeScriptSource := []byte(`const CONFIG = {
+  description: "Static description",
+  ...runtimeValues,
+  model: helper(),
+};
+CONFIG.description = "changed";`)
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "config"}
+	reference := syncdomain.Reference{
+		File: "config.ts", Format: "typescript", Select: `constants[id="CONFIG"]`,
+		Map: map[string]string{"description": "description", "schema": "model"},
+	}
+	projection, err := ParseSource(sourceBundle(reference.File, typeScriptSource), id, "", reference)
+	require.NoError(t, err)
+	tool := projection.(syncdomain.ToolProjection)
+	assert.Equal(t, "Static description", *tool.Description)
+	schemaState, ok := syncdomain.ProjectionFieldState(tool, syncdomain.FieldSchema)
+	require.True(t, ok)
+	assert.Equal(t, syncdomain.CapabilityReadOnly, schemaState.Capability)
+	root, err := parseSourceDocument(Document{Path: "config.ts", Data: typeScriptSource}, "typescript")
+	require.NoError(t, err)
+	config, err = resolveSourcePath(root, `constants[id="CONFIG"]`)
+	require.NoError(t, err)
+	assert.Equal(t, CapabilityReadOnly, config.capability)
+}
+
+func TestTypeScriptAndJavaScriptConstantLiteralKinds(t *testing.T) {
+	source := []byte(`const CONFIG = {
+  single: 'one',
+  double: "two",
+  template: ` + "`three`" + `,
+  retries: 3,
+  enabled: true,
+  models: ["gpt-5", "claude-sonnet"],
+  nested: { prompt: "Help" },
+};`)
+	for _, format := range []string{"typescript", "javascript"} {
+		t.Run(format, func(t *testing.T) {
+			root, err := parseSourceDocument(Document{Path: "config.js", Data: source}, format)
+			require.NoError(t, err)
+			tests := []struct {
+				path string
+				want any
+			}{
+				{path: `constants[id="CONFIG"].single`, want: "one"},
+				{path: `constants[id="CONFIG"].double`, want: "two"},
+				{path: `constants[id="CONFIG"].template`, want: "three"},
+				{path: `constants[id="CONFIG"].retries`, want: 3.0},
+				{path: `constants[id="CONFIG"].enabled`, want: true},
+				{path: `constants[id="CONFIG"].models`, want: []any{"gpt-5", "claude-sonnet"}},
+				{path: `constants[id="CONFIG"].nested.prompt`, want: "Help"},
+			}
+			for _, test := range tests {
+				node, err := resolveSourcePath(root, test.path)
+				require.NoError(t, err)
+				assert.Equal(t, test.want, node.value)
+			}
+		})
+	}
+}

@@ -42,6 +42,18 @@ func TestRegisteredFormatsReadAndWriteRealisticSources(t *testing.T) {
 			want: "Ask for an order ID before discussing an order.", update: "Ask for an order ID and region.",
 		},
 		{
+			name: "TypeScript MCP tool", fixture: "typescript/server.ts", format: "typescript",
+			id:         syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "lookup_order"},
+			selectPath: `tools[id="lookup_order"]`, fieldMap: map[string]string{"description": "description"},
+			want: "Look up one order.", update: "Look up one order and status.",
+		},
+		{
+			name: "JavaScript MCP tool", fixture: "javascript/server.js", format: "javascript",
+			id:         syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "weather"},
+			selectPath: `tools[id="weather"]`, fieldMap: map[string]string{"description": "description"},
+			want: "Return the weather for one city.", update: "Return weather and alerts.",
+		},
+		{
 			name: "JSON tool", fixture: "json/mcp.json", format: "json",
 			id:         syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "lookup_order"},
 			selectPath: `tools[name="lookup_order"]`, fieldMap: map[string]string{"description": "description"},
@@ -85,10 +97,6 @@ func TestRegisteredFormatsReadAndWriteRealisticSources(t *testing.T) {
 			assert.Equal(t, test.update, primaryText(t, reparsed))
 		})
 	}
-}
-
-func sourceBundle(path string, data []byte) SourceBundle {
-	return SourceBundle{Primary: Document{Path: path, Data: data}}
 }
 
 func primaryText(t *testing.T, projection syncdomain.Projection) string {
