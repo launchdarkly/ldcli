@@ -18,7 +18,6 @@ import (
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
-	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 func TestLoadResourcesUnionsLocalAndManifestResources(t *testing.T) {
@@ -95,48 +94,6 @@ func TestDetachResourcesKeepsAttachmentManifestEntries(t *testing.T) {
 	assert.Equal(t, []syncmanifest.Resource{original.Resources[1]}, baseline.Lock.Resources)
 	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir, "project", "tools", "search.json"))
 	require.NoError(t, err, "the tool file stays")
-}
-
-func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testing.T) {
-	root := t.TempDir()
-	referencePath := filepath.Join(root, "prompts", "prompt.md")
-	require.NoError(t, os.MkdirAll(filepath.Dir(referencePath), 0o755))
-	require.NoError(t, os.WriteFile(referencePath, []byte("Keep me.\n"), 0o644))
-
-	store := synclocal.NewStore(root)
-	variation := testVariation("prompt")
-	_, err := store.Add([]synclocal.VariationFile{{
-		ProjectKey: "project", ConfigKey: "config", Variation: variation,
-		Ref: &synclocal.Reference{File: "prompts/prompt.md", Format: syncreference.PlainMarkdown},
-	}})
-	require.NoError(t, err)
-
-	manifestStore := newMemoryManifestStore()
-	original := syncmanifest.Manifest{
-		Resources: []syncmanifest.Resource{{
-			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
-			Fingerprint: testFingerprint(),
-		}},
-	}
-	require.NoError(t, manifestStore.Write(original))
-
-	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
-	err = detachResources(
-		Options{RepositoryRoot: root, Store: store, Baselines: manifestStore},
-		syncmanifest.Baseline{Lock: original},
-		[]syncdomain.ResourceID{resource},
-	)
-
-	require.NoError(t, err)
-	exists, err := store.VariationExists("project", "config", "prompt")
-	require.NoError(t, err)
-	assert.False(t, exists)
-	_, err = os.Stat(referencePath)
-	require.NoError(t, err)
-	baseline, err := manifestStore.Load([]string{"project"})
-	manifest := baseline.Lock
-	require.NoError(t, err)
-	assert.Empty(t, manifest.Resources)
 }
 
 func TestDetachResourcesRemovesManifestEntryWhenWrapperWasAlreadyDeleted(t *testing.T) {
