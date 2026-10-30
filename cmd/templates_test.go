@@ -27,6 +27,7 @@ func TestGetUsageTemplate_ListsTopLevelCommands(t *testing.T) {
 		"segments",
 		"sourcemaps",
 		"symbols",
+		"observability",
 	} {
 		assert.Contains(t, template, `"`+name+`"`, "%s is missing from the root usage listing", name)
 	}
