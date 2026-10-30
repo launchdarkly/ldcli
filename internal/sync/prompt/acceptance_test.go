@@ -1287,8 +1287,6 @@ func TestPromptDetachArchive(t *testing.T) {
 	}
 }
 
-// syncLinkedVariation writes a linked variation that matches LaunchDarkly and
-// runs one sync, so that sync.lock records the link.
 func TestPromptFilterSyncsOnlyTheNamedVariation(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
