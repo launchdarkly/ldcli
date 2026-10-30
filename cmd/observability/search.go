@@ -147,6 +147,10 @@ func runSearch(cmd *cobra.Command, clients Clients, spec searchSpec, extraParams
 			line[i] = truncate(oneLine(line[i]), maxLength)
 		}
 		for _, key := range attributeKeys {
+			key = strings.TrimSpace(key)
+			if key == "" {
+				continue
+			}
 			if value, ok := lookupAttribute(attributes, key); ok {
 				line = append(line, key+"="+truncate(oneLine(formatValue(value)), maxLength))
 			}

@@ -195,9 +195,16 @@ func runAggregate(cmd *cobra.Command, clients Clients) error {
 		fmt.Fprintf(out, "SAMPLED: sample factor %.2f. The API read a sample of the records, so the values are estimates. For exact counts, use a shorter time range.\n", metrics.SampleFactor)
 	}
 
+	// Count and Sum buckets with no records come back as 0, so 0 means "no data" there.
+	// For other functions (Min, Avg, percentiles, ...) 0 is a real value; only a
+	// missing value means the bucket had no records.
+	countLike := function == "Count" || function == "Sum" || strings.HasPrefix(function, "CountDistinct")
+	hasValue := func(v *float64) bool {
+		return v != nil && (*v != 0 || !countLike)
+	}
 	empty := true
 	for _, b := range metrics.Buckets {
-		if b.MetricValue != nil && *b.MetricValue != 0 {
+		if hasValue(b.MetricValue) {
 			empty = false
 		}
 	}
@@ -215,7 +222,7 @@ func runAggregate(cmd *cobra.Command, clients Clients) error {
 	totals := map[string]float64{}
 	var groupOrder []string
 	for _, b := range metrics.Buckets {
-		if b.MetricValue == nil || *b.MetricValue == 0 {
+		if !hasValue(b.MetricValue) {
 			continue
 		}
 		row := bucketTime(b.BucketMin) + "\t"
