@@ -41,3 +41,32 @@ func TestMarkdownProfilesRejectUnsafeMarkers(t *testing.T) {
 	)
 	require.Error(t, err)
 }
+
+func TestPlaceholderTranslationRejectsAmbiguousForms(t *testing.T) {
+	for _, value := range []string{"{{name}}", "{name", "{1name}", "literal }"} {
+		_, err := placeholdersToLaunchDarkly(value, bracePlaceholder)
+		require.Error(t, err)
+	}
+	for _, value := range []string{"{{name", "{{1name}}", "literal {"} {
+		_, err := placeholdersFromLaunchDarkly(value, bracePlaceholder)
+		require.Error(t, err)
+	}
+}
+
+func TestPythonAdapterRejectsDynamicPrompt(t *testing.T) {
+	id := syncdomain.VariationID("project", "config", "default")
+	reference := syncdomain.Reference{
+		File: "agent.py", Format: "python", Select: `agents[id="support"]`,
+		Map: map[string]string{"prompt": "instructions"},
+	}
+	projection, err := ParseSource(
+		sourceBundle("agent.py", []byte("from agents import Agent\nsupport = Agent(instructions=load_prompt())\n")),
+		id,
+		syncdomain.VariationModeAgent,
+		reference,
+	)
+	require.NoError(t, err)
+	state, ok := syncdomain.ProjectionFieldState(projection, syncdomain.FieldPrompt)
+	require.True(t, ok)
+	require.Equal(t, syncdomain.CapabilityReadOnly, state.Capability)
+}
