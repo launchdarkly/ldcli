@@ -19,9 +19,7 @@ import (
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	syncdetach "github.com/launchdarkly/ldcli/internal/sync/detach"
-	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
-	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
@@ -132,31 +130,6 @@ func TestRunnerWatchDoesNotRunInitialSync(t *testing.T) {
 	assert.True(t, watchCalled)
 }
 
-func TestRunnerLinksPrompt(t *testing.T) {
-	root := initGitRepository(t)
-	runner := NewRunner(noopResourceClient{})
-	linkCalled := false
-	runner.link = func(options synclink.Options) (string, error) {
-		linkCalled = true
-		assert.Equal(t, "prompt.md", options.File)
-		assert.Equal(t, syncreference.PlainMarkdown, options.Format)
-		return "", nil
-	}
-
-	err := runner.Run(Options{
-		WorkingDirectory: root,
-		Action: LinkAction{
-			File: "prompt.md", Format: syncreference.PlainMarkdown,
-		},
-		Input:       os.Stdin,
-		Output:      io.Discard,
-		ErrorOutput: io.Discard,
-	})
-
-	require.NoError(t, err)
-	assert.True(t, linkCalled)
-}
-
 func TestRunnerDetachesWithoutCallingTheAPI(t *testing.T) {
 	root := initGitRepository(t)
 	runner := NewRunner(noopResourceClient{})
@@ -213,9 +186,6 @@ func TestRunnerChecksAttachmentTerminalOnOutput(t *testing.T) {
 }
 
 func TestValidateOptions(t *testing.T) {
-	require.ErrorContains(t, validateOptions(Options{
-		Action: LinkAction{File: "prompt.md"},
-	}), "--format is required")
 	require.ErrorContains(t, validateOptions(Options{
 		Action: SyncAction{Watch: true, DryRun: true},
 	}), "watch does not support --dry-run")
