@@ -8,8 +8,6 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	synccreate "github.com/launchdarkly/ldcli/internal/sync/create"
-	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
-	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 // CommandAction is one sync operation. scope is the scope of the command.
@@ -56,15 +54,6 @@ type DetachAction struct {
 	Archive   bool
 }
 
-// LinkAction creates a variation whose prompt is an external file, and then
-// syncs. ProjectKey skips the project question.
-type LinkAction struct {
-	File       string
-	Format     string
-	ProjectKey string
-	Target     *synclink.Target
-}
-
 func (action SyncAction) validate(scope syncdomain.Scope) error {
 	if action.Watch && action.DryRun {
 		return errors.New("watch does not support --dry-run")
@@ -102,25 +91,6 @@ func (action AttachAction) validate(syncdomain.Scope) error {
 		return errors.New("attachment target must be a variation")
 	}
 	return validateProjectFlag(action.ProjectKey, action.Target)
-}
-
-func (action LinkAction) validate(syncdomain.Scope) error {
-	switch {
-	case action.File == "":
-		return errors.New("linked file is required")
-	case action.Format == "":
-		return errors.New("--format is required")
-	case action.Target != nil && action.Target.ModelConfigKey == "":
-		return errors.New("--model-config-key is required with --to")
-	}
-	var target *syncdomain.ResourceID
-	if action.Target != nil {
-		target = &action.Target.Variation
-	}
-	if err := validateProjectFlag(action.ProjectKey, target); err != nil {
-		return err
-	}
-	return syncreference.ValidateFormat(action.Format)
 }
 
 // validateSelections rejects positional selectors outside the prompts scope,
