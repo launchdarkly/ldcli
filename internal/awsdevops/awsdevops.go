@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -124,10 +123,10 @@ func NewClients(ctx context.Context, region, profile string) (Clients, error) {
 
 	creds, err := cfg.Credentials.Retrieve(ctx)
 	if err != nil {
-		return Clients{}, noCredentialsError(profile, err)
+		return Clients{}, noCredentialsError(ctx, profile, err)
 	}
 	if !creds.HasKeys() {
-		return Clients{}, noCredentialsError(profile, nil)
+		return Clients{}, noCredentialsError(ctx, profile, nil)
 	}
 
 	return Clients{
@@ -168,7 +167,7 @@ const maxListedProfiles = 5
 // noCredentialsError builds the surfaced message for a credential-resolution
 // failure. profile is the value passed via --profile; cause is the underlying
 // SDK error, which may be nil when credentials simply had no keys.
-func noCredentialsError(profile string, cause error) error {
+func noCredentialsError(ctx context.Context, profile string, cause error) error {
 	selected, chosen := SelectedProfile(profile)
 	profiles := knownProfiles()
 	// The default profile counts only if it exists.
@@ -177,7 +176,7 @@ func noCredentialsError(profile string, cause error) error {
 	// credential_process. The message does not show the cause, because a
 	// cause can contain the output of a credential_process with the secret key.
 	useful := cause != nil && !fromIMDS(cause)
-	sso := SSOProfile(ConfigFilePath(), profile)
+	sso := SSOProfile(ctx, profile)
 
 	var msg string
 	switch {
@@ -245,7 +244,7 @@ func knownProfiles() []string {
 		profiles = append(profiles, name)
 	}
 
-	for _, path := range sharedConfigPaths() {
+	for _, path := range []string{credentialsFilePath(), configFilePath()} {
 		file, err := os.Open(path)
 		if err != nil {
 			continue
@@ -275,20 +274,20 @@ func knownProfiles() []string {
 	return profiles
 }
 
-// sharedConfigPaths returns the paths the AWS SDK reads profiles from,
-// honoring AWS_CONFIG_FILE and AWS_SHARED_CREDENTIALS_FILE overrides.
-func sharedConfigPaths() []string {
-	var paths []string
+// credentialsFilePath and configFilePath return the files the SDK reads
+// profiles from. AWS_SHARED_CREDENTIALS_FILE and AWS_CONFIG_FILE override them.
+func credentialsFilePath() string {
 	if v := os.Getenv("AWS_SHARED_CREDENTIALS_FILE"); v != "" {
-		paths = append(paths, v)
-	} else if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".aws", "credentials"))
-	}
-	if v := os.Getenv("AWS_CONFIG_FILE"); v != "" {
-		paths = append(paths, v)
-	} else if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".aws", "config"))
+		return v
 	}
 
-	return paths
+	return awsconfig.DefaultSharedCredentialsFilename()
+}
+
+func configFilePath() string {
+	if v := os.Getenv("AWS_CONFIG_FILE"); v != "" {
+		return v
+	}
+
+	return awsconfig.DefaultSharedConfigFilename()
 }

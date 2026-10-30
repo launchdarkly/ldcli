@@ -19,7 +19,6 @@ import (
 // also asks for a profile and a region that are missing.
 type ssoLogin struct {
 	newClients func(ctx context.Context, region, profile string) (awsdevops.Clients, error)
-	configPath string
 	in         io.Reader
 	out        io.Writer
 	tty        func() bool
@@ -85,7 +84,6 @@ func (l ssoLogin) defaultCredentialsFail(ctx context.Context, profile string, er
 func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 	return ssoLogin{
 		newClients: awsdevops.NewClients,
-		configPath: awsdevops.ConfigFilePath(),
 		in:         sharedStdin(cmd),
 		out:        cmd.ErrOrStderr(),
 		tty:        tty,
@@ -130,7 +128,7 @@ func (l ssoLogin) clientsAfter(
 	}
 
 	// A login helps only if the SSO token is expired or missing.
-	name := awsdevops.SSOProfile(l.configPath, profile)
+	name := awsdevops.SSOProfile(ctx, profile)
 	if name == "" || !awsdevops.SSOTokenInvalid(err) || !l.tty() {
 		return clients, err
 	}
