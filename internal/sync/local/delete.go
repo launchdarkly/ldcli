@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
@@ -40,6 +41,43 @@ func (store Store) DeleteResources(ids []syncdomain.ResourceID) ([]string, error
 			return nil, err
 		}
 		paths = append(paths, relativePath)
+	}
+	return store.deleteFiles(paths)
+}
+
+// DeleteDefinitions deletes each descriptor when present, or its managed file.
+// It never deletes the external file that a descriptor references.
+func (store Store) DeleteDefinitions(ids []syncdomain.ResourceID) ([]string, error) {
+	paths := make([]string, 0, len(ids))
+	for _, id := range ids {
+		reference, err := ReferencePath(id)
+		if err != nil {
+			return nil, err
+		}
+		reference = strings.TrimPrefix(reference, syncdomain.RootDir+"/")
+		_, referenceErr := os.Stat(store.absolute(reference))
+		if referenceErr != nil && !errors.Is(referenceErr, os.ErrNotExist) {
+			return nil, fmt.Errorf("inspect descriptor %s: %w", id.Label(), referenceErr)
+		}
+		managed, err := resourcePath(id)
+		if err != nil {
+			return nil, err
+		}
+		_, managedErr := os.Stat(store.absolute(managed))
+		if managedErr != nil && !errors.Is(managedErr, os.ErrNotExist) {
+			return nil, fmt.Errorf("inspect managed file %s: %w", id.Label(), managedErr)
+		}
+		if referenceErr == nil && managedErr == nil {
+			return nil, definitionConflict(id, id.Label()+" has a managed file and a descriptor")
+		}
+		if referenceErr == nil {
+			paths = append(paths, reference)
+			continue
+		}
+		if managedErr != nil {
+			return nil, fmt.Errorf("inspect definition %s: %w", id.Label(), managedErr)
+		}
+		paths = append(paths, managed)
 	}
 	return store.deleteFiles(paths)
 }

@@ -96,6 +96,46 @@ func TestDetachResourcesKeepsAttachmentManifestEntries(t *testing.T) {
 	require.NoError(t, err, "the tool file stays")
 }
 
+func TestDetachResourcesRemovesDescriptorAndManifestButKeepsSource(t *testing.T) {
+	root := t.TempDir()
+	referencePath := filepath.Join(root, "prompts", "prompt.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(referencePath), 0o755))
+	require.NoError(t, os.WriteFile(referencePath, []byte("Keep me.\n"), 0o644))
+
+	store := synclocal.NewStore(root)
+	resource := syncdomain.VariationID("project", "config", "prompt")
+	_, err := store.WriteDescriptor(resource, synclocal.Reference{
+		File: "prompts/prompt.md", Format: "markdown",
+	})
+	require.NoError(t, err)
+
+	manifestStore := newMemoryManifestStore()
+	original := syncmanifest.Manifest{
+		Resources: []syncmanifest.Resource{{
+			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
+			Fingerprint: testFingerprint(),
+		}},
+	}
+	require.NoError(t, manifestStore.Write(original))
+
+	err = detachResources(
+		Options{RepositoryRoot: root, Store: store, Baselines: manifestStore},
+		syncmanifest.Baseline{Lock: original},
+		[]syncdomain.ResourceID{resource},
+	)
+
+	require.NoError(t, err)
+	exists, err := store.VariationExists("project", "config", "prompt")
+	require.NoError(t, err)
+	assert.False(t, exists)
+	_, err = os.Stat(referencePath)
+	require.NoError(t, err)
+	baseline, err := manifestStore.Load([]string{"project"})
+	manifest := baseline.Lock
+	require.NoError(t, err)
+	assert.Empty(t, manifest.Resources)
+}
+
 func TestDetachResourcesRemovesManifestEntryWhenWrapperWasAlreadyDeleted(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
