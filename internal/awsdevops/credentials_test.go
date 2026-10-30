@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -313,4 +316,44 @@ func TestCredentialErrorPointsToTheCauseWithoutAProfile(t *testing.T) {
 	err := noCredentialsError("", errors.New("process provider error: exit status 1"))
 
 	assert.Equal(t, "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause", err.Error())
+}
+
+// The cached token is not expired, but AWS rejects it, as after a sign-out in
+// the access portal. A test server acts as the SSO portal.
+func TestSSOTokenInvalidForARejectedToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Amzn-Errortype", "UnauthorizedException")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"Session token not found or invalid"}`))
+	}))
+	defer server.Close()
+	writeSSOConfig(t)
+	t.Setenv("AWS_ENDPOINT_URL_SSO", server.URL)
+	path, err := ssocreds.StandardCachedTokenFilepath("https://example.awsapps.com/start")
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(`{"accessToken":"revoked","expiresAt":"2999-01-01T00:00:00Z"}`), 0o600))
+
+	_, err = NewClients(context.Background(), "us-east-1", "legacy")
+
+	require.ErrorIs(t, err, ErrNoCredentials)
+	assert.True(t, SSOTokenInvalid(err), "cause: %v", errors.Unwrap(err))
+	assert.Contains(t, err.Error(), "aws sso login --profile legacy")
+}
+
+func TestSSOTokenInvalidForAMissingCachedToken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".aws", "sso", "cache", "abc.json")
+	_, err := os.ReadFile(path)
+
+	assert.True(t, SSOTokenInvalid(fmt.Errorf("failed to read cached SSO token file, %w", err)))
+}
+
+// A credential_process binary that does not exist is not a token problem, so
+// aws sso login does not help.
+func TestSSOTokenInvalidIgnoresOtherMissingFiles(t *testing.T) {
+	_, err := os.Stat(filepath.Join(t.TempDir(), "bin", "get-creds"))
+	require.ErrorIs(t, err, fs.ErrNotExist)
+
+	assert.False(t, SSOTokenInvalid(fmt.Errorf("credential process failed: %w", err)))
 }
