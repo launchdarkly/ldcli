@@ -22,6 +22,22 @@ const (
 	KindSkill     Kind = "skill"
 )
 
+// SyncDirection is the LaunchDarkly setting that controls allowed writes.
+type SyncDirection string
+
+const (
+	SyncDirectionCodeCanonical   SyncDirection = "code_canonical"
+	SyncDirectionServerCanonical SyncDirection = "server_canonical"
+	SyncDirectionBoth            SyncDirection = "both"
+)
+
+// Valid reports whether LaunchDarkly returned a supported sync direction.
+func (direction SyncDirection) Valid() bool {
+	return direction == SyncDirectionCodeCanonical ||
+		direction == SyncDirectionServerCanonical ||
+		direction == SyncDirectionBoth
+}
+
 // ResourceID identifies one synchronized resource.
 //
 // For a variation, LookupKey is "config-key/variation-key". For a tool or a
@@ -143,11 +159,21 @@ func ValidateCreate(kind Kind, key, name, description string) error {
 	}
 }
 
-// Reference links a variation to a prompt file elsewhere in the repository.
-// Format names the adapter that reads and writes the file.
+// Reference links one resource to a file elsewhere in the repository.
+// Select identifies one value in the file. Map connects resource fields to
+// paths below that value.
 type Reference struct {
-	File   string `yaml:"file"`
-	Format string `yaml:"format"`
+	File   string            `yaml:"file"`
+	Format string            `yaml:"format"`
+	Select string            `yaml:"select,omitempty"`
+	Map    map[string]string `yaml:"map,omitempty"`
+}
+
+// IndexedSelection identifies one indexed item in a repository source.
+type IndexedSelection struct {
+	Path             string `yaml:"path"`
+	CollectionLength int    `yaml:"collectionLength"`
+	Fingerprint      string `yaml:"fingerprint"`
 }
 
 // SyncedResource is one variation compiled from the local workspace.
@@ -156,8 +182,13 @@ type SyncedResource struct {
 	ProjectKey string
 	LookupKey  string
 	// Upsert lets sync create the variation in LaunchDarkly when it is absent.
-	Upsert    bool
-	Variation Variation
+	Upsert bool
+	// Source is the descriptor-backed repository source, or nil for a managed file.
+	Source            *Reference
+	Dependencies      []string
+	IndexedSelections []IndexedSelection
+	Projection        Projection
+	Variation         Variation
 }
 
 // ID returns the identity of the compiled resource.

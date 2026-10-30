@@ -133,6 +133,13 @@ func (store Store) patch(
 }
 
 func (store Store) resourcesFromRemote(projectKey string, remote syncapi.SyncManifest) ([]Resource, error) {
+	if remote.FormatVersion != syncapi.SyncManifestFormatVersion {
+		return nil, fmt.Errorf(
+			"sync manifest for project %q has unsupported formatVersion %d",
+			projectKey,
+			remote.FormatVersion,
+		)
+	}
 	if remote.Source != "" && remote.Source != store.source {
 		return nil, fmt.Errorf(
 			"sync manifest for project %q returned source %q instead of %q", projectKey, remote.Source, store.source,
@@ -147,11 +154,15 @@ func (store Store) resourcesFromRemote(projectKey string, remote syncapi.SyncMan
 			)
 		}
 		resources = append(resources, Resource{
-			ResourceKind: item.ResourceKind,
-			ProjectKey:   projectKey,
-			LookupKey:    item.ResourceLookupKey,
-			Fingerprint:  item.Fingerprint,
-			Version:      item.Version,
+			ResourceKind:           item.ResourceKind,
+			ProjectKey:             projectKey,
+			LookupKey:              item.ResourceLookupKey,
+			Fingerprint:            item.Fingerprint,
+			Version:                item.Version,
+			FingerprintSchema:      item.FingerprintSchema,
+			ReferenceDigest:        item.ReferenceDigest,
+			AdapterBehaviorVersion: item.AdapterBehaviorVersion,
+			AdapterBehaviorDigest:  item.AdapterBehaviorDigest,
 		})
 	}
 	return resources, nil
@@ -169,14 +180,18 @@ func changes(before, after []Resource) ([]syncapi.SyncManifestUpsert, []syncapi.
 	for _, resource := range after {
 		current, exists := remaining[resource.ID()]
 		delete(remaining, resource.ID())
-		if exists && current.Fingerprint == resource.Fingerprint {
+		if exists && sameManifestContent(current, resource) {
 			continue
 		}
 		upserts = append(upserts, syncapi.SyncManifestUpsert{
-			ResourceKind:      resource.ResourceKind,
-			ResourceLookupKey: resource.LookupKey,
-			Fingerprint:       resource.Fingerprint,
-			Version:           current.Version,
+			ResourceKind:           resource.ResourceKind,
+			ResourceLookupKey:      resource.LookupKey,
+			Fingerprint:            resource.Fingerprint,
+			Version:                current.Version,
+			FingerprintSchema:      resource.FingerprintSchema,
+			ReferenceDigest:        resource.ReferenceDigest,
+			AdapterBehaviorVersion: resource.AdapterBehaviorVersion,
+			AdapterBehaviorDigest:  resource.AdapterBehaviorDigest,
 		})
 	}
 
@@ -191,6 +206,14 @@ func changes(before, after []Resource) ([]syncapi.SyncManifestUpsert, []syncapi.
 		}
 	}
 	return upserts, deletions
+}
+
+func sameManifestContent(left, right Resource) bool {
+	return left.Fingerprint == right.Fingerprint &&
+		left.FingerprintSchema == right.FingerprintSchema &&
+		left.ReferenceDigest == right.ReferenceDigest &&
+		left.AdapterBehaviorVersion == right.AdapterBehaviorVersion &&
+		left.AdapterBehaviorDigest == right.AdapterBehaviorDigest
 }
 
 // changesApplied reports whether the remote manifest contains every change.
