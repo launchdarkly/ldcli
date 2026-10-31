@@ -91,6 +91,11 @@ func (attachment Attachment) ID(projectKey string) ResourceID {
 type SyncedAttachment struct {
 	ProjectKey string
 	Attachment Attachment
+	// Source is the descriptor-backed repository source, or nil for a managed file.
+	Source            *Reference
+	Dependencies      []string
+	IndexedSelections []IndexedSelection
+	Projection        Projection
 }
 
 // ID returns the identity of the tool or the skill.

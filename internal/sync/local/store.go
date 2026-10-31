@@ -22,18 +22,14 @@ type VariationFile struct {
 	ProjectKey string
 	ConfigKey  string
 	Upsert     bool
-	Ref        *Reference
 	Variation  syncdomain.Variation
 }
 
-// VariationReplacement is new content for a variation file. If
-// CreateIfMissing is true and the file does not exist, the replace creates it
-// with Ref as its link. An existing file keeps its own link.
+// VariationReplacement is new content for a variation file.
 type VariationReplacement struct {
 	ProjectKey      string
 	ConfigKey       string
 	CreateIfMissing bool
-	Ref             *Reference
 	Variation       syncdomain.Variation
 }
 

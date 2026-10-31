@@ -41,12 +41,40 @@ resources:
 func TestDecodeLockRejectsInvalidContent(t *testing.T) {
 	for name, content := range map[string]string{
 		"unknown field":   "formatVersion: 1\nresources: []\nextra: true\n",
-		"unknown version": "formatVersion: 2\nresources: []\n",
+		"unknown version": "formatVersion: 3\nresources: []\n",
 		"bad fingerprint": "formatVersion: 1\nresources:\n  - kind: tool\n    project: p\n    key: k\n    fingerprint: x\n",
 	} {
 		_, err := decodeLock([]byte(content))
 		assert.Error(t, err, name)
 	}
+}
+
+func TestLockFormatOneContainsSourceMetadata(t *testing.T) {
+	content, err := encodeLock(Manifest{Resources: []Resource{{
+		ResourceKind:           syncdomain.KindSkill,
+		ProjectKey:             "production",
+		LookupKey:              "refunds",
+		Fingerprint:            fingerprint("a"),
+		FingerprintSchema:      syncdomain.ProjectionFingerprintSchema,
+		ReferenceDigest:        fingerprint("b"),
+		AdapterBehaviorVersion: syncdomain.AdapterBehaviorVersion,
+		AdapterBehaviorDigest:  syncdomain.AdapterBehaviorDigest,
+		IndexedSelections: []syncdomain.IndexedSelection{{
+			Path: "select#0", CollectionLength: 2, Fingerprint: fingerprint("c"),
+		}},
+	}}})
+
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "formatVersion: 1")
+	assert.Contains(t, string(content), "fingerprintSchema: launchdarkly.config.projection/1")
+	assert.Contains(t, string(content), "indexedSelections:")
+	assert.Contains(t, string(content), "collectionLength: 2")
+	assert.NotContains(t, string(content), "file:")
+	assert.NotContains(t, string(content), "direction:")
+	decoded, err := decodeLock(content)
+	require.NoError(t, err)
+	require.Len(t, decoded.Resources[0].IndexedSelections, 1)
+	assert.Equal(t, 2, decoded.Resources[0].IndexedSelections[0].CollectionLength)
 }
 
 // Other branches add entries to the shared remote manifest. A working copy
@@ -97,7 +125,7 @@ func TestBaselineStaleComparesFingerprints(t *testing.T) {
 		"newer version with a different fingerprint": {remote: remoteManifest(fingerprint("b"), 5), stale: true},
 		"newer version with the same fingerprint":    {remote: remoteManifest(fingerprint("a"), 5)},
 		"same version with a different fingerprint":  {remote: remoteManifest(fingerprint("b"), 4), stale: true},
-		"remote entry removed":                       {remote: syncapi.SyncManifest{Source: testSource}},
+		"remote entry removed":                       {remote: syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: testSource}},
 	}
 
 	for name, test := range tests {
@@ -117,7 +145,8 @@ func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLockWithoutThem(t *testing
 	client := &manifestClient{
 		manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("b"), 5)},
 		patchResponses: []syncapi.SyncManifest{{
-			Source: testSource,
+			FormatVersion: syncapi.SyncManifestFormatVersion,
+			Source:        testSource,
 			Items: []syncapi.SyncManifestResource{
 				{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Fingerprint: fingerprint("c"), Version: 6},
 				{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 1},
@@ -181,8 +210,11 @@ func TestBaselineStoreSaveDoesNotWriteLockWhenRemoteSaveFails(t *testing.T) {
 
 func TestBaselineStoreSaveRemovesEmptyLock(t *testing.T) {
 	client := &manifestClient{
-		manifests:      map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("a"), 4)},
-		patchResponses: []syncapi.SyncManifest{{Source: testSource}},
+		manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("a"), 4)},
+		patchResponses: []syncapi.SyncManifest{{
+			FormatVersion: syncapi.SyncManifestFormatVersion,
+			Source:        testSource,
+		}},
 	}
 	lock := lockWith(t, fingerprint("a"), 4)
 	store := NewBaselineStore(NewStore(client, testSource), lock)
@@ -246,7 +278,7 @@ func variationID() syncdomain.ResourceID {
 }
 
 func remoteManifest(fingerprint string, version int) syncapi.SyncManifest {
-	return syncapi.SyncManifest{Source: testSource, Items: []syncapi.SyncManifestResource{{
+	return syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: testSource, Items: []syncapi.SyncManifestResource{{
 		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Fingerprint: fingerprint, Version: version,
 	}}}
 }
@@ -275,26 +307,4 @@ func (lock *memoryLock) ReadLock() ([]byte, error) {
 func (lock *memoryLock) WriteLock(content []byte) error {
 	lock.content = content
 	return nil
-}
-
-func TestLockKeepsTheLinkOfAVariation(t *testing.T) {
-	manifest := Manifest{Resources: []Resource{{
-		ResourceKind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default",
-		Fingerprint: fingerprint("a"), Version: 1,
-	}}}
-	ref := &syncdomain.Reference{File: "prompts/support.md", Format: "plain-markdown"}
-	manifest.SetRefs([]syncdomain.SyncedResource{{
-		Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default", Ref: ref,
-	}})
-
-	content, err := encodeLock(manifest)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "    ref:\n      file: prompts/support.md\n      format: plain-markdown\n")
-	decoded, err := decodeLock(content)
-	require.NoError(t, err)
-	assert.Equal(t, ref, decoded.Ref(variationID()))
-
-	// A variation without a local file keeps its recorded link.
-	manifest.SetRefs(nil)
-	assert.Equal(t, ref, manifest.Ref(variationID()))
 }
