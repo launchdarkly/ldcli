@@ -53,9 +53,6 @@ func TestFrameworkInspectorsReadAndWriteStaticFields(t *testing.T) {
 		{name: "Mastra tool", fixture: "typescript/frameworks.ts", format: "typescript", collection: "tools", id: "mastraLookup", sourcePath: "description", want: "Look up one order with Mastra.", kind: syncdomain.KindTool},
 	}
 	for _, test := range tests {
-		if test.format != "python" {
-			continue
-		}
 		t.Run(test.name, func(t *testing.T) {
 			source := fixtureFile(t, test.fixture)
 			mode := test.mode
@@ -101,9 +98,6 @@ func TestFrameworkMessageListsAndBareCallIDs(t *testing.T) {
 		{name: "Vercel streamText messages", fixture: "typescript/frameworks.ts", format: "typescript", id: "streamed"},
 	}
 	for _, test := range messageTests {
-		if test.format != "python" {
-			continue
-		}
 		t.Run(test.name, func(t *testing.T) {
 			source := fixtureFile(t, test.fixture)
 			id := syncdomain.VariationID("project", "config", "default")
@@ -139,9 +133,6 @@ func TestFrameworkMessageListsAndBareCallIDs(t *testing.T) {
 		{name: "Anthropic TypeScript bare call", fixture: "typescript/frameworks.ts", format: "typescript", id: "bareCalls.anthropic.messages.create", path: "system", want: "Bare Anthropic message."},
 	}
 	for _, test := range bareTests {
-		if test.format != "python" {
-			continue
-		}
 		t.Run(test.name, func(t *testing.T) {
 			source := fixtureFile(t, test.fixture)
 			id := syncdomain.VariationID("project", "config", "default")
@@ -168,9 +159,6 @@ func TestFrameworkSchemasAndFunctionBuiltPromptsStayReadOnly(t *testing.T) {
 		{name: "MCP Zod schema", fixture: "typescript/frameworks.ts", format: "typescript", selectPath: `tools[id="mcp_lookup"]`, field: "schema", path: "schema", kind: syncdomain.KindTool},
 	}
 	for _, test := range tests {
-		if test.format != "python" {
-			continue
-		}
 		t.Run(test.name, func(t *testing.T) {
 			source := fixtureFile(t, test.fixture)
 			id := syncdomain.VariationID("project", "config", "default")

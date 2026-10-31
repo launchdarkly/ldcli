@@ -14,6 +14,7 @@ func TestImportedLiteralReadAndWrite(t *testing.T) {
 		name, format, primaryPath, dependencyPath string
 	}{
 		{name: "Python relative import", format: "python", primaryPath: "app/agent.py", dependencyPath: "app/prompts.py"},
+		{name: "TypeScript relative import", format: "typescript", primaryPath: "src/agent.ts", dependencyPath: "src/prompts.ts"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

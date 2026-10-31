@@ -152,6 +152,29 @@ func encodePythonString(value, quote string) []byte {
 	return []byte(quote + body + quote)
 }
 
+func decodeTypeScriptString(raw []byte) (string, byte, error) {
+	if len(raw) < 2 || raw[0] != raw[len(raw)-1] {
+		return "", 0, fmt.Errorf("invalid TypeScript string")
+	}
+	quote := raw[0]
+	if quote != '\'' && quote != '"' && quote != '`' {
+		return "", 0, fmt.Errorf("unsupported TypeScript string")
+	}
+	body := string(raw[1 : len(raw)-1])
+	if quote == '`' && strings.Contains(body, "${") {
+		return "", 0, fmt.Errorf("template interpolation is read-only")
+	}
+	value, err := decodeEscapes(body, false)
+	return value, quote, err
+}
+
+func encodeTypeScriptString(value string, quote byte) ([]byte, error) {
+	if quote == '`' && strings.Contains(value, "${") {
+		return nil, fmt.Errorf("template interpolation syntax requires patch review")
+	}
+	return []byte(string(quote) + encodeEscapes(value, quote, false) + string(quote)), nil
+}
+
 func decodeEscapes(text string, python bool) (string, error) {
 	var result strings.Builder
 	for offset := 0; offset < len(text); {
