@@ -229,14 +229,36 @@ func localChanges(
 ) map[syncdomain.ResourceID]bool {
 	local := make(map[syncdomain.ResourceID]string)
 	for _, variation := range variations {
-		if fingerprint, err := syncdomain.FingerprintVariation(variation.ProjectKey, variation.LookupKey, variation.Variation); err == nil {
+		var fingerprint string
+		var err error
+		if variation.Source != nil {
+			var projection syncdomain.VariationProjection
+			projection, err = syncdomain.ProjectVariation(variation.Variation, *variation.Source)
+			if err == nil {
+				fingerprint, err = syncdomain.FingerprintProjection(variation.ID(), projection)
+			}
+		} else {
+			fingerprint, err = syncdomain.FingerprintVariation(variation.ProjectKey, variation.LookupKey, variation.Variation)
+		}
+		if err == nil {
 			local[variation.ID()] = fingerprint
 		}
 	}
 	isSelected := func(id syncdomain.ResourceID) bool { return slices.Contains(selected, id) }
 	attachments, _ := synclocal.CompileAttachments(repositoryRoot, isSelected)
 	for _, attachment := range attachments {
-		if fingerprint, err := syncdomain.FingerprintAttachment(attachment.ProjectKey, attachment.Attachment); err == nil {
+		var fingerprint string
+		var err error
+		if attachment.Source != nil {
+			var projection syncdomain.Projection
+			projection, err = syncdomain.ProjectAttachment(attachment.Attachment, *attachment.Source)
+			if err == nil {
+				fingerprint, err = syncdomain.FingerprintProjection(attachment.ID(), projection)
+			}
+		} else {
+			fingerprint, err = syncdomain.FingerprintAttachment(attachment.ProjectKey, attachment.Attachment)
+		}
+		if err == nil {
 			local[attachment.ID()] = fingerprint
 		}
 	}
@@ -249,6 +271,9 @@ func localChanges(
 	changed := make(map[syncdomain.ResourceID]bool)
 	for _, file := range files {
 		id, ok := synclocal.ParseManagedPath(file)
+		if !ok {
+			id, ok = synclocal.ParseReferencePath(file)
+		}
 		if ok && isSelected(id) {
 			fingerprint, readable := local[id]
 			changed[id] = !readable || fingerprint != baseline[id]
@@ -325,7 +350,11 @@ func loadResources(
 		synced = append(synced, resource.ID())
 	}
 	for _, file := range files {
-		if id, ok := synclocal.ParseManagedPath(file); ok {
+		id, ok := synclocal.ParseManagedPath(file)
+		if !ok {
+			id, ok = synclocal.ParseReferencePath(file)
+		}
+		if ok {
 			synced = append(synced, id)
 		}
 	}
@@ -352,16 +381,15 @@ func detachResources(options Options, original syncmanifest.Baseline, selected [
 		return errors.Join(cause, restoreErr)
 	}
 
-	deletions, err := localAttachments(options.RepositoryRoot, selected)
+	deletions, err := localDefinitions(options.RepositoryRoot, selected)
 	if err != nil {
 		return restoreBaseline(err)
 	}
 	for _, id := range selected {
-		configKey, variationKey, err := id.VariationKeys()
-		if err != nil {
+		if slices.Contains(deletions, id) {
 			continue
 		}
-		exists, err := options.Store.VariationExists(id.ProjectKey, configKey, variationKey)
+		exists, err := options.Store.ResourceExists(id)
 		if err != nil {
 			return restoreBaseline(err)
 		}
@@ -369,23 +397,28 @@ func detachResources(options Options, original syncmanifest.Baseline, selected [
 			deletions = append(deletions, id)
 		}
 	}
-	if _, err := options.Store.DeleteResources(deletions); err != nil {
+	if _, err := options.Store.DeleteDefinitions(deletions); err != nil {
 		return restoreBaseline(err)
 	}
 	return nil
 }
 
-// localAttachments returns each selected tool and skill that has a local file.
-func localAttachments(repositoryRoot string, selected []syncdomain.ResourceID) ([]syncdomain.ResourceID, error) {
+// localDefinitions returns each selected resource that has a managed file or descriptor.
+func localDefinitions(repositoryRoot string, selected []syncdomain.ResourceID) ([]syncdomain.ResourceID, error) {
 	files, err := synclocal.SourceFiles(repositoryRoot)
 	if err != nil {
 		return nil, err
 	}
-	var attachments []syncdomain.ResourceID
+	var definitions []syncdomain.ResourceID
 	for _, file := range files {
-		if id, ok := synclocal.ParseManagedPath(file); ok && id.Kind != syncdomain.KindVariation && slices.Contains(selected, id) {
-			attachments = append(attachments, id)
+		id, ok := synclocal.ParseManagedPath(file)
+		if !ok {
+			id, ok = synclocal.ParseReferencePath(file)
+		}
+		if ok && slices.Contains(selected, id) {
+			definitions = append(definitions, id)
 		}
 	}
-	return attachments, nil
+	slices.SortFunc(definitions, syncdomain.CompareResourceIDs)
+	return slices.Compact(definitions), nil
 }
