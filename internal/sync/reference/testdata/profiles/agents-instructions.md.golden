@@ -1,0 +1,13 @@
+# Repository guide
+
+## Support
+
+Ask for an order ID.
+
+<!-- launchdarkly:begin refunds -->
+Explain the refund policy.
+<!-- launchdarkly:end refunds -->
+
+## Build
+
+Run `make test`.

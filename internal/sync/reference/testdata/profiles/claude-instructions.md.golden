@@ -1,0 +1,10 @@
+---
+name: support
+description: Support subagent instructions
+tools: Read, Grep
+model: sonnet
+---
+
+# Support subagent
+
+Ask for an order ID and follow the support policy.

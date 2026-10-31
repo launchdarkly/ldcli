@@ -33,3 +33,11 @@ func TestStructuredAdaptersRejectMalformedSources(t *testing.T) {
 		})
 	}
 }
+
+func TestMarkdownProfilesRejectUnsafeMarkers(t *testing.T) {
+	_, err := parseMarkdownProfile(
+		Document{Path: "instructions.md", Data: []byte("<!-- launchdarkly:begin one -->\n")},
+		false,
+	)
+	require.Error(t, err)
+}
