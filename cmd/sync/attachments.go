@@ -62,9 +62,62 @@ func newAttachmentScopeCmd(client resources.Client, kind syncdomain.AttachmentKi
 		newWatchCmd(client, scope, help),
 		newAttachmentAddCmd(client, kind),
 		newAttachmentDetachCmd(client, kind),
+		newAttachmentLinkCmd(client, kind),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 	return cmd
+}
+
+func newAttachmentLinkCmd(client resources.Client, kind syncdomain.AttachmentKind) *cobra.Command {
+	scope := syncdomain.Scope(kind + "s")
+	cmd := &cobra.Command{
+		Use:   "link",
+		Short: fmt.Sprintf("Link a repository source to one %s", kind),
+		Example: fmt.Sprintf(`  ldcli sync %[1]ss link \
+    --file src/resources.ts \
+    --format typescript \
+    --select '%[1]ss[id="example"]' \
+    --map description=description \
+    --project production --key example \
+    --yes --no-input`, kind),
+		Args: validatedArgs(cobra.NoArgs),
+		RunE: runCommand(client, scope, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
+			id, err := sourceLinkID(cmd, syncdomain.Kind(kind))
+			if err != nil {
+				return nil, err
+			}
+			fieldMap, err := parseFieldMappings(mustStringArray(cmd, mapFlag))
+			if err != nil {
+				return nil, err
+			}
+			return syncprompt.SourceLinkAction{
+				ID:     id,
+				File:   mustString(cmd, fileFlag),
+				Format: mustString(cmd, formatFlag),
+				Select: mustString(cmd, selectFlag),
+				Map:    fieldMap,
+			}, nil
+		}),
+	}
+	addTargetFlags(cmd, attachmentFlagHelp(kind, false))
+	cmd.Flags().String(fileFlag, "", "Repository source file")
+	cmd.Flags().String(formatFlag, "", "Source format")
+	cmd.Flags().String(selectFlag, "", "Source value to select")
+	cmd.Flags().StringArray(mapFlag, nil, "Mapped field in field=path form. Repeat for more fields.")
+	_ = cmd.MarkFlagRequired(fileFlag)
+	_ = cmd.MarkFlagRequired(formatFlag)
+	addApplyFlags(cmd, scope, false)
+	return cmd
+}
+
+func mustString(cmd *cobra.Command, name string) string {
+	value, _ := cmd.Flags().GetString(name)
+	return value
+}
+
+func mustStringArray(cmd *cobra.Command, name string) []string {
+	value, _ := cmd.Flags().GetStringArray(name)
+	return value
 }
 
 // attachmentScopeLong is the description of sync tools or sync skills.

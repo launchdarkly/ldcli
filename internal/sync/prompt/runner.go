@@ -17,6 +17,7 @@ import (
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	syncdetach "github.com/launchdarkly/ldcli/internal/sync/detach"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
+	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
@@ -77,6 +78,8 @@ func (runner Runner) Run(options Options) error {
 		return runner.runAdd(options, workspace, action)
 	case DetachAction:
 		return runner.runDetach(options, workspace, action)
+	case SourceLinkAction:
+		return runner.runSourceLink(options, workspace, action)
 	case AttachAction:
 		attached, err := runner.runAttach(options, workspace, action)
 		if err != nil || !attached {
@@ -88,6 +91,23 @@ func (runner Runner) Run(options Options) error {
 
 	// Link and attach change only local files. One sync applies the change.
 	return runner.runWorkspaceSync(options, workspace, nil)
+}
+
+func (runner Runner) runSourceLink(options Options, workspace syncWorkspace, action SourceLinkAction) error {
+	prepared, err := synclink.Prepare(synclink.Options{
+		Store:            workspace.local,
+		RepositoryRoot:   workspace.root,
+		WorkingDirectory: options.WorkingDirectory,
+		ID:               action.ID,
+		File:             action.File,
+		Format:           action.Format,
+		Select:           action.Select,
+		Map:              action.Map,
+	})
+	if err != nil {
+		return err
+	}
+	return runner.runWorkspaceSyncWithSource(options, workspace, nil, &prepared)
 }
 
 // nothingToSync tells the user how to start a sync of every kind.

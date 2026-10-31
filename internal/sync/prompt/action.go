@@ -8,6 +8,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	synccreate "github.com/launchdarkly/ldcli/internal/sync/create"
+	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 // CommandAction is one sync operation. scope is the scope of the command.
@@ -54,6 +55,15 @@ type DetachAction struct {
 	Archive   bool
 }
 
+// SourceLinkAction creates a .ref.yaml descriptor and then syncs its resource.
+type SourceLinkAction struct {
+	ID     syncdomain.ResourceID
+	File   string
+	Format string
+	Select string
+	Map    map[string]string
+}
+
 func (action SyncAction) validate(scope syncdomain.Scope) error {
 	if action.Watch && action.DryRun {
 		return errors.New("watch does not support --dry-run")
@@ -91,6 +101,30 @@ func (action AttachAction) validate(syncdomain.Scope) error {
 		return errors.New("attachment target must be a variation")
 	}
 	return validateProjectFlag(action.ProjectKey, action.Target)
+}
+
+func (action SourceLinkAction) validate(scope syncdomain.Scope) error {
+	switch {
+	case !scope.Includes(action.ID.Kind):
+		return fmt.Errorf("%s cannot link %s", scope, action.ID.Label())
+	case action.File == "":
+		return errors.New("--file is required")
+	case action.Format == "":
+		return errors.New("--format is required")
+	case syncdomain.ValidateKey(action.ID.ProjectKey) != nil:
+		return fmt.Errorf("invalid project key %q", action.ID.ProjectKey)
+	case syncdomain.ValidateKey(action.ID.LookupKey) != nil && action.ID.Kind != syncdomain.KindVariation:
+		return fmt.Errorf("invalid resource key %q", action.ID.LookupKey)
+	}
+	if action.ID.Kind == syncdomain.KindVariation {
+		if _, _, err := action.ID.VariationKeys(); err != nil {
+			return err
+		}
+	}
+	_, err := syncreference.NormalizeReference(action.ID, syncdomain.Reference{
+		File: "source", Format: action.Format, Select: action.Select, Map: action.Map,
+	})
+	return err
 }
 
 // validateSelections rejects positional selectors outside the prompts scope,
@@ -198,6 +232,19 @@ func (options Options) watching() bool {
 // syncAction returns the sync that the command runs. After an attach or a
 // link, it is a sync of every resource.
 func (options Options) syncAction() SyncAction {
-	action, _ := options.Action.(SyncAction)
-	return action
+	switch action := options.Action.(type) {
+	case SyncAction:
+		return action
+	case SourceLinkAction:
+		configKey := ""
+		keys := []string{action.ID.LookupKey}
+		if action.ID.Kind == syncdomain.KindVariation {
+			configKey, keys[0], _ = action.ID.VariationKeys()
+		}
+		return SyncAction{Filter: syncdomain.Filter{
+			Project: action.ID.ProjectKey, ConfigKey: configKey, Keys: keys,
+		}}
+	default:
+		return SyncAction{}
+	}
 }

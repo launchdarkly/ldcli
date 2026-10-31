@@ -39,6 +39,7 @@ type directAPI struct {
 	tools        map[string]versionedTool
 	skills       map[string]versionedSkill
 	manifest     *syncapi.SyncManifest
+	directions   map[string]syncdomain.SyncDirection
 	requests     []string
 	// expandTools makes each read of the variation add the content of its
 	// tools to model.parameters.tools, as LaunchDarkly does.
@@ -98,6 +99,20 @@ func (api *directAPI) MakeRequest(
 	}
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		return handleManifestRequest(api.manifest, method, query, body)
+	}
+	if strings.HasSuffix(path, "/configs/sync/settings") && method == http.MethodGet {
+		items := make([]map[string]any, 0, len(query["resources"]))
+		for _, resource := range query["resources"] {
+			kind, lookupKey, _ := strings.Cut(resource, ":")
+			direction := syncdomain.SyncDirectionBoth
+			if configured := api.directions[resource]; configured != "" {
+				direction = configured
+			}
+			items = append(items, map[string]any{
+				"resourceKind": kind, "resourceLookupKey": lookupKey, "direction": direction,
+			})
+		}
+		return json.Marshal(map[string]any{"items": items})
 	}
 	isCreate := method == http.MethodPost &&
 		(strings.HasSuffix(path, "/ai-tools") || strings.HasSuffix(path, "/ai-configs/skills") || strings.HasSuffix(path, "/variations"))
@@ -218,6 +233,7 @@ func (api *directAPI) MakeRequest(
 			ModelConfigVersion int                         `json:"modelConfigVersion"`
 			Model              map[string]any              `json:"model"`
 			OutputFormat       map[string]any              `json:"outputFormat"`
+			Messages           *[]syncdomain.Message       `json:"messages"`
 			Tools              *[]syncdomain.AttachmentRef `json:"tools"`
 			Skills             *[]syncdomain.AttachmentRef `json:"skills"`
 		}
@@ -238,11 +254,15 @@ func (api *directAPI) MakeRequest(
 		if update.Skills != nil {
 			skills = *update.Skills
 		}
+		mode := cmp.Or(api.configMode, syncdomain.VariationModeAgent)
 		api.variation = &syncdomain.Variation{
-			Mode: syncdomain.VariationModeAgent, Key: key, Name: update.Name,
+			Mode: mode, Key: key, Name: update.Name,
 			Instructions: update.Instructions, ModelConfigKey: update.ModelConfigKey,
 			ModelConfigVersion: update.ModelConfigVersion, Model: update.Model,
 			OutputFormat: update.OutputFormat, Tools: tools, Skills: skills,
+		}
+		if update.Messages != nil {
+			api.variation.Messages = *update.Messages
 		}
 		api.variationState = "published"
 	}
@@ -1943,6 +1963,556 @@ func runSyncAction(
 	t.Helper()
 	stdout, _, err := runScoped(t, root, api, syncprompt.Options{Scope: scope, Action: action, Yes: yes})
 	return stdout, err
+}
+
+func TestSourceLinkUsesDirectionAndKeepsSourceInPlace(t *testing.T) {
+	root := initRepository(t)
+	source := []byte(`from agents import Agent
+support = Agent(instructions="Local instructions.")
+`)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	server := variation("Server instructions.")
+	api := &directAPI{
+		variation: &server,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+		},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "agents.py", Format: "python", Select: `agents[id="support"]`,
+			Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "update_server"`)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "Local instructions.", api.variation.Instructions)
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	require.FileExists(t, descriptor)
+	actual, err := os.ReadFile(filepath.Join(root, "agents.py"))
+	require.NoError(t, err)
+	assert.Equal(t, source, actual)
+	lock, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "sync.lock"))
+	require.NoError(t, err)
+	assert.Contains(t, string(lock), "formatVersion: 1")
+	assert.NotContains(t, string(lock), "file: agents.py")
+
+	api.directions["variation:support/default"] = syncdomain.SyncDirectionServerCanonical
+	api.variation.Instructions = "Server instructions after link."
+	output, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SyncAction{Filter: syncdomain.Filter{
+			Project: "production", ConfigKey: "support", Keys: []string{"default"},
+		}},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "update_local"`)
+	actual, err = os.ReadFile(filepath.Join(root, "agents.py"))
+	require.NoError(t, err)
+	assert.Equal(t, `from agents import Agent
+support = Agent(instructions="Server instructions after link.")
+`, string(actual))
+}
+
+func TestCompletionSourcePullsOneSystemMessage(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local prompt.\n"), 0o644))
+	server := syncdomain.Variation{
+		Mode: syncdomain.VariationModeCompletion, Key: "default", Name: "Default",
+		Messages: []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: "Server prompt."}},
+	}
+	api := &directAPI{
+		variation: pointer(server), configMode: syncdomain.VariationModeCompletion,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+		},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown",
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	content, err := os.ReadFile(filepath.Join(root, "prompt.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "Server prompt.\n", string(content))
+}
+
+func TestCompletionMessageListPullsAndPushesLiteralContent(t *testing.T) {
+	root := initRepository(t)
+	source := `from agents import Agent
+completion = Agent(
+    name="Completion",
+    messages=[
+        {"role": "system", "content": "Local system."},
+        {"role": "user", "content": "Local user."},
+    ],
+    model="gpt-5",
+)
+`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "messages.py"), []byte(source), 0o644))
+	server := syncdomain.Variation{
+		Mode: syncdomain.VariationModeCompletion, Key: "default", Name: "Default",
+		Messages: []syncdomain.Message{
+			{Role: syncdomain.RoleSystem, Content: "Server system."},
+			{Role: syncdomain.RoleUser, Content: "Server user."},
+		},
+	}
+	api := &directAPI{
+		variation: pointer(server), configMode: syncdomain.VariationModeCompletion,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+		},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+	action := syncprompt.SourceLinkAction{
+		ID: id, File: "messages.py", Format: "python", Select: `agents[id="completion"]`,
+		Map: map[string]string{"messages": "messages"},
+	}
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts, Action: action, Yes: true,
+	})
+	require.NoError(t, err)
+	content, err := os.ReadFile(filepath.Join(root, "messages.py"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `"content": "Server system."`)
+	assert.Contains(t, string(content), `"content": "Server user."`)
+
+	updated := strings.Replace(string(content), "Server user.", "Repository user.", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "messages.py"), []byte(updated), 0o644))
+	api.directions["variation:support/default"] = syncdomain.SyncDirectionCodeCanonical
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SyncAction{
+			Filter: syncdomain.Filter{Project: "production", ConfigKey: "support", Keys: []string{"default"}},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Repository user.", api.variation.Messages[1].Content)
+}
+
+func TestStandaloneSkillSourceLinkPullsLaunchDarklyContent(t *testing.T) {
+	root := initRepository(t)
+	sourcePath := filepath.Join(root, ".agents", "skills", "refunds", "SKILL.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(sourcePath), 0o755))
+	require.NoError(t, os.WriteFile(sourcePath, []byte(`---
+name: refunds
+description: Local refund guidance.
+license: Apache-2.0
+---
+
+# Refunds
+
+Use the local policy.
+`), 0o644))
+	api := &directAPI{
+		skills: map[string]versionedSkill{"refunds": {
+			Skill: syncdomain.Skill{
+				Key: "refunds", Name: "Refunds", Description: "Server refund guidance.",
+				Markdown: "# Refunds\n\nUse the server policy.\n",
+			},
+			Version: 2,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"skill:refunds": syncdomain.SyncDirectionServerCanonical,
+		},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "production", LookupKey: "refunds"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeSkills,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: ".agents/skills/refunds/SKILL.md", Format: "agent-skill",
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "update_local"`)
+	content, err := os.ReadFile(sourcePath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "description: Server refund guidance.")
+	assert.Contains(t, string(content), "Use the server policy.")
+	assert.Contains(t, string(content), "license: Apache-2.0")
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "skills", "refunds.ref.yaml"))
+}
+
+func TestStandaloneToolSourceLinkPushesMappedFields(t *testing.T) {
+	root := initRepository(t)
+	source := []byte(`import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+const server = new McpServer({ name: "orders", version: "1" });
+server.registerTool("lookup", {
+  description: "Look up an order.",
+  inputSchema: { type: "object" },
+}, handler);
+`)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tools.ts"), source, 0o644))
+	api := &directAPI{
+		tools: map[string]versionedTool{"lookup": {
+			Tool:    syncdomain.Tool{Key: "lookup", Description: pointer("Old description."), Schema: map[string]any{"type": "string"}},
+			Version: 1,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"tool:lookup": syncdomain.SyncDirectionCodeCanonical,
+		},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "lookup"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tools.ts", Format: "typescript", Select: `tools[id="lookup"]`,
+			Map: map[string]string{"description": "description", "schema": "inputSchema"},
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "update_server"`)
+	assert.Equal(t, "Look up an order.", *api.tools["lookup"].Description)
+	assert.Equal(t, "object", api.tools["lookup"].Schema["type"])
+	actual, err := os.ReadFile(filepath.Join(root, "tools.ts"))
+	require.NoError(t, err)
+	assert.Equal(t, source, actual)
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.ref.yaml"))
+}
+
+func TestSourceLinkWithoutConfirmationWritesNothing(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Server instructions.\n"), 0o644))
+	server := variation("Default")
+	server.Instructions = "Server instructions."
+	api := &directAPI{
+		variation: &server,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionBoth,
+		},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	_, notes, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown",
+		},
+	})
+
+	require.ErrorContains(t, err, "rerun with --yes")
+	assert.Contains(t, notes, "Proposed descriptor .launchdarkly/production/configs/support/default.ref.yaml:")
+	assert.Contains(t, notes, "format: markdown")
+	require.NoFileExists(t, filepath.Join(
+		root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml",
+	))
+}
+
+func TestStructuredSourceLinksPushAndPull(t *testing.T) {
+	tests := []struct {
+		name         string
+		scope        syncdomain.Scope
+		id           syncdomain.ResourceID
+		file         string
+		format       string
+		selectPath   string
+		fieldMap     map[string]string
+		source       string
+		api          *directAPI
+		changeServer func(*directAPI)
+		wantPush     func(*testing.T, *directAPI)
+		wantPull     string
+	}{
+		{
+			name: "JSON tool", scope: syncdomain.ScopeTools,
+			id:   syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "lookup"},
+			file: "tools.json", format: "json", selectPath: `tools[1]`,
+			fieldMap: map[string]string{"description": "description", "schema": "inputSchema"},
+			source:   `{"tools":[{"name":"keep","description":"Keep","inputSchema":{"type":"null"}},{"name":"lookup","description":"Local lookup","inputSchema":{"type":"object"}}]}` + "\n",
+			api: &directAPI{
+				tools: map[string]versionedTool{"lookup": {
+					Tool:    syncdomain.Tool{Key: "lookup", Description: pointer("Server lookup"), Schema: map[string]any{"type": "string"}},
+					Version: 1,
+				}},
+				directions: map[string]syncdomain.SyncDirection{"tool:lookup": syncdomain.SyncDirectionCodeCanonical},
+			},
+			changeServer: func(api *directAPI) {
+				tool := api.tools["lookup"]
+				tool.Description = pointer("Pulled lookup")
+				api.tools["lookup"] = tool
+				api.directions["tool:lookup"] = syncdomain.SyncDirectionServerCanonical
+			},
+			wantPush: func(t *testing.T, api *directAPI) {
+				assert.Equal(t, "Local lookup", *api.tools["lookup"].Description)
+				assert.Equal(t, "object", api.tools["lookup"].Schema["type"])
+			},
+			wantPull: `"description":"Pulled lookup"`,
+		},
+		{
+			name: "YAML variation", scope: syncdomain.ScopePrompts,
+			id:   syncdomain.VariationID("production", "support", "default"),
+			file: "agents.yaml", format: "yaml", selectPath: `agents[1]`,
+			fieldMap: map[string]string{"prompt": "prompt", "model": "model"},
+			source:   "agents:\n  - {name: keep, prompt: Keep, model: old}\n  - name: support\n    prompt: Local YAML prompt\n    model: gpt-5\n",
+			api: &directAPI{
+				variation: pointer(variation("Server")),
+				directions: map[string]syncdomain.SyncDirection{
+					"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+				},
+			},
+			changeServer: func(api *directAPI) {
+				api.variation.Instructions = "Pulled YAML prompt"
+				api.directions["variation:support/default"] = syncdomain.SyncDirectionServerCanonical
+			},
+			wantPush: func(t *testing.T, api *directAPI) {
+				assert.Equal(t, "Local YAML prompt", api.variation.Instructions)
+				assert.Equal(t, "gpt-5", api.variation.Model["modelName"])
+			},
+			wantPull: "prompt: Pulled YAML prompt",
+		},
+		{
+			name: "TOML variation", scope: syncdomain.ScopePrompts,
+			id:   syncdomain.VariationID("production", "support", "default"),
+			file: "agents.toml", format: "toml", selectPath: "agents[1]",
+			fieldMap: map[string]string{"prompt": "prompt", "model": "model"},
+			source:   "agents = [{ name = \"keep\", prompt = \"Keep\", model = \"old\" }, { name = \"support\", prompt = \"Local TOML prompt\", model = \"gpt-5\" }]\n",
+			api: &directAPI{
+				variation: pointer(variation("Server")),
+				directions: map[string]syncdomain.SyncDirection{
+					"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+				},
+			},
+			changeServer: func(api *directAPI) {
+				api.variation.Instructions = "Pulled TOML prompt"
+				api.directions["variation:support/default"] = syncdomain.SyncDirectionServerCanonical
+			},
+			wantPush: func(t *testing.T, api *directAPI) {
+				assert.Equal(t, "Local TOML prompt", api.variation.Instructions)
+				assert.Equal(t, "gpt-5", api.variation.Model["modelName"])
+			},
+			wantPull: `prompt = "Pulled TOML prompt"`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := initRepository(t)
+			require.NoError(t, os.WriteFile(filepath.Join(root, test.file), []byte(test.source), 0o644))
+			_, _, err := runScoped(t, root, test.api, syncprompt.Options{
+				Scope: test.scope,
+				Action: syncprompt.SourceLinkAction{
+					ID: test.id, File: test.file, Format: test.format,
+					Select: test.selectPath, Map: test.fieldMap,
+				},
+				Yes: true,
+			})
+			require.NoError(t, err)
+			test.wantPush(t, test.api)
+			lock, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "sync.lock"))
+			require.NoError(t, err)
+			assert.Contains(t, string(lock), "formatVersion: 1")
+			assert.Contains(t, string(lock), "indexedSelections:")
+
+			test.changeServer(test.api)
+			filter := syncdomain.Filter{Project: "production", Keys: []string{test.id.LookupKey}}
+			if test.id.Kind == syncdomain.KindVariation {
+				filter.ConfigKey, filter.Keys[0], _ = test.id.VariationKeys()
+			}
+			_, _, err = runScoped(t, root, test.api, syncprompt.Options{
+				Scope: test.scope, Action: syncprompt.SyncAction{Filter: filter}, Yes: true,
+			})
+			require.NoError(t, err)
+			content, err := os.ReadFile(filepath.Join(root, test.file))
+			require.NoError(t, err)
+			assert.Contains(t, string(content), test.wantPull)
+			assert.Contains(t, string(content), "Keep")
+
+			_, _, err = runScoped(t, root, test.api, syncprompt.Options{
+				Scope: test.scope, Action: syncprompt.SyncAction{Filter: filter}, Yes: true,
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestIndexedSourceReorderBlocksSyncWithoutWrites(t *testing.T) {
+	root := initRepository(t)
+	sourcePath := filepath.Join(root, "tools.json")
+	original := `{"tools":[{"name":"keep","description":"Keep","inputSchema":{"type":"null"}},{"name":"lookup","description":"Local lookup","inputSchema":{"type":"object"}}]}` + "\n"
+	require.NoError(t, os.WriteFile(sourcePath, []byte(original), 0o644))
+	api := &directAPI{
+		tools: map[string]versionedTool{"lookup": {
+			Tool: syncdomain.Tool{
+				Key: "lookup", Description: pointer("Server lookup"), Schema: map[string]any{"type": "string"},
+			},
+			Version: 1,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"tool:lookup": syncdomain.SyncDirectionCodeCanonical,
+		},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "lookup"}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tools.json", Format: "json", Select: "tools[1]",
+			Map: map[string]string{"description": "description", "schema": "inputSchema"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Local lookup", *api.tools["lookup"].Description)
+
+	reordered := `{"tools":[{"name":"lookup","description":"Different item","inputSchema":{"type":"boolean"}},{"name":"keep","description":"Keep","inputSchema":{"type":"null"}}]}` + "\n"
+	require.NoError(t, os.WriteFile(sourcePath, []byte(reordered), 0o644))
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SyncAction{Filter: syncdomain.Filter{
+			Project: "production", Keys: []string{"lookup"},
+		}},
+		Yes: true,
+	})
+
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok)
+	assert.Equal(t, syncdomain.ErrorIndexedSelectionChanged, problem.Code)
+	assert.Equal(t, "Local lookup", *api.tools["lookup"].Description)
+	content, readErr := os.ReadFile(sourcePath)
+	require.NoError(t, readErr)
+	assert.Equal(t, reordered, string(content))
+}
+
+func TestReadOnlyMappedFieldBlocksCompleteLink(t *testing.T) {
+	root := initRepository(t)
+	source := `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+const server = new McpServer({ name: "orders", version: "1" });
+server.registerTool("lookup", {
+  description: "Local description",
+  inputSchema: makeSchema(),
+}, handler);
+`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tools.ts"), []byte(source), 0o644))
+	api := &directAPI{
+		tools: map[string]versionedTool{"lookup": {
+			Tool: syncdomain.Tool{
+				Key: "lookup", Description: pointer("Server description"),
+				Schema: map[string]any{"type": "object"},
+			},
+			Version: 1,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"tool:lookup": syncdomain.SyncDirectionCodeCanonical,
+		},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "lookup"}
+	action := syncprompt.SourceLinkAction{
+		ID: id, File: "tools.ts", Format: "typescript", Select: `tools[id="lookup"]`,
+		Map: map[string]string{"description": "description", "schema": "inputSchema"},
+	}
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools, Action: action, Yes: true,
+	})
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok)
+	assert.Equal(t, syncdomain.ErrorFieldReadOnly, problem.Code)
+	assert.Contains(t, problem.Message, `field "schema"`)
+	assert.Equal(t, "Server description", *api.tools["lookup"].Description)
+	assert.Equal(t, "object", api.tools["lookup"].Schema["type"])
+	content, err := os.ReadFile(filepath.Join(root, "tools.ts"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `description: "Local description"`)
+	assert.Contains(t, string(content), "inputSchema: makeSchema()")
+	require.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.ref.yaml"))
+}
+
+func TestCLILinksAndDetachesRepositorySource(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local CLI prompt.\n"), 0o644))
+	server := variation("Server")
+	api := &directAPI{
+		variation: &server,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionBoth,
+		},
+	}
+
+	_, _, err := runPrompt(
+		t, root, api,
+		"link",
+		"--file", "prompt.md",
+		"--format", "markdown",
+		"--project", "production",
+		"--config-key", "support",
+		"--key", "default",
+		"--conflict", "local",
+		"--yes", "--no-input",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "Local CLI prompt.", api.variation.Instructions)
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	require.FileExists(t, descriptor)
+
+	_, _, err = runPrompt(
+		t, root, api,
+		"detach",
+		"--project", "production",
+		"--config-key", "support",
+		"--key", "default",
+		"--yes", "--no-input",
+	)
+	require.NoError(t, err)
+	require.NoFileExists(t, descriptor)
+	require.FileExists(t, filepath.Join(root, "prompt.md"))
+}
+
+func TestMarkdownProviderProfilesPullAndPreserveMetadata(t *testing.T) {
+	tests := []struct {
+		name, format, source, metadata string
+	}{
+		{name: "Cursor", format: "cursor", source: "---\nglobs: \"src/**/*.ts\"\nalwaysApply: false\n---\n\nLocal\n", metadata: "alwaysApply: false"},
+		{name: "Copilot", format: "copilot", source: "---\napplyTo: \"src/**/*.ts\"\n---\n\nLocal\n", metadata: "applyTo: \"src/**/*.ts\""},
+		{name: "Claude", format: "claude-markdown", source: "---\nname: support\nmodel: sonnet\n---\n\nLocal\n", metadata: "model: sonnet"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := initRepository(t)
+			require.NoError(t, os.WriteFile(filepath.Join(root, "instructions.md"), []byte(test.source), 0o644))
+			server := variation("Server")
+			server.Instructions = "Pulled profile instructions."
+			api := &directAPI{
+				variation: &server,
+				directions: map[string]syncdomain.SyncDirection{
+					"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+				},
+			}
+			id := syncdomain.VariationID("production", "support", "default")
+
+			_, _, err := runScoped(t, root, api, syncprompt.Options{
+				Scope: syncdomain.ScopePrompts,
+				Action: syncprompt.SourceLinkAction{
+					ID: id, File: "instructions.md", Format: test.format,
+				},
+				Yes: true,
+			})
+
+			require.NoError(t, err)
+			content, err := os.ReadFile(filepath.Join(root, "instructions.md"))
+			require.NoError(t, err)
+			assert.Contains(t, string(content), test.metadata)
+			assert.Contains(t, string(content), "Pulled profile instructions.")
+		})
+	}
 }
 
 // runScoped runs options through Runner.Run without a terminal, and returns

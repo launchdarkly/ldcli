@@ -1,6 +1,8 @@
 package sync
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
+	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -26,6 +29,7 @@ const (
 	descriptionFlag    = "description"
 	diffFlag           = "diff"
 	dryRunFlag         = "dry-run"
+	fileFlag           = "file"
 	formatFlag         = "format"
 	jsonSchemaFlag     = "json-schema"
 	keyFlag            = "key"
@@ -33,6 +37,8 @@ const (
 	nameFlag           = "name"
 	noInputFlag        = "no-input"
 	resolveFlag        = "resolve"
+	selectFlag         = "select"
+	mapFlag            = "map"
 	toFlag             = "to"
 	yesFlag            = "yes"
 )
@@ -67,6 +73,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		newAddCmd(client),
 		newAttachCmd(client),
 		newDetachCmd(client),
+		newLinkCmd(client),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -119,10 +126,20 @@ func runCommand(client resources.Client, scope syncdomain.Scope, buildAction act
 			ErrorOutput:      cmd.ErrOrStderr(),
 		})
 		if err != nil {
-			return output.NewCmdOutputError(err, outputKind)
+			return syncCommandOutputError(err, outputKind)
 		}
 		return nil
 	}
+}
+
+func syncCommandOutputError(err error, outputKind string) error {
+	if problem, ok := syncdomain.ProblemFrom(err); ok {
+		data, marshalErr := json.Marshal(problem)
+		if marshalErr == nil {
+			err = lderrors.NewError(string(data))
+		}
+	}
+	return output.NewCmdOutputError(err, outputKind)
 }
 
 // newWatchCmd creates the watch command of a scope. help is the help text of
@@ -266,6 +283,83 @@ func newDetachCmd(client resources.Client) *cobra.Command {
 	cmd.Flags().Bool(yesFlag, false, "Detach, and archive, without confirmation")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
+}
+
+func newLinkCmd(client resources.Client) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "link",
+		Short: "Link a repository source to one prompt variation",
+		Example: `  # Link one Python agent
+  ldcli sync prompts link \
+    --file app/agents.py \
+    --format python \
+    --select 'agents[id="support"]' \
+    --map prompt=instructions \
+    --project production --config-key support --key default \
+    --yes --no-input`,
+		Args: validatedArgs(cobra.NoArgs),
+		RunE: runCommand(client, syncdomain.ScopePrompts, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
+			format, _ := cmd.Flags().GetString(formatFlag)
+			sourceFile, _ := cmd.Flags().GetString(fileFlag)
+			selectPath, _ := cmd.Flags().GetString(selectFlag)
+			mappings, _ := cmd.Flags().GetStringArray(mapFlag)
+			id, err := sourceLinkID(cmd, syncdomain.KindVariation)
+			if err != nil {
+				return nil, err
+			}
+			fieldMap, err := parseFieldMappings(mappings)
+			if err != nil {
+				return nil, err
+			}
+			return syncprompt.SourceLinkAction{
+				ID: id, File: sourceFile, Format: format, Select: selectPath, Map: fieldMap,
+			}, nil
+		}),
+	}
+	addTargetFlags(cmd, questionFlagHelp)
+	cmd.Flags().String(fileFlag, "", "Repository source file")
+	cmd.Flags().String(formatFlag, "", "Source format")
+	cmd.Flags().String(selectFlag, "", "Source value to select")
+	cmd.Flags().StringArray(mapFlag, nil, "Mapped field in field=path form. Repeat for more fields.")
+	_ = cmd.MarkFlagRequired(fileFlag)
+	_ = cmd.MarkFlagRequired(formatFlag)
+	addApplyFlags(cmd, syncdomain.ScopePrompts, false)
+	return cmd
+}
+
+func sourceLinkID(cmd *cobra.Command, kind syncdomain.Kind) (syncdomain.ResourceID, error) {
+	filter := targetFilter(cmd)
+	if filter.Project == "" {
+		return syncdomain.ResourceID{}, errors.New("--project is required")
+	}
+	if len(filter.Keys) != 1 {
+		return syncdomain.ResourceID{}, errors.New("link requires exactly one --key")
+	}
+	if kind == syncdomain.KindVariation {
+		if filter.ConfigKey == "" {
+			return syncdomain.ResourceID{}, errors.New("--config-key is required")
+		}
+		return syncdomain.VariationID(filter.Project, filter.ConfigKey, filter.Keys[0]), nil
+	}
+	return syncdomain.ResourceID{Kind: kind, ProjectKey: filter.Project, LookupKey: filter.Keys[0]}, nil
+}
+
+func parseFieldMappings(values []string) (map[string]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	fieldMap := make(map[string]string, len(values))
+	for _, value := range values {
+		field, path, ok := strings.Cut(value, "=")
+		if !ok || field == "" || path == "" {
+			return nil, fmt.Errorf("invalid --map %q; expected field=path", value)
+		}
+		if _, duplicate := fieldMap[field]; duplicate {
+			return nil, fmt.Errorf("--map field %q was provided more than once", field)
+		}
+		fieldMap[field] = path
+	}
+	return fieldMap, nil
 }
 
 // addApplyFlags registers the flags of a command that applies a plan. Only
