@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
 // Creation records the result of a create. VariationPaths are the variation
@@ -80,6 +83,22 @@ func (store Store) Add(files []VariationFile) (Creation, error) {
 	rendered, err := store.Render(files)
 	if err != nil {
 		return Creation{}, err
+	}
+	for _, file := range rendered {
+		id, ok := ParseManagedPath(path.Join(syncdomain.RootDir, file.Path))
+		if !ok {
+			continue
+		}
+		repositoryReferencePath, err := ReferencePath(id)
+		if err != nil {
+			return Creation{}, err
+		}
+		referencePath := strings.TrimPrefix(repositoryReferencePath, syncdomain.RootDir+"/")
+		if exists, err := store.fileExists(referencePath, id.Label()+" descriptor"); err != nil {
+			return Creation{}, err
+		} else if exists {
+			return Creation{}, definitionConflict(id, id.Label()+" already has a descriptor")
+		}
 	}
 
 	var creation Creation
