@@ -75,21 +75,40 @@ func (store Store) Exists() (bool, error) {
 
 // VariationExists reports whether a variation file exists.
 func (store Store) VariationExists(projectKey, configKey, variationKey string) (bool, error) {
-	relativePath, err := variationPath(projectKey, configKey, variationKey)
-	if err != nil {
-		return false, err
-	}
-	return store.fileExists(relativePath, "variation "+variationKey)
+	return store.definitionExists(
+		syncdomain.VariationID(projectKey, configKey, variationKey),
+		"variation "+variationKey,
+	)
 }
 
 // ResourceExists reports whether the file of a variation, a tool, or a skill
 // exists.
 func (store Store) ResourceExists(id syncdomain.ResourceID) (bool, error) {
-	relativePath, err := resourcePath(id)
+	return store.definitionExists(id, id.Label())
+}
+
+func (store Store) definitionExists(id syncdomain.ResourceID, label string) (bool, error) {
+	managedPath, err := resourcePath(id)
 	if err != nil {
 		return false, err
 	}
-	return store.fileExists(relativePath, id.Label())
+	managed, err := store.fileExists(managedPath, label)
+	if err != nil {
+		return false, err
+	}
+	repositoryReferencePath, err := ReferencePath(id)
+	if err != nil {
+		return false, err
+	}
+	referencePath := strings.TrimPrefix(repositoryReferencePath, syncdomain.RootDir+"/")
+	referenced, err := store.fileExists(referencePath, label+" descriptor")
+	if err != nil {
+		return false, err
+	}
+	if managed && referenced {
+		return false, definitionConflict(id, id.Label()+" has a managed file and a descriptor")
+	}
+	return managed || referenced, nil
 }
 
 // fileExists reports whether a managed file exists. label names the file in

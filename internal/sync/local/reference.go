@@ -231,6 +231,17 @@ func resolveReferencePath(repositoryRoot string, reference Reference) (string, e
 	return target, nil
 }
 
+func readReferenceFromFS(fsys fs.FS, reference Reference) ([]byte, error) {
+	if err := validateReference(reference); err != nil {
+		return nil, err
+	}
+	data, err := fs.ReadFile(fsys, reference.File)
+	if err != nil {
+		return nil, fmt.Errorf("read referenced file %q: %w", reference.File, err)
+	}
+	return data, nil
+}
+
 // ReadReference reads a linked file. It resolves symbolic links and makes sure
 // that the file is a regular file in the repository.
 func ReadReference(repositoryRoot string, reference Reference) ([]byte, error) {
