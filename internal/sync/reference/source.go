@@ -859,6 +859,10 @@ func projectionField(projection syncdomain.Projection, field syncdomain.Field) (
 	return nil, false, nil
 }
 
+func parseSourceDocument(document Document, format string) (*sourceNode, error) {
+	return parseSourceBundle(SourceBundle{Primary: document}, format)
+}
+
 func parseSourceBundle(bundle SourceBundle, format string) (*sourceNode, error) {
 	adapter, err := registeredAdapter(format)
 	if err != nil {
@@ -937,6 +941,19 @@ func mapTypeError(field, expected string) error {
 	)
 }
 
+func sourceNumber(value any) (float64, bool) {
+	switch value := value.(type) {
+	case float64:
+		return value, true
+	case int:
+		return float64(value), true
+	case int64:
+		return float64(value), true
+	default:
+		return 0, false
+	}
+}
+
 func stringList(value any) ([]string, bool) {
 	switch values := value.(type) {
 	case []string:
@@ -988,6 +1005,10 @@ func jsonValue(value any) (any, bool) {
 	return decoded, true
 }
 
+func readOnlyNode(start, end int, reason string) *sourceNode {
+	return &sourceNode{start: start, end: end, capability: CapabilityReadOnly, reason: reason}
+}
+
 func stringNode(value string, start, end int, encode func(string) ([]byte, error)) *sourceNode {
 	return &sourceNode{
 		value: value, start: start, end: end, capability: CapabilityDirect,
@@ -997,6 +1018,19 @@ func stringNode(value string, start, end int, encode func(string) ([]byte, error
 				return nil, mapTypeError("source", "a string")
 			}
 			return encode(text)
+		},
+	}
+}
+
+func numberNode(value float64, start, end int, encode func(float64) ([]byte, error)) *sourceNode {
+	return &sourceNode{
+		value: value, start: start, end: end, capability: CapabilityDirect,
+		encode: func(value any) ([]byte, error) {
+			number, ok := sourceNumber(value)
+			if !ok {
+				return nil, mapTypeError("source", "a number")
+			}
+			return encode(number)
 		},
 	}
 }

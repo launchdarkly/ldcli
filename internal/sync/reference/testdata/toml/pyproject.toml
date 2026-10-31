@@ -1,0 +1,20 @@
+[project]
+name = "support-agents"
+version = "1.0.0"
+
+[tool.agent.support]
+prompt = """Ask for an order ID.
+Keep the answer short."""
+model = "gpt-5"
+temperature = 0.2
+enabled = true
+
+[tool.agent.refunds]
+prompt = 'Explain the refund policy.'
+model = 'gpt-5'
+temperature = 0.1
+enabled = false
+
+[[tool.agent.plugins]]
+name = "audit"
+enabled = true

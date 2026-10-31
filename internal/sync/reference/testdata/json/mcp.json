@@ -1,0 +1,32 @@
+{
+  "server": "orders",
+  "tools": [
+    {
+      "name": "lookup_order",
+      "description": "Look up one order.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "orderId": { "type": "string" }
+        },
+        "required": ["orderId"]
+      }
+    },
+    {
+      "name": "refund_order",
+      "description": "Refund one order.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "orderId": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "required": ["orderId", "reason"]
+      }
+    }
+  ],
+  "metadata": {
+    "display.name": "Order tools",
+    "enabled": true
+  }
+}
