@@ -28,7 +28,9 @@ func (e ParseError) Unwrap() error { return e.Err }
 // Compile reads every variation in a file system that contains a managed
 // directory. Tests use it with an in-memory file system.
 func Compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
-	return compile(fsys)
+	return compile(fsys, func(reference Reference) ([]byte, error) {
+		return readReferenceFromFS(fsys, reference)
+	})
 }
 
 // CompileWorkspace reads every variation in a repository. It rejects a
@@ -38,7 +40,9 @@ func CompileWorkspace(repositoryRoot string) ([]syncdomain.SyncedResource, error
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository root: %w", err)
 	}
-	return compile(workspaceFS{root: root})
+	return compile(workspaceFS{root: root}, func(reference Reference) ([]byte, error) {
+		return ReadReference(root, reference)
+	})
 }
 
 // Compile reads every variation in the repository of the store.
@@ -68,7 +72,7 @@ func (fsys workspaceFS) Open(name string) (fs.File, error) {
 }
 
 // compile reads the variation files of each project, in identity order.
-func compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
+func compile(fsys fs.FS, readReference func(Reference) ([]byte, error)) ([]syncdomain.SyncedResource, error) {
 	entries, err := fs.ReadDir(fsys, syncdomain.RootDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, ErrNoDirectory
@@ -84,7 +88,7 @@ func compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		projectVariations, err := compileProject(fsys, entry.Name())
+		projectVariations, err := compileProject(fsys, entry.Name(), readReference)
 		if err != nil {
 			return nil, err
 		}
@@ -101,13 +105,32 @@ func compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
 func compileProject(
 	fsys fs.FS,
 	projectKey string,
+	readReference func(Reference) ([]byte, error),
 ) ([]syncdomain.SyncedResource, error) {
 	configsRoot := path.Join(syncdomain.RootDir, projectKey, configsDir)
 	readAttachment := func(kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
+		id := syncdomain.ResourceID{Kind: syncdomain.Kind(kind), ProjectKey: projectKey, LookupKey: key}
+		descriptorPath, err := ReferencePath(id)
+		if err != nil {
+			return syncdomain.Attachment{}, err
+		}
+		if _, err := fs.Stat(fsys, descriptorPath); err == nil {
+			managedPath, _ := ResourcePath(id)
+			if _, managedErr := fs.Stat(fsys, managedPath); managedErr == nil {
+				return syncdomain.Attachment{}, definitionConflict(
+					id, id.Label()+" has a managed file and a descriptor",
+				)
+			}
+			attachment, err := compileReferencedAttachment(fsys, descriptorPath, id, readReference)
+			return attachment.Attachment, err
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return syncdomain.Attachment{}, err
+		}
 		return readAttachment(fsys, projectKey, kind, key)
 	}
 
 	var variations []syncdomain.SyncedResource
+	definitions := make(map[syncdomain.ResourceID]string)
 	err := fs.WalkDir(fsys, configsRoot, func(name string, entry fs.DirEntry, err error) error {
 		switch {
 		case name == configsRoot && errors.Is(err, fs.ErrNotExist):
@@ -118,20 +141,35 @@ func compileProject(
 		case entry.IsDir():
 			return nil
 		}
-		if id, ok := ParseManagedPath(name); !ok || id.Kind != syncdomain.KindVariation {
+		id, managed := ParseManagedPath(name)
+		if !managed {
+			id, managed = ParseReferencePath(name)
+		}
+		if !managed || id.Kind != syncdomain.KindVariation {
 			return nil
 		}
-
-		data, err := fs.ReadFile(fsys, name)
-		if err != nil {
-			return err
+		if existing, duplicate := definitions[id]; duplicate {
+			return ParseError{Path: name, Err: definitionConflict(
+				id, fmt.Sprintf("%s is also defined by %s", id.Label(), existing),
+			)}
 		}
-		variation, err := parseVariation(localFile{
-			ProjectKey:     projectKey,
-			RelPath:        strings.TrimPrefix(name, configsRoot+"/"),
-			Data:           data,
-			ReadAttachment: readAttachment,
-		})
+		definitions[id] = name
+
+		var variation syncdomain.SyncedResource
+		if strings.HasSuffix(name, referenceFileSuffix) {
+			variation, err = compileReferencedVariation(fsys, name, id, readReference)
+		} else {
+			var data []byte
+			data, err = fs.ReadFile(fsys, name)
+			if err == nil {
+				variation, err = parseVariation(localFile{
+					ProjectKey:     projectKey,
+					RelPath:        strings.TrimPrefix(name, configsRoot+"/"),
+					Data:           data,
+					ReadAttachment: readAttachment,
+				})
+			}
+		}
 		if err != nil {
 			return ParseError{Path: name, Err: err}
 		}

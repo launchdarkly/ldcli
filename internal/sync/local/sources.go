@@ -8,12 +8,12 @@ import (
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 // SourceFiles returns every file that can change the sync plan, relative to
-// the repository root. The list has each file in a project directory and
-// each managed file. A file that is not valid stays in the list, so that a
-// fix to the file starts a new sync in watch mode.
+// the repository root. The list has each managed or referenced file. A file
+// that is not valid stays in the list, so a fix starts a new sync in watch mode.
 func SourceFiles(repositoryRoot string) ([]string, error) {
 	managedRoot := filepath.Join(repositoryRoot, syncdomain.RootDir)
 	var files []string
@@ -34,6 +34,19 @@ func SourceFiles(repositoryRoot string) ([]string, error) {
 		// A file directly in the managed directory is not in a project.
 		if filepath.Dir(filePath) != managedRoot {
 			files = append(files, filepath.ToSlash(relative))
+		}
+		relative = filepath.ToSlash(relative)
+		if id, ok := ParseReferencePath(relative); ok {
+			if reference, err := ReadDescriptor(os.DirFS(repositoryRoot), relative, id); err == nil {
+				files = append(files, reference.File)
+				if content, err := ReadReference(repositoryRoot, reference); err == nil {
+					dependencies, _ := syncreference.DependencyPaths(
+						reference.Format,
+						syncreference.Document{Path: reference.File, Data: content},
+					)
+					files = append(files, dependencies...)
+				}
+			}
 		}
 		return nil
 	})
