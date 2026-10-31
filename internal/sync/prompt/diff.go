@@ -46,6 +46,15 @@ func attachmentDiff(before, after *syncdomain.Attachment) variationDiffFields {
 	return diffParts(nil, nil, beforeAttachments, afterAttachments)
 }
 
+func projectionDiff(before, after syncdomain.Projection) variationDiffFields {
+	beforeJSON, _ := json.Marshal(before)
+	afterJSON, _ := json.Marshal(after)
+	if string(beforeJSON) == string(afterJSON) {
+		return nil
+	}
+	return variationDiffFields{"projection": {Before: beforeJSON, After: afterJSON}}
+}
+
 // diffParts returns each part that differs, or nil.
 func diffParts(beforeVariation, afterVariation json.RawMessage, beforeAttachments, afterAttachments []syncdomain.Attachment) variationDiffFields {
 	fields := variationDiffFields{}

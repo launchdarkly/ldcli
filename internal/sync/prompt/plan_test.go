@@ -58,6 +58,39 @@ func TestBuildPlanThreeWayMatrix(t *testing.T) {
 	}
 }
 
+func TestIndexedSelectionBaselineBlocksReorderedItems(t *testing.T) {
+	reference := syncdomain.Reference{
+		File: "agents.json", Format: "json", Select: "agents[0]",
+		Map: map[string]string{"prompt": "prompt"},
+	}
+	digest, err := syncdomain.ReferenceDigest(reference)
+	require.NoError(t, err)
+	baselineSelection := syncdomain.IndexedSelection{
+		Path: "select#0", CollectionLength: 2, Fingerprint: "sha256:" + strings.Repeat("a", 64),
+	}
+	baseline := syncmanifest.Resource{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/default",
+		Fingerprint: "sha256:" + strings.Repeat("b", 64), FingerprintSchema: syncdomain.ProjectionFingerprintSchema,
+		ReferenceDigest: digest, AdapterBehaviorVersion: syncdomain.AdapterBehaviorVersion,
+		AdapterBehaviorDigest: syncdomain.AdapterBehaviorDigest,
+		IndexedSelections:     []syncdomain.IndexedSelection{baselineSelection},
+	}
+	resource := PlannedResource{
+		ID:     syncdomain.VariationID("project", "config", "default"),
+		Action: ActionUpdateServer, Source: &reference,
+		IndexedSelections: []syncdomain.IndexedSelection{baselineSelection},
+	}
+
+	checkSourceBaseline(&resource, baseline, true)
+	assert.Equal(t, ActionUpdateServer, resource.Action)
+
+	resource.IndexedSelections[0].Fingerprint = "sha256:" + strings.Repeat("c", 64)
+	checkSourceBaseline(&resource, baseline, true)
+	require.NotNil(t, resource.Problem)
+	assert.Equal(t, syncdomain.ErrorIndexedSelectionChanged, resource.Problem.Code)
+	assert.Equal(t, ActionError, resource.Action)
+}
+
 func TestBuildPlanFirstSync(t *testing.T) {
 	local := testVariation("local")
 	different := testVariation("server")

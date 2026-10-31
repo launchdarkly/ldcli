@@ -46,9 +46,11 @@ func (resolver *attachmentResolver) settle(id ResourceID, attachment syncdomain.
 // before it pulled. If a tool or skill of the row failed, the row fails too.
 func (resolver *attachmentResolver) settledRow(resource PlannedResource) (PlannedResource, error) {
 	side, fingerprint := &resource.Local, &resource.LocalFingerprint
+	localSide := true
 	switch {
 	case resource.Action == ActionUpdateLocal:
 		side, fingerprint = &resource.Server, &resource.ServerFingerprint
+		localSide = false
 	case !resource.Action.changesServer():
 		return resource, nil
 	}
@@ -67,7 +69,22 @@ func (resolver *attachmentResolver) settledRow(resource PlannedResource) (Planne
 	}
 	variation := **side
 	variation.Attachments = attachments
-	value, err := syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, variation)
+	var value string
+	var err error
+	if resource.Source != nil {
+		projection, projectionErr := syncdomain.ProjectVariation(variation, *resource.Source)
+		if projectionErr != nil {
+			return resource, projectionErr
+		}
+		value, err = syncdomain.FingerprintProjection(resource.ID, projection)
+		if localSide {
+			resource.LocalProjection = projection
+		} else {
+			resource.ServerProjection = projection
+		}
+	} else {
+		value, err = syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, variation)
+	}
 	if err != nil {
 		return resource, err
 	}

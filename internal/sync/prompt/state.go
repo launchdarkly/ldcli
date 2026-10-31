@@ -3,6 +3,7 @@ package prompt
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -30,9 +31,21 @@ func (workspace syncWorkspace) loadState(
 	scope syncdomain.Scope,
 	filter syncdomain.Filter,
 ) (workspaceState, error) {
+	return workspace.loadStateWithSource(client, scope, filter, nil)
+}
+
+func (workspace syncWorkspace) loadStateWithSource(
+	client syncapi.Client,
+	scope syncdomain.Scope,
+	filter syncdomain.Filter,
+	proposal *synclocal.SourceDefinition,
+) (workspaceState, error) {
 	synced, err := workspace.syncedResources()
 	if err != nil {
 		return workspaceState{}, err
+	}
+	if proposal != nil {
+		synced = append(synced, proposal.ID())
 	}
 	if err := checkFilter(scope, filter, synced); err != nil {
 		return workspaceState{}, err
@@ -44,7 +57,7 @@ func (workspace syncWorkspace) loadState(
 	if err != nil {
 		return workspaceState{}, err
 	}
-	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client, scope, filter)
+	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client, scope, filter, proposal)
 	if err != nil {
 		return workspaceState{}, err
 	}
@@ -60,10 +73,18 @@ func loadWorkspacePlan(
 	client syncapi.Client,
 	scope syncdomain.Scope,
 	filter syncdomain.Filter,
+	proposal *synclocal.SourceDefinition,
 ) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
 	variations, err := compileWorkspace(repositoryRoot)
 	if err != nil {
 		return Plan{}, nil, err
+	}
+	if proposal != nil && proposal.Variation != nil {
+		id := proposal.Variation.ID()
+		variations = slices.DeleteFunc(variations, func(resource syncdomain.SyncedResource) bool {
+			return resource.ID() == id
+		})
+		variations = append(variations, *proposal.Variation)
 	}
 	// A tool that a variation uses can also have a row of its own. The cache
 	// reads it from LaunchDarkly once.
@@ -73,20 +94,20 @@ func loadWorkspacePlan(
 	var localFiles map[ResourceID]syncdomain.SyncedResource
 	if scope.Includes(syncdomain.KindVariation) {
 		var rows Plan
-		if rows, localFiles, err = planVariationRows(repositoryRoot, baseline, client, attachments, filter, variations); err != nil {
+		if rows, localFiles, err = planVariationRows(baseline, client, attachments, filter, variations); err != nil {
 			return Plan{}, nil, err
 		}
 		plan.Resources = rows.Resources
 	}
 	if scope.Includes(syncdomain.KindTool) || scope.Includes(syncdomain.KindSkill) {
 		include := func(id ResourceID) bool { return scope.Includes(id.Kind) && filter.Includes(id) }
-		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include)
+		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include, proposal)
 		if err != nil {
 			return Plan{}, nil, err
 		}
 		plan.Resources = append(plan.Resources, rows...)
 	}
-	referenced, err := planReferencedAttachments(repositoryRoot, baseline.Lock, attachments, plan.Resources)
+	referenced, err := planReferencedAttachments(repositoryRoot, baseline.Lock, attachments, plan.Resources, proposal)
 	if err != nil {
 		return Plan{}, nil, err
 	}
@@ -97,6 +118,10 @@ func loadWorkspacePlan(
 
 	checkAttachmentBaselines(plan.Resources, baseline.Lock)
 	checkAttachmentDeletes(plan.Resources, variations)
+	if err := applySourceDirections(client, plan.Resources); err != nil {
+		return Plan{}, nil, err
+	}
+	checkSourcePublications(repositoryRoot, plan.Resources)
 	for index := range plan.Resources {
 		resource := &plan.Resources[index]
 		resource.SyncedElsewhere = baseline.Stale(resource.ID)
@@ -110,6 +135,135 @@ func loadWorkspacePlan(
 		}
 	}
 	return plan, localFiles, nil
+}
+
+func checkSourcePublications(repositoryRoot string, resources []PlannedResource) {
+	var replacements []synclocal.SourceReplacement
+	for index := range resources {
+		resource := &resources[index]
+		if resource.Action == ActionUpdateLocal && resource.Source != nil {
+			projection, err := syncdomain.ChangedProjection(resource.LocalProjection, resource.ServerProjection)
+			if err != nil {
+				resource.Action, resource.Error = ActionError, err.Error()
+				continue
+			}
+			replacements = append(replacements, synclocal.SourceReplacement{
+				ID: resource.ID, Mode: resource.ServerMode, Reference: *resource.Source,
+				Projection: projection, ExpectedFingerprint: resource.LocalFingerprint,
+				ExpectedProjection:        resource.LocalProjection,
+				ExpectedIndexedSelections: resource.IndexedSelections,
+			})
+		}
+	}
+	if len(replacements) == 0 {
+		return
+	}
+	if err := synclocal.NewStore(repositoryRoot).CheckSources(replacements); err != nil {
+		for index := range resources {
+			if resources[index].Action == ActionUpdateLocal && resources[index].Source != nil {
+				if problem, ok := syncdomain.ProblemFrom(err); ok {
+					setProblem(&resources[index], problem)
+				} else {
+					resources[index].Action, resources[index].Error = ActionError, err.Error()
+				}
+			}
+		}
+	}
+}
+
+func applySourceDirections(client syncapi.Client, resources []PlannedResource) error {
+	byProject := make(map[string][]ResourceID)
+	for _, resource := range resources {
+		if resource.Source != nil {
+			byProject[resource.ID.ProjectKey] = append(byProject[resource.ID.ProjectKey], resource.ID)
+		}
+	}
+	for projectKey, ids := range byProject {
+		for start := 0; start < len(ids); start += 100 {
+			end := min(start+100, len(ids))
+			directions, err := client.SyncDirections(projectKey, ids[start:end])
+			if err != nil {
+				return err
+			}
+			for index := range resources {
+				resource := &resources[index]
+				if resource.ID.ProjectKey != projectKey ||
+					!slices.Contains(ids[start:end], resource.ID) {
+					continue
+				}
+				direction, ok := directions[resource.ID]
+				if !ok {
+					suggestion := "Configure the resource sync setting in LaunchDarkly, then run link again."
+					if resource.ID.Kind != syncdomain.KindVariation {
+						suggestion = fmt.Sprintf(
+							"LaunchDarkly does not provide a %s sync setting. Configure one when support is available, or run detach.",
+							resource.ID.Kind,
+						)
+					}
+					return syncdomain.NewProblem(
+						syncdomain.ErrorSyncSettingUnavailable,
+						"LaunchDarkly returned no sync setting",
+						suggestion,
+					).WithResource(resource.ID)
+				}
+				enforceDirection(resource, direction)
+			}
+		}
+	}
+	return nil
+}
+
+func enforceDirection(resource *PlannedResource, direction syncdomain.SyncDirection) {
+	resource.Direction = direction
+	if resource.Source != nil && resource.Action == ActionDeleteLocal {
+		setProblem(resource, syncdomain.NewProblem(
+			syncdomain.ErrorResourceDeleted,
+			"linked resource no longer exists in LaunchDarkly",
+			"Run "+detachCommand(resource.ID)+".",
+		).WithResource(resource.ID).WithFile(resource.Source.File, 0, 0))
+		return
+	}
+	switch direction {
+	case syncdomain.SyncDirectionBoth:
+		return
+	case syncdomain.SyncDirectionCodeCanonical:
+		switch resource.Action {
+		case ActionUpdateLocal, ActionConflict:
+			if resource.hasLocal() && resource.hasServer() {
+				resource.Action = ActionUpdateServer
+			} else {
+				resource.Action = ActionError
+				resource.Error = "code-canonical resource has no repository value to publish"
+			}
+		}
+	case syncdomain.SyncDirectionServerCanonical:
+		switch resource.Action {
+		case ActionUpdateServer, ActionConflict:
+			if resource.hasServer() {
+				resource.Action = ActionUpdateLocal
+			} else {
+				resource.Action = ActionError
+				resource.Error = "server-canonical resource does not exist in LaunchDarkly"
+			}
+		case ActionCreateServer:
+			resource.Action = ActionError
+			resource.Error = "server-canonical resource does not exist in LaunchDarkly"
+		}
+	}
+}
+
+func detachCommand(id ResourceID) string {
+	if id.Kind == syncdomain.KindVariation {
+		configKey, variationKey, _ := id.VariationKeys()
+		return fmt.Sprintf(
+			"ldcli sync prompts detach --project %s --config-key %s --key %s",
+			id.ProjectKey, configKey, variationKey,
+		)
+	}
+	return fmt.Sprintf(
+		"ldcli sync %ss detach --project %s --key %s",
+		id.Kind, id.ProjectKey, id.LookupKey,
+	)
 }
 
 // usersOf returns the local variations that use a tool or a skill.
@@ -154,7 +308,6 @@ func countStandalone(
 // planVariationRows reads the variations that the filter keeps from
 // LaunchDarkly, and compares both sides with the lock.
 func planVariationRows(
-	repositoryRoot string,
 	baseline syncmanifest.Baseline,
 	client syncapi.Client,
 	attachments *attachmentCache,
@@ -204,10 +357,18 @@ func planAttachmentRows(
 	lock syncmanifest.Manifest,
 	attachments *attachmentCache,
 	include func(ResourceID) bool,
+	proposal *synclocal.SourceDefinition,
 ) ([]PlannedResource, error) {
 	local, err := synclocal.CompileAttachments(repositoryRoot, include)
 	if err != nil {
 		return nil, err
+	}
+	if proposal != nil && proposal.Attachment != nil && include(proposal.Attachment.ID()) {
+		id := proposal.Attachment.ID()
+		local = slices.DeleteFunc(local, func(attachment syncdomain.SyncedAttachment) bool {
+			return attachment.ID() == id
+		})
+		local = append(local, *proposal.Attachment)
 	}
 	tracked := syncmanifest.New()
 	for _, resource := range lock.Resources {
@@ -247,6 +408,7 @@ func planReferencedAttachments(
 	lock syncmanifest.Manifest,
 	attachments *attachmentCache,
 	resources []PlannedResource,
+	proposal *synclocal.SourceDefinition,
 ) ([]PlannedResource, error) {
 	written := make(map[ResourceID]bool)
 	conflictUses := make(map[ResourceID][]conflictUse)
@@ -268,7 +430,7 @@ func planReferencedAttachments(
 			!slices.ContainsFunc(resources, func(resource PlannedResource) bool { return resource.ID == id })
 	}
 
-	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced)
+	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced, proposal)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +633,11 @@ func (workspace syncWorkspace) syncedResources() ([]ResourceID, error) {
 		synced = append(synced, resource.ID())
 	}
 	for _, file := range files {
-		if id, ok := synclocal.ParseManagedPath(file); ok {
+		id, ok := synclocal.ParseManagedPath(file)
+		if !ok {
+			id, ok = synclocal.ParseReferencePath(file)
+		}
+		if ok {
 			synced = append(synced, id)
 		}
 	}
@@ -599,9 +765,20 @@ func samePlannedResourceState(reviewed, current PlannedResource) bool {
 		reviewed.LocalFingerprint == current.LocalFingerprint &&
 		reviewed.ServerFingerprint == current.ServerFingerprint &&
 		reviewed.ServerMode == current.ServerMode &&
+		reviewed.Direction == current.Direction &&
 		reviewed.Upsert == current.Upsert &&
 		reviewed.ServerHasStaleAttachmentPins == current.ServerHasStaleAttachmentPins &&
+		sameSourceReference(reviewed.Source, current.Source) &&
+		slices.Equal(reviewed.IndexedSelections, current.IndexedSelections) &&
 		sameAttachmentPins(reviewed.Server, current.Server)
+}
+
+func sameSourceReference(left, right *syncdomain.Reference) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return left.File == right.File && left.Format == right.Format && left.Select == right.Select &&
+		maps.Equal(left.Map, right.Map)
 }
 
 // sameAttachmentPins compares the exact versions that LaunchDarkly pins. The

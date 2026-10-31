@@ -34,7 +34,46 @@ func executePlan(
 	outcomes := make([]ResourceOutcome, len(plan.Resources))
 	var failures []error
 	attachments := newAttachmentResolver(client)
+	handled := make(map[int]bool)
+
+	var sourceReplacements []synclocal.SourceReplacement
+	var sourceIndexes []int
+	for index, resource := range plan.Resources {
+		if resource.Action != ActionUpdateLocal || resource.Source == nil {
+			continue
+		}
+		projection, err := syncdomain.ChangedProjection(resource.LocalProjection, resource.ServerProjection)
+		if err != nil {
+			return nil, manifest, err
+		}
+		sourceReplacements = append(sourceReplacements, synclocal.SourceReplacement{
+			ID: resource.ID, Mode: resource.ServerMode, Reference: *resource.Source,
+			Projection: projection, ExpectedFingerprint: resource.LocalFingerprint,
+			ExpectedProjection:        resource.LocalProjection,
+			ExpectedIndexedSelections: resource.IndexedSelections,
+		})
+		sourceIndexes = append(sourceIndexes, index)
+	}
+	if len(sourceReplacements) != 0 {
+		_, sourceErr := localStore.ReplaceSources(sourceReplacements)
+		for _, index := range sourceIndexes {
+			resource := plan.Resources[index]
+			outcome := ResourceOutcome{ID: resource.ID, Action: resource.Action, Status: OutcomeSucceeded}
+			if sourceErr != nil {
+				outcome.Status, outcome.Error = OutcomeFailed, sourceErr.Error()
+			} else {
+				recordSuccessfulChange(&next, resource)
+			}
+			outcomes[index], handled[index] = outcome, true
+		}
+		if sourceErr != nil {
+			failures = append(failures, sourceErr)
+		}
+	}
 	execute := func(index int) {
+		if handled[index] {
+			return
+		}
 		resource := plan.Resources[index]
 		outcome := ResourceOutcome{ID: resource.ID, Action: resource.Action, Status: OutcomeSucceeded}
 		fail := func(err error) {
@@ -45,7 +84,7 @@ func executePlan(
 		switch {
 		case resource.Action == ActionInSync:
 		case resource.Action == ActionUpdateManifest:
-			next.SetFingerprint(resource.ID, resource.LocalFingerprint)
+			recordSuccessfulChange(&next, resource)
 		case resource.Action == ActionRemoveManifest:
 			next.Remove(resource.ID)
 		case resource.Action.changesServer() || resource.Action.changesLocal():
@@ -76,7 +115,7 @@ func executePlan(
 		if outcome.Status == OutcomeSucceeded {
 			if variation := attachmentManifestState(resource); variation != nil {
 				settled, _ := attachments.settledAttachments(resource.ID.ProjectKey, variation.Attachments)
-				if err := next.SetAttachments(resource.ID.ProjectKey, settled); err != nil {
+				if err := recordAttachmentState(&next, repositoryRoot, resource.ID.ProjectKey, settled); err != nil {
 					fail(err)
 				}
 			}
@@ -102,6 +141,49 @@ func executePlan(
 	return outcomes, next, errors.Join(failures...)
 }
 
+func recordAttachmentState(
+	manifest *syncmanifest.Manifest,
+	repositoryRoot, projectKey string,
+	attachments []syncdomain.Attachment,
+) error {
+	if err := manifest.SetAttachments(projectKey, attachments); err != nil {
+		return err
+	}
+	if len(attachments) == 0 {
+		return nil
+	}
+	ids := make(map[ResourceID]struct{}, len(attachments))
+	for _, attachment := range attachments {
+		ids[attachment.ID(projectKey)] = struct{}{}
+	}
+	local, err := synclocal.CompileAttachments(repositoryRoot, func(id ResourceID) bool {
+		_, included := ids[id]
+		return included
+	})
+	if err != nil {
+		return err
+	}
+	for _, attachment := range local {
+		if attachment.Source == nil {
+			continue
+		}
+		projection, err := syncdomain.ProjectAttachment(attachment.Attachment, *attachment.Source)
+		if err != nil {
+			return err
+		}
+		fingerprint, err := syncdomain.FingerprintProjection(attachment.ID(), projection)
+		if err != nil {
+			return err
+		}
+		manifest.SetFingerprint(attachment.ID(), fingerprint)
+		if err := manifest.SetSourceMetadata(attachment.ID(), attachment.Source); err != nil {
+			return err
+		}
+		manifest.SetIndexedSelections(attachment.ID(), attachment.IndexedSelections)
+	}
+	return nil
+}
+
 // attachmentManifestState returns the variation whose attachments the
 // manifest records after the action, or nil.
 func attachmentManifestState(resource PlannedResource) *syncdomain.Variation {
@@ -120,10 +202,16 @@ func recordSuccessfulChange(manifest *syncmanifest.Manifest, resource PlannedRes
 	switch {
 	case resource.Action == ActionDeleteLocal:
 		manifest.Remove(resource.ID)
+	case resource.Action == ActionUpdateManifest:
+		manifest.SetFingerprint(resource.ID, resource.LocalFingerprint)
 	case resource.Action.changesServer():
 		manifest.SetFingerprint(resource.ID, resource.LocalFingerprint)
 	default:
 		manifest.SetFingerprint(resource.ID, resource.ServerFingerprint)
+	}
+	_ = manifest.SetSourceMetadata(resource.ID, resource.Source)
+	if resource.Source != nil {
+		manifest.SetIndexedSelections(resource.ID, resource.IndexedSelections)
 	}
 }
 
@@ -197,7 +285,15 @@ func applyServerChange(
 		}
 		writeErr = client.CreateVariation(projectKey, configKey, variation)
 	case ActionUpdateServer:
-		local := withExplicitDetach(*resource.Local, resource.Server)
+		local := *resource.Local
+		if resource.Source != nil && resource.Server != nil {
+			projection, ok := resource.LocalProjection.(syncdomain.VariationProjection)
+			if !ok {
+				return nil, fmt.Errorf("source projection for %s is %T", resource.ID.Label(), resource.LocalProjection)
+			}
+			local = syncdomain.ApplyVariationProjection(*resource.Server, projection)
+		}
+		local = withExplicitDetach(local, resource.Server)
 		if variation, err = attachments.resolveVariation(projectKey, local); err != nil {
 			return nil, err
 		}
@@ -222,7 +318,16 @@ func applyServerChange(
 		if err := newAttachmentCache(client).hydrate(projectKey, &state.Variation); err != nil {
 			return nil, errors.Join(writeErr, err)
 		}
-		if actual, err = syncdomain.FingerprintVariation(projectKey, resource.ID.LookupKey, state.Variation); err != nil {
+		if resource.Source != nil {
+			var projection syncdomain.VariationProjection
+			projection, err = syncdomain.ProjectVariation(state.Variation, *resource.Source)
+			if err == nil {
+				actual, err = syncdomain.FingerprintProjection(resource.ID, projection)
+			}
+		} else {
+			actual, err = syncdomain.FingerprintVariation(projectKey, resource.ID.LookupKey, state.Variation)
+		}
+		if err != nil {
 			return nil, errors.Join(writeErr, err)
 		}
 	}
@@ -255,6 +360,13 @@ func applyAttachmentChange(
 		// local side of a conflict in which LaunchDarkly has no copy. Both
 		// allow the create, but not the update of a copy that appears later.
 		local := *resource.LocalAttachment
+		if resource.Source != nil && resource.ServerAttachment != nil {
+			var err error
+			local, err = syncdomain.ApplyAttachmentProjection(*resource.ServerAttachment, resource.LocalProjection)
+			if err != nil {
+				return 0, err
+			}
+		}
 		local.Upsert = local.Upsert || resource.Action == ActionCreateServer
 		published, err := attachments.resolve(resource.ID.ProjectKey, local, resource.Action == ActionCreateServer)
 		return published.Version, err
@@ -334,7 +446,9 @@ func applyLocalChange(store synclocal.Store, resource PlannedResource) error {
 // action wrote. For ActionUpdateLocal on a variation, resource.Server is in
 // the form of the local file.
 func verifyLocalResult(repositoryRoot string, resource PlannedResource) error {
-	actual, err := readLocalFingerprint(repositoryRoot, resource.ID)
+	actual, err := readLocalFingerprint(
+		repositoryRoot, resource.ID, resource.ServerMode, resource.ServerProjection,
+	)
 	if err != nil {
 		return err
 	}
@@ -358,11 +472,26 @@ func verifyLocalResult(repositoryRoot string, resource PlannedResource) error {
 
 // readLocalFingerprint returns the fingerprint of one local resource, or an
 // empty string when the resource has no local file.
-func readLocalFingerprint(repositoryRoot string, id ResourceID) (string, error) {
+func readLocalFingerprint(
+	repositoryRoot string,
+	id ResourceID,
+	mode syncdomain.VariationMode,
+	expected syncdomain.Projection,
+) (string, error) {
 	if id.Kind != syncdomain.KindVariation {
 		attachments, err := synclocal.CompileAttachments(repositoryRoot, func(candidate ResourceID) bool { return candidate == id })
 		if err != nil || len(attachments) == 0 {
 			return "", err
+		}
+		if attachments[0].Source != nil {
+			projection := attachments[0].Projection
+			if expected != nil {
+				projection, err = syncdomain.FillReadOnlyFields(projection, expected)
+			}
+			if err != nil {
+				return "", err
+			}
+			return syncdomain.FingerprintProjection(id, projection)
 		}
 		return syncdomain.FingerprintAttachment(id.ProjectKey, attachments[0].Attachment)
 	}
@@ -372,6 +501,23 @@ func readLocalFingerprint(repositoryRoot string, id ResourceID) (string, error) 
 	}
 	for _, variation := range variations {
 		if variation.ID() == id {
+			if variation.Source != nil {
+				value := variationForSourceMode(variation.Variation, mode)
+				projection := variation.Projection
+				if typed, ok := projection.(syncdomain.VariationProjection); ok && typed.Mode != value.Mode {
+					var converted syncdomain.VariationProjection
+					converted, err = syncdomain.ProjectVariation(value, *variation.Source)
+					converted.FieldStates = typed.FieldStates
+					projection = converted
+				}
+				if err == nil && expected != nil {
+					projection, err = syncdomain.FillReadOnlyFields(projection, expected)
+				}
+				if err != nil {
+					return "", err
+				}
+				return syncdomain.FingerprintProjection(id, projection)
+			}
 			return syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, variation.Variation)
 		}
 	}
