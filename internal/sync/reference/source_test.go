@@ -2,6 +2,7 @@ package reference
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,5 +117,22 @@ func FuzzPathParserNeverPanics(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, path string) {
 		_ = ParsePath(path)
+	})
+}
+
+func FuzzPythonStringRoundTrip(f *testing.F) {
+	for _, value := range []string{"plain", "quotes ' \" and slash \\", "line one\nline two", "Unicode 🌍"} {
+		f.Add(value)
+	}
+	f.Fuzz(func(t *testing.T, value string) {
+		if !utf8.ValidString(value) {
+			t.Skip()
+		}
+		for _, quote := range []string{"'", `"`, `"""`} {
+			encoded := encodePythonString(value, quote)
+			decoded, _, err := decodePythonString(encoded)
+			require.NoError(t, err)
+			require.Equal(t, value, decoded)
+		}
 	})
 }

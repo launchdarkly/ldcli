@@ -36,6 +36,12 @@ func TestRegisteredFormatsReadAndWriteRealisticSources(t *testing.T) {
 			want: "Explain the refund policy and escalation rules.", update: "Explain refunds and escalation rules.",
 		},
 		{
+			name: "Python agent", fixture: "python/agents.py", format: "python",
+			id:         syncdomain.VariationID("project", "support", "default"),
+			selectPath: `agents[id="support"]`, fieldMap: map[string]string{"prompt": "instructions"},
+			want: "Ask for an order ID before discussing an order.", update: "Ask for an order ID and region.",
+		},
+		{
 			name: "JSON tool", fixture: "json/mcp.json", format: "json",
 			id:         syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "lookup_order"},
 			selectPath: `tools[name="lookup_order"]`, fieldMap: map[string]string{"description": "description"},
