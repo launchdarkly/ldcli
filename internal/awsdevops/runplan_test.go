@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
@@ -459,29 +459,6 @@ func TestRunPlanStopsWhenKeptAssociationIsGone(t *testing.T) {
 	assert.NotContains(t, agent.calls, "AssociateService")
 }
 
-// A plan that skips the MCP server does not register or connect one.
-func TestRunPlanSkipsTheMCPServer(t *testing.T) {
-	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
-	clients := newTestClients(agent, newFakeIAM())
-	opts := runPlanOptions()
-	opts.LDAccessToken = ""
-	logged := collectLogs(&opts)
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-	require.Equal(t, awsdevops.MCPAsk, plan.MCP.Action)
-	plan.MCP.Action = awsdevops.MCPSkip
-
-	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
-
-	require.NoError(t, err)
-	assert.Empty(t, result.MCPServiceID)
-	assert.NotContains(t, agent.calls, "RegisterService")
-	for _, in := range agent.associationInputs {
-		assert.Equal(t, "aws", aws.ToString(in.ServiceId))
-	}
-	assert.Contains(t, strings.Join(*logged, "\n"), "Skipped MCP server")
-}
-
 // A space that reads only another account still gets this account. Setup
 // must not keep the association of the other account as its own.
 func TestRunPlanAssociatesBesideAnotherAccount(t *testing.T) {
@@ -666,32 +643,29 @@ func TestConnectPlanUsesTheURLThatAWSReturns(t *testing.T) {
 }
 
 func TestRunPlanStopsWhenReusedMCPServerIsGone(t *testing.T) {
-	for name, replace := range map[string]bool{"reuse": false, "replace": true} {
-		t.Run(name, func(t *testing.T) {
-			agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")}}
-			iamClient := newFakeIAM()
-			clients := newTestClients(agent, iamClient)
-			opts := runPlanOptions()
-			opts.ReplaceMCPToken = replace
-			plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-			require.NoError(t, err)
-			agent.services = nil
+	agent := linkedSpace("mcp-old")
+	iamClient := newFakeIAM()
+	clients := newTestClients(agent, iamClient)
+	opts := runPlanOptions()
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	agent.services = nil
 
-			_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
 
-			require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
-			assert.Empty(t, iamClient.createdRoles)
-			assert.NotContains(t, agent.calls, "RegisterService")
-			assert.NotContains(t, agent.calls, "DeregisterService")
-		})
-	}
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, iamClient.createdRoles)
+	assert.NotContains(t, agent.calls, "RegisterService")
 }
 
 func TestRunPlanStopsWhenMCPServerAppears(t *testing.T) {
 	agent, iamClient := &fakeAgent{}, newFakeIAM()
 
+	agent.agentSpaces = []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")}
+
 	err := planThenRun(t, agent, iamClient, func() {
 		agent.services = []agenttypes.RegisteredService{launchDarklyMCPService("mcp-new")}
+		agent.associations = mcpLink("mcp-new")
 	})
 
 	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
@@ -701,7 +675,7 @@ func TestRunPlanStopsWhenMCPServerAppears(t *testing.T) {
 
 // Setup uses the planned server ID.
 func TestRunPlanKeepsThePlannedMCPServer(t *testing.T) {
-	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")}}
+	agent := linkedSpace("mcp-old")
 	clients := newTestClients(agent, newFakeIAM())
 	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
 	require.NoError(t, err)
@@ -713,42 +687,6 @@ func TestRunPlanKeepsThePlannedMCPServer(t *testing.T) {
 	assert.Equal(t, "mcp-old", result.MCPServiceID)
 }
 
-// The pasted token uses the shown plan.
-func TestRegisterMCPServerStopsWhenServerAppears(t *testing.T) {
-	agent := &fakeAgent{}
-	clients := newTestClients(agent, newFakeIAM())
-	opts := runPlanOptions()
-	opts.LDAccessToken = ""
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
-	require.NoError(t, err)
-	agent.services = []agenttypes.RegisteredService{launchDarklyMCPService("mcp-someone")}
-	opts.LDAccessToken, opts.ReplaceMCPToken = "pasted-token", true
-
-	err = awsdevops.RegisterMCPServer(context.Background(), clients, opts, plan.MCP, &result)
-
-	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
-	assert.NotContains(t, agent.calls, "DeregisterService")
-	assert.NotContains(t, agent.calls, "RegisterService")
-}
-
-func TestRegisterMCPServerRegistersAfterAsk(t *testing.T) {
-	agent := &fakeAgent{}
-	clients := newTestClients(agent, newFakeIAM())
-	opts := runPlanOptions()
-	opts.LDAccessToken = ""
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
-	require.NoError(t, err)
-	opts.LDAccessToken = "pasted-token"
-
-	require.NoError(t, awsdevops.RegisterMCPServer(context.Background(), clients, opts, plan.MCP, &result))
-
-	assert.Contains(t, agent.calls, "RegisterService")
-}
-
 func TestConnectPlanStopsWhenServerAppears(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "platform")}}
 	clients := newTestClients(agent, newFakeIAM())
@@ -757,6 +695,7 @@ func TestConnectPlanStopsWhenServerAppears(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
 	require.NoError(t, err)
 	agent.services = []agenttypes.RegisteredService{launchDarklyMCPService("mcp-someone")}
+	agent.associations = mcpLink("mcp-someone")
 
 	_, err = awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
 
@@ -810,127 +749,6 @@ func TestPlanRejectsBadMCPServiceID(t *testing.T) {
 	}
 }
 
-func rejectingOptions(t *testing.T, status int) awsdevops.SetupOptions {
-	t.Helper()
-	opts := runPlanOptions()
-	opts.LDBaseURI = stubLaunchDarkly(t, status)
-
-	return opts
-}
-
-// Setup checks a sent token first.
-func TestRunPlanChecksTokenBeforeWrites(t *testing.T) {
-	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
-		t.Run(http.StatusText(status), func(t *testing.T) {
-			agent, iamClient := &fakeAgent{}, newFakeIAM()
-			clients := newTestClients(agent, iamClient)
-			opts := rejectingOptions(t, status)
-			plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-			require.NoError(t, err)
-
-			_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
-
-			require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
-			assert.Empty(t, iamClient.createdRoles)
-			assert.NotContains(t, agent.calls, "CreateAgentSpace")
-		})
-	}
-}
-
-func TestRunPlanChecksReplaceTokenBeforeWrites(t *testing.T) {
-	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")}}
-	iamClient := newFakeIAM()
-	clients := newTestClients(agent, iamClient)
-	opts := rejectingOptions(t, http.StatusUnauthorized)
-	opts.ReplaceMCPToken = true
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-
-	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
-
-	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
-	assert.Empty(t, iamClient.createdRoles)
-}
-
-// A reused server keeps its token.
-func TestRunPlanSkipsTokenItWillNotSend(t *testing.T) {
-	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")}}
-	clients := newTestClients(agent, newFakeIAM())
-	opts := runPlanOptions()
-	opts.LDBaseURI = "http://127.0.0.1:1"
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-
-	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
-
-	require.NoError(t, err)
-}
-
-func TestConnectPlanChecksTokenBeforeWrites(t *testing.T) {
-	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "platform")}}
-	clients := newTestClients(agent, newFakeIAM())
-	opts := rejectingOptions(t, http.StatusUnauthorized)
-	opts.AgentSpaceID = "space-7"
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
-	require.NoError(t, err)
-
-	_, err = awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
-
-	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
-	assert.NotContains(t, agent.calls, "RegisterService")
-}
-
-func TestRegisterMCPServerChecksPastedToken(t *testing.T) {
-	agent := &fakeAgent{}
-	clients := newTestClients(agent, newFakeIAM())
-	opts := runPlanOptions()
-	opts.LDAccessToken = ""
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
-	require.NoError(t, err)
-	opts.LDAccessToken = "api-token"
-	opts.LDBaseURI = stubLaunchDarkly(t, http.StatusUnauthorized)
-
-	err = awsdevops.RegisterMCPServer(context.Background(), clients, opts, plan.MCP, &result)
-
-	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
-	assert.NotContains(t, agent.calls, "RegisterService")
-}
-
-func TestRunPlanStopsWhenReplaceSpacesChange(t *testing.T) {
-	agent, iamClient := replaceAcrossSpaces(), newFakeIAM()
-	clients := newTestClients(agent, iamClient)
-	opts := runPlanOptions()
-	opts.ReplaceMCPToken = true
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-	agent.spaceLinks["space-2"] = mcpLink("mcp-old")
-
-	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
-
-	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
-	assert.NotContains(t, agent.calls, "DisassociateService")
-	assert.Empty(t, iamClient.createdRoles)
-}
-
-// List order does not change the set.
-func TestRunPlanReplaceIgnoresListOrder(t *testing.T) {
-	agent, iamClient := replaceAcrossSpaces(), newFakeIAM()
-	agent.afterListSpaces = func() {
-		agent.agentSpaces = []agenttypes.AgentSpace{agent.agentSpaces[2], agent.agentSpaces[1], agent.agentSpaces[0]}
-	}
-	clients := newTestClients(agent, iamClient)
-	opts := rejectingOptions(t, http.StatusOK)
-	opts.ReplaceMCPToken = true
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-
-	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
-
-	require.NoError(t, err)
-}
-
 // The role writes can take minutes. A kept association that goes in that
 // time stops the run, so setup does not create a new one.
 func TestRunPlanStopsWhenKeptAssociationGoesDuringRoleWrites(t *testing.T) {
@@ -960,6 +778,7 @@ func TestRunPlanStopsWhenMCPServerAppearsDuringRoleWrites(t *testing.T) {
 	require.Equal(t, awsdevops.MCPRegister, plan.MCP.Action)
 	iamClient.onCreateRole = func(string) {
 		agent.services = []agenttypes.RegisteredService{launchDarklyMCPService("mcp-new")}
+		agent.associations = mcpLink("mcp-new")
 	}
 
 	_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
@@ -971,8 +790,9 @@ func TestRunPlanStopsWhenMCPServerAppearsDuringRoleWrites(t *testing.T) {
 // A reused server that goes during the role writes stops the run.
 func TestRunPlanStopsWhenReusedMCPServerGoesDuringRoleWrites(t *testing.T) {
 	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")},
-		services:    []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+		agentSpaces:  []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")},
+		services:     []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+		associations: mcpLink("mcp-1"),
 	}
 	iamClient := newFakeIAM()
 	clients := newTestClients(agent, iamClient)
@@ -989,78 +809,6 @@ func TestRunPlanStopsWhenReusedMCPServerGoesDuringRoleWrites(t *testing.T) {
 	}
 }
 
-// replaceRun plans and runs a token replacement across space-1 and space-3.
-func replaceRun(t *testing.T, agent *fakeAgent) (awsdevops.SetupResult, error) {
-	t.Helper()
-	clients := newTestClients(agent, newFakeIAM())
-	opts := rejectingOptions(t, http.StatusOK)
-	opts.ReplaceMCPToken = true
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-	require.Equal(t, awsdevops.MCPReplace, plan.MCP.Action)
-
-	return awsdevops.RunPlan(context.Background(), clients, opts, plan)
-}
-
-// The old server is gone when the name clash happens, so the error names
-// each space that lost it.
-func TestRunPlanReplaceNameClashNamesTheDisconnectedSpaces(t *testing.T) {
-	agent := replaceAcrossSpaces()
-	agent.registerErr = errors.New("ConflictException: a service named LaunchDarkly already exists")
-
-	_, err := replaceRun(t, agent)
-
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "Rename that server in the AWS console")
-	assert.ErrorContains(t, err, "agent spaces space-1, space-3 have no LaunchDarkly MCP server")
-	assert.ErrorContains(t, err, "--agent-space-id <id>")
-	assert.NotContains(t, err.Error(), "--mcp-service-id")
-}
-
-func TestRunPlanReplaceFailedDeregisterNamesTheDisconnectedSpaces(t *testing.T) {
-	agent := replaceAcrossSpaces()
-	agent.deregisterErr = errors.New("InternalServerException")
-
-	_, err := replaceRun(t, agent)
-
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "unable to deregister the existing LaunchDarkly MCP server mcp-old")
-	assert.ErrorContains(t, err, "Agent spaces space-1, space-3 are already disconnected from it")
-	assert.ErrorContains(t, err, "--agent-space-id <id>")
-	assert.NotContains(t, agent.calls, "RegisterService")
-}
-
-// The plan names the server by its name in AWS, so the new registration
-// keeps that name.
-func TestRunPlanReplaceKeepsTheServerName(t *testing.T) {
-	agent := replaceAcrossSpaces()
-	agent.services = []agenttypes.RegisteredService{mcpService("mcp-old", "Prod LD", awsdevops.MCPServerEndpoint)}
-
-	_, err := replaceRun(t, agent)
-
-	require.NoError(t, err)
-	require.Len(t, agent.registerInputs, 1)
-	details, ok := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver)
-	require.True(t, ok)
-	assert.Equal(t, "Prod LD", aws.ToString(details.Value.Name))
-}
-
-// A link added during writes stops replace.
-func TestRunPlanStopsWhenSpaceLinksDuringRoles(t *testing.T) {
-	agent, iamClient := replaceAcrossSpaces(), newFakeIAM()
-	iamClient.onCreateRole = func(string) { agent.spaceLinks["space-2"] = mcpLink("mcp-old") }
-	clients := newTestClients(agent, iamClient)
-	opts := rejectingOptions(t, http.StatusOK)
-	opts.ReplaceMCPToken = true
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-
-	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
-
-	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
-	assert.NotContains(t, agent.calls, "DisassociateService")
-}
-
 func TestRunPlanStopsWhenAppSignInChanges(t *testing.T) {
 	agent := &fakeAgent{
 		agentSpaces:  []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly")}},
@@ -1074,48 +822,6 @@ func TestRunPlanStopsWhenAppSignInChanges(t *testing.T) {
 	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
 	assert.Contains(t, err.Error(), "sign-in changed")
 	assert.NotContains(t, agent.calls, "EnableOperatorApp")
-}
-
-func runReplace(t *testing.T, agent *fakeAgent) error {
-	t.Helper()
-	clients := newTestClients(agent, newFakeIAM())
-	opts := rejectingOptions(t, http.StatusOK)
-	opts.ReplaceMCPToken = true
-	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-	require.NoError(t, err)
-
-	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
-
-	return err
-}
-
-// The other spaces get the new server even if this space fails.
-func TestReplaceReconnectsOtherSpacesWhenThisOneFails(t *testing.T) {
-	agent := replaceAcrossSpaces()
-	agent.failAssociateFor = map[string]bool{"space-1": true}
-
-	err := runReplace(t, agent)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "agent space space-1")
-	assert.NotContains(t, err.Error(), "lost the LaunchDarkly MCP server")
-	var reconnected []string
-	for _, in := range agent.associationInputs {
-		reconnected = append(reconnected, aws.ToString(in.AgentSpaceId))
-	}
-	assert.Contains(t, reconnected, "space-3")
-}
-
-// A failed reconnect names the space, so the user can fix it.
-func TestReplaceNamesASpaceThatLostTheServer(t *testing.T) {
-	agent := replaceAcrossSpaces()
-	agent.failAssociateFor = map[string]bool{"space-3": true}
-
-	err := runReplace(t, agent)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "agent spaces space-3 lost the LaunchDarkly MCP server")
-	assert.Contains(t, err.Error(), "--agent-space-id")
 }
 
 // The role step can take minutes, so the app step checks the app again.
@@ -1149,4 +855,213 @@ func TestRunPlanStopsWhenAppTurnsOffDuringRoles(t *testing.T) {
 
 	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
 	assert.Contains(t, err.Error(), "disabled after the plan")
+}
+
+// linkedSpace is the agent space space-1, named launchdarkly, connected to
+// the LaunchDarkly MCP server serviceID.
+func linkedSpace(serviceID string) *fakeAgent {
+	return &fakeAgent{
+		agentSpaces:  []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
+		services:     []agenttypes.RegisteredService{launchDarklyMCPService(serviceID)},
+		associations: mcpLink(serviceID),
+	}
+}
+
+// --mcp-service-id must not give a space a second LaunchDarkly server.
+func TestPlanStopsWhenMCPServiceIDIsNotTheServerOfTheSpace(t *testing.T) {
+	agent := linkedSpace("mcp-own")
+	agent.services = append(agent.services, launchDarklyMCPService("mcp-chosen"))
+	opts := runPlanOptions()
+	opts.MCPServiceID = "mcp-chosen"
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "agent space space-1 already uses MCP server LaunchDarkly (mcp-own)")
+}
+
+// Setup cannot pick between two LaunchDarkly servers on one space.
+func TestPlanStopsOnASpaceWithTwoLaunchDarklyServers(t *testing.T) {
+	agent := linkedSpace("mcp-a")
+	agent.services = append(agent.services, launchDarklyMCPService("mcp-b"))
+	agent.associations = append(agent.associations, mcpLink("mcp-b")...)
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), runPlanOptions(), true)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "connected to 2 LaunchDarkly MCP servers")
+}
+
+// The plan names the other spaces that use the server.
+func TestPlanWarnsWhenTheReusedServerIsShared(t *testing.T) {
+	opts := runPlanOptions()
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(sharedAcrossSpaces(), newFakeIAM()), opts, true)
+
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	assert.Equal(t,
+		"Reuse MCP server LaunchDarkly (mcp-old). Agent spaces space-3 also use it",
+		plan.Text().MCPServer)
+}
+
+func oauthMCPService(serviceID string) agenttypes.RegisteredService {
+	service := mcpService(serviceID, awsdevops.MCPOAuthServerName, awsdevops.MCPServerEndpoint)
+	details := service.AdditionalServiceDetails.(*agenttypes.AdditionalServiceDetailsMemberMcpserver)
+	details.Value.AuthorizationMethod = agenttypes.MCPServerAuthorizationMethodOauth3lo
+
+	return service
+}
+
+func oauthStepAgent() *fakeAgent {
+	return &fakeAgent{registerOutput: &devopsagent.RegisterServiceOutput{
+		AdditionalStep: &agenttypes.AdditionalServiceRegistrationStepMemberOauth{
+			Value: agenttypes.OAuthAdditionalStepDetails{AuthorizationUrl: aws.String("https://example.com/approve")},
+		},
+	}}
+}
+
+func TestOAuthRegistersAfterApproval(t *testing.T) {
+	agent := oauthStepAgent()
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	var opened string
+	opts.OpenURL = func(url string) error {
+		opened = url
+		// AWS registers the server after the approval.
+		agent.services = append(agent.services, oauthMCPService("mcp-account"))
+
+		return nil
+	}
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPRegister, plan.MCP.Action)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/approve", opened)
+	assert.Equal(t, "mcp-account", result.MCPServiceID)
+	require.Len(t, agent.registerInputs, 1)
+	details := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver).Value
+	assert.Equal(t, awsdevops.MCPOAuthServerName, aws.ToString(details.Name))
+	assert.IsType(t, &agenttypes.MCPServerAuthorizationConfigMemberAuthorizationDiscovery{}, details.AuthorizationConfig)
+	assert.Contains(t, agent.calls, "AssociateService")
+}
+
+// The approval takes time, so setup polls until AWS registers the server.
+func TestOAuthPollsUntilTheServerAppears(t *testing.T) {
+	defer awsdevops.SetOAuthPollInterval(time.Millisecond)()
+	agent := oauthStepAgent()
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opened := false
+	opts.OpenURL = func(string) error {
+		opened = true
+
+		return nil
+	}
+	polls := 0
+	agent.onListServices = func() {
+		if !opened {
+			return
+		}
+		polls++
+		if polls == 3 {
+			agent.services = append(agent.services, oauthMCPService("mcp-account"))
+		}
+	}
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, polls)
+	assert.Equal(t, "mcp-account", result.MCPServiceID)
+	assert.Contains(t, agent.calls, "AssociateService")
+}
+
+func TestOAuthReusesTheServerOfTheAccount(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "platform")},
+		services:    []agenttypes.RegisteredService{oauthMCPService("mcp-account")},
+	}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+
+	result, err := awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, "mcp-account", result.MCPServiceID)
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+// A server with a token is never the OAuth server of the account, even with
+// the name that the console guide uses.
+func TestOAuthDoesNotReuseAServerWithAToken(t *testing.T) {
+	token := launchDarklyMCPService("mcp-token")
+	details := token.AdditionalServiceDetails.(*agenttypes.AdditionalServiceDetailsMemberMcpserver)
+	details.Value.AuthorizationMethod = agenttypes.MCPServerAuthorizationMethodBearerToken
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{token}}
+	clients := newTestClients(agent, newFakeIAM())
+
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+
+	require.NoError(t, err)
+	assert.Equal(t, awsdevops.MCPRegister, plan.MCP.Action)
+}
+
+// Each OAuth server acts as the member who approved it, so setup does not
+// pick between two of them.
+func TestPlanStopsOnAnAccountWithTwoOAuthServers(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{oauthMCPService("mcp-a"), oauthMCPService("mcp-b")}}
+	clients := newTestClients(agent, newFakeIAM())
+
+	_, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "the AWS account has 2 LaunchDarkly MCP servers that use OAuth")
+	assert.ErrorContains(t, err, "(mcp-a)")
+	assert.ErrorContains(t, err, "(mcp-b)")
+	assert.ErrorContains(t, err, "--mcp-service-id")
+}
+
+func TestMCPServiceIDPicksOneOfTwoOAuthServers(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{oauthMCPService("mcp-a"), oauthMCPService("mcp-b")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.MCPServiceID = "mcp-b"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, "mcp-b", result.MCPServiceID)
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+// A server with the name and a token passes the plan, so the error from AWS
+// must say what to do.
+func TestOAuthNameClashSaysWhatToDo(t *testing.T) {
+	agent := &fakeAgent{registerErr: errors.New("ConflictException: a service named LaunchDarkly-OAuth already exists")}
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "an MCP server named LaunchDarkly-OAuth is already registered")
+	assert.ErrorContains(t, err, "Rename or delete that server in the AWS console")
+	assert.ErrorContains(t, err, "--mcp-service-id <id>")
+	assert.ErrorContains(t, err, "ConflictException")
+	// Only the AWS account association, and no MCP server association.
+	assert.Equal(t, awsAssociationInputs(agent), agent.associationInputs)
 }

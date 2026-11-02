@@ -57,4 +57,8 @@ func (m *MockTracker) SendSetupFlagToggledEvent(on bool, count int, duration_ms 
 	)
 }
 
+func (m *MockTracker) SendDevServerUIEvent(name string, properties map[string]interface{}) {
+	m.sendEvent(name, properties)
+}
+
 func (a *MockTracker) Wait() {}

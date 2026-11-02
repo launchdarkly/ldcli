@@ -3,13 +3,11 @@ package awsdevopsagent
 import (
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
@@ -21,13 +19,15 @@ const (
 	agentSpaceNameFlag  = "agent-space-name"
 	newAgentSpaceFlag   = "new-agent-space"
 	authFlowFlag        = "auth-flow"
+	fullSetupFlag       = "full-setup"
 	idcInstanceARNFlag  = "idc-instance-arn"
 	issuerURLFlag       = "issuer-url"
 	idpClientIDFlag     = "idp-client-id"
 	idpClientSecretFlag = "idp-client-secret"
-	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	replaceSkillFlag    = "replace-skill"
+	addMCPToolsFlag     = "add-mcp-tools"
 	yesFlag             = "yes"
 )
 
@@ -35,24 +35,47 @@ func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Provision the AWS DevOps Agent for LaunchDarkly",
-		Long: `Create the IAM roles, agent space, AWS account association, operator app and
-LaunchDarkly MCP server connection the AWS DevOps Agent needs.
+		Long: `Create the IAM roles, agent space, AWS account association, operator app,
+LaunchDarkly MCP server connection and experimentation skill the AWS DevOps
+Agent needs.
 
 When the account already has agent spaces, setup asks which one to connect
 LaunchDarkly to. On a space that setup did not make, setup only registers the
-MCP server. On a space that setup made, or with --auth-flow, setup runs the
-full setup. Pass --agent-space-id to pick a space without the list, or
---new-agent-space to provision another space. A new space needs a name: pass
---agent-space-name, or type one when setup asks. The run ends with the
+MCP server and adds the skill. On a space that setup made, or with
+--full-setup, setup runs the full setup. A full setup turns on elevated
+actions on the space. Pass --agent-space-id to pick a space without the list,
+or --new-agent-space to provision another space. A new space needs a name:
+pass --agent-space-name, or type one when setup asks. The run ends with the
 operator app URL, where the agent is used.
 
-The MCP server is connected with --access-token, or with the token in your
-ldcli configuration when you do not pass one. AWS keeps the token and the agent
-acts as its account and role, so a session token from 'ldcli login' stops
-working once it expires. With no token, setup reuses a registered MCP server.
-If none exists, setup asks for a service token in a terminal and checks it
-before it changes AWS. Without a terminal, or with --yes, it stops and asks
-for --access-token.`,
+The AWS account gets one LaunchDarkly MCP server, which all agent spaces use.
+If the account has no server, setup registers one with OAuth. It opens a
+browser, where you approve access to LaunchDarkly, and waits until AWS
+registers the server. After the approval, the browser opens the AWS console,
+which can ask you to sign in. The agent then acts as the LaunchDarkly member
+who approved access, in every agent space. If the agent space already has an
+MCP server, setup keeps it.
+
+A space that reuses a server keeps its tool allowlist. If the allowlist misses
+tools that this ldcli version allows, setup adds them. AWS does not send back
+the classification of each tool, so the rewrite gives every tool the ldcli
+classification.
+
+Setup downloads the skill and the custom agent prompt from the main branch of
+launchdarkly/ai-tooling on GitHub, so those steps need access to GitHub. If
+the download fails, setup skips both steps and warns.
+
+The experiment-orchestration skill tells the agent how to run an experiment
+from a goal to a report. Every agent type in the space can load it. If the
+space already has the skill and it differs from the latest version, setup
+skips it. To update it to the latest version, pass --replace-skill. Setting
+up the skill is optional: if its step fails, setup warns and does the other
+steps.
+
+The experiment-orchestrator custom agent runs the skill with the LaunchDarkly
+MCP tools that the space allows. It needs the MCP server and the skill.
+Setting up the custom agent is optional: if its step fails, setup warns and
+does the other steps.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -60,18 +83,21 @@ for --access-token.`,
 
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
-	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --auth-flow runs full setup on a space that setup did not make")
+	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --full-setup runs full setup on a space that setup did not make")
 	cmd.Flags().String(agentSpaceNameFlag, "", "Name of the agent space to use or create. In a terminal, setup asks for a name if it needs one")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Provision a new agent space instead of asking which existing one to use")
 	cmd.MarkFlagsMutuallyExclusive(agentSpaceIDFlag, newAgentSpaceFlag)
+	cmd.Flags().Bool(fullSetupFlag, false, "Run the full setup on an agent space that setup did not make. Setup can change its IAM roles, account association, and operator app sign-in")
 	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
 	cmd.Flags().String(idcInstanceARNFlag, "", "IAM Identity Center instance ARN, required when --auth-flow=idc")
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
-	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
-	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
-	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
+	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to connect, instead of the server of the AWS account")
+	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register. Setup reuses only a server at this endpoint. Defaults to "+awsdevops.MCPServerEndpoint)
+	cmd.Flags().Bool(replaceSkillFlag, false, "Overwrite the "+awsdevops.ExperimentSkillName+" skill if it differs from the latest version")
+	cmd.Flags().Bool(addMCPToolsFlag, false, "Has no effect. Setup adds the missing tools without it")
+	_ = cmd.Flags().MarkDeprecated(addMCPToolsFlag, "setup now adds the missing MCP tools without it")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
@@ -94,13 +120,6 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	plaintext := cliflags.GetOutputKind(cmd) != "json"
 	if warning := awsdevops.CheckAWSCLIVersion(cmd.Context()); warning != "" {
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", warning)
-	}
-	if opts.LDAccessToken != "" && accessTokenFromConfig(cmd) {
-		_, _ = fmt.Fprintln(
-			cmd.ErrOrStderr(),
-			"Using the access token from your ldcli configuration for the MCP server. "+
-				"Pass --access-token with a service token if that one expires",
-		)
 	}
 	// The prompts go to stderr, so a json run in a terminal can ask too.
 	return setupWith(cmd, clients, opts, plaintext, canPrompt())
@@ -131,14 +150,13 @@ func setupWith(
 	if err != nil {
 		return err
 	}
-	if plan.MCP.Action == awsdevops.MCPAsk && !ask {
-		return fmt.Errorf("create a service token at %s, then pass --access-token", awsdevops.AccessTokenURL(opts.LDBaseURI))
-	}
-	if plan.MCP.Action == awsdevops.MCPAsk {
-		plan, err = planWithToken(cmd, clients, &opts, plan, provision)
-		if err != nil {
-			return err
-		}
+	if !provision && opts.AuthFlowSet {
+		// A connect run ignores --auth-flow, so stop and name --full-setup.
+		return fmt.Errorf(
+			"only a full setup changes the operator app sign-in. To use --%s on agent space %s (%s), also pass --%s. "+
+				"To only connect the MCP server, remove --%s",
+			authFlowFlag, plan.Space.Name, plan.Space.ID, fullSetupFlag, authFlowFlag,
+		)
 	}
 	// The plan goes to stderr, so a json run shows it too.
 	if err := confirmSetup(cmd, plan, ask); err != nil {
@@ -162,14 +180,28 @@ func setupWith(
 	}
 
 	if !plaintext {
+		// stdout holds only the JSON, so a CI log shows the warning on stderr.
+		if result.MCPToolsError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.MCPToolsError)
+		}
+		if result.SkillError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.SkillError)
+		}
+		if result.AgentError != "" {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", result.AgentError)
+		}
+
 		return printJSON(cmd, result)
 	}
 
-	if result.MCPServiceID == "" {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"\nThe LaunchDarkly MCP server is not connected. Create a service token at %s, "+
-				"then run setup again with --access-token\n",
-			awsdevops.AccessTokenURL(opts.LDBaseURI))
+	if result.MCPToolsError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.MCPToolsError)
+	}
+	if result.SkillError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.SkillError)
+	}
+	if result.AgentError != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nWarning: %s\n", result.AgentError)
 	}
 
 	// Only a connect run leaves the app off, on a space that setup did not
@@ -188,7 +220,7 @@ func setupWith(
 
 // resolveAgentSpace picks the agent space for this run. If no flag picks one,
 // it asks in a terminal. A space that setup made gets the full setup. Another
-// space gets only the MCP server, unless --auth-flow is passed. It returns true
+// space gets only the MCP server, unless --full-setup is passed. It returns true
 // if setup must provision a new space, and then sets opts.AgentSpaceName.
 // Otherwise, it sets opts.AgentSpaceID.
 func resolveAgentSpace(
@@ -210,12 +242,12 @@ func resolveAgentSpace(
 			)
 		case err != nil:
 			return false, err
-		case space.TagErr != nil && !opts.AuthFlowSet:
+		case space.TagErr != nil && !opts.FullSetup:
 			// The owner is unknown, so do only what is safe on any space.
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 				"Setup could not read the tags of agent space %s (%s), so it only connects the MCP server. "+
 					"To run the full setup on it, pass --%s: %v\n",
-				space.Name, space.AgentSpaceID, authFlowFlag, space.TagErr)
+				space.Name, space.AgentSpaceID, fullSetupFlag, space.TagErr)
 
 			return false, nil
 		}
@@ -245,7 +277,7 @@ func resolveAgentSpace(
 	if !interactive {
 		provision, err := pickWithoutAsking(spaces, opts, clients.Region)
 		if err == nil && opts.AgentSpaceID != "" {
-			warnAuthFlow(cmd, *opts, summaryOf(spaces, opts.AgentSpaceID))
+			warnFullSetup(cmd, *opts, summaryOf(spaces, opts.AgentSpaceID))
 		}
 
 		return provision, err
@@ -267,24 +299,24 @@ func resolveAgentSpace(
 }
 
 // fullSetupOn reports whether the chosen space gets the full setup. A space
-// that setup made gets it. --auth-flow forces it on another space, with a
+// that setup made gets it. --full-setup forces it on another space, with a
 // warning.
 func fullSetupOn(cmd *cobra.Command, opts awsdevops.SetupOptions, space awsdevops.AgentSpaceSummary) bool {
-	warnAuthFlow(cmd, opts, space)
+	warnFullSetup(cmd, opts, space)
 
-	return opts.AuthFlowSet || space.ManagedByLDCLI
+	return opts.FullSetup || space.ManagedByLDCLI
 }
 
-// warnAuthFlow warns that --auth-flow runs the full setup on a space that
+// warnFullSetup warns that --full-setup runs the full setup on a space that
 // setup did not make, so that a wrong --agent-space-id shows before the plan.
-func warnAuthFlow(cmd *cobra.Command, opts awsdevops.SetupOptions, space awsdevops.AgentSpaceSummary) {
-	if !opts.AuthFlowSet || space.ManagedByLDCLI {
+func warnFullSetup(cmd *cobra.Command, opts awsdevops.SetupOptions, space awsdevops.AgentSpaceSummary) {
+	if !opts.FullSetup || space.ManagedByLDCLI {
 		return
 	}
 	_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 		"Warning: setup did not make agent space %s (%s). --%s runs the full setup on it, "+
 			"so setup can change its IAM roles, account association, and operator app sign-in.\n",
-		space.Name, space.AgentSpaceID, authFlowFlag)
+		space.Name, space.AgentSpaceID, fullSetupFlag)
 }
 
 // summaryOf returns the summary of the space with this ID.
@@ -326,7 +358,7 @@ func pickWithoutAsking(all []awsdevops.AgentSpaceSummary, opts *awsdevops.SetupO
 		if i := spaceNamed(spaces, name); i >= 0 {
 			opts.AgentSpaceID = spaces[i].AgentSpaceID
 
-			return opts.AuthFlowSet || spaces[i].ManagedByLDCLI, nil
+			return opts.FullSetup || spaces[i].ManagedByLDCLI, nil
 		}
 		if !hasSpaceNamed(spaces, name) {
 			opts.NewAgentSpace = true
@@ -488,20 +520,21 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	_, _ = fmt.Fprintf(out, "  Region:        %s\n", plan.Region)
 	_, _ = fmt.Fprintf(out, "  AWS profile:   %s\n", profileLabel(cmd))
 	text := plan.Text()
+	_, _ = fmt.Fprintf(out, "  Setup:         %s\n", text.Scope)
 	for _, role := range text.Roles {
 		_, _ = fmt.Fprintf(out, "  IAM role:      %s\n", role)
 	}
 	_, _ = fmt.Fprintf(out, "  Agent space:   %s\n", text.AgentSpace)
 	_, _ = fmt.Fprintf(out, "  Association:   %s\n", text.Association)
 	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", text.OperatorApp)
-	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n\n", text.MCPServer)
+	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n", text.MCPServer)
+	_, _ = fmt.Fprintf(out, "  Skill:         %s\n", text.Skill)
+	_, _ = fmt.Fprintf(out, "  Custom agent:  %s\n\n", text.Agent)
 	if !ask {
 		return nil
 	}
-	_, _ = fmt.Fprint(out, "Continue? [y/N]: ")
-
-	switch strings.ToLower(readLine(sharedStdin(cmd))) {
-	case "y", "yes":
+	_, _ = fmt.Fprint(out, "Continue? [Y/n]: ")
+	if readYes(sharedStdin(cmd)) {
 		return nil
 	}
 	_, _ = fmt.Fprintln(out)
@@ -527,8 +560,11 @@ type spaceChoice struct {
 }
 
 // selectAgentSpace asks which agent space to connect LaunchDarkly to. With a
-// name, Enter picks the space with that name, or a new space with that name
-// when no space has it. Without a name, there is no default.
+// name, the highlight starts on the space with that name, or on a new space
+// with that name when no space has it. Without a name, the highlight starts
+// on the one space that setup made. If the space is not clear, the highlight
+// starts on a new space, so Enter does not connect to a space of another
+// owner.
 //
 // The list leaves out a space whose tags setup could not read, because its
 // owner is unknown. A note names each of those spaces. The name checks still
@@ -553,7 +589,7 @@ func selectAgentSpace(
 
 	defaultIndex := spaceNamed(spaces, name)
 	if name == "" && len(unread) == 0 {
-		// Enter does what a run that cannot ask does: it picks the one
+		// The highlight starts where a run that cannot ask picks: the one
 		// space that setup made.
 		defaultIndex = ownSpace(spaces)
 	}
@@ -567,12 +603,12 @@ func selectAgentSpace(
 	}
 	choices = append(choices, spaceChoice{newSpace: true})
 	labels = append(labels, "provision a new agent space")
+	start := defaultIndex
+	if start < 0 {
+		start = len(choices) - 1
+	}
 
 	out := cmd.ErrOrStderr()
-	_, _ = fmt.Fprintf(out, "\nThis AWS account already runs the DevOps Agent in %s:\n\n", region)
-	for i, label := range labels {
-		_, _ = fmt.Fprintf(out, "  %d) %s\n", i+1, label)
-	}
 	_, _ = fmt.Fprintln(out)
 	if len(unread) > 0 {
 		_, _ = fmt.Fprintf(out,
@@ -580,33 +616,20 @@ func selectAgentSpace(
 			notListed(len(unread)), strings.Join(agentSpaceLabels(unread), ", "), agentSpaceIDFlag)
 	}
 
-	question := "Which one should LaunchDarkly connect to? "
-	if defaultIndex >= 0 {
-		question += fmt.Sprintf("[%d] ", defaultIndex+1)
+	choice, err := newChooser(cmd)(
+		"Which agent space should LaunchDarkly connect to?",
+		fmt.Sprintf("This AWS account already runs the DevOps Agent in %s. Type to search.", region),
+		labels,
+		start,
+	)
+	if errors.Is(err, errPickCanceled) {
+		return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
+	}
+	if err != nil {
+		return spaceChoice{}, err
 	}
 
-	in := sharedStdin(cmd)
-	for {
-		_, _ = fmt.Fprint(out, question)
-		line, err := nextLine(in)
-		if err != nil && line == "" {
-			return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
-		}
-
-		answer := strings.TrimSpace(line)
-		if answer == "" && defaultIndex >= 0 {
-			return choices[defaultIndex], nil
-		}
-
-		choice, err := strconv.Atoi(answer)
-		if err != nil || choice < 1 || choice > len(choices) {
-			_, _ = fmt.Fprintf(out, "Enter a number between 1 and %d\n", len(choices))
-
-			continue
-		}
-
-		return choices[choice-1], nil
-	}
+	return choices[choice], nil
 }
 
 func agentSpaceLabels(spaces []awsdevops.AgentSpaceSummary) []string {
@@ -618,80 +641,22 @@ func agentSpaceLabels(spaces []awsdevops.AgentSpaceSummary) []string {
 	return labels
 }
 
-// planWithToken asks for the token before any AWS write. With a token, it plans
-// again, so the plan that the user confirms is current. Without one, the plan
-// skips the MCP server, and a connect run has nothing to do.
-func planWithToken(
-	cmd *cobra.Command,
-	clients awsdevops.Clients,
-	opts *awsdevops.SetupOptions,
-	plan awsdevops.SetupPlan,
-	provision bool,
-) (awsdevops.SetupPlan, error) {
-	token, err := askToken(cmd, opts.LDBaseURI)
-	switch {
-	case err != nil:
-		return plan, err
-	case token != "":
-		opts.LDAccessToken = token
-		again, err := awsdevops.PlanSetup(cmd.Context(), clients, *opts, provision)
-		if err == nil && again.MCP.Action == awsdevops.MCPReuse {
-			// The first plan found no server, so one appeared since then.
-			name := again.MCP.Name
-			if name == "" {
-				name = awsdevops.MCPServerName
-			}
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
-				"MCP server %s (%s) was registered after the first plan, so setup reuses it and does not "+
-					"use the token that you pasted. To replace its token, run setup with --%s and --%s.\n",
-				name, again.MCP.ServiceID, cliflags.AccessTokenFlag, replaceMCPTokenFlag)
-		}
-
-		return again, err
-	case !provision:
-		return plan, fmt.Errorf(
-			"setup did not change AWS: without a token, there is nothing to do on agent space %s (%s). Pass --access-token",
-			plan.Space.Name, plan.Space.ID)
-	}
-	plan.MCP.Action = awsdevops.MCPSkip
-
-	return plan, nil
-}
-
-// askToken asks for a LaunchDarkly service token and checks it. An empty
-// answer skips the MCP server.
-func askToken(cmd *cobra.Command, baseURI string) (string, error) {
-	out := cmd.ErrOrStderr()
-	_, _ = fmt.Fprintf(out, "\nCreate a LaunchDarkly service token at:\n  %s\n\n", awsdevops.AccessTokenURL(baseURI))
-	_, _ = fmt.Fprint(out, "Paste the token, or press Enter to skip: ")
-	token := readSecret(cmd.InOrStdin())
-	_, _ = fmt.Fprintln(out)
-	if token == "" {
-		return "", nil
-	}
-	if err := awsdevops.CheckToken(cmd.Context(), baseURI, token); err != nil {
-		return "", fmt.Errorf("setup did not change AWS: %w", err)
-	}
-
-	return token, nil
-}
-
 func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 	opts := awsdevops.SetupOptions{
 		AgentSpaceID:    mustString(cmd, agentSpaceIDFlag),
 		AgentSpaceName:  mustString(cmd, agentSpaceNameFlag),
 		AuthFlow:        strings.ToLower(mustString(cmd, authFlowFlag)),
 		AuthFlowSet:     cmd.Flags().Changed(authFlowFlag),
+		FullSetup:       mustBool(cmd, fullSetupFlag),
 		IdcInstanceARN:  mustString(cmd, idcInstanceARNFlag),
 		IssuerURL:       mustString(cmd, issuerURLFlag),
 		IdpClientID:     mustString(cmd, idpClientIDFlag),
 		IdpClientSecret: mustString(cmd, idpClientSecretFlag),
 		NewAgentSpace:   mustBool(cmd, newAgentSpaceFlag),
-		LDBaseURI:       viper.GetString(cliflags.BaseURIFlag),
-		LDAccessToken:   viper.GetString(cliflags.AccessTokenFlag),
-		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
 		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
+		OpenURL:         browser.OpenURL,
+		ReplaceSkill:    mustBool(cmd, replaceSkillFlag),
 	}
 
 	idcSet := opts.IdcInstanceARN != ""
@@ -716,23 +681,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 	default:
 		return opts, fmt.Errorf("--%s must be iam, idc or idp", authFlowFlag)
 	}
-	// The replacement token comes from the flag, LD_ACCESS_TOKEN, or the ldcli
-	// configuration. Setup does not ask for one, so without one the flag does
-	// nothing.
-	if opts.ReplaceMCPToken && opts.LDAccessToken == "" {
-		return opts, fmt.Errorf("--%s needs a token. Pass --%s", replaceMCPTokenFlag, cliflags.AccessTokenFlag)
-	}
-
 	return opts, nil
-}
-
-// accessTokenFromConfig reports whether the token came from the ldcli
-// configuration rather than this run, where `ldcli login` may have written a
-// session token that AWS would keep past its expiry.
-func accessTokenFromConfig(cmd *cobra.Command) bool {
-	return !cmd.Flags().Changed(cliflags.AccessTokenFlag) &&
-		os.Getenv("LD_ACCESS_TOKEN") == "" &&
-		viper.GetString(cliflags.AccessTokenFlag) != ""
 }
 
 // mustString and friends read flags this package declares itself, so a lookup

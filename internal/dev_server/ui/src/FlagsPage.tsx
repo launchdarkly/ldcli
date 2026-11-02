@@ -8,6 +8,7 @@ import { LDFlagSet, LDFlagValue } from 'launchdarkly-js-client-sdk';
 import { Heading, Text } from '@launchpad-ui/components';
 import { FlagVariation } from './api.ts';
 import { apiRoute, sortFlags } from './util.ts';
+import { AnalyticsOutcome, sendUiAnalytics } from './uiAnalytics';
 import { ProjectEditor } from './ProjectEditor';
 
 interface Environment {
@@ -160,6 +161,21 @@ function App() {
       if (!selectedProject) {
         return;
       }
+      const contextChanged = newContext !== context;
+      const environmentChanged =
+        (newEnvironment?.key ?? null) !== (sourceEnvironmentKey ?? null);
+      const sendSettingsAnalytics = (outcome: AnalyticsOutcome) => {
+        if (contextChanged) {
+          sendUiAnalytics('Dev Server UI Context Updated', { outcome });
+        }
+        if (environmentChanged) {
+          sendUiAnalytics('Dev Server UI Project Updated', {
+            changed: 'source_environment',
+            outcome,
+          });
+        }
+      };
+      let saved = false;
       try {
         const res = await fetch(apiRoute(`/dev/projects/${selectedProject}`), {
           method: 'PATCH',
@@ -189,15 +205,20 @@ function App() {
         setSourceEnvironmentKey(sourceEnvironmentKey);
         setContext(JSON.stringify(fetchedContext || {}, null, 2));
         setSelectedEnvironment(newEnvironment);
+        saved = true;
+        sendSettingsAnalytics('success');
 
         // Fetch updated flags and variations
         await fetchDevFlags();
       } catch (error) {
+        if (!saved) {
+          sendSettingsAnalytics('error');
+        }
         console.error('Error updating project settings:', error);
         // You might want to show an error message to the user here
       }
     },
-    [selectedProject, fetchDevFlags],
+    [selectedProject, fetchDevFlags, context, sourceEnvironmentKey],
   );
 
   return (

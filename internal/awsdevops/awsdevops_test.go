@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,6 +12,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
+	"github.com/aws/aws-sdk-go-v2/service/devopsagent/document"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
@@ -34,6 +33,10 @@ type fakeAgent struct {
 	tagsErrFor map[string]error
 	// createdTags holds the tags of the created space.
 	createdTags map[string]string
+	// createdPreferences holds the preferences of the created space.
+	createdPreferences map[string]bool
+	// updatedPreferences holds the preferences of each space update.
+	updatedPreferences []map[string]bool
 	// goneSpaces makes GetAgentSpace report not found.
 	goneSpaces      map[string]bool
 	getSpaceErr     error
@@ -43,24 +46,144 @@ type fakeAgent struct {
 	// operatorApps holds enabled apps by space.
 	operatorApps map[string]*devopsagent.GetOperatorAppOutput
 	// operatorAppErr fails every GetOperatorApp call.
-	operatorAppErr    error
-	calls             []string
-	services          []agenttypes.RegisteredService
+	operatorAppErr error
+	calls          []string
+	services       []agenttypes.RegisteredService
+	// onListServices runs before ListServices returns.
+	onListServices    func()
 	associationInputs []*devopsagent.AssociateServiceInput
 	registerOutput    *devopsagent.RegisterServiceOutput
 	registerErr       error
-	deregisterErr     error
 	registerInputs    []*devopsagent.RegisterServiceInput
 	associations      []agenttypes.Association
 	agentSpaces       []agenttypes.AgentSpace
-	disassociatedIDs  []string
-	deregisteredIDs   []string
 	associateFailures int
 	// failAssociateFor fails the MCP server association of these spaces.
 	failAssociateFor map[string]bool
 	// paginate makes every list API return one item per page, so callers are
 	// exercised against the NextToken AWS sends for a long list.
-	paginate bool
+	paginate   bool
+	assets     []agenttypes.Asset
+	agentFiles map[string]string
+	// skillFiles holds the SKILL.md text by asset ID.
+	skillFiles map[string]string
+	// skillBytes holds a SKILL.md that AWS sends as bytes, by asset ID.
+	skillBytes    map[string][]byte
+	listAssetsErr error
+	getFileErr    error
+	// onGetFile runs at the start of each GetAssetFile call.
+	onGetFile      func()
+	createAssetErr error
+	createAssets   []*devopsagent.CreateAssetInput
+	// updateAssociations holds the allowlist updates.
+	updateAssociations   []*devopsagent.UpdateAssociationInput
+	updateAssociationErr error
+	updateAssets         []*devopsagent.UpdateAssetInput
+	createAgents         []*devopsagent.CreateAssetInput
+	updateAgents         []*devopsagent.UpdateAssetInput
+	createAgentErr       error
+}
+
+func agentAsset(id, name string, tools, skills []string) agenttypes.Asset {
+	return agenttypes.Asset{
+		AssetId:   aws.String(id),
+		AssetType: aws.String("custom_agent"),
+		Metadata:  document.NewLazyDocument(map[string]any{"name": name, "tools": tools, "skills": skills}),
+	}
+}
+
+// skillAsset is a skill asset named name.
+func skillAsset(id, name string) agenttypes.Asset {
+	return agenttypes.Asset{
+		AssetId:   aws.String(id),
+		AssetType: aws.String("skill"),
+		Metadata:  document.NewLazyDocument(map[string]any{"name": name, "agent_types": []string{"GENERIC"}}),
+	}
+}
+
+func (f *fakeAgent) CreateAsset(_ context.Context, in *devopsagent.CreateAssetInput, _ ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	f.calls = append(f.calls, "CreateAsset")
+	id := "ki-created"
+	if aws.ToString(in.AssetType) == "custom_agent" {
+		f.createAgents = append(f.createAgents, in)
+		if f.createAgentErr != nil {
+			return nil, f.createAgentErr
+		}
+		id = "ki-agent-created"
+	} else {
+		f.createAssets = append(f.createAssets, in)
+		if f.createAssetErr != nil {
+			return nil, f.createAssetErr
+		}
+	}
+	asset := agenttypes.Asset{AssetId: aws.String(id), AssetType: in.AssetType, Metadata: in.Metadata}
+	f.assets = append(f.assets, asset)
+
+	return &devopsagent.CreateAssetOutput{Asset: &asset}, nil
+}
+
+func (f *fakeAgent) GetAssetFile(_ context.Context, in *devopsagent.GetAssetFileInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetAssetFileOutput, error) {
+	f.calls = append(f.calls, "GetAssetFile")
+	if f.onGetFile != nil {
+		f.onGetFile()
+	}
+	if f.getFileErr != nil {
+		return nil, f.getFileErr
+	}
+	if prompt, ok := f.agentFiles[aws.ToString(in.AssetId)]; ok && aws.ToString(in.Path) == "experiment-orchestrator.md" {
+		return &devopsagent.GetAssetFileOutput{File: &agenttypes.AssetFile{
+			Path:    in.Path,
+			Content: &agenttypes.AssetFileBodyMemberText{Value: prompt},
+		}}, nil
+	}
+	if aws.ToString(in.Path) != "SKILL.md" {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+	if body, ok := f.skillBytes[aws.ToString(in.AssetId)]; ok {
+		return &devopsagent.GetAssetFileOutput{File: &agenttypes.AssetFile{
+			Path:    in.Path,
+			Content: &agenttypes.AssetFileBodyMemberBytes{Value: body},
+		}}, nil
+	}
+	text, ok := f.skillFiles[aws.ToString(in.AssetId)]
+	if !ok {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+
+	return &devopsagent.GetAssetFileOutput{File: &agenttypes.AssetFile{
+		Path:    in.Path,
+		Content: &agenttypes.AssetFileBodyMemberText{Value: text},
+	}}, nil
+}
+
+func (f *fakeAgent) ListAssets(_ context.Context, in *devopsagent.ListAssetsInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAssetsOutput, error) {
+	f.calls = append(f.calls, "ListAssets")
+	if f.listAssetsErr != nil {
+		return nil, f.listAssetsErr
+	}
+	var assets []agenttypes.Asset
+	for _, asset := range f.assets {
+		if in.AssetType == nil || aws.ToString(asset.AssetType) == aws.ToString(in.AssetType) {
+			assets = append(assets, asset)
+		}
+	}
+	items, next := page(assets, in.NextToken, f.paginate)
+
+	return &devopsagent.ListAssetsOutput{Items: items, NextToken: next}, nil
+}
+
+func (f *fakeAgent) UpdateAsset(_ context.Context, in *devopsagent.UpdateAssetInput, _ ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error) {
+	f.calls = append(f.calls, "UpdateAsset")
+	for _, asset := range f.assets {
+		if aws.ToString(asset.AssetId) == aws.ToString(in.AssetId) && aws.ToString(asset.AssetType) == "custom_agent" {
+			f.updateAgents = append(f.updateAgents, in)
+
+			return &devopsagent.UpdateAssetOutput{Asset: &agenttypes.Asset{AssetId: in.AssetId}}, nil
+		}
+	}
+	f.updateAssets = append(f.updateAssets, in)
+
+	return &devopsagent.UpdateAssetOutput{Asset: &agenttypes.Asset{AssetId: in.AssetId}}, nil
 }
 
 func page[T any](items []T, token *string, paginate bool) ([]T, *string) {
@@ -105,27 +228,11 @@ func (f *fakeAgent) AssociateService(_ context.Context, in *devopsagent.Associat
 func (f *fakeAgent) CreateAgentSpace(_ context.Context, in *devopsagent.CreateAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.CreateAgentSpaceOutput, error) {
 	f.calls = append(f.calls, "CreateAgentSpace")
 	f.createdTags = in.Tags
+	f.createdPreferences = in.Preferences
 
 	return &devopsagent.CreateAgentSpaceOutput{
 		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1")},
 	}, nil
-}
-
-func (f *fakeAgent) DeregisterService(_ context.Context, in *devopsagent.DeregisterServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error) {
-	f.calls = append(f.calls, "DeregisterService")
-	if f.deregisterErr != nil {
-		return nil, f.deregisterErr
-	}
-	f.deregisteredIDs = append(f.deregisteredIDs, aws.ToString(in.ServiceId))
-
-	return &devopsagent.DeregisterServiceOutput{}, nil
-}
-
-func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.DisassociateServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error) {
-	f.calls = append(f.calls, "DisassociateService")
-	f.disassociatedIDs = append(f.disassociatedIDs, aws.ToString(in.AssociationId))
-
-	return &devopsagent.DisassociateServiceOutput{}, nil
 }
 
 func (f *fakeAgent) GetOperatorApp(_ context.Context, in *devopsagent.GetOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
@@ -171,16 +278,30 @@ func (f *fakeAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpa
 	}
 	name := "launchdarkly"
 	var description *string
+	var preferences map[string]bool
 	for _, space := range f.agentSpaces {
 		if aws.ToString(space.AgentSpaceId) == id && space.Name != nil {
 			name = aws.ToString(space.Name)
 			description = space.Description
+			preferences = space.Preferences
 		}
 	}
 
 	return &devopsagent.GetAgentSpaceOutput{
-		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId, Name: aws.String(name), Description: description},
+		AgentSpace: &agenttypes.AgentSpace{
+			AgentSpaceId: in.AgentSpaceId,
+			Name:         aws.String(name),
+			Description:  description,
+			Preferences:  preferences,
+		},
 	}, nil
+}
+
+func (f *fakeAgent) UpdateAgentSpace(_ context.Context, in *devopsagent.UpdateAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.UpdateAgentSpaceOutput, error) {
+	f.calls = append(f.calls, "UpdateAgentSpace")
+	f.updatedPreferences = append(f.updatedPreferences, in.Preferences)
+
+	return &devopsagent.UpdateAgentSpaceOutput{}, nil
 }
 
 func (f *fakeAgent) ListAgentSpaces(_ context.Context, in *devopsagent.ListAgentSpacesInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error) {
@@ -198,6 +319,9 @@ func (f *fakeAgent) ListAgentSpaces(_ context.Context, in *devopsagent.ListAgent
 
 func (f *fakeAgent) ListServices(_ context.Context, in *devopsagent.ListServicesInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error) {
 	f.calls = append(f.calls, "ListServices")
+	if f.onListServices != nil {
+		f.onListServices()
+	}
 	items, next := page(f.services, in.NextToken, f.paginate)
 
 	return &devopsagent.ListServicesOutput{Services: items, NextToken: next}, nil
@@ -213,6 +337,21 @@ func (f *fakeAgent) ListAssociations(_ context.Context, in *devopsagent.ListAsso
 	return &devopsagent.ListAssociationsOutput{Associations: items, NextToken: next}, nil
 }
 
+func (f *fakeAgent) UpdateAssociation(_ context.Context, in *devopsagent.UpdateAssociationInput, _ ...func(*devopsagent.Options)) (*devopsagent.UpdateAssociationOutput, error) {
+	f.calls = append(f.calls, "UpdateAssociation")
+	f.updateAssociations = append(f.updateAssociations, in)
+	if f.updateAssociationErr != nil {
+		return nil, f.updateAssociationErr
+	}
+	for i, association := range f.associations {
+		if aws.ToString(association.AssociationId) == aws.ToString(in.AssociationId) {
+			f.associations[i].Configuration = in.Configuration
+		}
+	}
+
+	return &devopsagent.UpdateAssociationOutput{}, nil
+}
+
 func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.RegisterServiceOutput, error) {
 	f.calls = append(f.calls, "RegisterService")
 	f.registerInputs = append(f.registerInputs, in)
@@ -222,6 +361,12 @@ func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterS
 	if f.registerOutput != nil {
 		return f.registerOutput, nil
 	}
+
+	name := aws.ToString(in.Name)
+	if details, ok := in.ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver); ok && details.Value.Name != nil {
+		name = aws.ToString(details.Value.Name)
+	}
+	f.services = append(f.services, mcpService("mcp-1", name, awsdevops.MCPServerEndpoint))
 
 	return &devopsagent.RegisterServiceOutput{ServiceId: aws.String("mcp-1")}, nil
 }
@@ -333,10 +478,11 @@ func (f fakeSTS) GetCallerIdentity(_ context.Context, _ *sts.GetCallerIdentityIn
 
 func newTestClients(agent *fakeAgent, iamClient *fakeIAM) awsdevops.Clients {
 	return awsdevops.Clients{
-		Agent:  agent,
-		IAM:    iamClient,
-		STS:    fakeSTS{account: testAccountID},
-		Region: "us-east-1",
+		Agent:   agent,
+		IAM:     iamClient,
+		STS:     fakeSTS{account: testAccountID},
+		Sources: newFakeSources(),
+		Region:  "us-east-1",
 	}
 }
 
@@ -347,7 +493,6 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, iamClient), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
 		AuthFlow:       "iam",
-		LDAccessToken:  "api-token",
 	})
 	require.NoError(t, err)
 
@@ -356,6 +501,7 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Equal(t, "mcp-1", result.MCPServiceID)
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
 	assert.Equal(t, "https://space-1.aidevops.global.app.aws", result.OperatorAppURL)
+	assert.Equal(t, "ki-created", result.SkillAssetID)
 	assert.Equal(t, map[string]string{awsdevops.ManagedTagKey: awsdevops.ManagedTagValue}, agent.createdTags)
 	assert.Equal(t, []string{awsdevops.AgentSpaceRoleName, awsdevops.OperatorAppRoleName}, iamClient.createdRoles)
 	assert.Equal(t, awsdevops.AgentSpacePolicyARN, iamClient.attachedPolicy[awsdevops.AgentSpaceRoleName])
@@ -363,8 +509,15 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Contains(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName], "iam:CreateServiceLinkedRole")
 	assert.Equal(
 		t,
-		// Plan lookup, the pre-write check, and the check before the MCP step.
-		[]string{"ListServices", "ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
+		// The plan and the first check look only for the server of the
+		// account, because a new space has no server. The check before the
+		// MCP step also looks for the server of the space, which exists by
+		// then. The skill and the custom agent are last.
+		[]string{
+			"ListServices", "ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp",
+			"ListServices", "ListServices", "RegisterService", "AssociateService",
+			"ListAssets", "CreateAsset", "ListAssets", "CreateAsset",
+		},
 		agent.calls,
 	)
 }
@@ -397,7 +550,7 @@ func TestSetupRetriesTheAccountAssociationUntilTheRoleIsAssumable(t *testing.T) 
 	require.NoError(t, err)
 
 	assert.Equal(t, "assoc-aws", result.AWSAssociationID)
-	assert.Len(t, agent.associationInputs, 2)
+	assert.Len(t, awsAssociationInputs(agent), 2)
 }
 
 func TestSetupReusesAgentSpaceAndAssociations(t *testing.T) {
@@ -418,7 +571,19 @@ func TestSetupReusesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Equal(t, "space-existing", result.AgentSpaceID)
 	assert.Equal(t, "assoc-aws", result.AWSAssociationID)
 	assert.NotContains(t, agent.calls, "CreateAgentSpace")
-	assert.Empty(t, agent.associationInputs)
+	assert.Empty(t, awsAssociationInputs(agent))
+}
+
+// awsAssociationInputs lists the AWS account associations that setup sent.
+func awsAssociationInputs(agent *fakeAgent) []*devopsagent.AssociateServiceInput {
+	var inputs []*devopsagent.AssociateServiceInput
+	for _, in := range agent.associationInputs {
+		if aws.ToString(in.ServiceId) == "aws" {
+			inputs = append(inputs, in)
+		}
+	}
+
+	return inputs
 }
 
 func TestSetupTrustsAgentSpacesInEveryRegion(t *testing.T) {
@@ -484,177 +649,21 @@ func mcpService(serviceID, name, endpoint string) agenttypes.RegisteredService {
 	}
 }
 
-// stubLaunchDarkly stands in for the LaunchDarkly API the access token is
-// checked against, and returns its base URI.
-func stubLaunchDarkly(t *testing.T, status int) string {
-	t.Helper()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/api/v2/caller-identity", r.URL.Path)
-		assert.Equal(t, "api-token", r.Header.Get("Authorization"))
-		w.WriteHeader(status)
-	}))
-	t.Cleanup(server.Close)
-
-	return server.URL
-}
-
-func TestSetupReusesAnExistingMCPServerWithoutAToken(t *testing.T) {
+func TestSetupReusesAnExistingMCPServer(t *testing.T) {
 	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
+		services:     []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
+		associations: mcpLink("mcp-existing"),
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
+		AgentSpaceID: "space-1",
+		AuthFlow:     "iam",
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, "mcp-existing", result.MCPServiceID)
 	assert.Equal(t, "assoc-mcp-existing", result.MCPAssociationID)
 	assert.NotContains(t, agent.calls, "RegisterService")
-}
-
-func TestSetupWithoutATokenLeavesTheMCPServerUnconnected(t *testing.T) {
-	agent := &fakeAgent{}
-
-	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
-	})
-	require.NoError(t, err)
-
-	assert.Empty(t, result.MCPServiceID)
-	assert.NotContains(t, agent.calls, "RegisterService")
-}
-
-func TestSetupDisassociatesTheMCPServerBeforeReplacingItsToken(t *testing.T) {
-	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-mcp-existing"),
-			ServiceId:     aws.String("mcp-existing"),
-		}},
-	}
-
-	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
-		LDAccessToken:   "api-token",
-		ReplaceMCPToken: true,
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, []string{"assoc-mcp-existing"}, agent.disassociatedIDs)
-	assert.Equal(t, []string{"mcp-existing"}, agent.deregisteredIDs)
-	assert.Less(t, indexOf(agent.calls, "DisassociateService"), indexOf(agent.calls, "DeregisterService"))
-	assert.Equal(t, "mcp-1", result.MCPServiceID)
-	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
-}
-
-func TestSetupReconnectsOtherSpacesAfterReplacingTheMCPToken(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{
-			{AgentSpaceId: aws.String("space-1")},
-			{AgentSpaceId: aws.String("space-2")},
-		},
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-mcp-existing"),
-			ServiceId:     aws.String("mcp-existing"),
-		}},
-	}
-
-	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceID:    "space-1",
-		AuthFlow:        "iam",
-		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
-		LDAccessToken:   "api-token",
-		ReplaceMCPToken: true,
-	})
-	require.NoError(t, err)
-
-	associated := []string{}
-	for _, in := range agent.associationInputs {
-		if aws.ToString(in.ServiceId) == "mcp-1" {
-			associated = append(associated, aws.ToString(in.AgentSpaceId))
-		}
-	}
-	assert.Equal(t, []string{"space-1", "space-2"}, associated)
-}
-
-func TestSetupKeepsTheMCPServerWhenLaunchDarklyRejectsTheNewToken(t *testing.T) {
-	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-mcp-existing"),
-			ServiceId:     aws.String("mcp-existing"),
-		}},
-	}
-
-	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceID:    "space-1",
-		AuthFlow:        "iam",
-		LDBaseURI:       stubLaunchDarkly(t, http.StatusUnauthorized),
-		LDAccessToken:   "api-token",
-		ReplaceMCPToken: true,
-	})
-
-	assert.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
-	assert.Empty(t, agent.disassociatedIDs)
-	assert.Empty(t, agent.deregisteredIDs)
-	assert.NotContains(t, agent.calls, "RegisterService")
-}
-
-func TestSetupNamesTheSpacesLeftWithoutAnMCPServer(t *testing.T) {
-	agent := &fakeAgent{
-		registerErr: errors.New("ValidationException: something broke"),
-		agentSpaces: []agenttypes.AgentSpace{
-			{AgentSpaceId: aws.String("space-1")},
-			{AgentSpaceId: aws.String("space-2")},
-		},
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-mcp-existing"),
-			ServiceId:     aws.String("mcp-existing"),
-		}},
-	}
-
-	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceID:    "space-1",
-		AuthFlow:        "iam",
-		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
-		LDAccessToken:   "api-token",
-		ReplaceMCPToken: true,
-	})
-
-	assert.ErrorContains(t, err, "agent spaces space-1, space-2 have no LaunchDarkly MCP server")
-	assert.ErrorContains(t, err, "--access-token")
-}
-
-func TestSetupIgnoresAnMCPServerAtAnotherEndpoint(t *testing.T) {
-	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{
-			mcpService("mcp-self-hosted", awsdevops.MCPServerName, "https://mcp.example.internal/mcp"),
-		},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-mcp-self-hosted"),
-			ServiceId:     aws.String("mcp-self-hosted"),
-		}},
-	}
-
-	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceID:    "space-1",
-		AuthFlow:        "iam",
-		LDAccessToken:   "api-token",
-		ReplaceMCPToken: true,
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, "mcp-1", result.MCPServiceID)
-	assert.Empty(t, agent.deregisteredIDs)
-	assert.Empty(t, agent.disassociatedIDs)
 }
 
 func TestSetupUsesTheMCPServerItIsPointedAt(t *testing.T) {
@@ -680,10 +689,9 @@ func TestSetupRegistersAtTheEndpointItIsGiven(t *testing.T) {
 	agent := &fakeAgent{}
 
 	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceID:  "space-1",
-		AuthFlow:      "iam",
-		LDAccessToken: "api-token",
-		MCPEndpoint:   "https://mcp.example.internal/mcp",
+		AgentSpaceID: "space-1",
+		AuthFlow:     "iam",
+		MCPEndpoint:  "https://mcp.example.internal/mcp",
 	})
 	require.NoError(t, err)
 
@@ -716,16 +724,6 @@ func TestStatusFollowsEveryListPage(t *testing.T) {
 	assert.Len(t, status.Services, 2)
 	require.Len(t, status.AgentSpaces, 2)
 	assert.Len(t, status.AgentSpaces[0].Associations, 2)
-}
-
-func indexOf(calls []string, name string) int {
-	for i, call := range calls {
-		if call == name {
-			return i
-		}
-	}
-
-	return -1
 }
 
 func TestStatusReportsMissingRoles(t *testing.T) {
@@ -781,16 +779,34 @@ func TestStatusReadsTheAccountOfEachAWSAssociation(t *testing.T) {
 	assert.Empty(t, associations[2].AccountType)
 }
 
+func TestStatusReadsTheToolsOfTheMCPServerAssociation(t *testing.T) {
+	agent := &fakeAgent{
+		associations: []agenttypes.Association{
+			{
+				AssociationId: aws.String("assoc-1"), ServiceId: aws.String("mcp-1"),
+				Configuration: &agenttypes.ServiceConfigurationMemberMcpserver{Value: agenttypes.MCPServerConfiguration{
+					Tools: []string{"list-flags", "get-flag"},
+				}},
+			},
+			{AssociationId: aws.String("assoc-2"), ServiceId: aws.String("aws")},
+		},
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	require.Len(t, status.AgentSpaces, 1)
+	associations := status.AgentSpaces[0].Associations
+	require.Len(t, associations, 2)
+	assert.Equal(t, []string{"list-flags", "get-flag"}, associations[0].Tools)
+	assert.Empty(t, associations[1].Tools)
+}
+
 func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
 	assert.Equal(
 		t,
 		"https://eu-west-1.console.aws.amazon.com/aidevops/home?region=eu-west-1",
 		awsdevops.ConsoleURL("eu-west-1"),
-	)
-	assert.Equal(
-		t,
-		"https://app.launchdarkly.com/settings/authorization",
-		awsdevops.AccessTokenURL(""),
 	)
 }
 
@@ -866,4 +882,107 @@ func TestNewClientsNamesTheSelectedProfile(t *testing.T) {
 	assert.ErrorContains(t, err, `profile "my-profile" has no AWS credentials`)
 	assert.NotContains(t, err.Error(), "sso login")
 	assert.NotContains(t, err.Error(), "ec2imds")
+}
+
+// The agent calls a read-only tool with no approval, so every tool that
+// changes LaunchDarkly state must be mutative.
+func TestMCPAssociationClassifiesTheSkillTools(t *testing.T) {
+	agent := &fakeAgent{}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+	})
+	require.NoError(t, err)
+
+	var config agenttypes.MCPServerConfiguration
+	for _, in := range agent.associationInputs {
+		if mcp, ok := in.Configuration.(*agenttypes.ServiceConfigurationMemberMcpserver); ok {
+			config = mcp.Value
+		}
+	}
+	classes := map[string]agenttypes.ToolClassification{}
+	for _, detail := range config.ToolDetails {
+		classes[aws.ToString(detail.Name)] = detail.ToolClassification
+	}
+	assert.Len(t, classes, len(config.Tools), "a tool is in both lists")
+	for _, tool := range config.Tools {
+		assert.Contains(t, classes, tool)
+	}
+	for _, tool := range []string{
+		"toggle-flag", "create-flag", "update-off-variation", "update-rollout", "archive-flag", "create-experiment",
+		"start-experiment-iteration", "stop-experiment-iteration", "start-guarded-rollout", "stop-guarded-rollout",
+		"update-targeting-rules", "update-individual-targets", "create-approval-request",
+		"apply-approval-request",
+	} {
+		assert.Equal(t, agenttypes.ToolClassificationMutative, classes[tool], tool)
+	}
+	for _, tool := range []string{"get-flag", "list-experiments", "get-experiment-results", "query-change-history", "list-metric-events"} {
+		assert.Equal(t, agenttypes.ToolClassificationReadOnly, classes[tool], tool)
+	}
+}
+
+func TestSetupTurnsOnElevatedActionsOnANewSpace(t *testing.T) {
+	agent := &fakeAgent{}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]bool{awsdevops.ElevatedActionsPreference: true}, agent.createdPreferences)
+	assert.NotContains(t, agent.calls, "UpdateAgentSpace")
+}
+
+func TestSetupTurnsOnElevatedActionsOnAReusedSpaceAndKeepsOtherPreferences(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
+		AgentSpaceId: aws.String("space-existing"),
+		Name:         aws.String("launchdarkly"),
+		Preferences:  map[string]bool{"otherPreference": true},
+	}}}
+	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly", AuthFlow: "iam"}
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+	require.NoError(t, err)
+	assert.Contains(t, plan.Text().AgentSpace, "turn on elevated actions")
+
+	_, err = awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), opts)
+	require.NoError(t, err)
+
+	assert.Equal(t, []map[string]bool{{
+		"otherPreference":                   true,
+		awsdevops.ElevatedActionsPreference: true,
+	}}, agent.updatedPreferences)
+}
+
+func TestSetupLeavesASpaceWithElevatedActionsUnchanged(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
+		AgentSpaceId: aws.String("space-existing"),
+		Name:         aws.String("launchdarkly"),
+		Preferences:  map[string]bool{awsdevops.ElevatedActionsPreference: true},
+	}}}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+	})
+	require.NoError(t, err)
+
+	assert.NotContains(t, agent.calls, "UpdateAgentSpace")
+}
+
+func TestPlanSetupConnectLeavesElevatedActionsUnchanged(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
+		AgentSpaceId: aws.String("space-existing"),
+		Name:         aws.String("launchdarkly"),
+	}}}
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID: "space-existing",
+	}, false)
+	require.NoError(t, err)
+
+	assert.False(t, plan.Space.EnableElevated)
+	assert.NotContains(t, plan.Text().AgentSpace, "elevated")
 }

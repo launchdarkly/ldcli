@@ -3,7 +3,6 @@ package awsdevops_test
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -15,65 +14,21 @@ import (
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
+func TestSetupReusesTheMCPServerOfTheAgentSpace(t *testing.T) {
 	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+		services:   []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+		spaceLinks: map[string][]agenttypes.Association{"space-1": mcpLink("mcp-1")},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
-		LDAccessToken:  "api-token",
+		AgentSpaceID: "space-1",
+		AuthFlow:     "iam",
 	})
 	require.NoError(t, err)
 
 	assert.NotContains(t, agent.calls, "RegisterService")
 	assert.Equal(t, "mcp-1", result.MCPServiceID)
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
-}
-
-func TestSetupReplacesTheMCPServerTokenWhenAsked(t *testing.T) {
-	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
-	}
-
-	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
-		LDAccessToken:   "api-token",
-		ReplaceMCPToken: true,
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, []string{"mcp-1"}, agent.deregisteredIDs)
-	assert.Contains(t, agent.calls, "RegisterService")
-	assert.Equal(t, "mcp-1", result.MCPServiceID)
-}
-
-func TestFindMCPServerMatchesOnTheEndpointInTheServiceDetails(t *testing.T) {
-	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{
-			{
-				ServiceId:   aws.String("mcp-2"),
-				ServiceType: agenttypes.ServiceMcpServer,
-				AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
-					Value: agenttypes.RegisteredMCPServerDetails{
-						Endpoint: aws.String(awsdevops.MCPServerEndpoint),
-					},
-				},
-			},
-		},
-	}
-
-	serviceID, err := awsdevops.FindMCPServer(
-		context.Background(),
-		newTestClients(agent, newFakeIAM()),
-		awsdevops.MCPServerEndpoint,
-	)
-	require.NoError(t, err)
-
-	assert.Equal(t, "mcp-2", serviceID)
 }
 
 const space1ARN = "arn:aws:aidevops:us-east-1:" + testAccountID + ":agentspace/space-1"
@@ -111,9 +66,8 @@ func TestConnectExistingOnlyConnectsTheMCPServer(t *testing.T) {
 	iamClient := newFakeIAM()
 
 	result, err := awsdevops.ConnectExisting(context.Background(), newTestClients(agent, iamClient), awsdevops.SetupOptions{
-		AgentSpaceID:  "space-2",
-		AuthFlow:      "iam",
-		LDAccessToken: "api-token",
+		AgentSpaceID: "space-2",
+		AuthFlow:     "iam",
 	})
 	require.NoError(t, err)
 

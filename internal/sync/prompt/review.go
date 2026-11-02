@@ -2,13 +2,9 @@ package prompt
 
 import (
 	"errors"
-	"slices"
-	"strings"
 
-	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
-	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
 const applyQuestion = "\nSync these changes? [y/N] "
@@ -50,84 +46,4 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 		_ = syncconsole.New(options.ErrorOutput).Line("Sync canceled.")
 	}
 	return confirmed, nil
-}
-
-// cleanupOrphanedAttachments shows the tool and skill files that no local
-// variation uses, and deletes them after the user agrees. Without --yes and
-// without a terminal, it keeps the files. Before it deletes a file, it makes
-// sure again that no variation uses the file. A filtered sync keeps every
-// file. A variation outside the filter can have a missing file that a full
-// sync restores, and then its tools and skills only look unused. A sync that
-// plans tools or skills also keeps every file, because each file is a row of
-// its own.
-func cleanupOrphanedAttachments(options Options, store synclocal.Store, interactive bool) error {
-	action := options.syncAction()
-	if !action.Filter.IsZero() || action.Scope.Includes(syncdomain.KindTool) || action.Scope.Includes(syncdomain.KindSkill) {
-		return nil
-	}
-	orphaned, err := store.OrphanedAttachments()
-	if err != nil || len(orphaned) == 0 {
-		return err
-	}
-
-	console := syncconsole.New(options.ErrorOutput)
-	_ = console.Line("\nUnreferenced local attachment files:")
-	currentProject := ""
-	for _, attachment := range orphaned {
-		if attachment.ProjectKey != currentProject {
-			currentProject = attachment.ProjectKey
-			_ = console.Printf("  Project: %s\n", currentProject)
-		}
-		kind := string(attachment.Kind)
-		_ = console.Printf(
-			"    %s %q\n      %s/%s\n", strings.ToUpper(kind[:1])+kind[1:], attachment.Key, syncdomain.RootDir, attachment.Path,
-		)
-	}
-
-	if !options.Yes && !interactive {
-		_ = console.Line("Unreferenced attachment files kept. Rerun with --yes to delete them.")
-		return nil
-	}
-	if !options.Yes {
-		confirmed, err := syncinteractive.Confirm(
-			options.Context, options.Input, options.ErrorOutput, interactive,
-			"\nDelete these unreferenced local files? [y/N] ",
-		)
-		if err != nil {
-			return err
-		}
-		if !confirmed {
-			_ = console.Line("Unreferenced attachment files kept.")
-			return nil
-		}
-	}
-
-	// A file can become used again while the user reads the question.
-	current, err := store.OrphanedAttachments()
-	if err != nil {
-		return err
-	}
-	orphaned = slices.DeleteFunc(orphaned, func(attachment synclocal.OrphanedAttachment) bool {
-		return !slices.Contains(current, attachment)
-	})
-	if len(orphaned) == 0 {
-		_ = console.Line("No selected attachment files remain unreferenced.")
-		return nil
-	}
-
-	ids := make([]syncdomain.ResourceID, 0, len(orphaned))
-	for _, attachment := range orphaned {
-		ids = append(ids, syncdomain.ResourceID{
-			Kind: syncdomain.Kind(attachment.Kind), ProjectKey: attachment.ProjectKey, LookupKey: attachment.Key,
-		})
-	}
-	deleted, err := store.DeleteAttachments(ids)
-	if err != nil {
-		return err
-	}
-	_ = console.Line("Deleted unreferenced attachment files:")
-	for _, file := range deleted {
-		_ = console.Printf("- %s/%s\n", syncdomain.RootDir, file)
-	}
-	return nil
 }

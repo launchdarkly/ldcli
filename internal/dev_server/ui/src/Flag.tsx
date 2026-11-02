@@ -27,6 +27,7 @@ import { FlagVariation } from './api.ts';
 import { Box, Inline } from '@launchpad-ui/core';
 import { isEqual } from 'lodash';
 import { Switch } from 'react-aria-components';
+import { OverrideControl } from './uiAnalytics';
 import './Switch.css';
 
 type VariationValuesProps = {
@@ -34,7 +35,11 @@ type VariationValuesProps = {
   currentValue: LDFlagValue;
   flagValue: LDFlagValue;
   flagKey: string;
-  updateOverride: (flagKey: string, overrideValue: LDFlagValue) => void;
+  updateOverride: (
+    flagKey: string,
+    overrideValue: LDFlagValue,
+    control: OverrideControl,
+  ) => void;
 };
 
 const VariationValues = ({
@@ -52,7 +57,7 @@ const VariationValues = ({
             className="animated-switch"
             isSelected={currentValue}
             onChange={(newValue) => {
-              updateOverride(flagKey, newValue);
+              updateOverride(flagKey, newValue, 'switch');
             }}
           >
             <span className="switch-text switch-text-false">False</span>
@@ -77,7 +82,7 @@ const VariationValues = ({
           // Prevent default browser page refresh.
           e.preventDefault();
           const data = Object.fromEntries(new FormData(e.currentTarget));
-          updateOverride(flagKey, JSON.parse(data.value as string));
+          updateOverride(flagKey, JSON.parse(data.value as string), 'editor');
           close();
         };
 
@@ -92,7 +97,7 @@ const VariationValues = ({
               if (typeof key != 'number') {
                 console.error(`selected non numeric key: ${key}`);
               } else {
-                updateOverride(flagKey, variations[key].value);
+                updateOverride(flagKey, variations[key].value, 'menu');
               }
             }}
             style={{

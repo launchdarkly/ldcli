@@ -53,20 +53,19 @@ func nextLine(in io.Reader) (string, error) {
 	}
 }
 
-// readSecret reads one line without echoing it, so a pasted credential stays
-// off the screen.
-func readSecret(in io.Reader) string {
-	file, ok := in.(*os.File)
-	if !ok || !term.IsTerminal(int(file.Fd())) {
-		return readLine(in)
+// readYes reads the answer to a [Y/n] question. An empty line is a yes, so
+// Enter accepts. The end of the input is a no.
+func readYes(in io.Reader) bool {
+	line, err := nextLine(in)
+	if err != nil && line == "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "", "y", "yes":
+		return true
 	}
 
-	typed, err := term.ReadPassword(int(file.Fd()))
-	if err != nil {
-		return ""
-	}
-
-	return strings.TrimSpace(string(typed))
+	return false
 }
 
 // canPrompt reports a terminal on stdin and stderr. The prompts go to stderr,

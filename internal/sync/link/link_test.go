@@ -249,11 +249,6 @@ func (catalog *missingProjectCatalog) SearchConfigs(
 	return syncapi.Page[syncapi.Config]{}, errors.New(`{"code":"not_found","statusCode":404}`)
 }
 
-func TestRequiredValueRejectsBlankInput(t *testing.T) {
-	require.Error(t, requiredValue("variation name")("  "))
-	require.NoError(t, requiredValue("variation name")("Custom name"))
-}
-
 type fakeCatalog struct {
 	config syncapi.Config
 	model  syncapi.ModelConfig

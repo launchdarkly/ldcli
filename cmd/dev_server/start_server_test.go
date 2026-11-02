@@ -32,6 +32,7 @@ func TestStartServerCmd(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.True(t, mockClient.RunServerCalled)
+		assert.IsType(t, &analytics.NoopClient{}, mockClient.RunServerParams.Tracker)
 		require.NotNil(t, mockClient.RunServerParams.InitialProjectSettings.Context)
 		assert.Equal(t, "test-user", mockClient.RunServerParams.InitialProjectSettings.Context.Key())
 	})

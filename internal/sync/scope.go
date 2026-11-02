@@ -81,6 +81,8 @@ func (filter Filter) Validate(kind Kind) error {
 	}
 
 	switch {
+	case filter.ConfigKey != "" && kind != KindVariation:
+		return errors.New("--config-key is only valid for variations")
 	case len(filter.Keys) != 0 && filter.Project == "":
 		return errors.New("--key needs --project")
 	case filter.ConfigKey != "" && filter.Project == "":

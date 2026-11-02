@@ -17,24 +17,16 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
-	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
+	synccreate "github.com/launchdarkly/ldcli/internal/sync/create"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 	"github.com/launchdarkly/ldcli/internal/sync/reference/adapters"
 )
 
-// Catalog finds the project, the config, and the model config of a new variation.
-type Catalog interface {
-	syncinteractive.ProjectSearcher
-	syncinteractive.ConfigSearcher
-	Config(projectKey, configKey string) (syncapi.Config, error)
-	ModelConfigs(projectKey string) ([]syncapi.ModelConfig, error)
-}
-
 // Options are the dependencies and the input of one link.
 type Options struct {
-	Catalog          Catalog
+	Catalog          synccreate.Catalog
 	Store            synclocal.Store
 	RepositoryRoot   string
 	WorkingDirectory string
@@ -139,22 +131,16 @@ func targetSelection(options Options, prompt linkedPrompt, target Target) (Selec
 	if err != nil {
 		return Selection{}, "", err
 	}
-	modelConfigs, err := options.Catalog.ModelConfigs(projectKey)
+	modelConfig, err := synccreate.FindModelConfig(options.Catalog, projectKey, target.ModelConfigKey)
 	if err != nil {
 		return Selection{}, "", err
-	}
-	index := slices.IndexFunc(modelConfigs, func(candidate syncapi.ModelConfig) bool {
-		return candidate.Key == target.ModelConfigKey
-	})
-	if index < 0 {
-		return Selection{}, "", fmt.Errorf("model config %q was not found", target.ModelConfigKey)
 	}
 
 	name := cmp.Or(prompt.parsed.Name, target.Name, syncdomain.DisplayName(variationKey))
 	return Selection{
 		Project:     syncapi.Project{Key: projectKey},
 		Config:      config,
-		ModelConfig: modelConfigs[index],
+		ModelConfig: modelConfig,
 		Key:         variationKey,
 		Name:        name,
 	}, target.Content, nil
@@ -164,42 +150,16 @@ func targetSelection(options Options, prompt linkedPrompt, target Target) (Selec
 // that the linked file does not have. The bool result is true when the user
 // cancels.
 func promptForSelection(options Options, prompt linkedPrompt) (Selection, string, bool, error) {
-	project := syncapi.Project{Key: options.ProjectKey}
-	if project.Key == "" {
-		var canceled bool
-		var err error
-		if project, canceled, err = syncinteractive.SelectProject(options.Input, options.Output, options.Catalog); err != nil || canceled {
-			return Selection{}, "", canceled, err
-		}
-	}
+	questions := synccreate.Questions{Allowed: true, Input: options.Input, Output: options.Output}
 	var modes []syncdomain.VariationMode
 	if prompt.parsed.Mode != "" {
 		modes = []syncdomain.VariationMode{prompt.parsed.Mode}
 	}
-	config, canceled, err := syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, modes)
-	if syncapi.IsNotFound(err) && options.ProjectKey != "" {
-		// The config search is the first read in the project, so a 404 means
-		// that the project is missing.
-		return Selection{}, "", false, fmt.Errorf(
-			"project %q was not found in LaunchDarkly, or the access token cannot read it", options.ProjectKey,
-		)
-	}
+	project, config, canceled, err := synccreate.SelectConfig(questions, options.Catalog, options.ProjectKey, modes)
 	if err != nil || canceled {
 		return Selection{}, "", canceled, err
 	}
-
-	_ = syncconsole.New(options.Output).Line("Loading model configs...")
-	modelConfigs, err := options.Catalog.ModelConfigs(project.Key)
-	if err != nil {
-		return Selection{}, "", false, err
-	}
-	choices := make([]syncinteractive.Choice[syncapi.ModelConfig], 0, len(modelConfigs))
-	for _, modelConfig := range modelConfigs {
-		choices = append(choices, syncinteractive.Choice[syncapi.ModelConfig]{
-			Title: modelConfig.Name, Description: "Key: " + modelConfig.Key, Value: modelConfig,
-		})
-	}
-	modelConfig, canceled, err := syncinteractive.Select(options.Input, options.Output, "Choose a model config", choices)
+	modelConfig, canceled, err := synccreate.SelectModelConfig(questions, options.Catalog, project.Key)
 	if err != nil || canceled {
 		return Selection{}, "", canceled, err
 	}
@@ -213,11 +173,11 @@ func promptForSelection(options Options, prompt linkedPrompt) (Selection, string
 	}
 	if name == "" {
 		name = syncdomain.DisplayName(key)
-		fields = append(fields, huh.NewInput().Title("Variation name").Value(&name).Validate(requiredValue("variation name")))
+		fields = append(fields, huh.NewInput().Title("Variation name").Value(&name).Validate(synccreate.RequiredValue("variation name")))
 	}
 	if len(prompt.parsed.Messages) == 0 {
 		fields = append(fields, huh.NewText().Title("Prompt content").Lines(8).Value(&content).
-			Validate(requiredValue("prompt content")))
+			Validate(synccreate.RequiredValue("prompt content")))
 	}
 	if len(fields) != 0 {
 		if canceled, err := syncinteractive.RunForm(options.Input, options.Output, fields...); err != nil || canceled {
@@ -257,14 +217,7 @@ func addMissingPromptContent(
 // linked file, and creates the variation file. If the variation file fails,
 // it restores the linked file.
 func createLinkedPrompt(options Options, selection Selection, prompt linkedPrompt) (string, error) {
-	variation := syncdomain.Variation{
-		Mode:               selection.Config.Mode,
-		Key:                selection.Key,
-		Name:               selection.Name,
-		ModelConfigKey:     selection.ModelConfig.Key,
-		ModelConfigVersion: selection.ModelConfig.Version,
-		Model:              selection.ModelConfig.VariationModel(),
-	}
+	variation := synccreate.NewVariation(selection.Config, selection.Key, selection.Name, selection.ModelConfig)
 	if err := syncreference.ApplyToVariation(prompt.reference.Format, prompt.content, &variation); err != nil {
 		return "", err
 	}
@@ -354,14 +307,4 @@ func validateDerivedKey(key string) error {
 		return fmt.Errorf("linked filename produces invalid variation key %q", key)
 	}
 	return nil
-}
-
-// requiredValue returns a form validator that rejects a blank value.
-func requiredValue(label string) func(string) error {
-	return func(value string) error {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%s is required", label)
-		}
-		return nil
-	}
 }

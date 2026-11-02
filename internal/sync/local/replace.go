@@ -57,15 +57,11 @@ func (store Store) ReplaceVariations(replacements []VariationReplacement) ([]str
 func (store Store) ReplaceAttachments(attachments []syncdomain.SyncedAttachment) ([]string, error) {
 	rendered := make([]RenderedFile, 0, len(attachments))
 	for _, attachment := range attachments {
-		filePath, err := attachmentPath(attachment.ProjectKey, attachment.Attachment.Kind, attachment.Attachment.Key())
+		file, err := RenderAttachment(attachment)
 		if err != nil {
 			return nil, err
 		}
-		content, err := renderAttachment(attachment.Attachment)
-		if err != nil {
-			return nil, err
-		}
-		rendered = append(rendered, RenderedFile{Path: filePath, Content: content})
+		rendered = append(rendered, file)
 	}
 	files, err := store.prepareAttachmentFiles(rendered)
 	if err != nil {
