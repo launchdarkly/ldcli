@@ -197,29 +197,92 @@ func agentSpaceARN(region, accountID, spaceID string) string {
 	return fmt.Sprintf("arn:aws:aidevops:%s:%s:agentspace/%s", region, accountID, spaceID)
 }
 
-// FindMCPServer returns the ID of the MCP server registered at endpoint, if the
-// account has one. AWS keeps MCP servers at the account level, so a second
-// agent space reuses the existing registration.
-func FindMCPServer(ctx context.Context, clients Clients, endpoint string) (string, error) {
-	id, _, err := findMCPService(ctx, clients, endpoint)
-
-	return id, err
-}
-
-// findMCPService returns the ID and the name of the MCP server registered at
-// endpoint, if the account has one.
-func findMCPService(ctx context.Context, clients Clients, endpoint string) (id, name string, err error) {
+// accountMCPServer finds the MCP server of the AWS account: a server at
+// endpoint that signs in with OAuth. A server with a token is never a match,
+// even with the name MCPServerName, because its token belongs to one
+// LaunchDarkly account and not to the AWS account. Each server acts as the
+// member who approved it, so with more than one, the user must pick one.
+func accountMCPServer(ctx context.Context, clients Clients, endpoint string) (mcpRef, error) {
 	services, err := listServices(ctx, clients)
 	if err != nil {
-		return "", "", err
+		return mcpRef{}, err
 	}
+	var (
+		found mcpRef
+		all   []string
+	)
 	for _, service := range services {
-		if mcpEndpointOf(service) == endpoint {
-			return aws.ToString(service.ServiceId), serviceName(service), nil
+		if mcpEndpointOf(service) != endpoint || !usesOAuth(service) {
+			continue
 		}
+		found = mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}
+		all = append(all, fmt.Sprintf("%s (%s)", found.Name, found.ID))
+	}
+	if len(all) > 1 {
+		return mcpRef{}, fmt.Errorf(
+			"the AWS account has %d LaunchDarkly MCP servers that use OAuth: %s. "+
+				"To pick one, pass --mcp-service-id <id>",
+			len(all), strings.Join(all, ", "),
+		)
 	}
 
-	return "", "", nil
+	return found, nil
+}
+
+func usesOAuth(service agenttypes.RegisteredService) bool {
+	details, ok := service.AdditionalServiceDetails.(*agenttypes.AdditionalServiceDetailsMemberMcpserver)
+
+	return ok && details.Value.AuthorizationMethod == agenttypes.MCPServerAuthorizationMethodOauth3lo
+}
+
+// mcpRef identifies a registered MCP server.
+type mcpRef struct {
+	ID   string
+	Name string
+}
+
+// linkedMCPServer finds the LaunchDarkly MCP server at endpoint that an agent
+// space is connected to. Setup keeps that server, so a space that someone
+// connected by hand keeps its server. A space connected to more than one
+// server is an error, because setup cannot tell which one to use.
+func linkedMCPServer(ctx context.Context, clients Clients, agentSpaceID, endpoint string) (mcpRef, error) {
+	// A new space has no ID and no server yet.
+	if agentSpaceID == "" {
+		return mcpRef{}, nil
+	}
+	associations, err := listAssociations(ctx, clients, agentSpaceID)
+	if err != nil {
+		return mcpRef{}, err
+	}
+	links := make(map[string]bool, len(associations))
+	for _, association := range associations {
+		links[aws.ToString(association.ServiceId)] = true
+	}
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return mcpRef{}, err
+	}
+	var (
+		linked mcpRef
+		all    []string
+	)
+	for _, service := range services {
+		ref := mcpRef{ID: aws.ToString(service.ServiceId), Name: serviceName(service)}
+		if mcpEndpointOf(service) != endpoint || !links[ref.ID] {
+			continue
+		}
+		linked = ref
+		all = append(all, fmt.Sprintf("%s (%s)", ref.Name, ref.ID))
+	}
+	if len(all) > 1 {
+		return mcpRef{}, fmt.Errorf(
+			"agent space %s is connected to %d LaunchDarkly MCP servers: %s. "+
+				"Disconnect all but one in the AWS console, then run setup again",
+			agentSpaceID, len(all), strings.Join(all, ", "),
+		)
+	}
+
+	return linked, nil
 }
 
 // spacesNamed lists IDs of spaces named name.
@@ -302,4 +365,26 @@ func serviceName(service agenttypes.RegisteredService) string {
 	}
 
 	return aws.ToString(service.Name)
+}
+
+func listAssets(ctx context.Context, clients Clients, agentSpaceID, assetType string) ([]agenttypes.Asset, error) {
+	var (
+		assets    []agenttypes.Asset
+		nextToken *string
+	)
+	for {
+		page, err := clients.Agent.ListAssets(ctx, &devopsagent.ListAssetsInput{
+			AgentSpaceId: aws.String(agentSpaceID),
+			AssetType:    aws.String(assetType),
+			NextToken:    nextToken,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to list the %s assets of agent space %s: %w", assetType, agentSpaceID, err)
+		}
+		assets = append(assets, page.Items...)
+		if page.NextToken == nil {
+			return assets, nil
+		}
+		nextToken = page.NextToken
+	}
 }

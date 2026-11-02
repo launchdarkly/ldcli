@@ -32,6 +32,20 @@ func TestCatalogClientSearchProjectsFiltersAndReturnsOnePage(t *testing.T) {
 	assert.Equal(t, "20", request.Query.Get("offset"))
 }
 
+func TestCatalogClientConfigKeepsTheKeysOfArchivedVariations(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{"key": "support", "mode": "agent", "variations": [
+		{"key": "helpful", "name": "Helpful", "instructions": "Help the user."},
+		{"key": "escalation", "name": "Escalation", "state": "archived", "instructions": "Escalate."}
+	]}`)}}
+
+	config, err := NewClient(transport, "token", "https://example.com").Config("project", "support")
+
+	require.NoError(t, err)
+	require.Len(t, config.Variations, 1)
+	assert.Equal(t, "helpful", config.Variations[0].Key)
+	assert.Equal(t, []string{"escalation"}, config.ArchivedVariationKeys)
+}
+
 func TestCatalogClientSearchConfigsFiltersAndAppliesMode(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{
 		mustCatalogJSON(t, Page[Config]{
@@ -165,6 +179,41 @@ func TestCatalogClientConfigGetsExactConfigAndAppliesMode(t *testing.T) {
 	)
 	assert.Empty(t, request.Query)
 	assert.False(t, request.IsBeta)
+}
+
+func TestCatalogClientConfigRemovesExpandedToolsFromModelParameters(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"key": "support",
+		"mode": "agent",
+		"variations": [{
+			"key": "helpful",
+			"name": "Helpful",
+			"model": {
+				"modelName": "claude",
+				"parameters": {
+					"temperature": 0.2,
+					"tools": [{"type": "function", "name": "search"}],
+					"skills": [{"key": "support"}]
+				}
+			},
+			"tools": [{"key": "search", "version": 3}],
+			"skills": [{"key": "support", "version": 2}]
+		}]
+	}`)}}
+
+	config, err := NewClient(transport, "token", "https://example.com").Config("project", "support")
+
+	require.NoError(t, err)
+	require.Len(t, config.Variations, 1)
+	assert.Equal(t, map[string]any{
+		"modelName": "claude",
+		"parameters": map[string]any{
+			"temperature": 0.2,
+			"skills":      []any{map[string]any{"key": "support"}},
+		},
+	}, config.Variations[0].Model)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 3}}, config.Variations[0].Tools)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "support", Version: 2}}, config.Variations[0].Skills)
 }
 
 func TestCatalogClientConfigRejectsInvalidResponse(t *testing.T) {

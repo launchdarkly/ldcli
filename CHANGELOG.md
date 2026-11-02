@@ -1,5 +1,44 @@
 # Changelog
 
+## [3.15.0](https://github.com/launchdarkly/ldcli/compare/v3.14.0...v3.15.0) (2026-10-28)
+
+
+### Features
+
+* add --full-setup to aws-devops-agent setup ([#981](https://github.com/launchdarkly/ldcli/issues/981)) ([80c34f4](https://github.com/launchdarkly/ldcli/commit/80c34f4066455d054d8339b8d5e544c061ae4d2d))
+* add target flags to sync prompts and read sync flags only from the command line ([#938](https://github.com/launchdarkly/ldcli/issues/938)) ([4118820](https://github.com/launchdarkly/ldcli/commit/411882050117948829ea6f5526fbd0521189a7d3))
+* add the create flags of sync tools add and sync skills add ([#951](https://github.com/launchdarkly/ldcli/issues/951)) ([607cff3](https://github.com/launchdarkly/ldcli/commit/607cff39d15f6d4b87f069cb2c756c0f15231e79))
+* add the experimentation-orchestration skill to the agent space in setup ([#970](https://github.com/launchdarkly/ldcli/issues/970)) ([7f64717](https://github.com/launchdarkly/ldcli/commit/7f64717749b364003f697819eb0d9e6392b47a71))
+* add the sync all, sync tools, and sync skills commands ([#949](https://github.com/launchdarkly/ldcli/issues/949)) ([883daa8](https://github.com/launchdarkly/ldcli/commit/883daa8db5ac8e16465c7790dc91331bc37d3f69))
+* add tools and skills from LaunchDarkly ([#947](https://github.com/launchdarkly/ldcli/issues/947)) ([1232485](https://github.com/launchdarkly/ldcli/commit/1232485196f62d7ba3f56d4a1b47e1c0a0f2455b))
+* allow the MCP tools that the experimentation skill needs ([#971](https://github.com/launchdarkly/ldcli/issues/971)) ([a31fe9a](https://github.com/launchdarkly/ldcli/commit/a31fe9a53c573b944da18efbb10bd3039a97a1f0))
+* apply tool and skill rows in a sync ([#941](https://github.com/launchdarkly/ldcli/issues/941)) ([1f87d67](https://github.com/launchdarkly/ldcli/commit/1f87d67c1c09d7d8d13a58e33a846abc4d22a96e))
+* ask for an AWS profile and region when the default credentials fail ([#967](https://github.com/launchdarkly/ldcli/issues/967)) ([1ecd2fe](https://github.com/launchdarkly/ldcli/commit/1ecd2fe2a3cd55e8756504f6f5b93d676d81ef7b))
+* create a prompt variation from the content of an add ([#953](https://github.com/launchdarkly/ldcli/issues/953)) ([79a9fd7](https://github.com/launchdarkly/ldcli/commit/79a9fd713329c5afbdf8cf1282a87dd12d140480))
+* create a tool or a skill from the content of an add ([#950](https://github.com/launchdarkly/ldcli/issues/950)) ([ace984d](https://github.com/launchdarkly/ldcli/commit/ace984de57b55777e786b0e2772bf64b6bf9d668))
+* create skills during sync, and read again after a 409 on create ([#940](https://github.com/launchdarkly/ldcli/issues/940)) ([af1a2fa](https://github.com/launchdarkly/ldcli/commit/af1a2fa15bf9856f5db2f3713b02d47caa1b0119))
+* **dev-server:** send UI analytics through the local server ([#855](https://github.com/launchdarkly/ldcli/issues/855)) ([60c22da](https://github.com/launchdarkly/ldcli/commit/60c22da3694b805b04b0460441f87e5dcb0be684))
+* keep unused tools and skills, and detach any resource kind ([#946](https://github.com/launchdarkly/ldcli/issues/946)) ([36eb777](https://github.com/launchdarkly/ldcli/commit/36eb777cabfbcb65eb487d01619dbb729e82a0a4))
+* plan standalone tool and skill rows by sync scope ([#939](https://github.com/launchdarkly/ldcli/issues/939)) ([6ebe04f](https://github.com/launchdarkly/ldcli/commit/6ebe04f45c8936a5efba3af0ba6cfc7ec4269690))
+* Re-land local flag overrides using dev server, with filter reset fix ([#851](https://github.com/launchdarkly/ldcli/issues/851)) ([c9b4bd5](https://github.com/launchdarkly/ldcli/commit/c9b4bd563013fc24c24723ec8158ff34b21c5e6c))
+* route sync, add, and detach by scope ([#948](https://github.com/launchdarkly/ldcli/issues/948)) ([3599292](https://github.com/launchdarkly/ldcli/commit/3599292d263afc597071674ca6b5c8fc7a77cc91))
+* show a compact sync plan and add a --diff flag ([#937](https://github.com/launchdarkly/ldcli/issues/937)) ([0dab833](https://github.com/launchdarkly/ldcli/commit/0dab8330c0ab5330c7f3d53bd9efadd41bb374c8))
+* show the aws-devops-agent command in the help; update setup messages ([#978](https://github.com/launchdarkly/ldcli/issues/978)) ([87a3fa0](https://github.com/launchdarkly/ldcli/commit/87a3fa00eb6b5215bd92e612b4fc5bd22671beaa))
+* turn on elevated actions in aws-devops-agent setup ([#980](https://github.com/launchdarkly/ldcli/issues/980)) ([6b4c8bc](https://github.com/launchdarkly/ldcli/commit/6b4c8bc68c7f6f1c934b40f1560ee1d43b33b05e))
+
+
+### Bug Fixes
+
+* **analytics:** detect AI agents from the variables that they set ([#859](https://github.com/launchdarkly/ldcli/issues/859)) ([a8a5a6f](https://github.com/launchdarkly/ldcli/commit/a8a5a6f3c52e07da205d2e03c2c1825adaf8e37b))
+* exclude expanded tools from prompt diffs ([#957](https://github.com/launchdarkly/ldcli/issues/957)) ([438c0d1](https://github.com/launchdarkly/ldcli/commit/438c0d19d538018ba24e697d20bf848a1ba3014d))
+* give each agent space its own LaunchDarkly MCP server ([#968](https://github.com/launchdarkly/ldcli/issues/968)) ([f5f0f3d](https://github.com/launchdarkly/ldcli/commit/f5f0f3d33b4df9b7aad819c2561e5e63825c3e55))
+* hide the aws-devops-agent command ([#958](https://github.com/launchdarkly/ldcli/issues/958)) ([a6d1132](https://github.com/launchdarkly/ldcli/commit/a6d1132d52813281360806a6a9318d73bb7267ff))
+* keep the last 12 characters of the space ID in the MCP server name ([#979](https://github.com/launchdarkly/ldcli/issues/979)) ([2586bad](https://github.com/launchdarkly/ldcli/commit/2586bad3d743a09b5cd804665a0ab3e5acd93596))
+* plan a tool or skill row when a variation newly references it ([#945](https://github.com/launchdarkly/ldcli/issues/945)) ([5430136](https://github.com/launchdarkly/ldcli/commit/543013679fd2ab8817dea5a665edcf17441a93cd))
+* register one OAuth MCP server for each AWS account ([#983](https://github.com/launchdarkly/ldcli/issues/983)) ([5308e01](https://github.com/launchdarkly/ldcli/commit/5308e0105814e954739174837b5b918f1c1b24bf))
+* remove only the Beta suffix from resource names in generated command names ([#964](https://github.com/launchdarkly/ldcli/issues/964)) ([ea45797](https://github.com/launchdarkly/ldcli/commit/ea4579735d9682166a0be7a825ebf6b686cdb297))
+* show the tools of the LaunchDarkly MCP server in status ([#961](https://github.com/launchdarkly/ldcli/issues/961)) ([5c92290](https://github.com/launchdarkly/ldcli/commit/5c922906e678bc2d6eefa4cd1c0a84b2d0777435))
+
 ## [3.14.0](https://github.com/launchdarkly/ldcli/compare/v3.13.0...v3.14.0) (2026-10-21)
 
 

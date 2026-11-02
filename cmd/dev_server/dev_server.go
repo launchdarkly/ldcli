@@ -87,7 +87,7 @@ func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.Track
 	cmd.AddCommand(NewDeleteOverridesCmd(client))
 	cmd.AddGroup(&cobra.Group{ID: "server", Title: "Server commands:"})
 
-	cmd.AddCommand(NewStartServerCmd(ldClient))
+	cmd.AddCommand(NewStartServerCmd(ldClient, analyticsTrackerFn))
 	cmd.AddCommand(NewUICmd())
 
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())

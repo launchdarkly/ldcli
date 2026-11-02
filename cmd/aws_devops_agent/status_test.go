@@ -74,6 +74,25 @@ func TestStatusAssociationShowsPlainState(t *testing.T) {
 	assert.NotContains(t, mcp, "pending-confirmation")
 }
 
+// AWS does not send a state for an MCP server association. The line shows
+// the tools of the association.
+func TestStatusMCPServerShowsTools(t *testing.T) {
+	status := realisticStatus()
+	status.AgentSpaces[0].Associations[1].Status = ""
+	status.AgentSpaces[0].Associations[1].Tools = []string{"list-flags", "get-flag"}
+	section := spaceSection(t, renderStatus(status), "Production")
+
+	assert.Equal(t, "    LaunchDarkly MCP server: connected (tools: list-flags, get-flag)", lineWith(t, section, "LaunchDarkly"))
+}
+
+func TestStatusMCPServerShowsStateAndTools(t *testing.T) {
+	status := realisticStatus()
+	status.AgentSpaces[0].Associations[1].Tools = []string{"list-flags"}
+	section := spaceSection(t, renderStatus(status), "Production")
+
+	assert.Equal(t, "    LaunchDarkly MCP server: ready (tools: list-flags)", lineWith(t, section, "LaunchDarkly"))
+}
+
 func TestStatusPlainStateNamesEachState(t *testing.T) {
 	cases := map[string]string{
 		"valid":                "ready",

@@ -21,6 +21,9 @@ type Config struct {
 	Name       string                   `json:"name"`
 	Mode       syncdomain.VariationMode `json:"mode"`
 	Variations []syncdomain.Variation   `json:"variations"`
+	// ArchivedVariationKeys are the keys of the archived variations. A new
+	// variation cannot use one of them.
+	ArchivedVariationKeys []string `json:"-"`
 }
 
 // ModelConfig is a versioned set of model settings that a variation can use.
@@ -136,8 +139,9 @@ func (client Client) ModelConfigs(projectKey string) ([]ModelConfig, error) {
 	return decodeJSON[[]ModelConfig](response, "model configs response")
 }
 
-// UnmarshalJSON drops archived variations. LaunchDarkly returns them in a
-// config, but sync treats an archived variation as absent.
+// UnmarshalJSON drops archived variations and keeps only their keys.
+// LaunchDarkly returns them in a config, but sync treats an archived
+// variation as absent.
 func (config *Config) UnmarshalJSON(data []byte) error {
 	var response struct {
 		Key        string                   `json:"key"`
@@ -155,8 +159,12 @@ func (config *Config) UnmarshalJSON(data []byte) error {
 	*config = Config{Key: response.Key, Name: response.Name, Mode: response.Mode}
 	config.Variations = make([]syncdomain.Variation, 0, len(response.Variations))
 	for _, variation := range response.Variations {
-		if variation.State != "archived" {
-			config.Variations = append(config.Variations, variation.Variation)
+		if variation.State == "archived" {
+			config.ArchivedVariationKeys = append(config.ArchivedVariationKeys, variation.Key)
+		} else {
+			canonical := variation.Variation
+			canonical.Model = syncdomain.CanonicalModel(canonical.Model, canonical.Tools)
+			config.Variations = append(config.Variations, canonical)
 		}
 	}
 	return nil

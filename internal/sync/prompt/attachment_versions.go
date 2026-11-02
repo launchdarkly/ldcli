@@ -97,14 +97,16 @@ func (resolver *attachmentResolver) settledAttachments(
 // version of each attachment.
 func (resolver *attachmentResolver) resolveVariation(projectKey string, variation syncdomain.Variation) (syncdomain.Variation, error) {
 	return variation.PinAttachments(func(local syncdomain.Attachment) (int, error) {
-		published, err := resolver.resolve(projectKey, local)
+		published, err := resolver.resolve(projectKey, local, false)
 		return published.Version, err
 	})
 }
 
 // resolve returns the LaunchDarkly attachment that has the local content. If
-// the content differs, resolve writes it and reads the new version.
-func (resolver *attachmentResolver) resolve(projectKey string, local syncdomain.Attachment) (syncdomain.Attachment, error) {
+// the content differs, resolve writes it and reads the new version. create is
+// true when the plan found no copy in LaunchDarkly, and then resolve never
+// updates a copy with other content.
+func (resolver *attachmentResolver) resolve(projectKey string, local syncdomain.Attachment, create bool) (syncdomain.Attachment, error) {
 	id := local.ID(projectKey)
 	if err, failed := resolver.failures[id]; failed {
 		return syncdomain.Attachment{}, err
@@ -113,7 +115,7 @@ func (resolver *attachmentResolver) resolve(projectKey string, local syncdomain.
 		return attachment, nil
 	}
 
-	attachment, err := resolver.publish(projectKey, local)
+	attachment, err := resolver.publish(projectKey, local, create)
 	if err != nil {
 		resolver.failures[id] = err
 		return syncdomain.Attachment{}, err
@@ -122,26 +124,21 @@ func (resolver *attachmentResolver) resolve(projectKey string, local syncdomain.
 	return attachment, nil
 }
 
-func (resolver *attachmentResolver) publish(projectKey string, local syncdomain.Attachment) (syncdomain.Attachment, error) {
+func (resolver *attachmentResolver) publish(projectKey string, local syncdomain.Attachment, create bool) (syncdomain.Attachment, error) {
 	remote, readErr := resolver.client.ReadAttachment(projectKey, local.Kind, local.Key())
 	var writeErr error
 	switch {
 	case readErr == nil && syncdomain.SameAttachmentContent(local, remote):
 		return remote, nil
+	case readErr == nil && create:
+		// Another working copy created it after the plan.
+		return syncdomain.Attachment{}, fmt.Errorf("%s %q changed concurrently", local.Kind, local.Key())
 	case readErr == nil:
 		writeErr = resolver.client.UpdateAttachment(projectKey, local)
 	case syncapi.IsNotFound(readErr) && local.Upsert:
 		writeErr = resolver.client.CreateAttachment(projectKey, local)
-	case syncapi.IsNotFound(readErr) && local.Kind == syncdomain.AttachmentTool:
-		return syncdomain.Attachment{}, fmt.Errorf(
-			"tool %q does not exist in LaunchDarkly; add \"upsert\": true to its local JSON file to create it during sync",
-			local.Key(),
-		)
 	case syncapi.IsNotFound(readErr):
-		return syncdomain.Attachment{}, fmt.Errorf(
-			"skill %q does not exist in LaunchDarkly; add upsert: true to its front matter to create it during sync",
-			local.Key(),
-		)
+		return syncdomain.Attachment{}, errors.New(missingAttachment(local.ID(projectKey)))
 	default:
 		return syncdomain.Attachment{}, readErr
 	}

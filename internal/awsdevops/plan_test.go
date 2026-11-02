@@ -268,28 +268,30 @@ func TestPlanTextOfAConnectPlan(t *testing.T) {
 
 			text := plan.Text()
 
+			assert.Contains(t, text.Scope, "Connect the MCP server only")
+			assert.Contains(t, text.Scope, "--full-setup")
 			assert.Equal(t, "Connect to agent space platform (space-7)", text.AgentSpace)
 			assert.Equal(t, "No change", text.Association)
 			assert.Equal(t, []string{"No change"}, text.Roles)
 			assert.Equal(t, tc.want, text.OperatorApp)
-			assert.Equal(t, "Register MCP server "+awsdevops.MCPServerName+" at "+awsdevops.MCPServerEndpoint, text.MCPServer)
+			assert.Equal(t,
+				"Register MCP server LaunchDarkly-OAuth for the AWS account at "+awsdevops.MCPServerEndpoint+
+					". You approve access to LaunchDarkly in a browser",
+				text.MCPServer,
+			)
 		})
 	}
 }
 
-func TestPlanTextOfASkippedMCPServer(t *testing.T) {
-	plan := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPSkip}}
-
-	assert.Equal(t, "Skip MCP server "+awsdevops.MCPServerName+", because no token was given", plan.Text().MCPServer)
-}
-
 // The plan names the server by its name in AWS, which the customer can change.
 func TestPlanNamesTheReusedMCPServerByItsName(t *testing.T) {
-	for name, id := range map[string]string{"found by endpoint": "", "given by ID": "mcp-1"} {
+	for name, id := range map[string]string{"connected to the space": "", "given by ID": "mcp-1"} {
 		t.Run(name, func(t *testing.T) {
-			agent := &fakeAgent{services: []agenttypes.RegisteredService{
-				mcpService("mcp-1", "LaunchDarkly (prod)", awsdevops.MCPServerEndpoint),
-			}}
+			agent := &fakeAgent{
+				agentSpaces:  []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
+				services:     []agenttypes.RegisteredService{mcpService("mcp-1", "LaunchDarkly (prod)", awsdevops.MCPServerEndpoint)},
+				associations: mcpLink("mcp-1"),
+			}
 			opts := runPlanOptions()
 			opts.MCPServiceID = id
 
@@ -321,19 +323,6 @@ func TestPlanConnectWithoutANameAsksForTheID(t *testing.T) {
 	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), opts, false)
 
 	assert.EqualError(t, err, "no agent space to connect to. Pass --agent-space-id")
-}
-
-// The replace plan names touched spaces.
-func TestPlanReplaceNamesEachSpace(t *testing.T) {
-	opts := runPlanOptions()
-	opts.ReplaceMCPToken = true
-
-	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(replaceAcrossSpaces(), newFakeIAM()), opts, true)
-
-	require.NoError(t, err)
-	assert.Contains(t, plan.Text().MCPServer, "space-1")
-	assert.Contains(t, plan.Text().MCPServer, "space-3")
-	assert.NotContains(t, plan.Text().MCPServer, "space-2")
 }
 
 // Two spaces with one name leave no safe choice.
@@ -425,7 +414,7 @@ func TestFindAWSAssociationMatchesOnlyTheMonitorOfTheAccount(t *testing.T) {
 }
 
 func runPlanOptions() awsdevops.SetupOptions {
-	return awsdevops.SetupOptions{AgentSpaceName: "launchdarkly", AuthFlow: "iam", LDAccessToken: "api-token"}
+	return awsdevops.SetupOptions{AgentSpaceName: "launchdarkly", AuthFlow: "iam"}
 }
 
 func reuseWithApp(app *devopsagent.GetOperatorAppOutput) *fakeAgent {
@@ -444,7 +433,7 @@ func idcApp() *devopsagent.GetOperatorAppOutput {
 	}
 }
 
-func replaceAcrossSpaces() *fakeAgent {
+func sharedAcrossSpaces() *fakeAgent {
 	return &fakeAgent{
 		agentSpaces: []agenttypes.AgentSpace{
 			namedSpace("space-1", "launchdarkly"), namedSpace("space-2", "other"), namedSpace("space-3", "third"),

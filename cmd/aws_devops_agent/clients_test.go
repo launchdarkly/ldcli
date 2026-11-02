@@ -88,7 +88,7 @@ func TestLoginRunsOnceOnUppercaseY(t *testing.T) {
 	assert.Equal(t, "us-east-1", clients.Region)
 	assert.Equal(t, [][]string{{"aws", "sso", "login", "--profile", "sso"}}, f.runs)
 	assert.Equal(t, 2, f.calls)
-	assert.Contains(t, f.prompted.String(), "Run aws sso login --profile sso now? [y/N]")
+	assert.Contains(t, f.prompted.String(), "Run aws sso login --profile sso now? [Y/n]")
 }
 
 func TestLoginAcceptsYesWithSpaces(t *testing.T) {
@@ -100,8 +100,17 @@ func TestLoginAcceptsYesWithSpaces(t *testing.T) {
 	assert.Len(t, f.runs, 1)
 }
 
+func TestLoginAcceptsEnter(t *testing.T) {
+	f, l := newLoginTest(t, "\n", errCreds, nil)
+
+	_, err := l.clients(context.Background(), "", "sso")
+
+	require.NoError(t, err)
+	assert.Len(t, f.runs, 1)
+}
+
 func TestLoginIgnoresOtherAnswers(t *testing.T) {
-	for _, answer := range []string{"ye\n", "yess\n", "n\n", "\n", ""} {
+	for _, answer := range []string{"ye\n", "yess\n", "n\n", ""} {
 		t.Run(fmt.Sprintf("%q", answer), func(t *testing.T) {
 			f, l := newLoginTest(t, answer, errCreds, nil)
 

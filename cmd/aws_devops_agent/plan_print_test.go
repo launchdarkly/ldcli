@@ -65,68 +65,18 @@ func TestSetupPlanNamesRolesAndOperatorApp(t *testing.T) {
 	assert.Contains(t, out.String(), awsdevops.AgentSpaceRoleName)
 	assert.Contains(t, out.String(), awsdevops.OperatorAppRoleName)
 	assert.Contains(t, out.String(), "operator app")
+	assert.Contains(t, out.String(), "Skill:         Create skill "+awsdevops.ExperimentSkillName)
+	assert.Contains(t, out.String(), "Custom agent:  Create custom agent "+awsdevops.ExperimentAgentName)
 }
 
-func noTokenOptions() awsdevops.SetupOptions {
-	opts := newSpaceOptions()
-	opts.LDAccessToken = ""
-
-	return opts
-}
-
-// The token prompt comes before the plan question.
-func TestTokenPromptAsksWhenInteractive(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "api-token\ny\n")
+// A canceled plan does not create the skill.
+func TestSetupCanceledCreatesNoSkill(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "n\n")
 	clients, w := countingClients()
 
-	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, true))
+	require.Error(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
 
-	assert.Contains(t, w.calls, "RegisterService")
-	assert.Less(t, strings.Index(stderrOf(cmd), "Paste the token"), strings.Index(stderrOf(cmd), "Setup plan:"))
-	// The plan is built again with the token, so it is current.
-	assert.Contains(t, stderrOf(cmd), "Register MCP server LaunchDarkly at")
-	assert.NotContains(t, stderrOf(cmd), "Ask for a token")
-}
-
-// A rejected token stops setup before any AWS write.
-func TestSetupChecksAPastedTokenFirst(t *testing.T) {
-	saved := awsdevops.CheckToken
-	t.Cleanup(func() { awsdevops.CheckToken = saved })
-	awsdevops.CheckToken = func(context.Context, string, string) error { return awsdevops.ErrInvalidAccessToken }
-	cmd, _ := setupTestCmd(t, "expired-token\ny\n")
-	clients, w := countingClients()
-
-	err := setupWith(cmd, clients, noTokenOptions(), true, true)
-
-	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
-	assert.Empty(t, w.calls)
-	assert.NotContains(t, stderrOf(cmd), "Setup plan:")
-}
-
-// Enter skips the MCP server, and the end names the next step.
-func TestSetupSkippedTokenNamesTheNextStep(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "\ny\n")
-	clients, w := countingClients()
-
-	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, true))
-
-	assert.NotContains(t, w.calls, "RegisterService")
-	assert.Contains(t, stderrOf(cmd), "Skip MCP server LaunchDarkly")
-	assert.NotContains(t, stderrOf(cmd), "Ask for a token")
-	assert.Contains(t, stdoutOf(cmd), "The LaunchDarkly MCP server is not connected")
-}
-
-// Without a token, a connect run has nothing to do.
-func TestSetupConnectWithoutATokenStops(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "2\n\n")
-	clients, w := twoSimilarSpaces()
-
-	err := setupWith(cmd, clients, noTokenOptions(), true, true)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "nothing to do on agent space LaunchDarkly (space-2)")
-	assert.Empty(t, w.calls)
-	assert.NotContains(t, stderrOf(cmd), "Continue?")
+	assert.NotContains(t, w.calls, "CreateAsset")
 }
 
 // Progress goes to stderr, so a json run shows it, and stdout stays JSON.
@@ -149,41 +99,13 @@ func TestPlanNamesTheAWSDefaultProfile(t *testing.T) {
 	assert.Equal(t, "corp", profileLabel(cmd))
 }
 
-// No token, no prompt: stop first.
-func TestSetupNeedsATokenItCannotAsk(t *testing.T) {
-	cases := map[string]struct {
-		plaintext, interactive, yes bool
-	}{
-		"no terminal":     {plaintext: true},
-		"json":            {},
-		"yes in terminal": {plaintext: true, interactive: true, yes: true},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			cmd, out := setupTestCmd(t, "")
-			cmd.SetIn(noReadStdin{t})
-			if c.yes {
-				require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
-			}
-			clients, w := countingClients()
-
-			err := setupWith(cmd, clients, noTokenOptions(), c.plaintext, c.interactive)
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "--access-token")
-			assert.Contains(t, err.Error(), awsdevops.AccessTokenURL(""))
-			assert.Empty(t, w.calls)
-			assert.NotContains(t, out.String(), "Setup plan")
-		})
-	}
-}
-
-// A registered server needs no token.
+// The server of the agent space needs no token.
 func TestSetupWithoutTokenReusesServer(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
-	clients, w := countingClients()
+	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")})
 	agent := clients.Agent.(countingAgent)
+	agent.associations = []agenttypes.Association{{AssociationId: aws.String("assoc-1"), ServiceId: aws.String("mcp-1")}}
 	agent.services = []agenttypes.RegisteredService{{
 		ServiceId:   aws.String("mcp-1"),
 		ServiceType: agenttypes.ServiceMcpServer,
@@ -193,10 +115,12 @@ func TestSetupWithoutTokenReusesServer(t *testing.T) {
 	}}
 	clients.Agent = agent
 
-	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, false))
+	opts := newSpaceOptions()
+	opts.AgentSpaceName, opts.AgentSpaceID = "", "space-1"
+
+	require.NoError(t, setupWith(cmd, clients, opts, true, false))
 
 	assert.NotContains(t, w.calls, "RegisterService")
-	assert.Contains(t, w.calls, "AssociateService")
 }
 
 func TestSetupPlanNamesAccountAssociation(t *testing.T) {
@@ -317,7 +241,7 @@ func TestSetupEnterGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {
 
 	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
 
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "start 2\n")
 	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
@@ -336,7 +260,7 @@ func TestSetupEnterWithoutANamePicksTheSpaceSetupMade(t *testing.T) {
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "start 2\n")
 	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 }
@@ -360,25 +284,40 @@ func twoSimilarSpaces() (awsdevops.Clients, *writes) {
 	)
 }
 
-// --auth-flow runs full setup on choice.
-func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
+// --full-setup runs full setup on choice.
+func TestSetupChosenSpaceWithFullSetup(t *testing.T) {
 	cmd, out := setupTestCmd(t, "2\ny\n")
-	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
+	require.NoError(t, cmd.Flags().Set(fullSetupFlag, "true"))
 	clients, w := twoSimilarSpaces()
 	opts, err := setupOptions(cmd)
 	require.NoError(t, err)
-	opts.LDAccessToken = "api-token"
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
 	assert.Contains(t, out.String(), "Reuse agent space LaunchDarkly (space-2)")
+	assert.Contains(t, out.String(), "Setup:         Full setup")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
 	assert.Contains(t, out.String(), "Reused agent space LaunchDarkly (space-2)")
 	assert.NotContains(t, out.String(), "agent space launchdarkly (space-1)")
 }
 
-func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
+// A connect run does not change the sign-in, so --auth-flow alone stops it.
+func TestSetupChosenSpaceWithOnlyAuthFlowStops(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "2\ny\n")
+	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
+	clients, w := twoSimilarSpaces()
+	opts, err := setupOptions(cmd)
+	require.NoError(t, err)
+
+	err = setupWith(cmd, clients, opts, true, true)
+
+	require.EqualError(t, err, "only a full setup changes the operator app sign-in. To use --auth-flow on agent space LaunchDarkly (space-2), also pass --full-setup. "+
+		"To only connect the MCP server, remove --auth-flow")
+	assert.Empty(t, w.calls)
+}
+
+func TestSetupChosenSpaceWithoutFullSetupConnects(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "2\ny\n")
 	clients, w := twoSimilarSpaces()
 
@@ -388,9 +327,11 @@ func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
 	assert.NotContains(t, w.calls, "CreateRole")
 	assert.Contains(t, stderrOf(cmd), "Using agent space LaunchDarkly (space-2)")
 	assert.Contains(t, stderrOf(cmd), "No change. The operator app is off")
+	assert.Contains(t, stderrOf(cmd), "Setup:         Connect the MCP server only.")
+	assert.Contains(t, stderrOf(cmd), "run setup again with --full-setup")
 	assert.Contains(t, stdoutOf(cmd), "The operator app of agent space space-2 is off")
 	assert.Contains(t, stdoutOf(cmd), "use the AWS console")
-	assert.NotContains(t, stdoutOf(cmd), "--auth-flow")
+	assert.NotContains(t, stdoutOf(cmd), "--full-setup")
 	assert.NotContains(t, stdoutOf(cmd), "Open the DevOps Agent at")
 }
 
@@ -429,27 +370,39 @@ func TestSetupFailureNamesTheNewSpace(t *testing.T) {
 	assert.Contains(t, err.Error(), "To use it, run setup again with --agent-space-id space-new")
 }
 
-// A server that appears between the two plans is reused, and setup says
-// that it does not use the pasted token.
-func TestSetupSaysWhenTheSecondPlanReusesAServer(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "api-token\n")
+type failingSkillAgent struct{ countingAgent }
+
+func (failingSkillAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	return nil, &agenttypes.AccessDeniedException{Message: aws.String("not authorized to perform: aidevops:CreateAsset")}
+}
+
+// A failed skill step warns at the end, and setup still prints the app URL.
+func TestSetupWarnsWhenSkillFails(t *testing.T) {
+	cmd, errOut := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, w := countingClients()
+	clients.Agent = failingSkillAgent{clients.Agent.(countingAgent)}
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, false))
+
+	assert.Contains(t, w.calls, "RegisterService")
+	assert.Contains(t, stdoutOf(cmd), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
+	assert.Contains(t, stdoutOf(cmd), "aidevops:CreateAsset")
+	assert.Contains(t, stdoutOf(cmd), "Open the DevOps Agent at:")
+	// The warning shows one time.
+	assert.Equal(t, 1, strings.Count(errOut.String()+stdoutOf(cmd), "unable to create skill"))
+}
+
+// stdout holds only the JSON, so the warning goes to stderr.
+func TestSetupJSONWarnsOnStderrWhenSkillFails(t *testing.T) {
+	cmd, errOut := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
 	clients, _ := countingClients()
-	agent := clients.Agent.(countingAgent)
-	agent.services = []agenttypes.RegisteredService{{
-		ServiceId:   aws.String("mcp-7"),
-		ServiceType: agenttypes.ServiceMcpServer,
-		AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
-			Value: agenttypes.RegisteredMCPServerDetails{Name: aws.String("Prod LD"), Endpoint: aws.String(awsdevops.MCPServerEndpoint)},
-		},
-	}}
-	clients.Agent = agent
-	opts := noTokenOptions()
-	first := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPAsk}}
+	clients.Agent = failingSkillAgent{clients.Agent.(countingAgent)}
 
-	plan, err := planWithToken(cmd, clients, &opts, first, true)
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), false, false))
 
-	require.NoError(t, err)
-	assert.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
-	assert.Contains(t, stderrOf(cmd), "MCP server Prod LD (mcp-7) was registered after the first plan")
-	assert.Contains(t, stderrOf(cmd), "--access-token and --replace-mcp-token")
+	assert.True(t, json.Valid([]byte(stdoutOf(cmd))), "stdout is not JSON: %s", stdoutOf(cmd))
+	assert.Contains(t, stdoutOf(cmd), `"skillAction": "failed"`)
+	assert.Contains(t, errOut.String(), "Warning: unable to create skill "+awsdevops.ExperimentSkillName)
 }

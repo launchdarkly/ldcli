@@ -1,5 +1,5 @@
-// Package bootstrap adds LaunchDarkly variations to the local workspace. The
-// first add creates the .launchdarkly directory.
+// Package bootstrap adds LaunchDarkly variations, tools, and skills to the
+// local workspace. The first add creates the .launchdarkly directory.
 package bootstrap
 
 import (
@@ -27,13 +27,17 @@ type Catalog interface {
 	Config(projectKey, configKey string) (syncapi.Config, error)
 }
 
-// AttachmentReader reads the tools and skills that a variation uses.
+// AttachmentReader reads the tools and skills that a variation uses, and
+// searches the tools or skills that the user adds.
 type AttachmentReader interface {
+	syncinteractive.AttachmentSearcher
 	ReadAttachment(projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error)
 }
 
 // Options are the dependencies and the input of one add.
 type Options struct {
+	// Kind is the kind of resource to add. The empty kind is a variation.
+	Kind        syncdomain.Kind
 	Catalog     Catalog
 	Attachments AttachmentReader
 	Store       synclocal.Store
@@ -48,13 +52,18 @@ type Options struct {
 	// ProjectKey and ConfigKey skip the project and the config questions.
 	ProjectKey string
 	ConfigKey  string
-	// Selections are the variations to add. If it is empty, Run asks the user.
+	// Selections are the resources to add. If it is empty, Run asks the user.
 	Selections []syncdomain.ResourceID
 	NoInput    bool
 }
 
-// Run writes the files of the selected variations and records their baseline.
+// Run writes the files of the selected resources and records their baseline.
 func Run(options Options) error {
+	switch options.Kind {
+	case syncdomain.KindTool, syncdomain.KindSkill:
+		return addAttachments(options)
+	}
+
 	var files []synclocal.VariationFile
 	var err error
 	if len(options.Selections) != 0 {
@@ -105,8 +114,16 @@ func selectedVariations(options Options) ([]synclocal.VariationFile, error) {
 			return variation.Key == variationKey
 		})
 		if index < 0 {
+			if slices.Contains(config.ArchivedVariationKeys, variationKey) {
+				return nil, fmt.Errorf(
+					"variation %q in config %q in project %q is archived in LaunchDarkly. "+
+						"Restore it in LaunchDarkly, or pass another --key.",
+					variationKey, configKey, selection.ProjectKey,
+				)
+			}
 			return nil, fmt.Errorf(
-				"variation %q does not exist in config %q in project %q", variationKey, configKey, selection.ProjectKey,
+				"variation %q does not exist in config %q in project %q. To create it, run %s with --model-config-key and --content.",
+				variationKey, configKey, selection.ProjectKey, AddCommand(selection),
 			)
 		}
 
@@ -287,7 +304,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		return errors.Join(err, options.Store.RollbackCreation(creation))
 	}
 
-	writeSummary(options.Output, options.Initial, len(creation.VariationPaths))
+	writeSummary(options.Output, options.Initial, len(creation.VariationPaths), "variation")
 	return nil
 }
 
@@ -339,13 +356,13 @@ func writeNoChangeSummary(output io.Writer, dryRun bool) {
 	_ = syncconsole.New(output).Line(message)
 }
 
-// writeSummary reports how many variation files the add created.
-func writeSummary(output io.Writer, initial bool, count int) {
+// writeSummary reports how many files of kind the add created.
+func writeSummary(output io.Writer, initial bool, count int, kind string) {
 	verb := "Added"
 	if initial {
 		verb = "Bootstrapped"
 	}
-	noun := "variation file"
+	noun := kind + " file"
 	if count != 1 {
 		noun += "s"
 	}

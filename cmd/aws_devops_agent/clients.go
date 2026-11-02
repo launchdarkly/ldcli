@@ -7,14 +7,16 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
 	"github.com/spf13/cobra"
 
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-// ssoLogin offers aws sso login on expired credentials.
+// ssoLogin offers aws sso login on expired credentials. In a terminal, it
+// also asks for a profile and a region that are missing.
 type ssoLogin struct {
 	newClients func(ctx context.Context, region, profile string) (awsdevops.Clients, error)
 	configPath string
@@ -24,13 +26,57 @@ type ssoLogin struct {
 	yes        bool
 	lookPath   func(string) (string, error)
 	run        func(ctx context.Context, name string, args ...string) error
+	choose     chooser
+	tokenPath  func(key string) (string, error)
+	now        func() time.Time
 }
 
-// loadClients builds AWS clients from the command flags.
+// loadClients builds AWS clients from the command flags. It sets --profile
+// to a profile that the user picks, so the output names it.
 func loadClients(cmd *cobra.Command) (awsdevops.Clients, error) {
 	l := newSSOLogin(cmd, canPrompt)
+	setProfile := func(name string) { _ = cmd.Flags().Set(profileFlag, name) }
 
-	return l.clients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
+	return l.load(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag), setProfile)
+}
+
+// load builds clients. If no profile is selected and the default
+// credentials do not work, it asks for a profile. If the default profile uses
+// SSO, it offers aws sso login for that profile instead, so the run does not
+// move to another account. setProfile gets the profile that the user picks.
+func (l ssoLogin) load(ctx context.Context, region, profile string, setProfile func(string)) (awsdevops.Clients, error) {
+	if !awsdevops.DefaultFallback(profile) {
+		return l.clients(ctx, region, profile)
+	}
+
+	clients, err := l.newClients(ctx, region, profile)
+	if !l.defaultCredentialsFail(ctx, profile, err) || awsdevops.SSOProfile(l.configPath, profile) != "" {
+		return l.clientsAfter(ctx, region, profile, clients, err)
+	}
+
+	name, pickErr := l.pickProfile()
+	if pickErr != nil {
+		return awsdevops.Clients{}, pickErr
+	}
+	if name == "" {
+		return l.clientsAfter(ctx, region, profile, clients, err)
+	}
+	setProfile(name)
+
+	return l.clients(ctx, region, name)
+}
+
+// defaultCredentialsFail reports that the default credentials do not work.
+// NewClients looks for the region before the credentials. On a missing
+// region, it tries the credentials again with a supported region. A default
+// profile without credentials, for example one with only an output key, then
+// gets the profile picker and not the region picker.
+func (l ssoLogin) defaultCredentialsFail(ctx context.Context, profile string, err error) bool {
+	if errors.Is(err, awsdevops.ErrNoRegion) {
+		_, err = l.newClients(ctx, awsdevops.SupportedRegions[0], profile)
+	}
+
+	return errors.Is(err, awsdevops.ErrNoCredentials)
 }
 
 // newSSOLogin logs in only in a terminal, because aws sso login needs a
@@ -46,11 +92,39 @@ func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 		yes:        yesSet(cmd),
 		lookPath:   exec.LookPath,
 		run:        runAttached,
+		choose:     newChooser(cmd),
+		tokenPath:  ssocreds.StandardCachedTokenFilepath,
+		now:        time.Now,
 	}
 }
 
 func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevops.Clients, error) {
 	clients, err := l.newClients(ctx, region, profile)
+
+	return l.clientsAfter(ctx, region, profile, clients, err)
+}
+
+// clientsAfter handles the result of a newClients call. In a terminal, it
+// asks for a missing region, and it offers aws sso login on an expired SSO
+// token. The two steps can both run: if the call with the picked region
+// returns ErrNoCredentials, the SSO login step handles that error.
+func (l ssoLogin) clientsAfter(
+	ctx context.Context,
+	region, profile string,
+	clients awsdevops.Clients,
+	err error,
+) (awsdevops.Clients, error) {
+	if errors.Is(err, awsdevops.ErrNoRegion) && l.tty() && !l.yes {
+		picked, pickErr := l.pickRegion()
+		if pickErr != nil {
+			return awsdevops.Clients{}, pickErr
+		}
+		if picked == "" {
+			return clients, err
+		}
+		region = picked
+		clients, err = l.newClients(ctx, region, profile)
+	}
 	if !errors.Is(err, awsdevops.ErrNoCredentials) {
 		return clients, err
 	}
@@ -67,9 +141,8 @@ func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevop
 	if l.yes {
 		_, _ = fmt.Fprintf(l.out, "Running aws sso login --profile %s\n", name)
 	} else {
-		_, _ = fmt.Fprintf(l.out, "Run aws sso login --profile %s now? [y/N] ", name)
-		answer := strings.ToLower(readLine(l.in))
-		if answer != "y" && answer != "yes" {
+		_, _ = fmt.Fprintf(l.out, "Run aws sso login --profile %s now? [Y/n] ", name)
+		if !readYes(l.in) {
 			return clients, err
 		}
 	}

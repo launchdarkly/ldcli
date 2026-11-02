@@ -18,6 +18,15 @@ type ConfigSearcher interface {
 	SearchConfigs(projectKey, query string, modes []syncdomain.VariationMode, limit, offset int) (syncapi.Page[syncapi.Config], error)
 }
 
+// AttachmentSearcher searches the tools or the skills in a project.
+type AttachmentSearcher interface {
+	SearchAttachments(
+		projectKey string, kind syncdomain.AttachmentKind, query string, limit, offset int,
+	) (syncapi.Page[syncdomain.Attachment], error)
+}
+
+const attachmentPageSize = 25
+
 // SelectProject asks the user to choose a project. The bool result is true
 // when the user cancels.
 func SelectProject(input io.Reader, output io.Writer, catalog ProjectSearcher) (syncapi.Project, bool, error) {
@@ -67,4 +76,46 @@ func SelectConfig(
 			}
 		},
 	})
+}
+
+// SelectAttachment asks the user to search for a tool or a skill and choose
+// it. The bool result is true when the user cancels.
+func SelectAttachment(
+	input io.Reader,
+	output io.Writer,
+	searcher AttachmentSearcher,
+	projectKey string,
+	kind syncdomain.AttachmentKind,
+) (syncdomain.Attachment, bool, error) {
+	name := string(kind)
+	return SearchSelect(SearchOptions[syncdomain.Attachment]{
+		Input:             input,
+		Output:            output,
+		SearchTitle:       "Search " + name + "s",
+		SearchPlaceholder: "Name or key",
+		SelectTitle:       "Choose a " + name,
+		ItemName:          name + "s",
+		PageSize:          attachmentPageSize,
+		Fetch: func(query string, limit, offset int) ([]syncdomain.Attachment, int, error) {
+			page, err := searcher.SearchAttachments(projectKey, kind, query, limit, offset)
+			return page.Items, page.TotalCount, err
+		},
+		Choice: attachmentChoice,
+	})
+}
+
+// attachmentChoice shows the name of a skill, or the key of a tool, which has no name.
+func attachmentChoice(attachment syncdomain.Attachment) Choice[syncdomain.Attachment] {
+	if attachment.Skill != nil {
+		return Choice[syncdomain.Attachment]{
+			Title:       attachment.Skill.Name,
+			Description: fmt.Sprintf("Key: %s · Latest version: %d", attachment.Key(), attachment.Version),
+			Value:       attachment,
+		}
+	}
+	return Choice[syncdomain.Attachment]{
+		Title:       "Key: " + attachment.Key(),
+		Description: fmt.Sprintf("Latest version: %d", attachment.Version),
+		Value:       attachment,
+	}
 }

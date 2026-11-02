@@ -327,7 +327,7 @@ func TestPublishReadsAgainAfterACreateConflict(t *testing.T) {
 			transport := &createConflictAPI{remote: test.remote}
 			client := syncapi.NewClient(transport, "token", "https://example.com")
 
-			published, err := newAttachmentResolver(client).resolve("project", local)
+			published, err := newAttachmentResolver(client).resolve("project", local, true)
 
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
@@ -341,13 +341,31 @@ func TestPublishReadsAgainAfterACreateConflict(t *testing.T) {
 	}
 }
 
-func TestPublishCreatesASkillOnlyWithUpsert(t *testing.T) {
-	skill := syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{Key: "handoff", Markdown: "# Handoff\n"}}
-	client := syncapi.NewClient(&createConflictAPI{}, "token", "https://example.com")
+func TestPublishCreatesAnAttachmentOnlyWithUpsert(t *testing.T) {
+	tests := map[string]struct {
+		attachment syncdomain.Attachment
+		want       string
+	}{
+		"tool": {
+			attachment: syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "refund", Schema: map[string]any{}}},
+			want: `tool "refund" does not exist in LaunchDarkly. ` +
+				`To create it, add "upsert": true to its file and run ldcli sync tools --project project --key refund.`,
+		},
+		"skill": {
+			attachment: syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{Key: "handoff", Markdown: "# Handoff\n"}},
+			want: `skill "handoff" does not exist in LaunchDarkly. ` +
+				"To create it, add upsert: true to its front matter and run ldcli sync skills --project project --key handoff.",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			client := syncapi.NewClient(&createConflictAPI{}, "token", "https://example.com")
 
-	_, err := newAttachmentResolver(client).resolve("project", skill)
+			_, err := newAttachmentResolver(client).resolve("project", test.attachment, false)
 
-	require.EqualError(t, err, `skill "handoff" does not exist in LaunchDarkly; add upsert: true to its front matter to create it during sync`)
+			require.EqualError(t, err, test.want)
+		})
+	}
 }
 
 func TestApplyServerChangeReadsAgainAfterAVariationCreateConflict(t *testing.T) {

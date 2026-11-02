@@ -99,9 +99,17 @@ func (runner Runner) Run(options Options) error {
 	return runner.runWorkspaceSync(options, workspace, nil)
 }
 
+// nothingToSync tells the user how to start a sync of every kind.
+const nothingToSync = "Nothing to sync in this repository. " +
+	"To start, run ldcli sync prompts add, ldcli sync tools add, or ldcli sync skills add."
+
+// errNothingToSync is the error of a sync of every kind in a repository
+// without sync files. A sync of one kind starts its add instead.
+var errNothingToSync = errors.New(nothingToSync)
+
 // runSync syncs once, or watches the workspace. A workspace without any sync
-// files starts with an add in the filter project, so that the user can choose
-// the first variations.
+// files starts with an add of the scope's kind in the filter project, so that
+// the user can choose the first resources.
 func (runner Runner) runSync(options Options, workspace syncWorkspace, action SyncAction) error {
 	exists, err := workspace.local.Exists()
 	if err != nil {
@@ -112,8 +120,10 @@ func (runner Runner) runSync(options Options, workspace syncWorkspace, action Sy
 		return err
 	}
 	if !exists && len(synced) == 0 {
-		add := AddAction{Filter: action.Filter, DryRun: action.DryRun}
-		if err := runner.bootstrap(runner.bootstrapOptions(options, workspace, true, add)); err != nil {
+		if options.Scope == syncdomain.ScopeAll {
+			return errNothingToSync
+		}
+		if err := runner.runAdd(options, workspace, AddAction{Filter: action.Filter, DryRun: action.DryRun}); err != nil {
 			return err
 		}
 		if !action.Watch {
@@ -136,6 +146,9 @@ func (runner Runner) runSync(options Options, workspace syncWorkspace, action Sy
 }
 
 func (runner Runner) runAdd(options Options, workspace syncWorkspace, action AddAction) error {
+	if action.Create != nil {
+		return runner.runCreate(options, workspace, action)
+	}
 	exists, err := workspace.local.Exists()
 	if err != nil {
 		return err
@@ -155,8 +168,9 @@ func (runner Runner) runDetach(options Options, workspace syncWorkspace, action 
 		ProjectKeys:    projectKeys(synced, syncdomain.Filter{}),
 		Input:          options.Input,
 		Output:         options.Output,
+		Kind:           options.Scope.KeyKind(),
 		Filter:         action.Filter,
-		Selections:     selections(action.Variations, action.Filter),
+		Selections:     selections(action.Resources, action.Filter, options.Scope.KeyKind()),
 		NoInput:        options.NoInput,
 		Archive:        action.Archive,
 		Archiver:       runner.api(options),
@@ -221,7 +235,9 @@ func (runner Runner) runAttach(options Options, workspace syncWorkspace, action 
 
 func (runner Runner) bootstrapOptions(options Options, workspace syncWorkspace, initial bool, action AddAction) syncbootstrap.Options {
 	api := runner.api(options)
+	kind := options.Scope.KeyKind()
 	return syncbootstrap.Options{
+		Kind:        kind,
 		Catalog:     api,
 		Attachments: api,
 		Store:       workspace.local,
@@ -232,7 +248,7 @@ func (runner Runner) bootstrapOptions(options Options, workspace syncWorkspace, 
 		DryRun:      action.DryRun,
 		ProjectKey:  action.Filter.Project,
 		ConfigKey:   action.Filter.ConfigKey,
-		Selections:  selections(action.Variations, action.Filter),
+		Selections:  selections(action.Resources, action.Filter, kind),
 		NoInput:     options.NoInput,
 		Diff:        options.Diff,
 	}
