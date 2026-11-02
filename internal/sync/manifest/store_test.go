@@ -52,14 +52,16 @@ func (client *manifestClient) PatchSyncManifest(
 func TestStoreLoadsProjectManifests(t *testing.T) {
 	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{
 		"zeta": {
-			Source: "git:example/repo",
+			FormatVersion: syncapi.SyncManifestFormatVersion,
+			Source:        "git:example/repo",
 			Items: []syncapi.SyncManifestResource{{
 				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/b",
 				Fingerprint: fingerprint("b"), Version: 4,
 			}},
 		},
 		"alpha": {
-			Source: "git:example/repo",
+			FormatVersion: syncapi.SyncManifestFormatVersion,
+			Source:        "git:example/repo",
 			Items: []syncapi.SyncManifestResource{{
 				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/a",
 				Fingerprint: fingerprint("a"), Version: 2,
@@ -78,9 +80,15 @@ func TestStoreLoadsProjectManifests(t *testing.T) {
 
 func TestStoreUpdatesWithRemoteVersions(t *testing.T) {
 	client := &manifestClient{patchResponses: []syncapi.SyncManifest{{
-		Source: "git:example/repo",
+		FormatVersion: syncapi.SyncManifestFormatVersion,
+		Source:        "git:example/repo",
 		Items: []syncapi.SyncManifestResource{
-			{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 4},
+			{
+				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing",
+				Fingerprint: fingerprint("c"), Version: 4,
+				FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
+				AdapterBehaviorVersion: syncdomain.AdapterBehaviorVersion, AdapterBehaviorDigest: syncdomain.AdapterBehaviorDigest,
+			},
 			{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 1},
 		},
 	}}}
@@ -90,7 +98,12 @@ func TestStoreUpdatesWithRemoteVersions(t *testing.T) {
 		{ResourceKind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "old", Fingerprint: fingerprint("b"), Version: 2},
 	}}
 	next := Manifest{Resources: []Resource{
-		{ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 3},
+		{
+			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/existing",
+			Fingerprint: fingerprint("c"), Version: 3,
+			FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
+			AdapterBehaviorVersion: syncdomain.AdapterBehaviorVersion, AdapterBehaviorDigest: syncdomain.AdapterBehaviorDigest,
+		},
 		{ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search", Fingerprint: fingerprint("d")},
 	}}
 
@@ -100,12 +113,18 @@ func TestStoreUpdatesWithRemoteVersions(t *testing.T) {
 	require.Len(t, client.patches, 1)
 	assert.Equal(t, []syncapi.SyncManifestUpsert{
 		{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 0},
-		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 3},
+		{
+			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing",
+			Fingerprint: fingerprint("c"), Version: 3,
+			FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
+			AdapterBehaviorVersion: syncdomain.AdapterBehaviorVersion, AdapterBehaviorDigest: syncdomain.AdapterBehaviorDigest,
+		},
 	}, client.patches[0].upserts)
 	assert.Equal(t, []syncapi.SyncManifestDeletion{{
 		ResourceKind: syncdomain.KindSkill, ResourceLookupKey: "old", Version: 2,
 	}}, client.patches[0].deletions)
 	assert.Equal(t, 4, updated.Resources[1].Version)
+	assert.Equal(t, syncdomain.ProjectionFingerprintSchema, updated.Resources[1].FingerprintSchema)
 }
 
 func TestStoreReportsOptimisticConflict(t *testing.T) {
@@ -126,7 +145,8 @@ func TestStoreReportsOptimisticConflict(t *testing.T) {
 
 func TestStoreReadsBackAnUncertainPatchThatSucceeded(t *testing.T) {
 	applied := syncapi.SyncManifest{
-		Source: "git:example/repo",
+		FormatVersion: syncapi.SyncManifestFormatVersion,
+		Source:        "git:example/repo",
 		Items: []syncapi.SyncManifestResource{{
 			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/variation",
 			Fingerprint: fingerprint("b"), Version: 2,

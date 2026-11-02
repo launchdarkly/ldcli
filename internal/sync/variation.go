@@ -82,8 +82,6 @@ func (variation Variation) Validate() error {
 		return errors.New("key is required")
 	case variation.Name == "":
 		return errors.New("name is required")
-	case variation.Mode != VariationModeAgent && len(variation.Skills) != 0:
-		return errors.New("skills can only be attached to agent-mode configs")
 	}
 
 	// LaunchDarkly drops a value of these keys that is not an object.
@@ -95,9 +93,22 @@ func (variation Variation) Validate() error {
 		}
 	}
 
+	return ValidateAttachmentRefs(variation.Mode, variation.Tools, variation.Skills)
+}
+
+// ValidateAttachmentRefs makes sure that relationship keys are usable for the
+// variation mode.
+func ValidateAttachmentRefs(mode VariationMode, tools, skills []AttachmentRef) error {
+	if mode != VariationModeAgent && len(skills) != 0 {
+		return errors.New("skills can only be attached to agent-mode configs")
+	}
 	for _, kind := range AttachmentKinds {
 		seen := make(map[string]struct{})
-		for _, ref := range variation.Refs(kind) {
+		refs := tools
+		if kind == AttachmentSkill {
+			refs = skills
+		}
+		for _, ref := range refs {
 			if strings.TrimSpace(ref.Key) == "" {
 				return fmt.Errorf("%s key is required", kind)
 			}

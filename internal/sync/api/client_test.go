@@ -463,6 +463,7 @@ func TestClientArchiveVariationReturnsTransportError(t *testing.T) {
 
 func TestClientGetsSyncManifest(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"items": [{
 			"resourceKind": "variation",
@@ -487,6 +488,7 @@ func TestClientGetsSyncManifest(t *testing.T) {
 
 func TestClientPatchesSyncManifest(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"items": []
 	}`)}}
@@ -508,6 +510,7 @@ func TestClientPatchesSyncManifest(t *testing.T) {
 	assert.Equal(t, http.MethodPatch, request.Method)
 	assert.Equal(t, "application/json", request.ContentType)
 	assert.JSONEq(t, `{
+		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"upserts": [{
 			"resourceKind": "variation",
@@ -517,6 +520,19 @@ func TestClientPatchesSyncManifest(t *testing.T) {
 		}],
 		"deletions": []
 	}`, string(request.Body))
+}
+
+func TestClientRejectsUnknownSyncManifestVersion(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"formatVersion": 99,
+		"source": "git:example.com/acme/repo",
+		"items": []
+	}`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	_, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
+
+	require.ErrorContains(t, err, "unsupported formatVersion 99")
 }
 
 func TestIsConflictRecognizesAPIStatus(t *testing.T) {
