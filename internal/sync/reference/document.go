@@ -370,8 +370,12 @@ func quoteYAML(value, previous string) string {
 
 func encodeYAMLString(value, previous string) ([]byte, error) {
 	for _, character := range value {
-		if unicode.IsControl(character) && character != '\n' && character != '\r' && character != '\t' {
-			return nil, fmt.Errorf("YAML string contains unsupported control character U+%04X", character)
+		valid := character == '\n' || character == '\r' || character == '\t' ||
+			character >= 0x20 && character <= 0xd7ff ||
+			character >= 0xe000 && character <= 0xfffd ||
+			character >= 0x10000 && character <= utf8.MaxRune
+		if !valid || unicode.IsControl(character) && character != '\n' && character != '\r' && character != '\t' {
+			return nil, fmt.Errorf("YAML string contains unsupported character U+%04X", character)
 		}
 	}
 	return []byte(quoteYAML(value, previous)), nil

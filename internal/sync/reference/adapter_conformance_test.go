@@ -35,6 +35,24 @@ func TestRegisteredFormatsReadAndWriteRealisticSources(t *testing.T) {
 			id:   syncdomain.ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "refunds"},
 			want: "Explain the refund policy and escalation rules.", update: "Explain refunds and escalation rules.",
 		},
+		{
+			name: "JSON tool", fixture: "json/mcp.json", format: "json",
+			id:         syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "lookup_order"},
+			selectPath: `tools[name="lookup_order"]`, fieldMap: map[string]string{"description": "description"},
+			want: "Look up one order.", update: "Look up one order and status.",
+		},
+		{
+			name: "YAML agent", fixture: "yaml/agents.yaml", format: "yaml",
+			id:         syncdomain.VariationID("project", "support", "default"),
+			selectPath: `agents[name="support"]`, fieldMap: map[string]string{"prompt": "prompt"},
+			want: "Ask for an order ID.", update: "Ask for an order ID and region.",
+		},
+		{
+			name: "TOML agent", fixture: "toml/pyproject.toml", format: "toml",
+			id:         syncdomain.VariationID("project", "support", "default"),
+			selectPath: "tool.agent.support", fieldMap: map[string]string{"prompt": "prompt"},
+			want: "Ask for an order ID.\nKeep the answer short.", update: "Ask for an order ID and region.",
+		},
 	}
 
 	for _, test := range tests {
