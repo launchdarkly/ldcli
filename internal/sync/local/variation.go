@@ -75,7 +75,7 @@ func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
 		if stem := variationStem(file.RelPath); variation.Key != stem {
 			return syncdomain.SyncedResource{}, fmt.Errorf("referenced prompt key %q does not match filename %q", variation.Key, stem)
 		}
-	} else if err := parsePromptBody(string(body), &variation); err != nil {
+	} else if err := ParsePromptBody(string(body), &variation); err != nil {
 		return syncdomain.SyncedResource{}, err
 	}
 
@@ -118,9 +118,9 @@ func parseVariationFrontMatter(relPath string, data []byte) (variationFrontMatte
 	return meta, body, nil
 }
 
-// parsePromptBody stores an inline body as agent instructions or as
+// ParsePromptBody stores an inline body as agent instructions or as
 // completion messages.
-func parsePromptBody(body string, variation *syncdomain.Variation) error {
+func ParsePromptBody(body string, variation *syncdomain.Variation) error {
 	if variation.Mode == syncdomain.VariationModeAgent {
 		variation.Instructions = syncdomain.NormalizePromptText(body)
 		return nil

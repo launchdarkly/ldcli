@@ -2,6 +2,7 @@ package prompt_test
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,15 +34,18 @@ import (
 type directAPI struct {
 	variation      *syncdomain.Variation
 	variationState string
-	modelConfigs   []syncapi.ModelConfig
-	tools          map[string]versionedTool
-	skills         map[string]versionedSkill
-	manifest       *syncapi.SyncManifest
-	requests       []string
+	// configMode is the mode of the config "support". The empty mode is agent.
+	configMode   syncdomain.VariationMode
+	modelConfigs []syncapi.ModelConfig
+	tools        map[string]versionedTool
+	skills       map[string]versionedSkill
+	manifest     *syncapi.SyncManifest
+	requests     []string
 	// expandTools makes each read of the variation add the content of its
 	// tools to model.parameters.tools, as LaunchDarkly does.
 	expandTools bool
-	// createErr fails each create of a tool or a skill after onCreate runs.
+	// createErr fails each create of a tool, a skill, or a variation after
+	// onCreate runs.
 	// onCreate can add the resource, as another working copy does.
 	createErr error
 	onCreate  func()
@@ -96,7 +100,8 @@ func (api *directAPI) MakeRequest(
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		return handleManifestRequest(api.manifest, method, query, body)
 	}
-	isCreate := method == http.MethodPost && (strings.HasSuffix(path, "/ai-tools") || strings.HasSuffix(path, "/ai-configs/skills"))
+	isCreate := method == http.MethodPost &&
+		(strings.HasSuffix(path, "/ai-tools") || strings.HasSuffix(path, "/ai-configs/skills") || strings.HasSuffix(path, "/variations"))
 	if isCreate && api.createErr != nil {
 		if api.onCreate != nil {
 			api.onCreate()
@@ -159,6 +164,9 @@ func (api *directAPI) MakeRequest(
 		}
 		return json.Marshal(skill)
 	}
+	if method == "GET" && strings.HasSuffix(path, "/model-configs") {
+		return json.Marshal(api.modelConfigs)
+	}
 	if method == "GET" && strings.Contains(path, "/model-configs/") {
 		for _, modelConfig := range api.modelConfigs {
 			if strings.HasSuffix(path, "/"+modelConfig.Key) {
@@ -182,14 +190,14 @@ func (api *directAPI) MakeRequest(
 			})
 		}
 		return json.Marshal(map[string]any{
-			"key": "support", "name": "Support", "mode": "agent", "variations": variations,
+			"key": "support", "name": "Support", "mode": cmp.Or(api.configMode, syncdomain.VariationModeAgent), "variations": variations,
 		})
 	case "POST":
 		var variation syncdomain.Variation
 		if err := json.Unmarshal(body, &variation); err != nil {
 			return nil, err
 		}
-		variation.Mode = syncdomain.VariationModeAgent
+		variation.Mode = cmp.Or(api.configMode, syncdomain.VariationModeAgent)
 		api.variation = &variation
 		api.variationState = "published"
 	case "PATCH":

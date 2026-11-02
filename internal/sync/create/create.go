@@ -4,6 +4,7 @@
 package create
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -21,9 +22,63 @@ type Input struct {
 	Content *string
 	// JSONSchema is the input schema of a tool.
 	JSONSchema *string
-	// Name is the name of a skill.
-	Name        *string
+	// Name is the name of a skill or a variation.
+	Name *string
+	// Description is the description of a tool or a skill.
 	Description *string
+	// ModelConfigKey is the model config of a variation.
+	ModelConfigKey *string
+}
+
+// Check applies the content rules of a create of kind. It reads nothing, so
+// an add runs it before any request.
+func (input Input) Check(kind syncdomain.Kind) error {
+	if err := input.checkContentFlag(kind); err != nil {
+		return err
+	}
+	if kind == syncdomain.KindTool {
+		_, err := parseSchema(*input.JSONSchema)
+		return err
+	}
+	switch {
+	case strings.TrimSpace(*input.Content) == "":
+		return errors.New("--content cannot be blank")
+	case input.Name != nil && strings.TrimSpace(*input.Name) == "":
+		return errors.New("--name cannot be blank")
+	case input.ModelConfigKey != nil && strings.TrimSpace(*input.ModelConfigKey) == "":
+		return errors.New("--model-config-key cannot be blank")
+	}
+	return nil
+}
+
+// checkContentFlag makes sure that the flag that starts a create is set when
+// another create flag is.
+func (input Input) checkContentFlag(kind syncdomain.Kind) error {
+	flag, content := "--content", input.Content
+	if kind == syncdomain.KindTool {
+		flag, content = "--json-schema", input.JSONSchema
+	}
+	if content != nil {
+		return nil
+	}
+
+	var passed []string
+	for _, option := range []struct {
+		flag  string
+		value *string
+	}{{"--name", input.Name}, {"--description", input.Description}, {"--model-config-key", input.ModelConfigKey}} {
+		if option.value != nil {
+			passed = append(passed, option.flag)
+		}
+	}
+	switch len(passed) {
+	case 0:
+		return fmt.Errorf("add creates a %s only when %s is set", kind, flag)
+	case 1:
+		return fmt.Errorf("%s needs %s. add creates a %s only when %s is set.", passed[0], flag, kind, flag)
+	default:
+		return fmt.Errorf("%s need %s. add creates a %s only when %s is set.", joinFlags(passed), flag, kind, flag)
+	}
 }
 
 // Questions are the streams that ask the user for the values that the flags

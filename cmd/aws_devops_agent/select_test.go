@@ -32,15 +32,23 @@ func (s stubAgent) AssociateService(context.Context, *devopsagent.AssociateServi
 	return nil, nil
 }
 
+func (s stubAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	return &devopsagent.CreateAssetOutput{Asset: &agenttypes.Asset{AssetId: aws.String("ki-1")}}, nil
+}
+
+func (s stubAgent) GetAssetFile(context.Context, *devopsagent.GetAssetFileInput, ...func(*devopsagent.Options)) (*devopsagent.GetAssetFileOutput, error) {
+	return nil, &agenttypes.ResourceNotFoundException{}
+}
+
+func (s stubAgent) ListAssets(context.Context, *devopsagent.ListAssetsInput, ...func(*devopsagent.Options)) (*devopsagent.ListAssetsOutput, error) {
+	return &devopsagent.ListAssetsOutput{}, nil
+}
+
+func (s stubAgent) UpdateAsset(context.Context, *devopsagent.UpdateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error) {
+	return &devopsagent.UpdateAssetOutput{}, nil
+}
+
 func (s stubAgent) CreateAgentSpace(context.Context, *devopsagent.CreateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAgentSpaceOutput, error) {
-	return nil, nil
-}
-
-func (s stubAgent) DeregisterService(context.Context, *devopsagent.DeregisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error) {
-	return nil, nil
-}
-
-func (s stubAgent) DisassociateService(context.Context, *devopsagent.DisassociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error) {
 	return nil, nil
 }
 
@@ -85,12 +93,20 @@ func (s stubAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpac
 	return &devopsagent.GetAgentSpaceOutput{AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId}}, nil
 }
 
+func (s stubAgent) UpdateAgentSpace(context.Context, *devopsagent.UpdateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAgentSpaceOutput, error) {
+	return nil, nil
+}
+
 func (s stubAgent) ListAgentSpaces(context.Context, *devopsagent.ListAgentSpacesInput, ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error) {
 	return &devopsagent.ListAgentSpacesOutput{AgentSpaces: s.spaces}, nil
 }
 
 func (s stubAgent) ListAssociations(context.Context, *devopsagent.ListAssociationsInput, ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error) {
 	return &devopsagent.ListAssociationsOutput{Associations: s.associations}, nil
+}
+
+func (s stubAgent) UpdateAssociation(context.Context, *devopsagent.UpdateAssociationInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssociationOutput, error) {
+	return &devopsagent.UpdateAssociationOutput{}, nil
 }
 
 func (s stubAgent) ListServices(context.Context, *devopsagent.ListServicesInput, ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error) {
@@ -616,19 +632,19 @@ func TestResolveAgentSpaceIDWithUnreadTagsConnectsOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, provision)
 	assert.Contains(t, out.String(), "could not read the tags of agent space launchdarkly (space-2), so it only connects the MCP server")
-	assert.Contains(t, out.String(), "--auth-flow")
+	assert.Contains(t, out.String(), "--full-setup")
 }
 
-// --auth-flow forces the full setup on a space that setup did not make, and
+// --full-setup forces the full setup on a space that setup did not make, and
 // setup warns about it before the plan.
-func TestResolveAgentSpaceWarnsAboutAuthFlowOnAnotherSpace(t *testing.T) {
+func TestResolveAgentSpaceWarnsAboutFullSetupOnAnotherSpace(t *testing.T) {
 	for name, space := range map[string]agenttypes.AgentSpace{
 		"made by someone else": {AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
 		"made by setup":        ldcliSpace("space-2", "platform"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			cmd, out := testCmd("")
-			opts := awsdevops.SetupOptions{AgentSpaceID: "space-2", AuthFlowSet: true}
+			opts := awsdevops.SetupOptions{AgentSpaceID: "space-2", FullSetup: true}
 
 			provision, err := resolveAgentSpace(cmd, newStubClients(space), &opts, false)
 

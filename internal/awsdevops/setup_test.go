@@ -3,7 +3,6 @@ package awsdevops_test
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -37,29 +36,17 @@ func TestSetupProgressLinesHaveNoARNs(t *testing.T) {
 		"new space with a slow role": {
 			agent: &fakeAgent{associateFailures: 1},
 			iam:   newFakeIAM(),
-			opts:  awsdevops.SetupOptions{AgentSpaceName: "launchdarkly", AuthFlow: "iam", LDAccessToken: "api-token"},
+			opts:  awsdevops.SetupOptions{AgentSpaceName: "launchdarkly", AuthFlow: "iam"},
 		},
 		"roles ldcli did not create": {
 			agent: &fakeAgent{},
 			iam:   unmanaged,
 			opts:  awsdevops.SetupOptions{AgentSpaceID: "space-1", AuthFlow: "iam"},
 		},
-		"token replacement": {
-			agent: &fakeAgent{
-				services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")},
-				associations: []agenttypes.Association{{
-					AssociationId: aws.String("assoc-old"),
-					ServiceId:     aws.String("mcp-old"),
-				}},
-			},
-			iam: newFakeIAM(),
-			opts: awsdevops.SetupOptions{
-				AgentSpaceID:    "space-1",
-				AuthFlow:        "iam",
-				LDAccessToken:   "api-token",
-				ReplaceMCPToken: true,
-				LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
-			},
+		"reused account server": {
+			agent: &fakeAgent{services: []agenttypes.RegisteredService{oauthMCPService("mcp-account")}},
+			iam:   newFakeIAM(),
+			opts:  awsdevops.SetupOptions{AgentSpaceID: "space-1", AuthFlow: "iam"},
 		},
 	}
 	for name, s := range scenarios {
@@ -79,7 +66,7 @@ func TestSetupProgressLinesHaveNoARNs(t *testing.T) {
 }
 
 func TestConnectExistingProgressHasNoARNs(t *testing.T) {
-	opts := awsdevops.SetupOptions{AgentSpaceID: "space-2", LDAccessToken: "api-token"}
+	opts := awsdevops.SetupOptions{AgentSpaceID: "space-2"}
 	logged := collectLogs(&opts)
 
 	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")}}
@@ -113,7 +100,6 @@ func TestPlanSetupMakesNoWrites(t *testing.T) {
 
 	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, iamClient), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
-		LDAccessToken:  "api-token",
 	}, true)
 	require.NoError(t, err)
 
@@ -199,27 +185,16 @@ func TestPlanSetupNamesTheMCPServerAction(t *testing.T) {
 		opts     awsdevops.SetupOptions
 		want     []string
 	}{
-		"reuse without a token": {
+		"reuse the server of the space": {
 			services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
 			want:     []string{"reuse", "mcp-existing"},
 		},
-		"reuse when replace has no token": {
-			services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
-			opts:     awsdevops.SetupOptions{ReplaceMCPToken: true},
-			want:     []string{"reuse", "mcp-existing"},
-		},
-		"replace the token": {
-			services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
-			opts:     awsdevops.SetupOptions{ReplaceMCPToken: true, LDAccessToken: "api-token"},
-			want:     []string{"replace", "mcp-existing"},
-		},
-		"register with a token": {
-			opts: awsdevops.SetupOptions{LDAccessToken: "api-token"},
-			want: []string{"register", awsdevops.MCPServerEndpoint},
+		"register with OAuth": {
+			want: []string{"register", awsdevops.MCPOAuthServerName, awsdevops.MCPServerEndpoint, "browser"},
 		},
 		"register at another endpoint": {
 			services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
-			opts:     awsdevops.SetupOptions{LDAccessToken: "api-token", MCPEndpoint: "https://mcp.example.com/mcp"},
+			opts:     awsdevops.SetupOptions{MCPEndpoint: "https://mcp.example.com/mcp"},
 			want:     []string{"register", "https://mcp.example.com/mcp"},
 		},
 	}

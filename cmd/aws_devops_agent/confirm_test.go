@@ -43,16 +43,10 @@ func (a countingAgent) CreateAgentSpace(context.Context, *devopsagent.CreateAgen
 	return &devopsagent.CreateAgentSpaceOutput{AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: aws.String("space-new")}}, nil
 }
 
-func (a countingAgent) DeregisterService(context.Context, *devopsagent.DeregisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error) {
-	a.writes.add("DeregisterService")
+func (a countingAgent) CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
+	a.writes.add("CreateAsset")
 
-	return &devopsagent.DeregisterServiceOutput{}, nil
-}
-
-func (a countingAgent) DisassociateService(context.Context, *devopsagent.DisassociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error) {
-	a.writes.add("DisassociateService")
-
-	return &devopsagent.DisassociateServiceOutput{}, nil
+	return &devopsagent.CreateAssetOutput{Asset: &agenttypes.Asset{AssetId: aws.String("ki-1")}}, nil
 }
 
 func (a countingAgent) EnableOperatorApp(context.Context, *devopsagent.EnableOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error) {
@@ -71,10 +65,22 @@ func (a countingAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgent
 	return &devopsagent.GetAgentSpaceOutput{AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId}}, nil
 }
 
+func (a countingAgent) UpdateAgentSpace(context.Context, *devopsagent.UpdateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAgentSpaceOutput, error) {
+	a.writes.add("UpdateAgentSpace")
+
+	return &devopsagent.UpdateAgentSpaceOutput{}, nil
+}
+
 func (a countingAgent) RegisterService(context.Context, *devopsagent.RegisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.RegisterServiceOutput, error) {
 	a.writes.add("RegisterService")
 
 	return &devopsagent.RegisterServiceOutput{ServiceId: aws.String("mcp-1")}, nil
+}
+
+func (a countingAgent) UpdateAsset(context.Context, *devopsagent.UpdateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.UpdateAssetOutput, error) {
+	a.writes.add("UpdateAsset")
+
+	return &devopsagent.UpdateAssetOutput{}, nil
 }
 
 type countingIAM struct{ writes *writes }
@@ -123,11 +129,22 @@ func countingClients(spaces ...agenttypes.AgentSpace) (awsdevops.Clients, *write
 	w := &writes{}
 
 	return awsdevops.Clients{
-		Agent:  countingAgent{stubAgent: stubAgent{spaces: spaces}, writes: w},
-		IAM:    countingIAM{writes: w},
-		STS:    accountSTS{},
-		Region: "eu-west-2",
+		Agent:   countingAgent{stubAgent: stubAgent{spaces: spaces}, writes: w},
+		IAM:     countingIAM{writes: w},
+		STS:     accountSTS{},
+		Sources: stubSources{skill: "---\nname: experiment-orchestration\ndescription: Run experiments.\n---\n"},
+		Region:  "eu-west-2",
 	}, w
+}
+
+type stubSources struct{ skill string }
+
+func (s stubSources) File(_ context.Context, path string) (string, error) {
+	if strings.HasSuffix(path, "SKILL.md") {
+		return s.skill, nil
+	}
+
+	return "# Experiment orchestrator\n", nil
 }
 
 // noReadStdin fails the test on any read.
@@ -155,7 +172,7 @@ func setupTestCmd(t *testing.T, stdin string) (*cobra.Command, *bytes.Buffer) {
 }
 
 func newSpaceOptions() awsdevops.SetupOptions {
-	return awsdevops.SetupOptions{AgentSpaceName: "ld-devops-agent", AuthFlow: "iam", LDAccessToken: "api-token"}
+	return awsdevops.SetupOptions{AgentSpaceName: "ld-devops-agent", AuthFlow: "iam"}
 }
 
 // A json run in a terminal asks too, because the question goes to stderr.

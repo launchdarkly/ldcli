@@ -15,11 +15,13 @@ import (
 // syncCommandFlags is the exact flag set of every sync command that runs. A
 // new command, or a new question without a flag, must change this list.
 var syncCommandFlags = map[string][]string{
-	"sync all":                  {"conflict", "diff", "dry-run", "no-input", "project", "yes"},
-	"sync all watch":            {"conflict", "diff", "no-input", "project", "yes"},
-	"sync prompts":              {"config-key", "conflict", "diff", "dry-run", "key", "no-input", "project", "resolve", "yes"},
-	"sync prompts watch":        {"config-key", "conflict", "diff", "key", "no-input", "project", "resolve", "yes"},
-	"sync prompts add":          {"config-key", "diff", "dry-run", "key", "no-input", "project"},
+	"sync all":           {"conflict", "diff", "dry-run", "no-input", "project", "yes"},
+	"sync all watch":     {"conflict", "diff", "no-input", "project", "yes"},
+	"sync prompts":       {"config-key", "conflict", "diff", "dry-run", "key", "no-input", "project", "resolve", "yes"},
+	"sync prompts watch": {"config-key", "conflict", "diff", "key", "no-input", "project", "resolve", "yes"},
+	"sync prompts add": {
+		"config-key", "content", "diff", "dry-run", "key", "model-config-key", "name", "no-input", "project", "yes",
+	},
 	"sync prompts attach tool":  {"conflict", "diff", "no-input", "project", "resolve", "to", "yes"},
 	"sync prompts attach skill": {"conflict", "diff", "no-input", "project", "resolve", "to", "yes"},
 	"sync prompts detach":       {"archive", "config-key", "key", "no-input", "project", "yes"},
@@ -102,6 +104,14 @@ func TestAddReadsTheCreateInputFromTheFlagsThatAreSet(t *testing.T) {
 	assert.Equal(t, "", *input.Description)
 	assert.Nil(t, input.Name)
 	assert.Nil(t, input.JSONSchema)
+
+	prompts, _, err := root.Find([]string{"prompts", "add"})
+	require.NoError(t, err)
+	require.NoError(t, prompts.ParseFlags([]string{"--content", "Escalate.", "--model-config-key", "claude"}))
+	input = createInput(prompts)
+	require.NotNil(t, input)
+	assert.Equal(t, "claude", *input.ModelConfigKey)
+	assert.Nil(t, input.Name)
 }
 
 func TestSyncCommandScopeNamesTheKindOfTheCommand(t *testing.T) {

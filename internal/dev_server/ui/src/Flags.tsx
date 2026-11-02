@@ -16,9 +16,10 @@ import {
   Stack,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
-import { apiRoute } from './util.ts';
+import { apiRoute, sortFlags } from './util.ts';
+import { OverrideControl, sendUiAnalytics, valueKind } from './uiAnalytics';
 import { FlagVariation } from './api.ts';
 import VariationValues from './Flag.tsx';
 import fuzzysort from 'fuzzysort';
@@ -41,6 +42,7 @@ function Flags({
   setOverrides,
 }: FlagProps) {
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
+  const [onlyShowLocal, setOnlyShowLocal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const flagsPerPage = 20;
@@ -50,15 +52,40 @@ function Flags({
     [overrides],
   );
 
+  const localFlagsPresent = useMemo(
+    () =>
+      !!flags && Object.keys(overrides).some((flagKey) => !(flagKey in flags)),
+    [flags, overrides],
+  );
+
   useEffect(() => {
-    if (!overridesPresent && onlyShowOverrides) {
+    if (!overridesPresent) {
       setOnlyShowOverrides(false);
     }
-  }, [overridesPresent, onlyShowOverrides]);
+  }, [overridesPresent]);
+
+  useEffect(() => {
+    if (flags && !localFlagsPresent) {
+      setOnlyShowLocal(false);
+    }
+  }, [flags, localFlagsPresent]);
+
+  const showOnlyOverrides = onlyShowOverrides && !!overridesPresent;
+  const showOnlyLocal = onlyShowLocal && localFlagsPresent;
+
+  const allFlags = useMemo(() => {
+    if (!flags) return null;
+    const localFlags = Object.fromEntries(
+      Object.entries(overrides)
+        .filter(([flagKey]) => !(flagKey in flags))
+        .map(([flagKey, { value }]) => [flagKey, { value }]),
+    );
+    return sortFlags({ ...flags, ...localFlags });
+  }, [flags, overrides]);
 
   const filteredFlags = useMemo(() => {
-    if (!flags) return [];
-    const flagEntries = Object.entries(flags);
+    if (!allFlags) return [];
+    const flagEntries = Object.entries(allFlags);
     return flagEntries
       .filter((entry) => {
         if (!searchTerm) return true;
@@ -79,13 +106,24 @@ function Flags({
         const [flagKey] = entry;
         const hasOverride = flagKey in overrides;
 
-        if (onlyShowOverrides && !hasOverride) {
+        if (showOnlyOverrides && !hasOverride) {
+          return false;
+        }
+
+        if (showOnlyLocal && (!flags || flagKey in flags)) {
           return false;
         }
 
         return true;
       });
-  }, [flags, searchTerm, onlyShowOverrides, overrides]);
+  }, [
+    allFlags,
+    flags,
+    searchTerm,
+    showOnlyOverrides,
+    showOnlyLocal,
+    overrides,
+  ]);
 
   const paginatedFlags = useMemo(() => {
     const startIndex = currentPage * flagsPerPage;
@@ -94,7 +132,7 @@ function Flags({
   }, [filteredFlags, currentPage]);
 
   const updateOverride = useCallback(
-    (flagKey: string, overrideValue: LDFlagValue) => {
+    (flagKey: string, overrideValue: LDFlagValue, control: OverrideControl) => {
       const updatedOverrides = {
         ...overrides,
         [flagKey]: {
@@ -104,6 +142,10 @@ function Flags({
       };
 
       setOverrides(updatedOverrides);
+      const analytics = {
+        value_kind: valueKind(overrideValue),
+        control,
+      };
       fetch(apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`), {
         method: 'PUT',
         body: JSON.stringify(overrideValue),
@@ -114,9 +156,17 @@ function Flags({
               `got ${res.status} ${res.statusText}. ${await res.text()}`,
             );
           }
+          sendUiAnalytics('Dev Server UI Flag Override Set', {
+            ...analytics,
+            outcome: 'success',
+          });
         })
         .catch((err) => {
           setOverrides(overrides);
+          sendUiAnalytics('Dev Server UI Flag Override Set', {
+            ...analytics,
+            outcome: 'error',
+          });
           console.error('unable to update override', err);
         });
     },
@@ -142,9 +192,17 @@ function Flags({
             `got ${res.status} ${res.statusText}. ${await res.text()}`,
           );
         }
+        sendUiAnalytics('Dev Server UI Flag Override Removed', {
+          scope: 'one',
+          outcome: 'success',
+        });
       } catch (err) {
         console.error('unable to remove override', err);
         setOverrides(overrides);
+        sendUiAnalytics('Dev Server UI Flag Override Removed', {
+          scope: 'one',
+          outcome: 'error',
+        });
       }
     },
     [overrides, selectedProject],
@@ -165,9 +223,17 @@ function Flags({
           `got ${res.status} ${res.statusText}. ${await res.text()}`,
         );
       }
+      sendUiAnalytics('Dev Server UI Flag Override Removed', {
+        scope: 'all',
+        outcome: 'success',
+      });
     } catch (err) {
       console.error('unable to remove all overrides', err);
       setOverrides(overrides);
+      sendUiAnalytics('Dev Server UI Flag Override Removed', {
+        scope: 'all',
+        outcome: 'error',
+      });
     }
   }, [overrides, selectedProject]);
 
@@ -213,11 +279,11 @@ function Flags({
       >
         <Label
           htmlFor="only-show-overrides"
-          className="only-show-overrides-label"
+          className={`only-show-overrides-label${overridesPresent ? '' : ' disabled'}`}
         >
           <Checkbox
             id="only-show-overrides"
-            isSelected={onlyShowOverrides}
+            isSelected={showOnlyOverrides}
             onChange={(newValue) => {
               setOnlyShowOverrides(newValue);
             }}
@@ -229,6 +295,26 @@ function Flags({
           />
           Only show flags with overrides
         </Label>
+        {localFlagsPresent && (
+          <Label
+            htmlFor="only-show-local"
+            className="only-show-overrides-label"
+            style={{ marginLeft: '1.5rem', marginRight: 'auto' }}
+          >
+            <Checkbox
+              id="only-show-local"
+              isSelected={showOnlyLocal}
+              onChange={(newValue) => {
+                setOnlyShowLocal(newValue);
+              }}
+              style={{
+                display: 'inline-block',
+                marginRight: '.25rem',
+              }}
+            />
+            Only show local flags
+          </Label>
+        )}
         <Button
           variant="destructive"
           isDisabled={!overridesPresent}

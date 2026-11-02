@@ -17,27 +17,32 @@ var (
 
 func TestCheckNeedsTheFlagThatStartsTheCreate(t *testing.T) {
 	tests := map[string]struct {
-		kind  syncdomain.AttachmentKind
+		kind  syncdomain.Kind
 		input Input
 		want  string
 	}{
 		"tool description": {
-			kind:  syncdomain.AttachmentTool,
+			kind:  syncdomain.KindTool,
 			input: Input{Description: pointer("Issue a refund")},
 			want:  "--description needs --json-schema. add creates a tool only when --json-schema is set.",
 		},
 		"skill name": {
-			kind:  syncdomain.AttachmentSkill,
+			kind:  syncdomain.KindSkill,
 			input: Input{Name: pointer("Triage")},
 			want:  "--name needs --content. add creates a skill only when --content is set.",
 		},
 		"skill name and description": {
-			kind:  syncdomain.AttachmentSkill,
+			kind:  syncdomain.KindSkill,
 			input: Input{Name: pointer("Triage"), Description: pointer("")},
 			want:  "--name and --description need --content. add creates a skill only when --content is set.",
 		},
+		"variation name and model config": {
+			kind:  syncdomain.KindVariation,
+			input: Input{Name: pointer("Escalation"), ModelConfigKey: pointer("claude")},
+			want:  "--name and --model-config-key need --content. add creates a variation only when --content is set.",
+		},
 		"no flag": {
-			kind: syncdomain.AttachmentTool,
+			kind: syncdomain.KindTool,
 			want: "add creates a tool only when --json-schema is set",
 		},
 	}
@@ -68,7 +73,7 @@ func TestCheckDecodesTheJSONSchemaStrictly(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := Input{JSONSchema: pointer(test.schema)}.Check(syncdomain.AttachmentTool)
+			err := Input{JSONSchema: pointer(test.schema)}.Check(syncdomain.KindTool)
 			if test.want == "" {
 				require.NoError(t, err)
 				return
@@ -79,10 +84,10 @@ func TestCheckDecodesTheJSONSchemaStrictly(t *testing.T) {
 }
 
 func TestCheckRejectsBlankSkillValues(t *testing.T) {
-	require.EqualError(t, Input{Content: pointer(" \n")}.Check(syncdomain.AttachmentSkill), "--content cannot be blank")
-	require.EqualError(t, Input{Content: pointer("Triage."), Name: pointer(" ")}.Check(syncdomain.AttachmentSkill),
+	require.EqualError(t, Input{Content: pointer(" \n")}.Check(syncdomain.KindSkill), "--content cannot be blank")
+	require.EqualError(t, Input{Content: pointer("Triage."), Name: pointer(" ")}.Check(syncdomain.KindSkill),
 		"--name cannot be blank")
-	require.NoError(t, Input{Content: pointer("Triage."), Description: pointer("")}.Check(syncdomain.AttachmentSkill))
+	require.NoError(t, Input{Content: pointer("Triage."), Description: pointer("")}.Check(syncdomain.KindSkill))
 }
 
 func TestAttachmentBuildsATool(t *testing.T) {

@@ -1,7 +1,6 @@
 package awsdevopsagent
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -9,19 +8,9 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-
-	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-// Never call the real LaunchDarkly API.
 func TestMain(m *testing.M) {
-	awsdevops.CheckToken = func(ctx context.Context, baseURI, token string) error {
-		if baseURI == "" {
-			return nil
-		}
-
-		return awsdevops.ValidateAccessToken(ctx, baseURI, token)
-	}
 	newChooser = lineChooser
 	os.Exit(m.Run())
 }

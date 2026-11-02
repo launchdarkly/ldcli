@@ -86,9 +86,10 @@ func (store Store) VariationExists(projectKey, configKey, variationKey string) (
 	return store.fileExists(relativePath, "variation "+variationKey)
 }
 
-// AttachmentExists reports whether the file of a tool or a skill exists.
-func (store Store) AttachmentExists(id syncdomain.ResourceID) (bool, error) {
-	relativePath, err := attachmentPath(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+// ResourceExists reports whether the file of a variation, a tool, or a skill
+// exists.
+func (store Store) ResourceExists(id syncdomain.ResourceID) (bool, error) {
+	relativePath, err := resourcePath(id)
 	if err != nil {
 		return false, err
 	}

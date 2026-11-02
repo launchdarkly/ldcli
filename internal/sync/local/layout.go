@@ -62,10 +62,11 @@ func ParseManagedPath(file string) (syncdomain.ResourceID, bool) {
 	return id, true
 }
 
-// AttachmentPath returns the path of a tool or skill file relative to the
-// repository root, in the form that ParseManagedPath reads.
-func AttachmentPath(id syncdomain.ResourceID) (string, error) {
-	relativePath, err := attachmentPath(id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+// ResourcePath returns the path of the file of a variation, a tool, or a
+// skill relative to the repository root, in the form that ParseManagedPath
+// reads.
+func ResourcePath(id syncdomain.ResourceID) (string, error) {
+	relativePath, err := resourcePath(id)
 	if err != nil {
 		return "", err
 	}

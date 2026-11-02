@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -33,8 +34,6 @@ const (
 	// AWS account association.
 	awsServiceID = "aws"
 
-	DefaultLDBaseURI = "https://app.launchdarkly.com"
-
 	roleAssumableTimeout     = 2 * time.Minute
 	roleAssumableFirstWait   = time.Second
 	roleAssumableMaxInterval = 10 * time.Second
@@ -42,15 +41,34 @@ const (
 	MCPServerName     = "LaunchDarkly"
 	MCPServerEndpoint = "https://mcp.launchdarkly.com/mcp/launchdarkly"
 
+	// MCPOAuthServerName is the name of the MCP server that setup registers.
+	// It differs from MCPServerName, the name that the AWS console guide
+	// uses, so it does not conflict with a server that someone registered
+	// with a token.
+	MCPOAuthServerName = "LaunchDarkly-OAuth"
+
+	// oauthTimeout is how long setup waits for a person to approve access.
+	oauthTimeout = 10 * time.Minute
+
 	agentSpaceDescription = "Managed by the LaunchDarkly CLI"
+	mcpServerDescription  = "LaunchDarkly feature flag management MCP server"
+	// ElevatedActionsPreference lets the agent run actions that change AWS
+	// resources.
+	ElevatedActionsPreference = "elevatedActionsEnabled"
 )
+
+// oauthPollInterval is how often setup looks for the server that AWS
+// registers after a person approves access. Tests make it shorter.
+var oauthPollInterval = 5 * time.Second
 
 // The agent invokes read-only tools without asking for approval, so anything
 // that changes LaunchDarkly state has to be classified explicitly. The lists
 // cover the steps of the experiment-orchestration skill: find a flag, create
-// it, run an experiment, read its results, and ramp or clean up the flag.
+// it, run an experiment, read its results, and ramp or clean up the flag. The
+// skill creates a missing primary metric, so the lists include create-metric.
 // They also cover incident work: turn a change off for one segment or
-// context, and ask for approval where an environment needs it.
+// context, and ask for approval where an environment needs it, then apply
+// the request after a reviewer approves it.
 var (
 	mcpReadOnlyTools = []string{
 		"list-projects",
@@ -63,10 +81,14 @@ var (
 		"query-change-history",
 		"list-metrics",
 		"get-metric",
+		"list-metric-events",
 		"list-experiments",
 		"get-experiment",
 		"get-experiment-results",
 		"get-experiment-metric-results",
+		"get-flag-health",
+		"get-flag-unique-context-exposures",
+		"search-contexts",
 		"list-segments",
 		"get-segment",
 		"list-approval-requests",
@@ -76,16 +98,23 @@ var (
 	mcpMutativeTools = []string{
 		"toggle-flag",
 		"create-flag",
+		"update-flag-settings",
+		"update-off-variation",
+		"create-metric",
 		"update-rollout",
 		"archive-flag",
 		"create-experiment",
+		"update-experiment",
 		"start-experiment-iteration",
+		"save-and-start-experiment-iteration",
 		"stop-experiment-iteration",
 		"start-guarded-rollout",
 		"stop-guarded-rollout",
+		"create-automated-rollout-config",
 		"update-targeting-rules",
 		"update-individual-targets",
 		"create-approval-request",
+		"apply-approval-request",
 	}
 )
 
@@ -94,6 +123,8 @@ type SetupOptions struct {
 	AgentSpaceID   string
 	AgentSpaceName string
 	NewAgentSpace  bool
+	// FullSetup: the user passed --full-setup.
+	FullSetup bool
 
 	AuthFlow string
 	// AuthFlowSet: the user passed --auth-flow.
@@ -103,17 +134,19 @@ type SetupOptions struct {
 	IdpClientID     string
 	IdpClientSecret string
 
-	LDBaseURI       string
-	LDAccessToken   string
-	ReplaceMCPToken bool
-
-	// MCPServiceID, when set, is the registration to reuse or replace instead
-	// of the server of the agent space.
+	// MCPServiceID, when set, is the registration to connect instead of the
+	// server of the AWS account.
 	MCPServiceID string
 	// MCPEndpoint overrides the LaunchDarkly MCP endpoint, for an account
 	// running the open-source MCP server itself. The endpoint identifies the
 	// registration, so a self-hosted one is never confused with ours.
 	MCPEndpoint string
+	// OpenURL, when set, opens the OAuth approval page in a browser.
+	OpenURL func(url string) error
+
+	// ReplaceSkill overwrites the SKILL.md of an existing
+	// experiment-orchestration skill that differs from the latest one.
+	ReplaceSkill bool
 
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
@@ -132,6 +165,26 @@ type SetupResult struct {
 	OperatorAppEnabled bool   `json:"operatorAppEnabled"`
 	MCPServiceID       string `json:"mcpServiceId,omitempty"`
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
+	// MCPToolsAdded lists the ldcli tools that setup added to the allowlist of
+	// an existing MCP server association.
+	MCPToolsAdded []string `json:"mcpToolsAdded,omitempty"`
+	// MCPToolsError is set if the allowlist of an existing association misses
+	// ldcli tools that setup could not add. The rest of the setup ran.
+	MCPToolsError string `json:"mcpToolsError,omitempty"`
+	SkillAssetID  string `json:"skillAssetId,omitempty"`
+	// SkillAction is what the skill step did, for example "kept" or "left".
+	SkillAction string `json:"skillAction,omitempty"`
+	// SkillError is set if the skill step failed or was skipped. The skill is
+	// optional, so the rest of the setup ran.
+	SkillError   string `json:"skillError,omitempty"`
+	AgentAssetID string `json:"agentAssetId,omitempty"`
+	// AgentAction is what the custom agent step did, for example "created".
+	AgentAction string `json:"agentAction,omitempty"`
+	// AgentError is set if the custom agent step failed or was skipped.
+	AgentError string `json:"agentError,omitempty"`
+	// mcpServerName is the name of the server in AWS, which the tool IDs of
+	// the custom agent start with.
+	mcpServerName string
 }
 
 // ErrPlanChanged means AWS changed after the plan.
@@ -187,17 +240,23 @@ type SpaceStep struct {
 	Action SpaceAction
 	ID     string
 	Name   string
+	// EnableElevated turns on elevated actions on the space.
+	EnableElevated bool
 }
 
 func (s SpaceStep) describe() string {
 	label := fmt.Sprintf("%s (%s)", s.Name, s.ID)
+	elevated := ""
+	if s.EnableElevated {
+		elevated = ", and turn on elevated actions"
+	}
 	switch s.Action {
 	case SpaceCreate:
-		return "Create agent space " + s.Name
+		return "Create agent space " + s.Name + elevated
 	case SpaceConnect:
 		return "Connect to agent space " + label
 	default:
-		return "Reuse agent space " + label
+		return "Reuse agent space " + label + elevated
 	}
 }
 
@@ -337,10 +396,6 @@ type MCPAction int
 const (
 	MCPRegister MCPAction = iota
 	MCPReuse
-	MCPReplace
-	MCPAsk
-	// MCPSkip means that the user gave no token, so the run skips the server.
-	MCPSkip
 )
 
 // MCPStep is the planned MCP server step.
@@ -349,17 +404,17 @@ type MCPStep struct {
 	ServiceID string
 	// Endpoint is the URL that the server serves.
 	Endpoint string
-	// Name is the name of an existing server in AWS. The customer can change
-	// it, so it can differ from MCPServerName.
+	// Name is the name of an existing server in AWS.
 	Name string
 	// Spaces lists spaces linked to the server.
 	Spaces []string
 	// SpaceID is the agent space of the step. It is empty for a new space.
 	SpaceID string
-	// Unused is a server with the name that setup gives the space, which no
-	// space uses. A replace on a shared server removes it first, so that the
-	// new server can have the name. An earlier run that failed leaves one.
-	Unused string
+	// MissingTools are the ldcli tools that the allowlist of the existing
+	// association in the space misses. CanAddTools says whether setup can add
+	// them.
+	MissingTools []string
+	CanAddTools  bool
 }
 
 // shared reports whether other spaces use the server.
@@ -368,7 +423,7 @@ func (m MCPStep) shared() bool {
 }
 
 // otherSpaces lists the spaces, other than the space of the step, that use
-// the server. A token replacement does not change them.
+// the server.
 func (m MCPStep) otherSpaces() []string {
 	var others []string
 	for _, id := range m.Spaces {
@@ -396,21 +451,35 @@ type SetupPlan struct {
 	// AuthFlow is the sign-in that a full setup sets.
 	AuthFlow string
 	MCP      MCPStep
+	Skill    SkillStep
+	Agent    AgentStep
 }
 
 // PlanText is the plan as lines for a person to read.
 type PlanText struct {
+	// Scope tells if the run is a full setup.
+	Scope       string
 	AgentSpace  string
 	Association string
 	Roles       []string
 	OperatorApp string
 	MCPServer   string
+	Skill       string
+	Agent       string
 }
 
 // Text describes each step of the plan.
 func (p SetupPlan) Text() PlanText {
-	text := PlanText{AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe()}
+	text := PlanText{
+		Scope:      "Full setup",
+		AgentSpace: p.Space.describe(),
+		MCPServer:  p.MCP.describe(),
+		Skill:      p.Skill.describe(),
+		Agent:      p.Agent.describe(),
+	}
 	if p.Space.Action == SpaceConnect {
+		text.Scope = "Connect the MCP server only. To also update the IAM roles, " +
+			"account association, and operator app of the space, run setup again with --full-setup"
 		text.Association = "No change"
 		text.Roles = []string{"No change"}
 		text.OperatorApp = "No change"
@@ -491,6 +560,21 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	if err != nil {
 		return plan, err
 	}
+
+	if plan.MCP.Action == MCPReuse && plan.Space.Action != SpaceCreate {
+		association, err := findMCPAssociation(ctx, clients, plan.Space.ID, plan.MCP.ServiceID)
+		if err != nil {
+			return plan, err
+		}
+		if association != nil {
+			plan.MCP.MissingTools, plan.MCP.CanAddTools = missingTools(*association)
+		}
+	}
+
+	// Download once, so the run writes the same texts that the plan compared.
+	skill, prompt, fetchErr := fetchSources(ctx, clients.Sources)
+	plan.Skill = planSkill(ctx, clients, opts, plan.Space, skill, fetchErr)
+	plan.Agent = planAgent(ctx, clients, plan.Space, plan.MCP, plan.Skill, prompt, fetchErr)
 
 	if !provision {
 		// Read the app, so the run does not print a URL that does not work.
@@ -581,7 +665,7 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 		return SpaceStep{}, errors.New("a new agent space needs a name. Pass --agent-space-name")
 	}
 	if id == "" {
-		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, EnableElevated: true}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
@@ -591,6 +675,8 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 	step := SpaceStep{Action: SpaceReuse, ID: id, Name: aws.ToString(space.AgentSpace.Name)}
 	if !provision {
 		step.Action = SpaceConnect
+	} else {
+		step.EnableElevated = !space.AgentSpace.Preferences[ElevatedActionsPreference]
 	}
 
 	return step, nil
@@ -622,6 +708,29 @@ func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
 	return nil
 }
 
+// enableElevatedActions turns on elevated actions on a space. An update
+// replaces all the preferences, so it sends the current ones too.
+func enableElevatedActions(ctx context.Context, clients Clients, spaceID string) error {
+	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(spaceID)})
+	if err != nil {
+		return fmt.Errorf("unable to read agent space %s: %w", spaceID, err)
+	}
+	preferences := maps.Clone(space.AgentSpace.Preferences)
+	if preferences == nil {
+		preferences = map[string]bool{}
+	}
+	preferences[ElevatedActionsPreference] = true
+	_, err = clients.Agent.UpdateAgentSpace(ctx, &devopsagent.UpdateAgentSpaceInput{
+		AgentSpaceId: aws.String(spaceID),
+		Preferences:  preferences,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to turn on elevated actions on agent space %s: %w", spaceID, err)
+	}
+
+	return nil
+}
+
 func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions, spaceID string) (MCPStep, error) {
 	step, err := planMCPAction(ctx, clients, opts, spaceID)
 	step.Endpoint = opts.mcpEndpoint()
@@ -631,7 +740,7 @@ func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions, spaceI
 }
 
 func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions, spaceID string) (MCPStep, error) {
-	linked, own, err := spaceMCPServers(ctx, clients, spaceID, opts.mcpEndpoint())
+	linked, err := linkedMCPServer(ctx, clients, spaceID, opts.mcpEndpoint())
 	if err != nil {
 		return MCPStep{}, err
 	}
@@ -653,62 +762,24 @@ func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions, spac
 		}
 		existing = opts.MCPServiceID
 	case existing == "":
-		// A run that registered the server and then failed to connect it
-		// leaves a server with the name of the space.
-		existing, name = own.ID, own.Name
+		// Every agent space uses the one server of the account.
+		account, err := accountMCPServer(ctx, clients, opts.mcpEndpoint())
+		if err != nil {
+			return MCPStep{}, err
+		}
+		existing, name = account.ID, account.Name
 	}
-
-	switch {
-	case existing != "" && opts.ReplaceMCPToken && opts.LDAccessToken != "":
-		spaces, err := spacesWith(ctx, clients, existing)
-		if err != nil {
-			return MCPStep{}, err
-		}
-		step := MCPStep{Action: MCPReplace, ServiceID: existing, Name: name, Spaces: spaces, SpaceID: spaceID}
-		// The new server gets the name of the space. A server that other
-		// spaces use keeps the name, so the new server cannot have it.
-		if step.shared() && own.ID == existing {
-			return MCPStep{}, nameTaken(own, spaceID, step.otherSpaces())
-		}
-		if own.ID != "" && own.ID != existing {
-			users, err := spacesWith(ctx, clients, own.ID)
-			if err != nil {
-				return MCPStep{}, err
-			}
-			if len(users) > 0 {
-				return MCPStep{}, nameTaken(own, spaceID, users)
-			}
-			// No space uses it, so the run removes it before it registers.
-			step.Unused = own.ID
-		}
-
-		return step, nil
-	case existing != "":
-		// The other spaces are only for the plan text, which warns that the
-		// space shares a token.
-		spaces, err := spacesWith(ctx, clients, existing)
-		if err != nil {
-			return MCPStep{}, err
-		}
-
-		return MCPStep{Action: MCPReuse, ServiceID: existing, Name: name, Spaces: spaces}, nil
-	case opts.LDAccessToken != "":
+	if existing == "" {
 		return MCPStep{Action: MCPRegister}, nil
-	default:
-		return MCPStep{Action: MCPAsk}, nil
 	}
-}
 
-// nameTaken is the error for a server that has the name that setup gives an
-// agent space, while other agent spaces use it.
-func nameTaken(own mcpRef, spaceID string, users []string) error {
-	return fmt.Errorf(
-		"MCP server %s (%s) has the name that setup gives agent space %s, and other agent spaces (%s) use it, "+
-			"so setup cannot register a new server with that name. Rename %s in the AWS console, then run setup again. "+
-			"Or, to move those agent spaces to their own servers, run setup with --agent-space-id <id> "+
-			"--access-token <token> --replace-mcp-token for each one",
-		own.Name, own.ID, spaceID, strings.Join(users, ", "), own.ID,
-	)
+	// The other spaces are only for the plan text.
+	spaces, err := spacesWith(ctx, clients, existing)
+	if err != nil {
+		return MCPStep{}, err
+	}
+
+	return MCPStep{Action: MCPReuse, ServiceID: existing, Name: name, Spaces: spaces}, nil
 }
 
 // checkMCPServiceID needs a registered MCP server at the LaunchDarkly
@@ -739,8 +810,12 @@ func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string
 	return "", fmt.Errorf("ID %s names no registered MCP server", id)
 }
 
-// name is the name of the server in AWS, or the name that setup registers.
+// name is the name of the server in AWS. A new server gets
+// MCPOAuthServerName.
 func (m MCPStep) name() string {
+	if m.Action == MCPRegister {
+		return MCPOAuthServerName
+	}
 	if m.Name != "" {
 		return m.Name
 	}
@@ -749,98 +824,59 @@ func (m MCPStep) name() string {
 }
 
 func (m MCPStep) describe() string {
-	switch m.Action {
-	case MCPReplace:
-		var line string
-		if m.shared() {
-			line = fmt.Sprintf(
-				"Register a new MCP server for this agent space at %s. MCP server %s (%s) keeps its token for %s",
-				m.Endpoint, m.name(), m.ServiceID, strings.Join(m.otherSpaces(), ", "),
-			)
-		} else {
-			line = fmt.Sprintf("Replace the token of MCP server %s (%s)", m.name(), m.ServiceID)
-			// Every server that setup registers has the name of its space,
-			// so a run after a failure can find it.
-			switch {
-			case m.SpaceID == "":
-				line += ", and give it the name of the new agent space"
-			case m.name() != MCPServerNameFor(m.SpaceID):
-				line += ", and rename it to " + MCPServerNameFor(m.SpaceID)
-			}
-		}
-		if m.Unused != "" {
-			line = fmt.Sprintf("Remove MCP server %s (%s), which no agent space uses. %s",
-				MCPServerNameFor(m.SpaceID), m.Unused, line)
-		}
-
-		return line
-	case MCPReuse:
-		line := fmt.Sprintf("Reuse MCP server %s (%s)", m.name(), m.ServiceID)
-		if m.shared() {
-			line += fmt.Sprintf(
-				". Agent spaces %s also use it and its token. "+
-					"To give this agent space its own server, pass --access-token and --replace-mcp-token",
-				strings.Join(m.otherSpaces(), ", "),
-			)
-		}
-
-		return line
-	case MCPRegister:
-		return fmt.Sprintf("Register a new MCP server for this agent space at %s", m.Endpoint)
-	case MCPSkip:
-		return fmt.Sprintf("Skip MCP server %s, because no token was given", MCPServerName)
+	if m.Action == MCPRegister {
+		return fmt.Sprintf(
+			"Register MCP server %s for the AWS account at %s. You approve access to LaunchDarkly in a browser",
+			MCPOAuthServerName, m.Endpoint,
+		)
+	}
+	line := fmt.Sprintf("Reuse MCP server %s (%s)", m.name(), m.ServiceID)
+	if m.shared() {
+		line += fmt.Sprintf(". Agent spaces %s also use it", strings.Join(m.otherSpaces(), ", "))
+	}
+	switch {
+	case len(m.MissingTools) == 0:
+	case m.CanAddTools:
+		line += ", and add " + strings.Join(m.MissingTools, ", ") +
+			" to its allowlist. The rewrite gives each tool the ldcli classification"
 	default:
-		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName)
-	}
-}
-
-// AWS stores tokens write-only. Check them first.
-func checkSentToken(ctx context.Context, opts SetupOptions, step MCPStep) error {
-	if step.Action != MCPRegister && step.Action != MCPReplace {
-		return nil
+		line += ". Its allowlist misses " + strings.Join(m.MissingTools, ", ") +
+			", which setup cannot add because the allowlist has tools that ldcli does not classify"
 	}
 
-	return CheckToken(ctx, opts.LDBaseURI, opts.LDAccessToken)
+	return line
 }
 
 // checkMCP compares AWS with the MCP step of agent space spaceID. The ID is
 // empty for a space that the run creates.
 func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPStep, spaceID string) error {
-	if step.Action == MCPSkip {
-		return nil
-	}
-	if step.Action == MCPReuse || step.Action == MCPReplace {
+	if step.Action == MCPReuse {
 		services, err := listServices(ctx, clients)
 		if err != nil {
 			return err
 		}
-		found := false
 		for _, service := range services {
-			found = found || aws.ToString(service.ServiceId) == step.ServiceID
-		}
-		if !found {
-			return planChanged("MCP server %s disappeared after the plan", step.ServiceID)
-		}
-		if step.Action != MCPReplace {
-			return nil
-		}
-		now, err := spacesWith(ctx, clients, step.ServiceID)
-		if err != nil {
-			return err
-		}
-		if !slices.Equal(now, step.Spaces) {
-			return planChanged("the spaces using MCP server %s changed", step.ServiceID)
+			if aws.ToString(service.ServiceId) == step.ServiceID {
+				return nil
+			}
 		}
 
-		return nil
+		return planChanged("MCP server %s disappeared after the plan", step.ServiceID)
 	}
 
-	linked, own, err := spaceMCPServers(ctx, clients, spaceID, opts.mcpEndpoint())
+	linked, err := linkedMCPServer(ctx, clients, spaceID, opts.mcpEndpoint())
 	if err != nil {
 		return err
 	}
-	if linked.ID != "" || own.ID != "" {
+	if linked.ID != "" {
 		return planChanged("agent space %s got an MCP server at %s after the plan", spaceID, opts.mcpEndpoint())
+	}
+	account, err := accountMCPServer(ctx, clients, opts.mcpEndpoint())
+	if err != nil {
+		return err
+	}
+	if account.ID != "" {
+		return planChanged("the AWS account got MCP server %s (%s) after the plan", account.Name, account.ID)
 	}
 
 	return nil
@@ -881,9 +917,6 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err := checkMCP(ctx, clients, opts, plan.MCP, plan.Space.ID); err != nil {
 		return result, err
 	}
-	if err := checkSentToken(ctx, opts, plan.MCP); err != nil {
-		return result, err
-	}
 	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
 	if err != nil {
 		return result, err
@@ -912,11 +945,15 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		if err := checkSpace(ctx, clients, plan.Space); err != nil {
 			return result, err
 		}
-		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
+		input := &devopsagent.CreateAgentSpaceInput{
 			Name:        aws.String(plan.Space.Name),
 			Description: aws.String(agentSpaceDescription),
 			Tags:        map[string]string{ManagedTagKey: ManagedTagValue},
-		})
+		}
+		if plan.Space.EnableElevated {
+			input.Preferences = map[string]bool{ElevatedActionsPreference: true}
+		}
+		space, err := clients.Agent.CreateAgentSpace(ctx, input)
 		if err != nil {
 			return result, fmt.Errorf("unable to create the agent space: %w", err)
 		}
@@ -925,6 +962,12 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	} else {
 		result.AgentSpaceID = plan.Space.ID
 		logf("Reused agent space %s (%s)", plan.Space.Name, plan.Space.ID)
+		if plan.Space.EnableElevated {
+			if err := enableElevatedActions(ctx, clients, plan.Space.ID); err != nil {
+				return result, err
+			}
+			logf("Turned on elevated actions on agent space %s", plan.Space.ID)
+		}
 	}
 
 	result.AWSAssociationID, err = FindAWSAssociation(ctx, clients, result.AgentSpaceID, accountID)
@@ -979,6 +1022,10 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
+	// The skill and the agent go last, so a failure of the optional steps
+	// cannot stop the MCP server step.
+	installSkill(ctx, clients, plan.Skill, &result, logf)
+	installAgent(ctx, clients, plan.Agent, &result, logf)
 
 	return result, nil
 }
@@ -990,23 +1037,6 @@ func (o SetupOptions) mcpEndpoint() string {
 	}
 
 	return MCPServerEndpoint
-}
-
-// registrationFailed names the agent spaces a failed token replacement left
-// without an MCP server: the old registration is already gone by then, and its
-// token cannot be read back, so only a re-run with a working token restores them.
-func registrationFailed(err error, detached []string) error {
-	if len(detached) == 0 {
-		return fmt.Errorf("unable to register the LaunchDarkly MCP server: %w", err)
-	}
-
-	return fmt.Errorf(
-		"unable to register the LaunchDarkly MCP server: %w. The previous registration was already "+
-			"removed, so agent spaces %s have no LaunchDarkly MCP server. To connect each one again, "+
-			"run setup with --access-token <token> --agent-space-id <id>",
-		err,
-		strings.Join(detached, ", "),
-	)
 }
 
 // ConnectPlan runs a connect plan.
@@ -1051,12 +1081,11 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 	if err := checkMCP(ctx, clients, opts, plan.MCP, plan.Space.ID); err != nil {
 		return result, err
 	}
-	if err := checkSentToken(ctx, opts, plan.MCP); err != nil {
-		return result, err
-	}
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
+	installSkill(ctx, clients, plan.Skill, &result, logf)
+	installAgent(ctx, clients, plan.Agent, &result, logf)
 
 	return result, nil
 }
@@ -1145,26 +1174,6 @@ func isRoleNotAssumableYet(err error) bool {
 	return strings.Contains(err.Error(), "Invalid STS role configuration")
 }
 
-// RegisterMCPServer registers and associates the LaunchDarkly MCP server on
-// its own, for a token collected after Setup has run.
-func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, step MCPStep, result *SetupResult) error {
-	logf := opts.Logf
-	if logf == nil {
-		logf = func(string, ...any) {}
-	}
-	if err := checkMCP(ctx, clients, opts, step, result.AgentSpaceID); err != nil {
-		return err
-	}
-	if step.Action == MCPAsk {
-		step.Action = MCPRegister
-	}
-	if err := checkSentToken(ctx, opts, step); err != nil {
-		return err
-	}
-
-	return registerMCPServer(ctx, clients, opts, step, result, logf)
-}
-
 func registerMCPServer(
 	ctx context.Context,
 	clients Clients,
@@ -1173,188 +1182,108 @@ func registerMCPServer(
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
-	endpoint := opts.mcpEndpoint()
-	existing := step.ServiceID
-	switch step.Action {
-	case MCPAsk:
-		// The caller asks for a token.
-		return nil
-	case MCPSkip:
-		logf("Skipped MCP server %s, because no token was given", MCPServerName)
-
-		return nil
-	}
 	if step.Action == MCPReuse {
-		result.MCPServiceID = existing
-		logf("Reused MCP server %s (%s) with its current token", step.name(), existing)
-		logf("Pass --access-token and --replace-mcp-token to change the token")
+		result.MCPServiceID = step.ServiceID
+		logf("Reused MCP server %s (%s)", step.name(), step.ServiceID)
 
-		return associateMCPServer(ctx, clients, result, logf)
-	}
-	// A run after a failure finds an unconnected server by this name.
-	name := MCPServerNameFor(result.AgentSpaceID)
-	var detached []string
-	if existing != "" {
-		// Narrow the window after other writes.
-		now, err := spacesWith(ctx, clients, existing)
-		if err != nil {
-			return err
-		}
-		if !slices.Equal(now, step.Spaces) {
-			return planChanged("the spaces using MCP server %s changed", existing)
-		}
-	}
-	if step.Unused != "" {
-		if err := removeUnused(ctx, clients, step.Unused, logf); err != nil {
-			return err
-		}
-	}
-	// Other spaces keep a shared server with its token. Only a server that no
-	// other space uses is removed.
-	if existing != "" && !step.shared() {
-		var err error
-		detached, err = disassociateEverywhere(ctx, clients, existing, logf)
-		if err != nil {
-			return err
-		}
-		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
-			ServiceId: aws.String(existing),
-		}); err != nil {
-			err = fmt.Errorf("unable to deregister the existing LaunchDarkly MCP server %s: %w", existing, err)
-			if len(detached) > 0 {
-				// The server is still there with its old token.
-				err = fmt.Errorf(
-					"%w. Agent spaces %s are already disconnected from it. "+
-						"To connect each one again, run setup with --agent-space-id <id>",
-					err, strings.Join(detached, ", "),
-				)
-			}
-
-			return err
-		}
-		logf("Removed MCP server %s (%s) to replace its token", step.name(), existing)
+		return associateMCPServer(ctx, clients, opts, step, step.name(), result, logf)
 	}
 
+	return registerOAuthMCPServer(ctx, clients, opts, step, result, logf)
+}
+
+// registerOAuthMCPServer registers the MCP server of the AWS account with
+// OAuth. AWS does not register the server at once. It sends an approval URL,
+// and it registers the server after a person approves access in a browser.
+// Setup then finds the server by its endpoint and its OAuth sign-in.
+func registerOAuthMCPServer(
+	ctx context.Context,
+	clients Clients,
+	opts SetupOptions,
+	step MCPStep,
+	result *SetupResult,
+	logf func(string, ...any),
+) error {
+	endpoint := opts.mcpEndpoint()
 	input := &devopsagent.RegisterServiceInput{
 		Service: agenttypes.PostRegisterServiceSupportedServiceMcpServer,
 		ServiceDetails: &agenttypes.ServiceDetailsMemberMcpserver{
 			Value: agenttypes.MCPServerDetails{
-				Name:        aws.String(name),
+				Name:        aws.String(MCPOAuthServerName),
 				Endpoint:    aws.String(endpoint),
-				Description: aws.String("LaunchDarkly feature flag management MCP server"),
-				AuthorizationConfig: &agenttypes.MCPServerAuthorizationConfigMemberBearerToken{
-					Value: agenttypes.MCPServerBearerTokenConfig{
-						TokenName:  aws.String("launchdarkly-api-token"),
-						TokenValue: aws.String(opts.LDAccessToken),
+				Description: aws.String(mcpServerDescription),
+				AuthorizationConfig: &agenttypes.MCPServerAuthorizationConfigMemberAuthorizationDiscovery{
+					Value: agenttypes.MCPServerAuthorizationDiscoveryConfig{
+						ReturnToEndpoint: aws.String(ConsoleURL(clients.Region)),
 					},
 				},
 			},
 		},
 	}
-
 	registration, err := registerWithRetry(ctx, clients, input, logf, endpoint)
+	if err != nil && strings.Contains(err.Error(), "already exists") {
+		// Setup reuses only an OAuth server at the endpoint, so this server
+		// uses a token or another endpoint, or it appeared after the check.
+		return fmt.Errorf(
+			"an MCP server named %s is already registered on this AWS account, so setup cannot register one. "+
+				"Rename or delete that server in the AWS console, then run setup again. "+
+				"Or, to connect a server that is already registered, pass --mcp-service-id <id>: %w",
+			MCPOAuthServerName, err,
+		)
+	}
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			// The plan removes or stops on a server at this endpoint with the
-			// name, so the server is at another endpoint, or it appeared
-			// after the plan.
-			err = fmt.Errorf(
-				"an MCP server named %s is already registered on this account, so setup cannot register "+
-					"one at %s with that name. If that server is at another endpoint, rename it in the AWS console. "+
-					"Otherwise, run setup again: %w",
-				name, endpoint, err,
-			)
-		}
-
-		return registrationFailed(err, detached)
+		return fmt.Errorf("unable to register the LaunchDarkly MCP server: %w", err)
 	}
 
 	result.MCPServiceID = aws.ToString(registration.ServiceId)
-	logf("Registered MCP server %s (%s)", name, result.MCPServiceID)
-
-	if existing != "" && step.shared() {
-		if err := leaveSharedServer(ctx, clients, step, result, logf); err != nil {
+	if result.MCPServiceID == "" {
+		step, ok := registration.AdditionalStep.(*agenttypes.AdditionalServiceRegistrationStepMemberOauth)
+		if !ok {
+			return errors.New("AWS did not register the LaunchDarkly MCP server and sent no OAuth approval URL")
+		}
+		approvalURL := aws.ToString(step.Value.AuthorizationUrl)
+		logf("To connect the MCP server, approve access to LaunchDarkly at:\n  %s", approvalURL)
+		if opts.OpenURL != nil {
+			if err := opts.OpenURL(approvalURL); err != nil {
+				logf("Unable to open a browser. Open the URL yourself: %v", err)
+			}
+		}
+		result.MCPServiceID, err = waitForOAuthServer(ctx, clients, endpoint, logf)
+		if err != nil {
 			return err
 		}
 	}
+	logf("Registered MCP server %s (%s)", MCPOAuthServerName, result.MCPServiceID)
 
-	return associateMCPServer(ctx, clients, result, logf)
+	return associateMCPServer(ctx, clients, opts, step, MCPOAuthServerName, result, logf)
 }
 
-// leaveSharedServer disconnects a shared server from this space only, after
-// the new server is registered. The other spaces keep it with its token. If
-// the disconnect fails, it removes the new server, so that the space stays as
-// it was and a run again plans the same steps.
-func leaveSharedServer(ctx context.Context, clients Clients, step MCPStep, result *SetupResult, logf func(string, ...any)) error {
-	link, err := FindAssociation(ctx, clients, result.AgentSpaceID, step.ServiceID)
-	if err == nil && link != "" {
-		_, err = clients.Agent.DisassociateService(ctx, &devopsagent.DisassociateServiceInput{
-			AgentSpaceId:  aws.String(result.AgentSpaceID),
-			AssociationId: aws.String(link),
-		})
-	}
-	var checkErr error
-	if err != nil {
-		// A disconnect can fail in the reply after AWS made it, so look
-		// again before the new server is removed.
-		var still string
-		still, checkErr = FindAssociation(ctx, clients, result.AgentSpaceID, step.ServiceID)
-		if checkErr == nil && still == "" {
-			err = nil
+// waitForOAuthServer looks for the OAuth server of the account until it
+// appears or oauthTimeout passes.
+func waitForOAuthServer(ctx context.Context, clients Clients, endpoint string, logf func(string, ...any)) (string, error) {
+	logf("Waiting for you to approve access in the browser")
+	deadline := time.Now().Add(oauthTimeout)
+	for {
+		server, err := accountMCPServer(ctx, clients, endpoint)
+		if err != nil {
+			return "", err
 		}
-	}
-	if err == nil {
-		if link != "" {
-			logf("Disconnected MCP server %s (%s) from the agent space. Agent spaces %s keep it",
-				step.name(), step.ServiceID, strings.Join(step.otherSpaces(), ", "))
+		if server.ID != "" {
+			return server.ID, nil
+		}
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf(
+				"AWS did not register the LaunchDarkly MCP server in %s. If you did not approve access, run setup again",
+				oauthTimeout,
+			)
 		}
 
-		return nil
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(oauthPollInterval):
+		}
 	}
-
-	err = fmt.Errorf("unable to disconnect MCP server %s from agent space %s: %w", step.ServiceID, result.AgentSpaceID, err)
-	created := result.MCPServiceID
-	result.MCPServiceID = ""
-	if _, removeErr := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
-		ServiceId: aws.String(created),
-	}); removeErr != nil {
-		// A run again removes the new server, because no space uses it.
-		return fmt.Errorf(
-			"%w. Setup also could not remove the new MCP server %s, which no agent space uses. "+
-				"Run setup again with --replace-mcp-token: %w",
-			err, created, removeErr,
-		)
-	}
-	if checkErr != nil {
-		logf("Removed the new MCP server (%s)", created)
-
-		return fmt.Errorf("%w. Setup could not check if the agent space still uses MCP server %s: %w",
-			err, step.ServiceID, checkErr)
-	}
-
-	logf("Removed the new MCP server (%s), because the agent space still uses MCP server %s", created, step.ServiceID)
-
-	return fmt.Errorf("%w. The agent space still uses MCP server %s with its old token", err, step.ServiceID)
-}
-
-// removeUnused removes a server that no space uses, after a check that this
-// is still true.
-func removeUnused(ctx context.Context, clients Clients, serviceID string, logf func(string, ...any)) error {
-	users, err := spacesWith(ctx, clients, serviceID)
-	if err != nil {
-		return err
-	}
-	if len(users) > 0 {
-		return planChanged("agent spaces %s started to use MCP server %s after the plan", strings.Join(users, ", "), serviceID)
-	}
-	if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
-		ServiceId: aws.String(serviceID),
-	}); err != nil {
-		return fmt.Errorf("unable to remove MCP server %s, which no agent space uses: %w", serviceID, err)
-	}
-	logf("Removed MCP server (%s), which no agent space used", serviceID)
-
-	return nil
 }
 
 // spacesWith lists spaces associated with serviceID.
@@ -1379,66 +1308,24 @@ func spacesWith(ctx context.Context, clients Clients, serviceID string) ([]strin
 	return ids, nil
 }
 
-// disassociateEverywhere removes a service from every agent space that uses
-// it, which AWS requires before the service can be deregistered. It returns
-// the agent spaces it was removed from, so the re-registered service can be
-// reconnected to them.
-func disassociateEverywhere(
-	ctx context.Context,
-	clients Clients,
-	serviceID string,
-	logf func(string, ...any),
-) ([]string, error) {
-	spaces, err := listAgentSpaces(ctx, clients)
-	if err != nil {
-		return nil, err
-	}
-
-	var detached []string
-	for _, space := range spaces {
-		agentSpaceID := aws.ToString(space.AgentSpaceId)
-		associationID, err := FindAssociation(ctx, clients, agentSpaceID, serviceID)
-		if err != nil {
-			return nil, err
-		}
-		if associationID == "" {
-			continue
-		}
-		if _, err := clients.Agent.DisassociateService(ctx, &devopsagent.DisassociateServiceInput{
-			AgentSpaceId:  aws.String(agentSpaceID),
-			AssociationId: aws.String(associationID),
-		}); err != nil {
-			err = fmt.Errorf("unable to disassociate service %s from agent space %s: %w", serviceID, agentSpaceID, err)
-			if len(detached) > 0 {
-				err = fmt.Errorf(
-					"%w. Agent spaces %s are already disconnected from it. "+
-						"To connect each one again, run setup with --agent-space-id <id>",
-					err, strings.Join(detached, ", "),
-				)
-			}
-
-			return nil, err
-		}
-		logf("Disassociated service (%s) from agent space (%s)", serviceID, agentSpaceID)
-		detached = append(detached, agentSpaceID)
-	}
-
-	return detached, nil
-}
-
 func associateMCPServer(
 	ctx context.Context,
 	clients Clients,
+	opts SetupOptions,
+	step MCPStep,
+	name string,
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
-	existing, err := FindAssociation(ctx, clients, result.AgentSpaceID, result.MCPServiceID)
+	result.mcpServerName = name
+	existing, err := findMCPAssociation(ctx, clients, result.AgentSpaceID, result.MCPServiceID)
 	if err != nil {
 		return err
 	}
-	if existing != "" {
-		result.MCPAssociationID = existing
-		logf("MCP server %s is already associated with the agent space", MCPServerName)
+	if existing != nil {
+		result.MCPAssociationID = aws.ToString(existing.AssociationId)
+		logf("MCP server %s is already associated with the agent space", name)
+		extendAllowlist(ctx, clients, opts, step, *existing, result, logf)
 
 		return nil
 	}
@@ -1448,9 +1335,89 @@ func associateMCPServer(
 		return err
 	}
 	result.MCPAssociationID = associationID
-	logf("Associated MCP server %s with the agent space", MCPServerName)
+	logf("Associated MCP server %s with the agent space", name)
 
 	return nil
+}
+
+func findMCPAssociation(ctx context.Context, clients Clients, agentSpaceID, serviceID string) (*agenttypes.Association, error) {
+	associations, err := listAssociations(ctx, clients, agentSpaceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, association := range associations {
+		if aws.ToString(association.ServiceId) == serviceID {
+			return &association, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// missingTools returns the ldcli tools that the allowlist of an association
+// misses, and whether setup can add them. AWS replaces the whole configuration
+// on an update and does not send the classification of each tool back, so
+// setup can rewrite the allowlist only if it holds ldcli tools alone. An
+// unclassified tool counts as read-only, so a rewrite would let a mutative
+// tool that the customer added run without approval.
+func missingTools(association agenttypes.Association) (missing []string, canAdd bool) {
+	if _, ok := association.Configuration.(*agenttypes.ServiceConfigurationMemberMcpserver); !ok {
+		// Not an allowlist that setup knows how to read, so leave it.
+		return nil, false
+	}
+	allowed := associationTools(association.Configuration)
+	ldcli := slices.Concat(mcpReadOnlyTools, mcpMutativeTools)
+	for _, tool := range ldcli {
+		if !slices.Contains(allowed, tool) {
+			missing = append(missing, tool)
+		}
+	}
+	canAdd = !slices.ContainsFunc(allowed, func(tool string) bool { return !slices.Contains(ldcli, tool) })
+
+	return missing, canAdd
+}
+
+// extendAllowlist adds the ldcli tools that an existing association misses,
+// for example after an ldcli upgrade that allows more tools. A failure does not
+// stop setup, because the server works with the tools that it has.
+func extendAllowlist(
+	ctx context.Context,
+	clients Clients,
+	opts SetupOptions,
+	step MCPStep,
+	association agenttypes.Association,
+	result *SetupResult,
+	logf func(string, ...any),
+) {
+	missing, canAdd := missingTools(association)
+	tools := strings.Join(missing, ", ")
+	switch {
+	case len(missing) == 0:
+		return
+	case !canAdd:
+		result.MCPToolsError = fmt.Sprintf("the MCP server allowlist of the agent space misses %s, and it has tools "+
+			"that ldcli does not classify, so setup did not change it. Add the missing tools in the AWS console", tools)
+
+		return
+	case !slices.Equal(missing, step.MissingTools) || canAdd != step.CanAddTools:
+		// The plan showed another change, so do not make this one.
+		result.MCPToolsError = "the MCP server allowlist changed after the plan, so setup did not change it. Run setup again"
+
+		return
+	}
+	_, err := clients.Agent.UpdateAssociation(ctx, &devopsagent.UpdateAssociationInput{
+		AgentSpaceId:  association.AgentSpaceId,
+		AssociationId: association.AssociationId,
+		Configuration: &agenttypes.ServiceConfigurationMemberMcpserver{Value: mcpServerConfiguration()},
+		Capabilities:  association.Capabilities,
+	})
+	if err != nil {
+		result.MCPToolsError = fmt.Sprintf("unable to add %s to the MCP server allowlist: %v", strings.Join(missing, ", "), err)
+
+		return
+	}
+	result.MCPToolsAdded = missing
+	logf("Added %s to the MCP server allowlist", strings.Join(missing, ", "))
 }
 
 func associateMCPServerWith(ctx context.Context, clients Clients, agentSpaceID, serviceID string) (string, error) {
@@ -1675,15 +1642,6 @@ func isAlreadyExists(err error) bool {
 // ConsoleURL is the AWS DevOps Agent console for a region.
 func ConsoleURL(region string) string {
 	return fmt.Sprintf("https://%s.console.aws.amazon.com/aidevops/home?region=%[1]s", region)
-}
-
-// AccessTokenURL is the LaunchDarkly page where a service token is created.
-func AccessTokenURL(baseURI string) string {
-	if baseURI == "" {
-		baseURI = DefaultLDBaseURI
-	}
-
-	return strings.TrimSuffix(baseURI, "/") + "/settings/authorization"
 }
 
 // OperatorAppURL is the browser entry point for an agent space's operator app.
