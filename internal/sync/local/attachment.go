@@ -51,16 +51,40 @@ func CompileAttachments(repositoryRoot string, include func(syncdomain.ResourceI
 
 	fsys := workspaceFS{root: root}
 	var attachments []syncdomain.SyncedAttachment
+	definitions := make(map[syncdomain.ResourceID]string)
 	for _, file := range files {
 		id, ok := ParseManagedPath(file)
+		if !ok {
+			id, ok = ParseReferencePath(file)
+		}
 		if !ok || id.Kind == syncdomain.KindVariation || !include(id) {
 			continue
 		}
-		attachment, err := readAttachment(fsys, id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+		if existing, duplicate := definitions[id]; duplicate {
+			return nil, ParseError{Path: file, Err: definitionConflict(
+				id, fmt.Sprintf("%s is also defined by %s", id.Label(), existing),
+			)}
+		}
+		definitions[id] = file
+
+		var attachment syncdomain.SyncedAttachment
+		if strings.HasSuffix(file, referenceFileSuffix) {
+			var definition SourceDefinition
+			definition, err = compileDescriptor(fsys, file, id, func(file string) ([]byte, error) {
+				return readSourceFileFromFS(fsys, file)
+			}, nil)
+			if err == nil {
+				attachment = *definition.Attachment
+			}
+		} else {
+			var value syncdomain.Attachment
+			value, err = readAttachment(fsys, id.ProjectKey, syncdomain.AttachmentKind(id.Kind), id.LookupKey)
+			attachment = syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: value}
+		}
 		if err != nil {
 			return nil, ParseError{Path: file, Err: err}
 		}
-		attachments = append(attachments, syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
+		attachments = append(attachments, attachment)
 	}
 	return attachments, nil
 }
