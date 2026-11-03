@@ -80,6 +80,13 @@ func (store Store) ReplaceAttachments(attachments []syncdomain.SyncedAttachment)
 // file to a temporary path, makes sure that no original changed, and then
 // renames each file into place.
 func replaceFiles(files []stagedFile) error {
+	seen := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		if _, duplicate := seen[file.path]; duplicate {
+			return fmt.Errorf("file %q is staged more than once", file.displayPath)
+		}
+		seen[file.path] = struct{}{}
+	}
 	if err := stageFiles(files); err != nil {
 		return err
 	}

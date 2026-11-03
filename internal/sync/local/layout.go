@@ -26,6 +26,7 @@ const (
 	variationFileSuffix = ".prompt.md"
 	toolFileSuffix      = ".json"
 	skillFileSuffix     = ".md"
+	referenceFileSuffix = ".ref.yaml"
 )
 
 // ParseManagedPath returns the resource that a managed file stores. The path
@@ -62,6 +63,37 @@ func ParseManagedPath(file string) (syncdomain.ResourceID, bool) {
 	return id, true
 }
 
+// ParseReferencePath returns the resource that a .ref.yaml descriptor links.
+func ParseReferencePath(file string) (syncdomain.ResourceID, bool) {
+	parts := strings.Split(file, "/")
+	if len(parts) < 4 || parts[0] != syncdomain.RootDir {
+		return syncdomain.ResourceID{}, false
+	}
+
+	var id syncdomain.ResourceID
+	var stem string
+	switch {
+	case len(parts) == 5 && parts[2] == configsDir && strings.HasSuffix(parts[4], referenceFileSuffix):
+		stem = strings.TrimSuffix(parts[4], referenceFileSuffix)
+		if syncdomain.ValidateKey(parts[3]) != nil {
+			return syncdomain.ResourceID{}, false
+		}
+		id = syncdomain.VariationID(parts[1], parts[3], stem)
+	case len(parts) == 4 && parts[2] == toolsDir && strings.HasSuffix(parts[3], referenceFileSuffix):
+		stem = strings.TrimSuffix(parts[3], referenceFileSuffix)
+		id = syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: parts[1], LookupKey: stem}
+	case len(parts) == 4 && parts[2] == skillsDir && strings.HasSuffix(parts[3], referenceFileSuffix):
+		stem = strings.TrimSuffix(parts[3], referenceFileSuffix)
+		id = syncdomain.ResourceID{Kind: syncdomain.KindSkill, ProjectKey: parts[1], LookupKey: stem}
+	default:
+		return syncdomain.ResourceID{}, false
+	}
+	if syncdomain.ValidateKey(parts[1]) != nil || syncdomain.ValidateKey(stem) != nil {
+		return syncdomain.ResourceID{}, false
+	}
+	return id, true
+}
+
 // ResourcePath returns the path of the file of a variation, a tool, or a
 // skill relative to the repository root, in the form that ParseManagedPath
 // reads.
@@ -71,6 +103,31 @@ func ResourcePath(id syncdomain.ResourceID) (string, error) {
 		return "", err
 	}
 	return path.Join(syncdomain.RootDir, relativePath), nil
+}
+
+// ReferencePath returns the repository-relative path of a resource descriptor.
+func ReferencePath(id syncdomain.ResourceID) (string, error) {
+	if err := validateKey("project", id.ProjectKey); err != nil {
+		return "", err
+	}
+	if id.Kind == syncdomain.KindVariation {
+		configKey, variationKey, err := id.VariationKeys()
+		if err != nil {
+			return "", err
+		}
+		return path.Join(syncdomain.RootDir, id.ProjectKey, configsDir, configKey, variationKey+referenceFileSuffix), nil
+	}
+	if err := validateKey(string(id.Kind), id.LookupKey); err != nil {
+		return "", err
+	}
+	switch id.Kind {
+	case syncdomain.KindTool:
+		return path.Join(syncdomain.RootDir, id.ProjectKey, toolsDir, id.LookupKey+referenceFileSuffix), nil
+	case syncdomain.KindSkill:
+		return path.Join(syncdomain.RootDir, id.ProjectKey, skillsDir, id.LookupKey+referenceFileSuffix), nil
+	default:
+		return "", fmt.Errorf("unsupported resource kind %q", id.Kind)
+	}
 }
 
 // variationPath returns the path of a variation file relative to the managed
