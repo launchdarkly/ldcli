@@ -19,6 +19,10 @@ the `go.mod/go.sum` files are tidy.
 
 In addition, pre-commit will run dev server UI tests and build the project to make sure an up-to-date build is being checked in. You will need to install npm.
 
+## Upgrading the REST API version
+
+Changes that bump `api-client-go` or the `LD-API-Version` header follow [docs/playbooks/rest-api-version-upgrades.md](docs/playbooks/rest-api-version-upgrades.md). Unit tests do not cover the live API or generated beta commands. Walk that checklist before marking the pull request validated.
+
 ## Adding a new command
 
 There are a few things you need to do in order to wire up a new top-level command.
