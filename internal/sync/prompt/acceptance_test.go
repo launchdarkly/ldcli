@@ -1960,7 +1960,7 @@ func runScoped(t *testing.T, root string, api *directAPI, options syncprompt.Opt
 func runWith(t *testing.T, root string, api *directAPI, runner syncprompt.Runner, options syncprompt.Options) (string, string, error) {
 	t.Helper()
 	if manifestsByRoot[root] == nil {
-		manifestsByRoot[root] = &syncapi.SyncManifest{Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
+		manifestsByRoot[root] = &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
 	}
 	api.manifest = manifestsByRoot[root]
 	var output, notes bytes.Buffer
@@ -2273,7 +2273,7 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	manifest := manifestsByRoot[root]
 	if manifest == nil {
-		manifest = &syncapi.SyncManifest{Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
+		manifest = &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
 		manifestsByRoot[root] = manifest
 	}
 	switch api := client.(type) {
@@ -2436,7 +2436,7 @@ func writeRemoteManifest(t *testing.T, root string, values ...syncdomain.Variati
 			Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/" + value.Key,
 		}, fingerprint(t, value))
 	}
-	remote := &syncapi.SyncManifest{Source: "git:example/repo"}
+	remote := &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo"}
 	for _, resource := range manifest.Resources {
 		remote.Items = append(remote.Items, syncapi.SyncManifestResource{
 			ResourceKind:      resource.ResourceKind,
