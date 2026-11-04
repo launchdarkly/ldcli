@@ -25,6 +25,13 @@ jobs:
         go-version-file: go.mod
     - name: build
       run: go build .
+    - name: check generated dev server code
+      run: |
+        go generate ./internal/dev_server/api
+        git diff --exit-code -- internal/dev_server/api/server.gen.go || {
+          echo "::error::server.gen.go is out of date. Run 'go generate ./internal/dev_server/api' and commit the result."
+          exit 1
+        }
 
     - uses: actions/setup-python@v7
     - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
