@@ -4,3 +4,4 @@ dist/
 node_modules/
 devserver.db
 ldcli
+.verify-out/

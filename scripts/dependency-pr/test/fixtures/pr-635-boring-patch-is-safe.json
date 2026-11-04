@@ -1,0 +1,10 @@
+{
+  "pr": 635,
+  "why": "#635 is a transitive dev-only patch (js-yaml 4.1.0 → 4.1.1) that changes only package-lock.json. A low-risk update with every check green must come out safe to merge, with no question for a person.",
+  "head": "1c0c6fc5227fcdbf9559d63b927b1bd516f041f0",
+  "base": "5252ca017c2b36d234ce5c7799fa8b753b857d14",
+  "expect": {
+    "verdict": "safe-to-merge",
+    "checks": {"ui-npm-ci": "pass", "ui-build-drift": "pass", "transitive-changes": "info"}
+  }
+}

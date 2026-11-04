@@ -1,0 +1,60 @@
+package db_test
+
+import (
+	"context"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/ldcli/internal/dev_server/db"
+	"github.com/launchdarkly/ldcli/internal/dev_server/model"
+)
+
+// Reopening an existing database re-runs migrations; the payload_version
+// migration relies on SQLite's "duplicate column name" error text. The
+// json_each-based override pruning in UpdateProject must keep working too.
+func TestVerifyReopenAndPrune(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "dev_server.db")
+	store, err := db.NewSqlite(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := model.Project{
+		Key: "p", SourceEnvironmentKey: "e", Context: ldcontext.New("u"), LastSyncTime: time.Now(), PayloadVersion: 1,
+		AllFlagsState: model.FlagsState{
+			"keep": {Value: ldvalue.Bool(true), Version: 1},
+			"drop": {Value: ldvalue.Bool(true), Version: 1},
+		},
+	}
+	if err := store.InsertProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"keep", "drop"} {
+		if _, err := store.UpsertOverride(ctx, model.Override{ProjectKey: "p", FlagKey: k, Value: ldvalue.Bool(false), Active: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	reopened, err := db.NewSqlite(ctx, path)
+	if err != nil {
+		t.Fatalf("reopen (migrations on existing db): %v", err)
+	}
+	p.AllFlagsState = model.FlagsState{"keep": {Value: ldvalue.Bool(true), Version: 2}}
+	if _, err := reopened.UpdateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	overrides, err := reopened.GetOverridesForProject(ctx, "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(overrides) != 1 || overrides[0].FlagKey != "keep" {
+		t.Fatalf("expected only the 'keep' override to survive pruning, got %+v", overrides)
+	}
+	got, err := reopened.GetDevProject(ctx, "p")
+	if err != nil || got.LastSyncTime.IsZero() {
+		t.Fatalf("GetDevProject after reopen: %v %+v", err, got)
+	}
+}
