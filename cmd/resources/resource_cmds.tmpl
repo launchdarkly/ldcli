@@ -58,7 +58,13 @@ func AddAllResourceCmds(
             IsBeta:                {{ $opData.IsBeta }},
             RequiresBody:          {{ $opData.RequiresBody }},
             Path:                  "{{ $opData.Path }}",
-            SupportsSemanticPatch: {{ $opData.SupportsSemanticPatch }},
+            SupportsSemanticPatch: {{ $opData.SupportsSemanticPatch }},{{ if $opData.Examples }}
+            Examples: []RequestExample{ {{ range $example := $opData.Examples }}
+                {
+                    Summary: {{ $example.Summary }},
+                    Data:    {{ $example.Data }},
+                }, {{ end }}
+            },{{ end }}
         })
 
 	{{ end }}{{ end }}

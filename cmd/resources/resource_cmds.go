@@ -546,6 +546,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/tokens/{id}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/role\",\n    \"value\": \"writer\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_AccessTokensResourceCmd, client, markdownRenderer, OperationData{
@@ -559,6 +565,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/tokens",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"role\": \"reader\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_AccessTokensResourceCmd, client, markdownRenderer, OperationData{
@@ -4459,6 +4471,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/applications/{applicationKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/description\",\n    \"value\": \"Updated description\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4485,6 +4503,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/applications/{applicationKey}/versions/{versionKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/supported\",\n    \"value\": \"false\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -4934,6 +4958,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/approval-requests/{id}",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"instructions\": [\n    {\n      \"kind\": \"updateDescription\",\n      \"value\": \"New description\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApprovalsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -5188,6 +5218,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branch-delete-tasks",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  \"branch-to-be-deleted\",\n  \"another-branch-to-be-deleted\"\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -5433,6 +5469,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/defaultBranch\",\n    \"value\": \"main\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -5592,6 +5634,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/flags/evaluate",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"key\": \"user-key-123abc\",\n  \"kind\": \"user\",\n  \"otherAttribute\": \"other attribute value\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -5924,6 +5972,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/roles/{customRoleKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"patch\": [\n    {\n      \"op\": \"add\",\n      \"path\": \"/policy/0\",\n      \"value\": {\n        \"actions\": [\n          \"updateOn\"\n        ],\n        \"effect\": \"allow\",\n        \"resources\": [\n          \"proj/*:env/qa:flag/*\"\n        ]\n      }\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, markdownRenderer, OperationData{
@@ -5937,6 +5991,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/roles",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"basePermissions\": \"reader\",\n  \"description\": \"An example role for members of the ops team\",\n  \"key\": \"role-key-123abc\",\n  \"name\": \"Ops team\",\n  \"policy\": [\n    {\n      \"actions\": [\n        \"updateOn\"\n      ],\n      \"effect\": \"allow\",\n      \"resources\": [\n        \"proj/*:env/production:flag/*\"\n      ]\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
@@ -6046,6 +6106,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/config/topic\",\n    \"value\": \"ld-pubsub-test-192302\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
@@ -6104,6 +6170,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"config\": {\n    \"project\": \"test-prod\",\n    \"topic\": \"ld-pubsub-test-192301\"\n  },\n  \"kind\": \"google-pubsub\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
@@ -6351,6 +6423,24 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{flagKey}/environments/{environmentKey}/releases",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "Release from an environment release plan",
+				Data:    "{\n  \"comment\": \"Requested by the deployment automation\",\n  \"originalVariationId\": \"11111111-1111-1111-1111-111111111111\",\n  \"releasePlanKey\": \"production-guarded-rollout\",\n  \"targetVariationId\": \"22222222-2222-2222-2222-222222222222\"\n}",
+			},
+			{
+				Summary: "Guarded release on an existing rule",
+				Data:    "{\n  \"metrics\": [\n    {\n      \"autoRollback\": true,\n      \"metricKey\": \"checkout-error-rate\"\n    },\n    {\n      \"autoRollback\": false,\n      \"metricKey\": \"page-load-p95\"\n    }\n  ],\n  \"originalVariationId\": \"11111111-1111-1111-1111-111111111111\",\n  \"phases\": [\n    {\n      \"ruleId\": \"33333333-3333-3333-3333-333333333333\",\n      \"steps\": [\n        {\n          \"allocation\": 1000,\n          \"durationMillis\": 3600000\n        },\n        {\n          \"allocation\": 10000,\n          \"durationMillis\": 3600000\n        },\n        {\n          \"allocation\": 50000,\n          \"durationMillis\": 86400000\n        }\n      ]\n    }\n  ],\n  \"randomizationUnit\": \"user\",\n  \"targetVariationId\": \"22222222-2222-2222-2222-222222222222\"\n}",
+			},
+			{
+				Summary: "Guarded release with multiple phases",
+				Data:    "{\n  \"advancementMode\": \"automatic\",\n  \"cleanupBehavior\": \"remove_rules_and_update_default_rule\",\n  \"metrics\": [\n    {\n      \"autoRollback\": true,\n      \"metricKey\": \"checkout-error-rate\"\n    }\n  ],\n  \"originalVariationId\": \"11111111-1111-1111-1111-111111111111\",\n  \"phases\": [\n    {\n      \"clauses\": [\n        {\n          \"attribute\": \"kind\",\n          \"contextKind\": \"user\",\n          \"op\": \"in\",\n          \"values\": [\n            \"user\"\n          ]\n        },\n        {\n          \"attribute\": \"email\",\n          \"contextKind\": \"user\",\n          \"op\": \"endsWith\",\n          \"values\": [\n            \"@launchdarkly.com\"\n          ]\n        }\n      ],\n      \"description\": \"Internal users\",\n      \"steps\": [\n        {\n          \"allocation\": 50000,\n          \"durationMillis\": 86400000\n        }\n      ]\n    },\n    {\n      \"clauses\": [\n        {\n          \"attribute\": \"kind\",\n          \"contextKind\": \"user\",\n          \"op\": \"in\",\n          \"values\": [\n            \"user\"\n          ]\n        },\n        {\n          \"attribute\": \"segmentMatch\",\n          \"op\": \"segmentMatch\",\n          \"values\": [\n            \"beta-customers\"\n          ]\n        }\n      ],\n      \"description\": \"Beta customers\",\n      \"steps\": [\n        {\n          \"allocation\": 10000,\n          \"durationMillis\": 3600000\n        },\n        {\n          \"allocation\": 50000,\n          \"durationMillis\": 86400000\n        }\n      ]\n    }\n  ],\n  \"randomizationUnit\": \"user\",\n  \"targetVariationId\": \"22222222-2222-2222-2222-222222222222\"\n}",
+			},
+			{
+				Summary: "Progressive release on a new rule",
+				Data:    "{\n  \"cleanupBehavior\": \"remove_rules_and_update_default_rule\",\n  \"comment\": \"Requested by the deployment automation\",\n  \"originalVariationId\": \"11111111-1111-1111-1111-111111111111\",\n  \"phases\": [\n    {\n      \"clauses\": [\n        {\n          \"attribute\": \"kind\",\n          \"contextKind\": \"user\",\n          \"op\": \"in\",\n          \"values\": [\n            \"user\"\n          ]\n        }\n      ],\n      \"description\": \"All users\",\n      \"steps\": [\n        {\n          \"allocation\": 1000,\n          \"durationMillis\": 3600000\n        },\n        {\n          \"allocation\": 10000,\n          \"durationMillis\": 3600000\n        },\n        {\n          \"allocation\": 50000,\n          \"durationMillis\": 3600000\n        }\n      ]\n    }\n  ],\n  \"randomizationUnit\": \"user\",\n  \"targetVariationId\": \"22222222-2222-2222-2222-222222222222\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_EnvironmentReleasesBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -6395,6 +6485,16 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{flagKey}/environments/{environmentKey}/releases/{releaseId}/stop",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "Revert every started phase and remove pending phases",
+				Data:    "{\n  \"comment\": \"Error rate regressed after the 10% step\",\n  \"resolution\": \"roll_back_all_phases_and_remove_pending_phases\"\n}",
+			},
+			{
+				Summary: "Serve the target variation everywhere, including pending phases",
+				Data:    "{\n  \"resolution\": \"roll_forward_all_phases\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6517,6 +6617,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/requireComments\",\n    \"value\": true\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6537,6 +6643,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"color\": \"DADBEE\",\n  \"key\": \"environment-key-123abc\",\n  \"name\": \"My Environment\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6849,6 +6961,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"Example comment describing the update\",\n  \"instructions\": [\n    {\n      \"kind\": \"updateName\",\n      \"value\": \"Updated experiment name\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ExperimentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6895,6 +7013,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-capabilities/flag-import/{projectKey}/{integrationKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"config\": {\n    \"environmentId\": \"The ID of the environment in the external system\",\n    \"ldApiKey\": \"An API key with create flag permissions in your LaunchDarkly account\",\n    \"ldMaintainer\": \"The ID of the member who will be the maintainer of the imported flags\",\n    \"ldTag\": \"A tag to apply to all flags imported to LaunchDarkly\",\n    \"splitTag\": \"If provided, imports only the flags from the external system with this tag. Leave blank to import all flags.\",\n    \"workspaceApiKey\": \"An API key with read permissions in the external feature management system\",\n    \"workspaceId\": \"The ID of the workspace in the external system\"\n  },\n  \"name\": \"Sample configuration\",\n  \"tags\": [\n    \"example-tag\"\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FlagImportConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -7062,6 +7186,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"deepLink\": \"https://example.com/archives/123123123\",\n  \"description\": \"Example link description\",\n  \"key\": \"flag-link-key-123abc\",\n  \"title\": \"Example link title\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -7152,6 +7282,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}/{id}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/title\",\n    \"value\": \"Updated flag link title\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, markdownRenderer, OperationData{
@@ -7356,6 +7492,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/copy",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"optional comment\",\n  \"source\": {\n    \"currentVersion\": 1,\n    \"key\": \"source-env-key-123abc\"\n  },\n  \"target\": {\n    \"currentVersion\": 1,\n    \"key\": \"target-env-key-123abc\"\n  }\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -7744,6 +7886,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"patch\": [\n    {\n      \"op\": \"replace\",\n      \"path\": \"/description\",\n      \"value\": \"New description for this flag\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -7770,6 +7918,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"clientSideAvailability\": {\n    \"usingEnvironmentId\": true,\n    \"usingMobileKey\": true\n  },\n  \"key\": \"flag-key-123abc\",\n  \"name\": \"My Flag\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -8134,6 +8288,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/holdouts/{holdoutKey}",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"Optional comment describing the update\",\n  \"instructions\": [\n    {\n      \"kind\": \"updateName\",\n      \"value\": \"Updated holdout name\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_HoldoutsResourceCmd, client, markdownRenderer, OperationData{
@@ -8603,6 +8763,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/engineering-insights/deployments/{deploymentID}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/status\",\n    \"value\": \"finished\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_InsightsFlagEventsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -8995,6 +9161,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/engineering-insights/insights/groups/{insightGroupKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/name\",\n    \"value\": \"Prod group\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -9027,6 +9199,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"config\": {\n    \"optional\": \"example value for optional formVariables property for sample-integration\",\n    \"required\": \"example value for required formVariables property for sample-integration\"\n  },\n  \"name\": \"Sample integration\",\n  \"on\": false,\n  \"tags\": [\n    \"example-tag\"\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -9180,6 +9358,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/on\",\n    \"value\": true\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -9238,6 +9422,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integrations/{integrationKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"config\": {\n    \"optional\": \"an optional property\",\n    \"required\": \"the required property\",\n    \"url\": \"https://example.com\"\n  },\n  \"name\": \"Example audit log subscription.\",\n  \"on\": false,\n  \"statements\": [\n    {\n      \"actions\": [\n        \"*\"\n      ],\n      \"effect\": \"allow\",\n      \"resources\": [\n        \"proj/*:env/*:flag/*;testing-tag\"\n      ]\n    }\n  ],\n  \"tags\": [\n    \"testing-tag\"\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, markdownRenderer, OperationData{
@@ -9336,6 +9526,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integrations/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/on\",\n    \"value\": false\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -9442,6 +9638,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-configurations/{integrationConfigurationId}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/on\",\n    \"value\": false\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IpAllowlistBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -9612,6 +9814,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/layers/{layerKey}",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"Example comment describing the update\",\n  \"environmentKey\": \"production\",\n  \"instructions\": [\n    {\n      \"experimentKey\": \"checkout-button-color\",\n      \"kind\": \"updateExperimentReservation\",\n      \"reservationPercent\": 25\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -9722,6 +9930,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/members/{id}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"add\",\n    \"path\": \"/role\",\n    \"value\": \"writer\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -9735,6 +9949,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/members",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"Optional comment about the update\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceMembersRoles\",\n      \"memberIDs\": [\n        \"1234a56b7c89d012345e678f\",\n        \"507f1f77bcf86cd799439011\"\n      ],\n      \"value\": \"reader\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -9922,6 +10142,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/metric-groups/{metricGroupKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/name\",\n    \"value\": \"my-updated-metric-group\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_MetricsResourceCmd, client, markdownRenderer, OperationData{
@@ -10062,6 +10288,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/metrics/{projectKey}/{metricKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/name\",\n    \"value\": \"my-updated-metric\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_MetricsResourceCmd, client, markdownRenderer, OperationData{
@@ -10082,6 +10314,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/metrics/{projectKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"eventKey\": \"Order placed\",\n  \"isNumeric\": false,\n  \"key\": \"metric-key-123abc\",\n  \"kind\": \"custom\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_PersistentStoreIntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -10114,6 +10352,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"config\": {\n    \"optional\": \"example value for optional formVariables property for sample-integration\",\n    \"required\": \"example value for required formVariables property for sample-integration\"\n  },\n  \"name\": \"Example persistent store integration\",\n  \"on\": false,\n  \"tags\": [\n    \"example-tag\"\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_PersistentStoreIntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -10391,6 +10635,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"add\",\n    \"path\": \"/tags/0\",\n    \"value\": \"another-tag\"\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -10404,6 +10654,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"key\": \"project-key-123abc\",\n  \"name\": \"My Project\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -10497,6 +10753,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"patch\": [\n    {\n      \"op\": \"replace\",\n      \"path\": \"/policy/0\",\n      \"value\": {\n        \"actions\": [\n          \"*\"\n        ],\n        \"effect\": \"allow\",\n        \"resources\": [\n          \"proj/*:env/qa\"\n        ]\n      }\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, markdownRenderer, OperationData{
@@ -10510,6 +10772,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/account/relay-auto-configs",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"name\": \"Sample Relay Proxy config for all proj and env\",\n  \"policy\": [\n    {\n      \"actions\": [\n        \"*\"\n      ],\n      \"effect\": \"allow\",\n      \"resources\": [\n        \"proj/*:env/*\"\n      ]\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, markdownRenderer, OperationData{
@@ -10774,6 +11042,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{flagKey}/release",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/phases/0/complete\",\n    \"value\": true\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ReleasePipelinesDeprecatedResourceCmd, client, markdownRenderer, OperationData{
@@ -11184,6 +11458,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes/{id}",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"Optional comment describing the update to the scheduled changes\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceScheduledChangesInstructions\",\n      \"value\": [\n        {\n          \"kind\": \"turnFlagOff\"\n        }\n      ]\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, markdownRenderer, OperationData{
@@ -11222,6 +11502,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"Optional comment describing the scheduled changes\",\n  \"executionDate\": 1718467200000,\n  \"instructions\": [\n    {\n      \"kind\": \"turnFlagOn\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SdkKeysBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -11728,6 +12014,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/segments/evaluate",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"address\": {\n    \"city\": \"Springfield\",\n    \"street\": \"123 Main Street\"\n  },\n  \"jobFunction\": \"doctor\",\n  \"key\": \"context-key-123abc\",\n  \"kind\": \"user\",\n  \"name\": \"Sandy\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -12052,6 +12344,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"patch\": [\n    {\n      \"op\": \"replace\",\n      \"path\": \"/description\",\n      \"value\": \"New description for this segment\"\n    },\n    {\n      \"op\": \"add\",\n      \"path\": \"/tags/0\",\n      \"value\": \"example\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -12372,6 +12670,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams/{teamKey}",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"Optional comment about the update\",\n  \"instructions\": [\n    {\n      \"kind\": \"updateDescription\",\n      \"value\": \"New description for the team\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -12392,6 +12696,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"customRoleKeys\": [\n    \"example-role1\",\n    \"example-role2\"\n  ],\n  \"description\": \"An example team\",\n  \"key\": \"team-key-123abc\",\n  \"memberIDs\": [\n    \"12ab3c45de678910fgh12345\"\n  ],\n  \"name\": \"Example team\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -12425,6 +12735,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams",
 		SupportsSemanticPatch: true,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"comment\": \"Optional comment about the update\",\n  \"instructions\": [\n    {\n      \"kind\": \"addMembersToTeams\",\n      \"memberIDs\": [\n        \"1234a56b7c89d012345e678f\"\n      ],\n      \"teamKeys\": [\n        \"example-team-1\",\n        \"example-team-2\"\n      ]\n    }\n  ]\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ViewsResourceCmd, client, markdownRenderer, OperationData{
@@ -12858,6 +13174,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/webhooks/{id}",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/on\",\n    \"value\": false\n  }\n]",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_WebhooksResourceCmd, client, markdownRenderer, OperationData{
@@ -12871,6 +13193,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/webhooks",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"name\": \"apidocs test webhook\",\n  \"on\": true,\n  \"sign\": false,\n  \"statements\": [\n    {\n      \"actions\": [\n        \"*\"\n      ],\n      \"effect\": \"allow\",\n      \"resources\": [\n        \"proj/test\"\n      ]\n    }\n  ],\n  \"tags\": [\n    \"example-tag\"\n  ],\n  \"url\": \"https://example.com\"\n}",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_WorkflowTemplatesResourceCmd, client, markdownRenderer, OperationData{
@@ -13106,6 +13434,12 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows",
 		SupportsSemanticPatch: false,
+		Examples: []RequestExample{
+			{
+				Summary: "",
+				Data:    "{\n  \"description\": \"Turn flag on for 10% of customers each day\",\n  \"name\": \"Progressive rollout starting in two days\",\n  \"stages\": [\n    {\n      \"action\": {\n        \"instructions\": [\n          {\n            \"kind\": \"turnFlagOn\"\n          },\n          {\n            \"kind\": \"updateFallthroughVariationOrRollout\",\n            \"rolloutWeights\": {\n              \"452f5fb5-7320-4ba3-81a1-8f4324f79d49\": 90000,\n              \"fc15f6a4-05d3-4aa4-a997-446be461345d\": 10000\n            }\n          }\n        ]\n      },\n      \"conditions\": [\n        {\n          \"kind\": \"schedule\",\n          \"scheduleKind\": \"relative\",\n          \"waitDuration\": 2,\n          \"waitDurationUnit\": \"calendarDay\"\n        }\n      ],\n      \"name\": \"10% rollout on day 1\"\n    }\n  ]\n}",
+			},
+		},
 	})
 
 }
