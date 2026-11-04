@@ -12,7 +12,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 // A variation file has YAML front matter and a prompt body:
@@ -29,29 +28,24 @@ import (
 //	</system>
 //
 // An agent body is the instructions. A completion body is a list of role
-// blocks. A completion body without role blocks is one system message. A
-// linked variation has a "ref" field and no body.
+// blocks. A completion body without role blocks is one system message.
 const variationFormatVersion = 1
 
 type variationFrontMatter struct {
-	FormatVersion        int        `yaml:"formatVersion"`
-	Upsert               bool       `yaml:"upsert"`
-	Ref                  *Reference `yaml:"ref,omitempty"`
+	FormatVersion        int  `yaml:"formatVersion"`
+	Upsert               bool `yaml:"upsert"`
 	syncdomain.Variation `yaml:",inline"`
 }
 
-// localFile is one variation file and the readers for the files that it references.
+// localFile is one variation file and its attachment reader.
 type localFile struct {
 	ProjectKey     string
 	RelPath        string
 	Data           []byte
-	ReadReference  func(Reference) ([]byte, error)
 	ReadAttachment func(syncdomain.AttachmentKind, string) (syncdomain.Attachment, error)
 }
 
-// parseVariation reads one variation file, including the content of a linked
-// file and every attachment that it references. RelPath is relative to the
-// configs directory, for example "support/default.prompt.md".
+// parseVariation reads one variation file and every attachment it references.
 func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
 	meta, body, err := parseVariationFrontMatter(file.RelPath, file.Data)
 	if err != nil {
@@ -59,23 +53,7 @@ func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
 	}
 
 	variation := meta.Variation
-	if meta.Ref != nil {
-		// The variation file owns the identity and the model settings. The
-		// linked file owns only the prompt content.
-		if strings.TrimSpace(string(body)) != "" {
-			return syncdomain.SyncedResource{}, errors.New("referenced variation cannot also contain an inline prompt body")
-		}
-		content, err := file.ReadReference(*meta.Ref)
-		if err != nil {
-			return syncdomain.SyncedResource{}, err
-		}
-		if err := syncreference.ApplyToVariation(meta.Ref.Format, content, &variation); err != nil {
-			return syncdomain.SyncedResource{}, err
-		}
-		if stem := variationStem(file.RelPath); variation.Key != stem {
-			return syncdomain.SyncedResource{}, fmt.Errorf("referenced prompt key %q does not match filename %q", variation.Key, stem)
-		}
-	} else if err := ParsePromptBody(string(body), &variation); err != nil {
+	if err := ParsePromptBody(string(body), &variation); err != nil {
 		return syncdomain.SyncedResource{}, err
 	}
 
@@ -89,7 +67,6 @@ func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
 		ProjectKey: file.ProjectKey,
 		LookupKey:  configKey + "/" + variation.Key,
 		Upsert:     meta.Upsert,
-		Ref:        meta.Ref,
 		Variation:  variation,
 	}, nil
 }
@@ -149,16 +126,9 @@ func renderVariationFile(file VariationFile) ([]byte, error) {
 	case variation.Mode == syncdomain.VariationModeCompletion && variation.Instructions != "":
 		return nil, fmt.Errorf("completion variation %q cannot contain instructions", variation.Key)
 	}
-	if file.Ref != nil {
-		if err := validateReference(*file.Ref); err != nil {
-			return nil, err
-		}
-	}
-
 	frontMatter, err := marshalYAML(variationFrontMatter{
 		FormatVersion: variationFormatVersion,
 		Upsert:        file.Upsert,
-		Ref:           file.Ref,
 		Variation:     variation,
 	})
 	if err != nil {
@@ -170,9 +140,7 @@ func renderVariationFile(file VariationFile) ([]byte, error) {
 	content.Write(frontMatter)
 	content.WriteString("---\n")
 
-	// A linked variation has no body, so that only one file holds the prompt.
 	switch {
-	case file.Ref != nil:
 	case variation.Mode == syncdomain.VariationModeAgent:
 		if instructions := syncdomain.NormalizePromptText(variation.Instructions); instructions != "" {
 			fmt.Fprintf(&content, "\n%s\n", instructions)

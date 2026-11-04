@@ -81,8 +81,6 @@ type PlannedResource struct {
 	// nameSource is where the name of a local skill comes from: a name in its
 	// file, its key, or a flag of the add that creates it.
 	nameSource string
-	// restoreRef is the link that a restored variation file keeps.
-	restoreRef *syncdomain.Reference
 }
 
 // The sources of the name of a skill that sync creates.

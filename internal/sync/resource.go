@@ -156,9 +156,7 @@ type SyncedResource struct {
 	ProjectKey string
 	LookupKey  string
 	// Upsert lets sync create the variation in LaunchDarkly when it is absent.
-	Upsert bool
-	// Ref is the linked prompt file, or nil when the variation file holds the prompt.
-	Ref       *Reference
+	Upsert    bool
 	Variation Variation
 }
 
