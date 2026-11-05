@@ -27,6 +27,9 @@ func imdsFailure() error {
 	return fmt.Errorf("failed to refresh cached credentials, no EC2 IMDS role found, %w", imdsErr{})
 }
 
+// ssoSession is the session section that an sso_session profile needs.
+const ssoSession = "\n[sso-session corp]\nsso_start_url = https://example.awsapps.com/start\nsso_region = us-east-1\n"
+
 // writeConfig points the SDK at a temp config with this content.
 func writeConfig(t *testing.T, content string) {
 	t.Helper()
@@ -67,7 +70,7 @@ func TestCredentialErrorHidesTheSDKCause(t *testing.T) {
 			writeProfiles(t, tc.profiles...)
 			cause := imdsFailure()
 
-			err := noCredentialsError(tc.selected, cause)
+			err := noCredentialsError(context.Background(), tc.selected, cause)
 
 			assert.NotContains(t, err.Error(), "169.254.169.254")
 			assert.NotContains(t, err.Error(), "attempts")
@@ -83,37 +86,37 @@ func expiredSSO() error {
 }
 
 func TestCredentialErrorNamesTheProfileAndLogin(t *testing.T) {
-	writeConfig(t, "[profile dev]\nsso_session = corp\n")
+	writeConfig(t, "[profile dev]\nsso_session = corp\n"+ssoSession)
 
-	err := noCredentialsError("dev", expiredSSO())
+	err := noCredentialsError(context.Background(), "dev", expiredSSO())
 
 	assert.Contains(t, err.Error(), `"dev"`)
 	assert.Contains(t, err.Error(), "aws sso login --profile dev")
 }
 
 func TestCredentialErrorNamesTheDefaultSSOProfile(t *testing.T) {
-	writeConfig(t, "[default]\nsso_session = corp\n")
+	writeConfig(t, "[default]\nsso_session = corp\n"+ssoSession)
 
-	err := noCredentialsError("", expiredSSO())
+	err := noCredentialsError(context.Background(), "", expiredSSO())
 
 	assert.Contains(t, err.Error(), "aws sso login --profile default")
 }
 
 func TestCredentialErrorReadsAWSDefaultProfile(t *testing.T) {
-	writeConfig(t, "[profile corp]\nsso_session = corp\n")
+	writeConfig(t, "[profile corp]\nsso_session = corp\n"+ssoSession)
 	t.Setenv("AWS_DEFAULT_PROFILE", "corp")
 
-	err := noCredentialsError("", expiredSSO())
+	err := noCredentialsError(context.Background(), "", expiredSSO())
 
 	assert.Contains(t, err.Error(), "aws sso login --profile corp")
 }
 
 // A login does not fix an SSO error with another cause.
 func TestCredentialErrorPointsToTheCauseOfOtherSSOErrors(t *testing.T) {
-	writeConfig(t, "[profile dev]\nsso_session = corp\n")
+	writeConfig(t, "[profile dev]\nsso_session = corp\n"+ssoSession)
 	cause := errors.New("ForbiddenException: No access")
 
-	err := noCredentialsError("dev", cause)
+	err := noCredentialsError(context.Background(), "dev", cause)
 
 	assert.Contains(t, err.Error(), `profile "dev"`)
 	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile dev")
@@ -126,7 +129,7 @@ func TestCredentialErrorPointsToTheCauseForTheDefaultProfile(t *testing.T) {
 	writeConfig(t, "[default]\ncredential_process = /usr/local/bin/get-creds\n")
 	cause := errors.New("process provider error: exit status 1")
 
-	err := noCredentialsError("", cause)
+	err := noCredentialsError(context.Background(), "", cause)
 
 	assert.Contains(t, err.Error(), `profile "default"`)
 	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile default")
@@ -139,7 +142,7 @@ func TestCredentialErrorPointsToTheCauseForOtherProfiles(t *testing.T) {
 	writeConfig(t, "[profile ci]\ncredential_process = /usr/local/bin/get-creds\n")
 	cause := errors.New("process provider error: exit status 1")
 
-	err := noCredentialsError("ci", cause)
+	err := noCredentialsError(context.Background(), "ci", cause)
 
 	assert.Contains(t, err.Error(), `profile "ci"`)
 	assert.Contains(t, err.Error(), "aws sts get-caller-identity --profile ci")
@@ -153,7 +156,7 @@ func TestCredentialErrorSaysAProfileHasNoCredentials(t *testing.T) {
 
 	for name, cause := range map[string]error{"imds": imdsFailure(), "no keys": nil} {
 		t.Run(name, func(t *testing.T) {
-			err := noCredentialsError("dev", cause)
+			err := noCredentialsError(context.Background(), "dev", cause)
 
 			assert.Contains(t, err.Error(), `profile "dev" has no AWS credentials`)
 			assert.NotContains(t, err.Error(), "sso login")
@@ -169,7 +172,7 @@ func TestCredentialErrorShowsFiveProfilesAtMost(t *testing.T) {
 	}
 	writeProfiles(t, names...)
 
-	msg := noCredentialsError("", nil).Error()
+	msg := noCredentialsError(context.Background(), "", nil).Error()
 
 	shown := 0
 	for _, name := range names {
@@ -186,7 +189,7 @@ func TestCredentialErrorWithExactlyFiveProfiles(t *testing.T) {
 	names := []string{"a1", "b2", "c3", "d4", "e5"}
 	writeProfiles(t, names...)
 
-	msg := noCredentialsError("", nil).Error()
+	msg := noCredentialsError(context.Background(), "", nil).Error()
 
 	for _, name := range names {
 		assert.Contains(t, msg, name)
@@ -198,7 +201,7 @@ func TestCredentialErrorCountsPrefixProfilesSeparately(t *testing.T) {
 	// dev is a prefix of dev-admin.
 	writeProfiles(t, "a1", "b2", "c3", "dev-admin", "e5", "dev")
 
-	msg := noCredentialsError("", nil).Error()
+	msg := noCredentialsError(context.Background(), "", nil).Error()
 
 	assert.Contains(t, msg, "dev-admin")
 	assert.Contains(t, msg, "and 1 more")
@@ -212,7 +215,7 @@ func TestCredentialErrorCountsDuplicateProfilesOnce(t *testing.T) {
 	require.NoError(t, os.WriteFile(creds, []byte("[a1]\n[f6]\n"), 0o600))
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", creds)
 
-	msg := noCredentialsError("", nil).Error()
+	msg := noCredentialsError(context.Background(), "", nil).Error()
 
 	assert.Contains(t, msg, "and 1 more")
 }
@@ -220,7 +223,7 @@ func TestCredentialErrorCountsDuplicateProfilesOnce(t *testing.T) {
 func TestCredentialErrorHasNoSemicolonOrDash(t *testing.T) {
 	writeProfiles(t, "a1", "b2", "c3", "d4", "e5", "f6")
 	for _, profile := range []string{"", "a1"} {
-		msg := noCredentialsError(profile, imdsFailure()).Error()
+		msg := noCredentialsError(context.Background(), profile, imdsFailure()).Error()
 		assert.NotContains(t, msg, ";")
 		assert.NotContains(t, msg, "—")
 	}
@@ -248,6 +251,11 @@ sso_region = us-east-1
 sso_account_id = 123456789012
 sso_role_name = Admin
 region = us-east-1
+
+[profile role]
+role_arn = arn:aws:iam::123456789012:role/App
+source_profile = dev
+region = us-east-1
 `)
 }
 
@@ -255,6 +263,7 @@ region = us-east-1
 func TestSSOTokenInvalidForEachSDKCase(t *testing.T) {
 	cases := map[string]struct {
 		profile string
+		login   string
 		cache   func(t *testing.T)
 	}{
 		"sso_session without a cached token": {profile: "dev"},
@@ -265,6 +274,7 @@ func TestSSOTokenInvalidForEachSDKCase(t *testing.T) {
 			require.NoError(t, os.WriteFile(path, []byte(`{"accessToken":"old","expiresAt":"2020-01-01T00:00:00Z"}`), 0o600))
 		}},
 		"legacy sso_start_url without a cached token": {profile: "legacy"},
+		"role with an sso_session source profile":     {profile: "role", login: "dev"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -277,7 +287,11 @@ func TestSSOTokenInvalidForEachSDKCase(t *testing.T) {
 
 			require.ErrorIs(t, err, ErrNoCredentials)
 			assert.True(t, SSOTokenInvalid(err), "cause: %v", errors.Unwrap(err))
-			assert.Contains(t, err.Error(), "aws sso login --profile "+tc.profile)
+			login := tc.login
+			if login == "" {
+				login = tc.profile
+			}
+			assert.Contains(t, err.Error(), "aws sso login --profile "+login)
 		})
 	}
 }
@@ -310,7 +324,7 @@ func TestCredentialErrorHidesTheProcessOutput(t *testing.T) {
 func TestCredentialErrorPointsToTheCauseWithoutAProfile(t *testing.T) {
 	writeProfiles(t)
 
-	err := noCredentialsError("", errors.New("process provider error: exit status 1"))
+	err := noCredentialsError(context.Background(), "", errors.New("process provider error: exit status 1"))
 
 	assert.Equal(t, "unable to get AWS credentials. Run `aws sts get-caller-identity` to see the cause", err.Error())
 }
