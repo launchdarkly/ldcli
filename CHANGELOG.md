@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.0.0](https://github.com/launchdarkly/ldcli/compare/v3.16.0...v4.0.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* The production spec renames or removes some API tags. The ai-configs, views-beta, holdouts-beta, release-pipelines-beta, and releases-beta command groups are replaced by agent-control, views, holdouts, and release-pipelines-deprecated. The contexts command group no longer has the delete-instances, list-instances, and search-instances commands.
+
+### Features
+
+* add observability commands to query logs, traces, aggregations, and keys ([#986](https://github.com/launchdarkly/ldcli/issues/986)) ([a34441c](https://github.com/launchdarkly/ldcli/commit/a34441c5afaeb6e7f12797999d335b1e4bfc0fdd))
+* sync the OpenAPI spec with the production spec ([#963](https://github.com/launchdarkly/ldcli/issues/963)) ([43c3ede](https://github.com/launchdarkly/ldcli/commit/43c3ede6a2b95cd4c5e4d1628a4348a277ad2034))
+* **sync:** add projection and problem core ([#987](https://github.com/launchdarkly/ldcli/issues/987)) ([bcc8d30](https://github.com/launchdarkly/ldcli/commit/bcc8d3080a98ce8943196b77cce7e6dbaf557b5d))
+* **sync:** add the adapter core and the Markdown adapter ([#988](https://github.com/launchdarkly/ldcli/issues/988)) ([3b2d454](https://github.com/launchdarkly/ldcli/commit/3b2d45408c5e64b701040c15301324a145d532d3))
+
 ## [3.16.0](https://github.com/launchdarkly/ldcli/compare/v3.15.0...v3.16.0) (2026-11-02)
 
 
