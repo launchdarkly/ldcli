@@ -1,0 +1,12 @@
+---
+name: refunds
+description: Explain the refund policy and escalation rules.
+license: Apache-2.0
+metadata:
+  owner: support-platform
+---
+
+# Refund handling
+
+Confirm the order ID first.
+Escalate refunds above $500.
