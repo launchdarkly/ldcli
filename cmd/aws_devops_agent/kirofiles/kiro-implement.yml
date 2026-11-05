@@ -1,0 +1,111 @@
+name: Kiro Implement Behind Flag
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_description:
+        description: "What to implement"
+        required: true
+      flag_key:
+        description: "LaunchDarkly flag key gating the change"
+        required: true
+      variation_details:
+        description: "Behavior of the treatment variation"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Kiro CLI
+        run: curl -fsSL https://cli.kiro.dev/install | bash
+
+      - name: Create working branch
+        env:
+          FLAG_KEY: ${{ inputs.flag_key }}
+        run: |
+          if [[ ! "$FLAG_KEY" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::Invalid flag key"
+            exit 1
+          fi
+          BRANCH="experiment/${FLAG_KEY}-${GITHUB_RUN_ID}"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          git checkout -b "$BRANCH"
+          git config user.email "kiro-agent@users.noreply.github.com"
+          git config user.name "Kiro Agent"
+
+      - name: Snapshot .git state
+        run: |
+          find .git -type f -print0 | sort -z \
+            | xargs -0 sha256sum > "$RUNNER_TEMP/git-snapshot.sha256"
+
+      - name: Implement the change
+        env:
+          KIRO_API_KEY: ${{ secrets.KIRO_API_KEY }}
+          TASK_DESCRIPTION: ${{ inputs.task_description }}
+          FLAG_KEY: ${{ inputs.flag_key }}
+          VARIATION_DETAILS: ${{ inputs.variation_details }}
+        run: |
+          set -o pipefail
+          kiro-cli chat \
+            --agent flag-implementer \
+            --no-interactive \
+            "Task: ${TASK_DESCRIPTION}
+             LaunchDarkly flag key: ${FLAG_KEY}
+             Treatment variation: ${VARIATION_DETAILS}" \
+            | tee "$RUNNER_TEMP/kiro-run.jsonl"
+
+      - name: Commit and push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TASK_DESCRIPTION: ${{ inputs.task_description }}
+          FLAG_KEY: ${{ inputs.flag_key }}
+        run: |
+          # Refuse to proceed if Kiro wrote anywhere under .git/ — a tampered
+          # .git/config (core.fsmonitor, core.hooksPath, remote URL, etc.)
+          # could make the git commands below execute attacker-controlled code
+          # with GH_TOKEN in the environment.
+          find .git -type f -print0 | sort -z \
+            | xargs -0 sha256sum > "$RUNNER_TEMP/git-snapshot-after.sha256"
+          if ! diff -q "$RUNNER_TEMP/git-snapshot.sha256" "$RUNNER_TEMP/git-snapshot-after.sha256" >/dev/null; then
+            echo "::error::.git contents changed during Kiro run — refusing to commit"
+            diff "$RUNNER_TEMP/git-snapshot.sha256" "$RUNNER_TEMP/git-snapshot-after.sha256" || true
+            exit 1
+          fi
+          GIT="git -c core.fsmonitor=false -c core.hooksPath=/dev/null"
+          $GIT add -A
+          if $GIT diff --staged --quiet; then
+            echo "::error::Kiro produced no changes"
+            exit 1
+          fi
+          $GIT commit -m "feat: ${TASK_DESCRIPTION} (flag: ${FLAG_KEY})"
+          $GIT push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TASK_DESCRIPTION: ${{ inputs.task_description }}
+          FLAG_KEY: ${{ inputs.flag_key }}
+        run: |
+          gh pr create \
+            --base __DEFAULT_BRANCH__ \
+            --head "$BRANCH" \
+            --title "feat: ${TASK_DESCRIPTION}" \
+            --body "Implemented by Kiro CLI in headless mode.
+            Gated behind LaunchDarkly flag ${FLAG_KEY}."
+
+      - name: Upload run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiro-run-log
+          path: ${{ runner.temp }}/kiro-run.jsonl
