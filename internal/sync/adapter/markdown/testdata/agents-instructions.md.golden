@@ -1,0 +1,9 @@
+# Repository guide
+
+## Support agent
+
+Ask for an order ID before discussing an order.
+
+## Build
+
+Run `make test`.
