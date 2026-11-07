@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncadapter "github.com/launchdarkly/ldcli/internal/sync/adapter"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
@@ -57,10 +58,16 @@ type PlannedResource struct {
 	LocalFingerprint    string
 	ServerFingerprint   string
 	ServerMode          syncdomain.VariationMode
+	Direction           syncdomain.SyncDirection
 	Local               *syncdomain.Variation
 	Server              *syncdomain.Variation
 	LocalAttachment     *syncdomain.Attachment
 	ServerAttachment    *syncdomain.Attachment
+	Source              *syncdomain.Reference
+	SourceDependencies  []string
+	IndexedSelections   []syncdomain.IndexedSelection
+	LocalProjection     syncdomain.Projection
+	ServerProjection    syncdomain.Projection
 	// SyncedElsewhere is true when another working copy synced the resource
 	// after this working copy wrote its sync.lock file. The plan is still
 	// correct, because it compares against this working copy's lock.
@@ -70,9 +77,13 @@ type PlannedResource struct {
 	ServerHasStaleAttachmentPins bool
 	Diff                         variationDiffFields
 	Error                        string
+	Problem                      *syncdomain.Problem
 	// changedAttachments are the tools and skills whose content differs
 	// between the local file and LaunchDarkly.
 	changedAttachments []ResourceID
+	// attachmentConflict is true when the row is a conflict because a shared
+	// tool or skill changed on the side that the row would overwrite.
+	attachmentConflict bool
 	// conflictUses are the conflicted variations that newly use the tool or
 	// skill of this row on one side, when no push or pull needs the row.
 	conflictUses []conflictUse
@@ -81,6 +92,61 @@ type PlannedResource struct {
 	// nameSource is where the name of a local skill comes from: a name in its
 	// file, its key, or a flag of the add that creates it.
 	nameSource string
+	// directionOverride is true when the LaunchDarkly sync setting of the
+	// resource chose the side that wins, instead of the three-way comparison.
+	directionOverride bool
+}
+
+func setProblem(resource *PlannedResource, problem *syncdomain.Problem) {
+	resource.Action = ActionError
+	resource.Problem = problem
+	if problem != nil {
+		resource.Error = problem.Message
+	}
+}
+
+func blockUnsupportedFields(resource *PlannedResource) {
+	if resource.Source == nil || resource.LocalProjection == nil {
+		return
+	}
+	states := resource.LocalProjection.States()
+	// The first field in name order is the one that the problem reports, so
+	// the same plan always gives the same problem.
+	for _, field := range slices.Sorted(maps.Keys(states)) {
+		state := states[field]
+		if state.Capability == syncdomain.CapabilityDirect {
+			continue
+		}
+		code := state.Code
+		if code == "" {
+			code = syncdomain.ErrorFieldReadOnly
+		}
+		suggestion := "Map only syncable fields, or link the value's real source."
+		if code == syncdomain.ErrorImportUnresolved && state.File != "" {
+			suggestion = "Link the imported value directly: " +
+				sourceLinkCommand(resource.ID, state.File, resource.Source.Format)
+		}
+		setProblem(resource, syncdomain.NewProblem(
+			code,
+			fmt.Sprintf("field %q is %s: %s", field, state.Capability, state.Reason),
+			suggestion,
+		).WithResource(resource.ID).WithFile(resource.Source.File, 0, 0))
+		return
+	}
+}
+
+func sourceLinkCommand(id ResourceID, file, format string) string {
+	if id.Kind == syncdomain.KindVariation {
+		configKey, variationKey, _ := id.VariationKeys()
+		return fmt.Sprintf(
+			"ldcli sync prompts link --file %s --format %s --project %s --config-key %s --key %s",
+			file, format, id.ProjectKey, configKey, variationKey,
+		)
+	}
+	return fmt.Sprintf(
+		"ldcli sync %ss link --file %s --format %s --project %s --key %s",
+		id.Kind, file, format, id.ProjectKey, id.LookupKey,
+	)
 }
 
 // The sources of the name of a skill that sync creates.
@@ -132,6 +198,8 @@ type Plan struct {
 	// variation uses. Only a prompts plan counts them, because it leaves them
 	// out.
 	standalone map[syncdomain.Kind]int
+	// ForceConfirmation makes link confirm a descriptor-only change.
+	ForceConfirmation bool
 }
 
 // BuildPlan compares the baseline with the local and the server state. The
@@ -141,10 +209,10 @@ func BuildPlan(baseline syncmanifest.Manifest, local []syncdomain.SyncedResource
 	for _, resource := range local {
 		localByID[resource.ID()] = resource
 	}
-	baselineByID := make(map[ResourceID]string, len(baseline.Resources))
+	baselineByID := make(map[ResourceID]syncmanifest.Resource, len(baseline.Resources))
 	for _, resource := range baseline.Resources {
 		if resource.ResourceKind == syncdomain.KindVariation {
-			baselineByID[resource.ID()] = resource.Fingerprint
+			baselineByID[resource.ID()] = resource
 		}
 	}
 
@@ -166,8 +234,14 @@ func BuildPlan(baseline syncmanifest.Manifest, local []syncdomain.SyncedResource
 		if isLocal {
 			localState = &localResource
 		}
-		baselineFingerprint, tracked := baselineByID[id]
-		plan.Resources = append(plan.Resources, planResource(id, localState, server[id], baselineFingerprint, tracked))
+		baselineResource, tracked := baselineByID[id]
+		if localState != nil {
+			tracked = baselineApplies(baselineResource, tracked, localState.Source)
+		}
+		row := planResource(id, localState, server[id], baselineResource.Fingerprint, tracked)
+		checkSourceBaseline(&row, baselineResource, tracked)
+		blockMissingDescriptor(&row, localState == nil, baselineResource, tracked)
+		plan.Resources = append(plan.Resources, row)
 	}
 	return plan
 }
@@ -192,41 +266,94 @@ func planResource(
 	var err error
 	if local != nil {
 		resource.Upsert = local.Upsert
+		resource.Source = local.Source
+		resource.SourceDependencies = slices.Clone(local.Dependencies)
+		resource.IndexedSelections = slices.Clone(local.IndexedSelections)
 		variation := local.Variation
+		if local.Source != nil {
+			// The source implies a mode. The config decides the real one.
+			projection, ok := local.Projection.(syncdomain.VariationProjection)
+			if !ok {
+				return fail(fmt.Sprintf("source returned %T for a variation", local.Projection))
+			}
+			if projection, err = projection.ForMode(server.ConfigMode); err != nil {
+				return fail(err.Error())
+			}
+			variation = syncdomain.ApplyVariationProjection(variation, projection)
+			resource.LocalProjection = projection
+		}
 		if variation.Mode != server.ConfigMode {
 			return fail(fmt.Sprintf("local mode %q does not match config mode %q", variation.Mode, server.ConfigMode))
 		}
-		resource.Local = &variation
-		if resource.LocalFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, variation); err != nil {
+		if err := syncdomain.ValidateAttachmentRefs(variation.Mode, variation.Tools, variation.Skills); err != nil {
 			return fail(err.Error())
+		}
+		resource.Local = &variation
+		if local.Source == nil {
+			if resource.LocalFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, variation); err != nil {
+				return fail(err.Error())
+			}
 		}
 	}
 	if server.Variation != nil {
-		if resource.ServerFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, *server.Variation); err != nil {
+		if local != nil && local.Source != nil {
+			resource.ServerProjection, err = syncdomain.ProjectVariation(*server.Variation, *local.Source)
+			if err == nil {
+				resource.ServerFingerprint, err = syncdomain.FingerprintProjection(id, resource.ServerProjection)
+			}
+		} else {
+			resource.ServerFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, *server.Variation)
+		}
+		if err != nil {
 			return fail(fmt.Sprintf("invalid server variation: %s", err))
+		}
+	}
+	if resource.Source != nil && resource.LocalProjection != nil {
+		if resource.ServerProjection != nil {
+			resource.LocalProjection, err = syncdomain.FillReadOnlyFields(
+				resource.LocalProjection, resource.ServerProjection,
+			)
+		}
+		if err == nil {
+			resource.LocalFingerprint, err = syncdomain.FingerprintProjection(id, resource.LocalProjection)
+		}
+		if err != nil {
+			return fail(err.Error())
 		}
 	}
 
 	resource.Action = chooseAction(tracked, resource)
 	if resource.Action == ActionError {
 		resource.Error = "variation does not exist in LaunchDarkly; set upsert: true to create it"
+		if resource.Source != nil {
+			// A descriptor has no upsert, so the recovery is to create the
+			// variation in LaunchDarkly or to detach it.
+			configKey, variationKey, _ := id.VariationKeys()
+			resource.Error = fmt.Sprintf(
+				"variation does not exist in LaunchDarkly. Create it in LaunchDarkly and run sync again. To stop syncing it, run ldcli sync prompts detach --project %s --config-key %s --key %s.",
+				id.ProjectKey, configKey, variationKey,
+			)
+		}
 	}
 	if resource.Action == ActionCreateServer {
 		_, variationKey, _ := id.VariationKeys()
 		rejectInvalidCreate(&resource, syncdomain.ValidateCreate(id.Kind, variationKey, local.Variation.Name, ""))
 	}
+	blockUnsupportedFields(&resource)
 	// The fingerprints do not include versions. If LaunchDarkly pins an older
 	// attachment version, sync updates the pin even when the content matches.
 	currentPins, latestPins, stalePins := attachmentPinDiff(resource.Server)
 	resource.ServerHasStaleAttachmentPins = stalePins
-	if stalePins && (resource.Action == ActionInSync || resource.Action == ActionUpdateManifest) {
-		resource.Action = ActionUpdateServer
-	}
+	upgradeStalePins(&resource)
 
 	// The diff shows only changes in behavior. The raw JSON can differ when
 	// the fingerprints match, for example because the API adds defaults.
 	if resource.LocalFingerprint != resource.ServerFingerprint {
-		resource.Diff = variationDiff(resource.Server, resource.Local)
+		if resource.Source != nil {
+			resource.Diff = projectionDiff(resource.ServerProjection, resource.LocalProjection)
+		} else {
+			resource.Diff = variationDiff(resource.Server, resource.Local)
+		}
 	}
 	if stalePins && resource.Action != ActionConflict {
 		if resource.Diff == nil {
@@ -246,14 +373,14 @@ func planAttachments(
 	local []syncdomain.SyncedAttachment,
 	server map[ResourceID]*syncdomain.Attachment,
 ) []PlannedResource {
-	localByID := make(map[ResourceID]*syncdomain.Attachment, len(local))
+	localByID := make(map[ResourceID]*syncdomain.SyncedAttachment, len(local))
 	for index := range local {
-		localByID[local[index].ID()] = &local[index].Attachment
+		localByID[local[index].ID()] = &local[index]
 	}
-	baselineByID := make(map[ResourceID]string, len(baseline.Resources))
+	baselineByID := make(map[ResourceID]syncmanifest.Resource, len(baseline.Resources))
 	for _, resource := range baseline.Resources {
 		if resource.ResourceKind != syncdomain.KindVariation {
-			baselineByID[resource.ID()] = resource.Fingerprint
+			baselineByID[resource.ID()] = resource
 		}
 	}
 
@@ -267,10 +394,74 @@ func planAttachments(
 
 	resources := make([]PlannedResource, 0, len(ids))
 	for _, id := range ids {
-		baselineFingerprint, tracked := baselineByID[id]
-		resources = append(resources, planAttachment(id, localByID[id], server[id], baselineFingerprint, tracked))
+		baselineResource, tracked := baselineByID[id]
+		if local := localByID[id]; local != nil {
+			tracked = baselineApplies(baselineResource, tracked, local.Source)
+		}
+		row := planSyncedAttachment(id, localByID[id], server[id], baselineResource.Fingerprint, tracked)
+		checkSourceBaseline(&row, baselineResource, tracked)
+		blockMissingDescriptor(&row, localByID[id] == nil, baselineResource, tracked)
+		resources = append(resources, row)
 	}
 	return resources
+}
+
+// baselineApplies reports whether a lock entry is a baseline for the local
+// side. A managed file and a source projection have fingerprints of
+// different schemas, so a lock entry without a projection schema says
+// nothing about a linked resource, and the link plans it as a first sync.
+func baselineApplies(baseline syncmanifest.Resource, tracked bool, source *syncdomain.Reference) bool {
+	return tracked && (source == nil || baseline.FingerprintSchema != "")
+}
+
+// blockMissingDescriptor stops the row of a linked resource whose descriptor
+// is gone. A restore would write a managed copy and drop the mapping, so the
+// user restores the descriptor or detaches the resource.
+func blockMissingDescriptor(resource *PlannedResource, missingLocal bool, baseline syncmanifest.Resource, tracked bool) {
+	if !missingLocal || !tracked || baseline.FingerprintSchema == "" || resource.Action == ActionError {
+		return
+	}
+	setProblem(resource, syncdomain.NewProblem(
+		syncdomain.ErrorLinkedSourceMissing,
+		"the descriptor of a linked resource is missing",
+		"Restore the .ref.yaml descriptor, or run "+detachCommand(resource.ID)+".",
+	).WithResource(resource.ID))
+}
+
+func checkSourceBaseline(resource *PlannedResource, baseline syncmanifest.Resource, tracked bool) {
+	if resource.Source == nil || !tracked || resource.Action == ActionError {
+		return
+	}
+	digest, err := syncdomain.ReferenceDigest(*resource.Source)
+	behavior, behaviorErr := syncadapter.Behavior(resource.Source.Format)
+	schemaChanged := baseline.FingerprintSchema != "" &&
+		baseline.FingerprintSchema != syncdomain.ProjectionFingerprintSchema
+	referenceChanged := baseline.ReferenceDigest != "" && baseline.ReferenceDigest != digest
+	adapterChanged := baseline.AdapterBehavior != "" && baseline.AdapterBehavior != behavior
+	switch {
+	case err != nil:
+		resource.Action, resource.Error = ActionError, err.Error()
+	case behaviorErr != nil:
+		resource.Action, resource.Error = ActionError, behaviorErr.Error()
+	case schemaChanged || referenceChanged:
+		setProblem(resource, syncdomain.NewProblem(
+			syncdomain.ErrorBindingStale,
+			"the source descriptor changed",
+			"Run link again to review the mapping.",
+		).WithResource(resource.ID))
+	case adapterChanged:
+		setProblem(resource, syncdomain.NewProblem(
+			syncdomain.ErrorBindingStale,
+			"adapter behavior changed",
+			"Review the descriptor, then run link again.",
+		).WithResource(resource.ID))
+	case baseline.IndexedSelections != nil && !slices.Equal(baseline.IndexedSelections, resource.IndexedSelections):
+		setProblem(resource, syncdomain.NewProblem(
+			syncdomain.ErrorIndexedSelectionChanged,
+			"an indexed source selection changed",
+			"Review the descriptor and run link again. Use a keyed selector when the item has a stable key.",
+		).WithResource(resource.ID).WithFile(resource.Source.File, 0, 0))
+	}
 }
 
 // planAttachment fingerprints both sides of one tool or skill and chooses its
@@ -281,8 +472,22 @@ func planAttachment(
 	baselineFingerprint string,
 	tracked bool,
 ) PlannedResource {
+	var synced *syncdomain.SyncedAttachment
+	if local != nil {
+		synced = &syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: *local}
+	}
+	return planSyncedAttachment(id, synced, server, baselineFingerprint, tracked)
+}
+
+func planSyncedAttachment(
+	id ResourceID,
+	local *syncdomain.SyncedAttachment,
+	server *syncdomain.Attachment,
+	baselineFingerprint string,
+	tracked bool,
+) PlannedResource {
 	resource := PlannedResource{
-		ID: id, BaselineFingerprint: baselineFingerprint, LocalAttachment: local, ServerAttachment: server,
+		ID: id, BaselineFingerprint: baselineFingerprint, ServerAttachment: server,
 	}
 	fail := func(message string) PlannedResource {
 		resource.Action, resource.Error = ActionError, message
@@ -291,32 +496,67 @@ func planAttachment(
 
 	var err error
 	if local != nil {
-		resource.Upsert = local.Upsert
-		if resource.LocalFingerprint, err = syncdomain.FingerprintAttachment(id.ProjectKey, *local); err != nil {
+		resource.Upsert = local.Attachment.Upsert
+		resource.LocalAttachment = &local.Attachment
+		resource.Source = local.Source
+		resource.SourceDependencies = slices.Clone(local.Dependencies)
+		resource.IndexedSelections = slices.Clone(local.IndexedSelections)
+		if resource.Source != nil {
+			resource.LocalProjection = local.Projection
+		} else {
+			resource.LocalFingerprint, err = syncdomain.FingerprintAttachment(id.ProjectKey, local.Attachment)
+		}
+		if err != nil {
 			return fail(err.Error())
 		}
 	}
-	if local != nil && local.Skill != nil {
+	if local != nil && local.Attachment.Skill != nil {
 		resource.nameSource = nameFromKey
-		if local.Skill.Name != "" {
+		if local.Attachment.Skill.Name != "" {
 			resource.nameSource = nameFromFrontMatter
 		}
 	}
 	if server != nil {
-		if resource.ServerFingerprint, err = syncdomain.FingerprintAttachment(id.ProjectKey, *server); err != nil {
+		if resource.Source != nil {
+			resource.ServerProjection, err = syncdomain.ProjectAttachment(*server, *resource.Source)
+			if err == nil {
+				resource.ServerFingerprint, err = syncdomain.FingerprintProjection(id, resource.ServerProjection)
+			}
+		} else {
+			resource.ServerFingerprint, err = syncdomain.FingerprintAttachment(id.ProjectKey, *server)
+		}
+		if err != nil {
 			return fail(fmt.Sprintf("invalid server %s: %s", id.Kind, err))
+		}
+	}
+	if resource.Source != nil && resource.LocalProjection != nil {
+		if resource.ServerProjection != nil {
+			resource.LocalProjection, err = syncdomain.FillReadOnlyFields(
+				resource.LocalProjection, resource.ServerProjection,
+			)
+		}
+		if err == nil {
+			resource.LocalFingerprint, err = syncdomain.FingerprintProjection(id, resource.LocalProjection)
+		}
+		if err != nil {
+			return fail(err.Error())
 		}
 	}
 
 	resource.Action = chooseAction(tracked, resource)
 	switch resource.Action {
 	case ActionError:
-		resource.Error = missingAttachmentError(id)
+		resource.Error = missingAttachmentError(id, resource.Source != nil)
 	case ActionCreateServer:
-		rejectInvalidCreate(&resource, validateAttachmentCreate(*local))
+		rejectInvalidCreate(&resource, validateAttachmentCreate(local.Attachment))
 	}
+	blockUnsupportedFields(&resource)
 	if resource.LocalFingerprint != resource.ServerFingerprint {
-		resource.Diff = attachmentDiff(server, local)
+		if resource.Source != nil {
+			resource.Diff = projectionDiff(resource.ServerProjection, resource.LocalProjection)
+		} else {
+			resource.Diff = attachmentDiff(server, resource.LocalAttachment)
+		}
 	}
 	resource.changedAttachments = changedAttachmentIDs(resource)
 	return resource
@@ -324,9 +564,16 @@ func planAttachment(
 
 // missingAttachmentError explains how to create a tool or skill that exists
 // only in a local file, or how to stop syncing it.
-func missingAttachmentError(id ResourceID) string {
+func missingAttachmentError(id ResourceID, linked bool) string {
+	missing := missingAttachment(id)
+	if linked {
+		// A descriptor has no upsert, so the recovery is to create the
+		// resource in LaunchDarkly.
+		missing = fmt.Sprintf("%s %q does not exist in LaunchDarkly. Create it in LaunchDarkly and run sync again.",
+			id.Kind, id.LookupKey)
+	}
 	return fmt.Sprintf("%s To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
-		missingAttachment(id), id.Kind, id.ProjectKey, id.LookupKey)
+		missing, id.Kind, id.ProjectKey, id.LookupKey)
 }
 
 // missingAttachment says that LaunchDarkly does not have the tool or skill
@@ -419,9 +666,21 @@ func chooseAction(tracked bool, resource PlannedResource) Action {
 	}
 }
 
+// upgradeStalePins turns a row that has nothing else to do into a push, when
+// LaunchDarkly pins older tool or skill versions than the latest.
+func upgradeStalePins(resource *PlannedResource) {
+	if resource.ServerHasStaleAttachmentPins &&
+		(resource.Action == ActionInSync || resource.Action == ActionUpdateManifest) {
+		resource.Action = ActionUpdateServer
+	}
+}
+
 // RequiresConfirmation reports whether the plan changes a local file or
 // LaunchDarkly. A change to the manifest only does not need a confirmation.
 func (plan Plan) RequiresConfirmation() bool {
+	if plan.ForceConfirmation {
+		return true
+	}
 	return slices.ContainsFunc(plan.Resources, func(resource PlannedResource) bool {
 		return resource.Action.changesServer() || resource.Action.changesLocal()
 	})
@@ -451,7 +710,11 @@ func (plan Plan) BlockingError() error {
 		case ActionConflict:
 			blocking = append(blocking, fmt.Errorf("cannot sync conflicted resource %s", resource.ID.Label()))
 		case ActionError:
-			blocking = append(blocking, fmt.Errorf("cannot sync %s: %s", resource.ID.Label(), resource.Error))
+			if resource.Problem != nil {
+				blocking = append(blocking, fmt.Errorf("cannot sync %s: %w", resource.ID.Label(), resource.Problem))
+			} else {
+				blocking = append(blocking, fmt.Errorf("cannot sync %s: %s", resource.ID.Label(), resource.Error))
+			}
 		}
 	}
 	return errors.Join(blocking...)

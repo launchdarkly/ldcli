@@ -263,6 +263,11 @@ func (manifest *Manifest) Sort() {
 	})
 }
 
+// Has reports whether the manifest records a resource.
+func (manifest Manifest) Has(id syncdomain.ResourceID) bool {
+	return manifest.index(id) >= 0
+}
+
 func (manifest Manifest) index(id syncdomain.ResourceID) int {
 	return slices.IndexFunc(manifest.Resources, func(resource Resource) bool { return resource.ID() == id })
 }

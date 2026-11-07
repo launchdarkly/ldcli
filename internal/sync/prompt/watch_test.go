@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
 func TestWatchWorkspaceWaitsForDebouncedChange(t *testing.T) {
@@ -160,6 +161,73 @@ func TestWatchWorkspaceRefreshesPlanAfterSourceChangesDuringSync(t *testing.T) {
 	require.NoError(t, <-done)
 }
 
+func TestWatchWorkspaceRefreshesReferencedFilesBeforeRebuildingPlan(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	_, err := store.Add([]synclocal.VariationFile{{
+		ProjectKey: "project",
+		ConfigKey:  "config",
+		Variation: syncdomain.Variation{
+			Mode: syncdomain.VariationModeAgent, Key: "prompt", Name: "Prompt", Instructions: "Initial",
+		},
+	}})
+	require.NoError(t, err)
+	wrapper := filepath.Join(root, syncdomain.RootDir, "project", "configs", "config", "prompt.prompt.md")
+	referencePath := filepath.Join(root, "prompts", "prompt.md")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var attempts atomic.Int32
+	attempted := make(chan struct{}, 3)
+	done := make(chan error, 1)
+	go func() {
+		done <- watchWorkspace(ctx, root, 15*time.Millisecond, func(*sourceWatcher) error {
+			attempt := attempts.Add(1)
+			if attempt == 1 {
+				if err := os.MkdirAll(filepath.Dir(referencePath), 0o755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(referencePath, []byte("Referenced"), 0o644); err != nil {
+					return err
+				}
+				if err := os.Remove(wrapper); err != nil {
+					return err
+				}
+				if _, err := store.WriteDescriptor(
+					syncdomain.VariationID("project", "config", "prompt"),
+					synclocal.Reference{File: "prompts/prompt.md", Format: "markdown"},
+				); err != nil {
+					return err
+				}
+				attempted <- struct{}{}
+				return errRefreshWatchPlan
+			}
+			attempted <- struct{}{}
+			return nil
+		}, io.Discard)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	require.NoError(t, os.WriteFile(wrapper, []byte("trigger"), 0o644))
+	for attempt := 0; attempt < 2; attempt++ {
+		select {
+		case <-attempted:
+		case <-time.After(time.Second):
+			t.Fatal("watch did not rebuild the plan")
+		}
+	}
+
+	require.NoError(t, os.WriteFile(referencePath, []byte("Changed"), 0o644))
+	select {
+	case <-attempted:
+	case <-time.After(time.Second):
+		t.Fatal("watch did not track the newly referenced file")
+	}
+
+	cancel()
+	require.NoError(t, <-done)
+}
+
 func TestWatchWorkspaceRetriesEditsMadeDuringSuccessfulSync(t *testing.T) {
 	root := t.TempDir()
 	wrapper := filepath.Join(root, syncdomain.RootDir, "project", "configs", "config", "prompt.prompt.md")
@@ -257,6 +325,38 @@ func TestWatchedConflictPromptCancellationStopsWatch(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestWatchWorkspaceTracksMissingReferencedFileParent(t *testing.T) {
+	root := t.TempDir()
+	_, err := synclocal.NewStore(root).WriteDescriptor(
+		syncdomain.VariationID("project", "config", "prompt"),
+		synclocal.Reference{File: "prompts/nested/prompt.md", Format: "markdown"},
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	synced := make(chan struct{}, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- watchWorkspace(ctx, root, 15*time.Millisecond, func(*sourceWatcher) error {
+			synced <- struct{}{}
+			return nil
+		}, io.Discard)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	referencePath := filepath.Join(root, "prompts", "nested", "prompt.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(referencePath), 0o755))
+	require.NoError(t, os.WriteFile(referencePath, []byte("created"), 0o644))
+	select {
+	case <-synced:
+	case <-time.After(time.Second):
+		t.Fatal("watch did not detect a referenced file created under a missing parent")
+	}
+
+	cancel()
+	require.NoError(t, <-done)
+}
+
 func TestWatchWorkspaceRewatchesRecreatedManagedTree(t *testing.T) {
 	root := t.TempDir()
 	wrapper := filepath.Join(root, syncdomain.RootDir, "project", "configs", "config", "prompt.prompt.md")
@@ -291,6 +391,40 @@ func TestWatchWorkspaceRewatchesRecreatedManagedTree(t *testing.T) {
 
 	cancel()
 	require.NoError(t, <-done)
+}
+
+func TestWatchWorkspaceDetectsReferencedFileChange(t *testing.T) {
+	root := t.TempDir()
+	referencePath := filepath.Join(root, "prompt.md")
+	require.NoError(t, os.WriteFile(referencePath, []byte("initial"), 0o644))
+	_, err := synclocal.NewStore(root).WriteDescriptor(
+		syncdomain.VariationID("project", "config", "prompt"),
+		synclocal.Reference{File: "prompt.md", Format: "markdown"},
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	synced := make(chan struct{}, 1)
+	done := make(chan error, 1)
+	var output bytes.Buffer
+	go func() {
+		done <- watchWorkspace(ctx, root, 15*time.Millisecond, func(*sourceWatcher) error {
+			synced <- struct{}{}
+			return nil
+		}, &output)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	require.NoError(t, os.WriteFile(referencePath, []byte("changed"), 0o644))
+	select {
+	case <-synced:
+	case <-time.After(time.Second):
+		t.Fatal("watch did not detect referenced file change")
+	}
+	cancel()
+	require.NoError(t, <-done)
+	require.Contains(t, output.String(), "- .launchdarkly/project/configs/config/prompt.ref.yaml\n")
+	require.Contains(t, output.String(), "- prompt.md\n")
 }
 
 func TestSourceWatcherRecognizesNewManagedResourceKinds(t *testing.T) {

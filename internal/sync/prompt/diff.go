@@ -46,6 +46,15 @@ func attachmentDiff(before, after *syncdomain.Attachment) variationDiffFields {
 	return diffParts(nil, nil, beforeAttachments, afterAttachments)
 }
 
+func projectionDiff(before, after syncdomain.Projection) variationDiffFields {
+	beforeJSON, _ := json.Marshal(before)
+	afterJSON, _ := json.Marshal(after)
+	if string(beforeJSON) == string(afterJSON) {
+		return nil
+	}
+	return variationDiffFields{"projection": {Before: beforeJSON, After: afterJSON}}
+}
+
 // diffParts returns each part that differs, or nil.
 func diffParts(beforeVariation, afterVariation json.RawMessage, beforeAttachments, afterAttachments []syncdomain.Attachment) variationDiffFields {
 	fields := variationDiffFields{}
@@ -143,7 +152,7 @@ func changedAttachmentIDs(resource PlannedResource) []ResourceID {
 
 	var changed []ResourceID
 	for id, attachment := range before {
-		if other, exists := after[id]; !exists || !syncdomain.SameAttachmentContent(attachment, other) {
+		if other, exists := after[id]; !exists || attachmentContentChanged(attachment, other) {
 			changed = append(changed, id)
 		}
 	}
@@ -154,6 +163,18 @@ func changedAttachmentIDs(resource PlannedResource) []ResourceID {
 	}
 	slices.SortFunc(changed, syncdomain.CompareResourceIDs)
 	return changed
+}
+
+// attachmentContentChanged reports whether a local tool or skill differs from
+// the LaunchDarkly copy. A linked one owns only its mapped fields, so a
+// difference in a field that LaunchDarkly alone holds does not count.
+func attachmentContentChanged(server, local syncdomain.Attachment) bool {
+	if local.Projection != nil {
+		if merged, err := syncdomain.ApplyAttachmentProjection(server, local.Projection); err == nil {
+			return !syncdomain.SameAttachmentContent(server, merged)
+		}
+	}
+	return !syncdomain.SameAttachmentContent(server, local)
 }
 
 func attachmentsByID(projectKey string, variation *syncdomain.Variation) map[ResourceID]syncdomain.Attachment {
