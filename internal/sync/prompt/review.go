@@ -24,7 +24,9 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 	if err := plan.BlockingError(); err != nil {
 		return false, errors.Join(review(), err)
 	}
-	if !plan.HasChanges() {
+	// A link that only rebinds a resource has no plan changes, but it still
+	// writes the descriptor and the lock, so it asks for the confirmation.
+	if !plan.HasChanges() && !plan.ForceConfirmation {
 		if options.OutputKind != "" && options.OutputKind != outputPlaintext {
 			return false, writePlanOutput(options.Output, options.OutputKind, plan, options.Diff)
 		}

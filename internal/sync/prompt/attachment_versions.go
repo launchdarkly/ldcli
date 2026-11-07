@@ -19,6 +19,15 @@ type attachmentResolver struct {
 	client   syncapi.Client
 	resolved map[ResourceID]syncdomain.Attachment
 	failures map[ResourceID]error
+	reviewed map[ResourceID]reviewedAttachment
+}
+
+// reviewedAttachment is the LaunchDarkly side of a linked tool or skill row
+// as the review saw it: the source of the row and the fingerprint of the
+// mapped fields.
+type reviewedAttachment struct {
+	source      syncdomain.Reference
+	fingerprint string
 }
 
 func newAttachmentResolver(client syncapi.Client) *attachmentResolver {
@@ -26,7 +35,41 @@ func newAttachmentResolver(client syncapi.Client) *attachmentResolver {
 		client:   client,
 		resolved: make(map[ResourceID]syncdomain.Attachment),
 		failures: make(map[ResourceID]error),
+		reviewed: make(map[ResourceID]reviewedAttachment),
 	}
+}
+
+// review records the reviewed LaunchDarkly side of a linked row, so that a
+// publish stops when the mapped fields change after the review, as a linked
+// variation push does.
+func (resolver *attachmentResolver) review(resource PlannedResource) {
+	if resource.Source == nil || resource.ServerAttachment == nil {
+		return
+	}
+	resolver.reviewed[resource.ID] = reviewedAttachment{source: *resource.Source, fingerprint: resource.ServerFingerprint}
+}
+
+// checkReviewed makes sure that the mapped fields of the latest LaunchDarkly
+// copy of a linked tool or skill still have the reviewed content.
+func (resolver *attachmentResolver) checkReviewed(id ResourceID, remote syncdomain.Attachment) error {
+	reviewed, ok := resolver.reviewed[id]
+	if !ok {
+		return nil
+	}
+	projection, err := syncdomain.ProjectAttachment(remote, reviewed.source)
+	if err != nil {
+		return err
+	}
+	fingerprint, err := syncdomain.FingerprintProjection(id, projection)
+	if err != nil {
+		return err
+	}
+	if fingerprint != reviewed.fingerprint {
+		return syncdomain.NewProblem(
+			syncdomain.ErrorStateChanged, "the mapped fields changed in LaunchDarkly after review", "Run sync again.",
+		).WithResource(id)
+	}
+	return nil
 }
 
 // settle records the result of a tool or skill row. A pull settles the
@@ -46,9 +89,11 @@ func (resolver *attachmentResolver) settle(id ResourceID, attachment syncdomain.
 // before it pulled. If a tool or skill of the row failed, the row fails too.
 func (resolver *attachmentResolver) settledRow(resource PlannedResource) (PlannedResource, error) {
 	side, fingerprint := &resource.Local, &resource.LocalFingerprint
+	localSide := true
 	switch {
 	case resource.Action == ActionUpdateLocal:
 		side, fingerprint = &resource.Server, &resource.ServerFingerprint
+		localSide = false
 	case !resource.Action.changesServer():
 		return resource, nil
 	}
@@ -67,7 +112,22 @@ func (resolver *attachmentResolver) settledRow(resource PlannedResource) (Planne
 	}
 	variation := **side
 	variation.Attachments = attachments
-	value, err := syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, variation)
+	var value string
+	var err error
+	if resource.Source != nil {
+		projection, projectionErr := syncdomain.ProjectVariation(variation, *resource.Source)
+		if projectionErr != nil {
+			return resource, projectionErr
+		}
+		value, err = syncdomain.FingerprintProjection(resource.ID, projection)
+		if localSide {
+			resource.LocalProjection = projection
+		} else {
+			resource.ServerProjection = projection
+		}
+	} else {
+		value, err = syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, variation)
+	}
 	if err != nil {
 		return resource, err
 	}
@@ -126,6 +186,26 @@ func (resolver *attachmentResolver) resolve(projectKey string, local syncdomain.
 
 func (resolver *attachmentResolver) publish(projectKey string, local syncdomain.Attachment, create bool) (syncdomain.Attachment, error) {
 	remote, readErr := resolver.client.ReadAttachment(projectKey, local.Kind, local.Key())
+	if readErr == nil && local.Projection != nil {
+		id := local.ID(projectKey)
+		if err := resolver.checkReviewed(id, remote); err != nil {
+			return syncdomain.Attachment{}, err
+		}
+		merged, err := syncdomain.ApplyAttachmentProjection(remote, local.Projection)
+		if err != nil {
+			return syncdomain.Attachment{}, err
+		}
+		if _, reviewed := resolver.reviewed[id]; !reviewed && !syncdomain.SameAttachmentContent(merged, remote) {
+			// A linked tool or skill without a row was in sync at the
+			// review, so a difference now is a change in LaunchDarkly after
+			// it, which a variation push must not write over.
+			return syncdomain.Attachment{}, syncdomain.NewProblem(
+				syncdomain.ErrorStateChanged, "the mapped fields changed in LaunchDarkly after review", "Run sync again.",
+			).WithResource(id)
+		}
+		merged.Upsert = local.Upsert
+		local = merged
+	}
 	var writeErr error
 	switch {
 	case readErr == nil && syncdomain.SameAttachmentContent(local, remote):

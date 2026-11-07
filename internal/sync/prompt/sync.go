@@ -1,11 +1,16 @@
 package prompt
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
+	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
+	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
 // runWorkspaceSync runs one sync in five steps:
@@ -19,6 +24,15 @@ import (
 // In watch mode, watcher is not nil. A file change during the review returns
 // errRefreshWatchPlan, so that the watch loop builds a new plan.
 func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, watcher *sourceWatcher) error {
+	return runner.runWorkspaceSyncWithSource(options, workspace, watcher, nil)
+}
+
+func (runner Runner) runWorkspaceSyncWithSource(
+	options Options,
+	workspace syncWorkspace,
+	watcher *sourceWatcher,
+	prepared *synclink.Prepared,
+) error {
 	options = options.withDefaults()
 	client := runner.api(options)
 
@@ -32,9 +46,17 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	target := options.syncAction()
-	reviewed, err := workspace.loadState(client, options.Scope, target.Filter)
+	var link *sourceLink
+	if prepared != nil {
+		link = &sourceLink{id: prepared.ID, proposal: &prepared.Definition}
+	}
+	reviewed, err := workspace.loadStateWithSource(client, options.Scope, target.Filter, link)
 	if err != nil {
 		return err
+	}
+	if prepared != nil {
+		reviewed.plan.ForceConfirmation = true
+		writeDescriptorPreview(options.ErrorOutput, *prepared)
 	}
 	if options.dryRun() {
 		writePlanNotes(options.ErrorOutput, reviewed.plan)
@@ -56,6 +78,10 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	resolved := applyConflictResolutions(reviewed.plan, conflicts.resolutions)
+	// A conflict that LaunchDarkly wins becomes a pull now, so the source
+	// publication checks run on it before the review, as they did on the
+	// pulls of the unresolved plan.
+	checkSourcePublications(workspace.root, resolved.Resources)
 	proceed, err := reviewAndConfirmPlan(options, resolved, interactive)
 	if err != nil {
 		return err
@@ -63,17 +89,82 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	if !proceed {
 		return nil
 	}
+	if prepared != nil {
+		if _, err := prepared.Write(workspace.local); err != nil {
+			return err
+		}
+		_ = syncconsole.New(options.ErrorOutput).Printf("Linked %s.\n", prepared.Path)
+	}
 
-	// Read both sides again, so that no action uses state from before the review.
-	current, err := workspace.loadState(client, options.Scope, target.Filter)
+	// Read both sides again, so that no action uses state from before the
+	// review. The descriptor exists now, so the link has no proposal.
+	if link != nil {
+		link = &sourceLink{id: link.id}
+	}
+	current, err := workspace.loadStateWithSource(client, options.Scope, target.Filter, link)
+	if err == nil {
+		err = checkUnchanged(options, reviewed, current)
+	}
 	if err != nil {
+		// The lock does not record the new descriptor, so the next sync
+		// would report a stale binding. Put the previous descriptor back.
+		if prepared != nil {
+			err = errors.Join(err, prepared.Rollback(workspace.local))
+		}
 		return err
 	}
-	if err := checkUnchanged(options, reviewed, current); err != nil {
-		return err
+	outcomes, err := runner.applyPlan(options, workspace, client, current, conflicts.resolutions)
+	if err != nil && prepared != nil && !lockRecordsLink(workspace, *prepared) && !outcomeSucceeded(outcomes, prepared.ID) {
+		// The apply did not sync the linked resource and did not record the
+		// new descriptor, so the next sync would report a stale binding. Put
+		// the previous descriptor back. After a sync of the resource, the
+		// descriptor stays, because LaunchDarkly or the source has the new
+		// content, even when a later step such as the lock write failed.
+		err = errors.Join(err, prepared.Rollback(workspace.local))
 	}
-	_, err = runner.applyPlan(options, workspace, client, current, conflicts.resolutions)
 	return err
+}
+
+// outcomeSucceeded reports whether the apply succeeded for a resource.
+func outcomeSucceeded(outcomes []ResourceOutcome, id syncdomain.ResourceID) bool {
+	return slices.ContainsFunc(outcomes, func(outcome ResourceOutcome) bool {
+		return outcome.ID == id && outcome.Status == OutcomeSucceeded
+	})
+}
+
+// lockRecordsLink reports whether the lock records the descriptor that a
+// link wrote. An apply records it once the linked resource syncs, and then
+// the descriptor stays even when another row of the plan failed.
+func lockRecordsLink(workspace syncWorkspace, prepared synclink.Prepared) bool {
+	lock, err := syncmanifest.ReadLock(workspace.local)
+	if err != nil {
+		return false
+	}
+	digest, err := syncdomain.ReferenceDigest(prepared.Reference)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(lock.Resources, func(resource syncmanifest.Resource) bool {
+		return resource.ID() == prepared.ID && resource.ReferenceDigest == digest
+	})
+}
+
+func writeDescriptorPreview(output io.Writer, prepared synclink.Prepared) {
+	console := syncconsole.New(output)
+	if len(prepared.Previous) != 0 && !bytes.Equal(prepared.Previous, prepared.Content) {
+		_ = console.Printf("Current descriptor %s:\n%s\n", prepared.Path, prepared.Previous)
+	}
+	_ = console.Printf("Proposed descriptor %s:\n%s\n", prepared.Path, prepared.Content)
+	var dependencies []string
+	if prepared.Definition.Variation != nil {
+		dependencies = prepared.Definition.Variation.Dependencies
+	}
+	if prepared.Definition.Attachment != nil {
+		dependencies = prepared.Definition.Attachment.Dependencies
+	}
+	for _, dependency := range dependencies {
+		_ = console.Printf("Mapped dependency: %s\n", dependency)
+	}
 }
 
 // checkUnchanged returns an error if the state changed after the review.

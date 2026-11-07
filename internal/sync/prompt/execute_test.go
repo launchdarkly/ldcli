@@ -158,6 +158,84 @@ func TestAttachmentVersioningDoesNotMutateReviewedVariation(t *testing.T) {
 	assert.Equal(t, 2, pinned.Tools[0].Version)
 }
 
+func TestLinkedToolKeepsUnownedCustomParametersWhenPinned(t *testing.T) {
+	oldDescription, newDescription := "Old", "New"
+	transport := &attachmentMutationAPI{
+		current: syncdomain.Tool{
+			Key: "search", Description: &oldDescription,
+			Schema:           map[string]any{"type": "object"},
+			CustomParameters: map[string]any{"timeout": float64(5)},
+		},
+		version: 4,
+	}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+	projection := syncdomain.ToolProjection{
+		Description: &newDescription,
+		FieldStates: map[syncdomain.Field]syncdomain.FieldState{
+			syncdomain.FieldDescription: {Capability: syncdomain.CapabilityDirect, Known: true},
+		},
+	}
+	variation := testVariation("local")
+	variation.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	variation.Attachments = []syncdomain.Attachment{{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{
+			Key: "search", Description: &newDescription,
+			Schema: map[string]any{"type": "object"},
+		},
+		Projection: projection,
+	}}
+
+	// The tool row reviewed the LaunchDarkly copy, so the push of the
+	// variation can write the merge onto it.
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}
+	source := syncdomain.Reference{File: "tool.json", Format: "json", Select: "$", Map: map[string]string{"description": "description"}}
+	server := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Version: 4, Tool: &transport.current}
+	reviewed, err := syncdomain.ProjectAttachment(server, source)
+	require.NoError(t, err)
+	fingerprint, err := syncdomain.FingerprintProjection(id, reviewed)
+	require.NoError(t, err)
+	resolver := newAttachmentResolver(client)
+	resolver.review(PlannedResource{ID: id, Source: &source, ServerAttachment: &server, ServerFingerprint: fingerprint})
+
+	resolved, err := resolver.resolveVariation("project", variation)
+	require.NoError(t, err)
+	require.Len(t, resolved.Tools, 1)
+	assert.Equal(t, 5, resolved.Tools[0].Version)
+	assert.Equal(t, map[string]any{"timeout": float64(5)}, transport.current.CustomParameters)
+	assert.Equal(t, newDescription, *transport.current.Description)
+}
+
+func TestLinkedToolWithoutARowIsNotWrittenByAVariationPush(t *testing.T) {
+	oldDescription, newDescription := "Old", "New"
+	transport := &attachmentMutationAPI{
+		current: syncdomain.Tool{Key: "search", Description: &oldDescription, Schema: map[string]any{"type": "object"}},
+		version: 4,
+	}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+	variation := testVariation("local")
+	variation.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	variation.Attachments = []syncdomain.Attachment{{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{Key: "search", Description: &newDescription, Schema: map[string]any{"type": "object"}},
+		Projection: syncdomain.ToolProjection{
+			Description: &newDescription,
+			FieldStates: map[syncdomain.Field]syncdomain.FieldState{
+				syncdomain.FieldDescription: {Capability: syncdomain.CapabilityDirect, Known: true},
+			},
+		},
+	}}
+
+	_, err := newAttachmentResolver(client).resolveVariation("project", variation)
+
+	require.Error(t, err, "a linked tool without a row was in sync at the review, so the difference is a change after it")
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok)
+	assert.Equal(t, syncdomain.ErrorStateChanged, problem.Code)
+	assert.Equal(t, oldDescription, *transport.current.Description, "LaunchDarkly is not written")
+	assert.Equal(t, 4, transport.version)
+}
+
 func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
@@ -615,6 +693,188 @@ func TestExecutePlanPullKeepsAToolThatTheSamePlanPushed(t *testing.T) {
 			assert.Equal(t, fingerprintOf(t, withEdit), fingerprintIn(next, pull.ID))
 		})
 	}
+}
+
+func TestExecutePlanDefersLinkedPromptPullUntilSharedAttachmentSucceeds(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local prompt.\n"), 0o644))
+	empty := []syncdomain.AttachmentRef{}
+	id := testResourceID()
+	reference := syncdomain.Reference{File: "prompt.md", Format: "markdown", Tools: &empty}
+	_, err := store.WriteDescriptor(id, reference)
+	require.NoError(t, err)
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+
+	edited := testAttachment(syncdomain.AttachmentTool, "new")
+	remote := testAttachment(syncdomain.AttachmentTool, "old")
+	remote.Version = 2
+	_, err = store.ReplaceAttachments([]syncdomain.SyncedAttachment{{
+		ProjectKey: "production", Attachment: edited,
+	}})
+	require.NoError(t, err)
+	toolRow := planAttachment(edited.ID("production"), &edited, &remote, attachmentFingerprint(t, remote), true)
+	require.Equal(t, ActionUpdateServer, toolRow.Action)
+
+	server := compiled[0].Variation
+	server.Instructions = "Server prompt."
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+	server.Attachments = []syncdomain.Attachment{remote}
+	serverProjection, err := syncdomain.ProjectVariation(server, reference)
+	require.NoError(t, err)
+	localFingerprint, err := syncdomain.FingerprintProjection(id, compiled[0].Projection)
+	require.NoError(t, err)
+	serverFingerprint, err := syncdomain.FingerprintProjection(id, serverProjection)
+	require.NoError(t, err)
+	pull := PlannedResource{
+		ID: id, Action: ActionUpdateLocal, Source: &reference,
+		Local: &compiled[0].Variation, Server: &server, ServerMode: syncdomain.VariationModeAgent,
+		LocalProjection: compiled[0].Projection, ServerProjection: serverProjection,
+		LocalFingerprint: localFingerprint, ServerFingerprint: serverFingerprint,
+	}
+	current := testAttachment(syncdomain.AttachmentTool, "old")
+	api := &settleAPI{tool: attachmentMutationAPI{
+		current: *current.Tool, version: 2,
+		updateErr: errors.New(`{"code":"forbidden","statusCode":403}`),
+	}}
+
+	outcomes, _, err := executePlan(
+		root, store, syncapi.NewClient(api, "token", "https://example.com"),
+		syncmanifest.New(), Plan{Resources: []PlannedResource{toolRow, pull}}, nil,
+	)
+
+	require.ErrorContains(t, err, "forbidden")
+	assert.Equal(t, OutcomeFailed, outcomes[0].Status)
+	assert.Equal(t, OutcomeFailed, outcomes[1].Status)
+	content, readErr := os.ReadFile(filepath.Join(root, "prompt.md"))
+	require.NoError(t, readErr)
+	assert.Equal(t, "Local prompt.\n", string(content))
+	descriptor, readErr := os.ReadFile(filepath.Join(
+		root, syncdomain.RootDir, "production", "configs", "support", "default.ref.yaml",
+	))
+	require.NoError(t, readErr)
+	assert.Contains(t, string(descriptor), "tools: []")
+	assert.NotContains(t, string(descriptor), "key: search")
+}
+
+func TestExecutePlanAppliesIndependentSourceGroups(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	ids := []syncdomain.ResourceID{
+		syncdomain.VariationID("production", "first", "default"),
+		syncdomain.VariationID("production", "second", "default"),
+	}
+	references := []syncdomain.Reference{
+		{File: "first.md", Format: "markdown"},
+		{File: "second.md", Format: "markdown"},
+	}
+	for index, reference := range references {
+		require.NoError(t, os.WriteFile(
+			filepath.Join(root, reference.File),
+			[]byte("Local "+ids[index].LookupKey+".\n"),
+			0o644,
+		))
+		_, err := store.WriteDescriptor(ids[index], reference)
+		require.NoError(t, err)
+	}
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 2)
+
+	var resources []PlannedResource
+	for index := range compiled {
+		local := compiled[index]
+		server := local.Variation
+		server.Instructions = "Server " + local.LookupKey + "."
+		serverProjection, projectionErr := syncdomain.ProjectVariation(server, *local.Source)
+		require.NoError(t, projectionErr)
+		localFingerprint, fingerprintErr := syncdomain.FingerprintProjection(local.ID(), local.Projection)
+		require.NoError(t, fingerprintErr)
+		serverFingerprint, fingerprintErr := syncdomain.FingerprintProjection(local.ID(), serverProjection)
+		require.NoError(t, fingerprintErr)
+		resources = append(resources, PlannedResource{
+			ID: local.ID(), Action: ActionUpdateLocal, Source: local.Source,
+			Local: &local.Variation, Server: &server, ServerMode: syncdomain.VariationModeAgent,
+			LocalProjection: local.Projection, ServerProjection: serverProjection,
+			LocalFingerprint: localFingerprint, ServerFingerprint: serverFingerprint,
+		})
+	}
+	resources[0].LocalFingerprint = "sha256:stale"
+
+	reviewed := append([]PlannedResource(nil), resources...)
+	checkSourcePublications(root, reviewed)
+	assert.Equal(t, ActionError, reviewed[0].Action)
+	assert.Equal(t, ActionUpdateLocal, reviewed[1].Action)
+
+	outcomes, _, err := executePlan(
+		root, store, syncapi.Client{}, syncmanifest.New(), Plan{Resources: resources}, nil,
+	)
+
+	require.Error(t, err)
+	assert.Equal(t, OutcomeFailed, outcomes[0].Status)
+	assert.Equal(t, OutcomeSucceeded, outcomes[1].Status)
+	first, readErr := os.ReadFile(filepath.Join(root, "first.md"))
+	require.NoError(t, readErr)
+	assert.Equal(t, "Local first/default.\n", string(first))
+	second, readErr := os.ReadFile(filepath.Join(root, "second.md"))
+	require.NoError(t, readErr)
+	assert.Equal(t, "Server second/default.\n", string(second))
+}
+
+func TestExecutePlanFailsEveryRowOfAGroupWhenOneMemberDoesNotVerify(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "lib"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "lib", "prompts.py"), []byte("A = \"Local a\"\nB = \"Local b\"\n"), 0o644,
+	))
+	for _, name := range []string{"A", "B"} {
+		_, err := store.WriteDescriptor(
+			syncdomain.VariationID("production", "support", strings.ToLower(name)),
+			syncdomain.Reference{
+				File: "lib/prompts.py", Format: "python", Select: `constants[id="` + name + `"]`,
+				Map: map[string]string{"prompt": "$"},
+			},
+		)
+		require.NoError(t, err)
+	}
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 2)
+
+	var resources []PlannedResource
+	for index := range compiled {
+		local := compiled[index]
+		server := local.Variation
+		server.Instructions = "Server " + local.LookupKey + "."
+		serverProjection, projectionErr := syncdomain.ProjectVariation(server, *local.Source)
+		require.NoError(t, projectionErr)
+		localFingerprint, fingerprintErr := syncdomain.FingerprintProjection(local.ID(), local.Projection)
+		require.NoError(t, fingerprintErr)
+		serverFingerprint, fingerprintErr := syncdomain.FingerprintProjection(local.ID(), serverProjection)
+		require.NoError(t, fingerprintErr)
+		resources = append(resources, PlannedResource{
+			ID: local.ID(), Action: ActionUpdateLocal, Source: local.Source,
+			Local: &local.Variation, Server: &server, ServerMode: syncdomain.VariationModeAgent,
+			LocalProjection: local.Projection, ServerProjection: serverProjection,
+			LocalFingerprint: localFingerprint, ServerFingerprint: serverFingerprint,
+		})
+	}
+	// The second member does not compile to the reviewed server state.
+	resources[1].ServerFingerprint = "sha256:other"
+
+	outcomes, next, err := executePlan(
+		root, store, syncapi.Client{}, syncmanifest.New(), Plan{Resources: resources}, nil,
+	)
+
+	require.Error(t, err)
+	assert.Equal(t, OutcomeFailed, outcomes[0].Status, "the member that verified fails with its group")
+	assert.Equal(t, OutcomeFailed, outcomes[1].Status)
+	assert.Contains(t, outcomes[0].Error, resources[1].ID.String())
+	assert.False(t, next.Has(resources[0].ID), "no member of the group is recorded against the rewritten file")
+	assert.False(t, next.Has(resources[1].ID))
 }
 
 // settleAPI serves the tool "search" like attachmentMutationAPI, and records
