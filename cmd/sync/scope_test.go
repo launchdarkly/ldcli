@@ -25,14 +25,20 @@ var syncCommandFlags = map[string][]string{
 	"sync prompts attach tool":  {"conflict", "diff", "no-input", "project", "resolve", "to", "yes"},
 	"sync prompts attach skill": {"conflict", "diff", "no-input", "project", "resolve", "to", "yes"},
 	"sync prompts detach":       {"archive", "config-key", "key", "no-input", "project", "yes"},
-	"sync tools":                {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
-	"sync tools watch":          {"conflict", "diff", "key", "no-input", "project", "yes"},
-	"sync tools add":            {"description", "diff", "dry-run", "json-schema", "key", "no-input", "project", "yes"},
-	"sync tools detach":         {"key", "no-input", "project", "yes"},
-	"sync skills":               {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
-	"sync skills watch":         {"conflict", "diff", "key", "no-input", "project", "yes"},
-	"sync skills add":           {"content", "description", "diff", "dry-run", "key", "name", "no-input", "project", "yes"},
-	"sync skills detach":        {"key", "no-input", "project", "yes"},
+	"sync prompts link": {
+		"config-key", "conflict", "diff", "file", "format", "key", "map",
+		"no-input", "project", "resolve", "select", "yes",
+	},
+	"sync tools":         {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
+	"sync tools watch":   {"conflict", "diff", "key", "no-input", "project", "yes"},
+	"sync tools add":     {"description", "diff", "dry-run", "json-schema", "key", "no-input", "project", "yes"},
+	"sync tools detach":  {"key", "no-input", "project", "yes"},
+	"sync tools link":    {"conflict", "diff", "file", "format", "key", "map", "no-input", "project", "select", "yes"},
+	"sync skills":        {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
+	"sync skills watch":  {"conflict", "diff", "key", "no-input", "project", "yes"},
+	"sync skills add":    {"content", "description", "diff", "dry-run", "key", "name", "no-input", "project", "yes"},
+	"sync skills detach": {"key", "no-input", "project", "yes"},
+	"sync skills link":   {"conflict", "diff", "file", "format", "key", "map", "no-input", "project", "select", "yes"},
 }
 
 func TestSyncCommandsHaveExactFlags(t *testing.T) {
@@ -65,14 +71,16 @@ func TestSyncCommandsReadSyncFlagsOnlyFromTheCommandLine(t *testing.T) {
 		t.Setenv("LD_"+strings.ToUpper(strings.ReplaceAll(name, "-", "_")), "true")
 	}
 	for _, name := range []string{
-		"config-key", "conflict", "content", "description", "format", "json-schema", "key", "model-config-key", "name", "resolve", "to",
+		"config-key", "conflict", "content", "description", "file", "format", "json-schema", "key",
+		"map", "model-config-key", "name", "resolve", "select", "to",
 	} {
 		t.Setenv("LD_"+strings.ToUpper(strings.ReplaceAll(name, "-", "_")), "from-environment")
 	}
 
 	for _, command := range runnableSyncCommands(NewSyncCmd(nil, nil)) {
 		require.NoError(t, command.ParseFlags(nil))
-		require.NoError(t, command.Args(command, nil), command.CommandPath())
+		var args []string
+		require.NoError(t, command.Args(command, args), command.CommandPath())
 		command.LocalNonPersistentFlags().VisitAll(func(flag *pflag.Flag) {
 			assert.False(t, flag.Changed, "%s --%s", command.CommandPath(), flag.Name)
 		})

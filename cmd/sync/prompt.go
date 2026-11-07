@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
+	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -26,6 +28,7 @@ const (
 	descriptionFlag    = "description"
 	diffFlag           = "diff"
 	dryRunFlag         = "dry-run"
+	fileFlag           = "file"
 	formatFlag         = "format"
 	jsonSchemaFlag     = "json-schema"
 	keyFlag            = "key"
@@ -33,6 +36,8 @@ const (
 	nameFlag           = "name"
 	noInputFlag        = "no-input"
 	resolveFlag        = "resolve"
+	selectFlag         = "select"
+	mapFlag            = "map"
 	toFlag             = "to"
 	yesFlag            = "yes"
 )
@@ -67,6 +72,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		newAddCmd(client),
 		newAttachCmd(client),
 		newDetachCmd(client),
+		newLinkCmd(client, syncdomain.KindVariation),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -119,10 +125,98 @@ func runCommand(client resources.Client, scope syncdomain.Scope, buildAction act
 			ErrorOutput:      cmd.ErrOrStderr(),
 		})
 		if err != nil {
-			return output.NewCmdOutputError(err, outputKind)
+			return syncCommandOutputError(err, outputKind)
 		}
 		return nil
 	}
+}
+
+// syncCommandOutputError renders a sync error with its stable fields. A plan
+// error can join several problems, so the output then lists every one of them.
+func syncCommandOutputError(err error, outputKind string) error {
+	problems := syncdomain.ProblemsFrom(err)
+	var report any
+	switch {
+	case len(problems) == 0:
+	case len(problems) == 1 && len(leafErrors(err)) == 1:
+		report = problems[0]
+		if outputKind != "json" {
+			report = plaintextProblem(problems[0])
+		}
+	default:
+		message := err.Error()
+		if outputKind != "json" {
+			message = plaintextMessage(err)
+		}
+		report = struct {
+			*syncdomain.Problem
+			Problems []*syncdomain.Problem `json:"problems"`
+		}{
+			Problem:  syncdomain.NewProblem(syncdomain.ErrorMultipleProblems, message, ""),
+			Problems: problems,
+		}
+	}
+	if report != nil {
+		if data, marshalErr := json.Marshal(report); marshalErr == nil {
+			err = lderrors.NewError(string(data))
+		}
+	}
+	return output.NewCmdOutputError(err, outputKind)
+}
+
+// plaintextProblem puts the resource and the source location of a problem
+// in its message, because plaintext output prints only the message, the
+// code, and the suggestion.
+func plaintextProblem(problem *syncdomain.Problem) *syncdomain.Problem {
+	located := *problem
+	var context []string
+	if problem.Resource != "" {
+		context = append(context, problem.Resource)
+	}
+	if problem.File != "" {
+		location := problem.File
+		if problem.Line > 0 {
+			location += fmt.Sprintf(":%d", problem.Line)
+			if problem.Column > 0 {
+				location += fmt.Sprintf(":%d", problem.Column)
+			}
+		}
+		context = append(context, location)
+	}
+	if len(context) != 0 {
+		located.Message = strings.Join(context, " ") + ": " + problem.Message
+	}
+	return &located
+}
+
+// plaintextMessage lists the leaf errors of a joined error, one per line,
+// with the resource and the source location of each problem.
+func plaintextMessage(err error) string {
+	var lines []string
+	for _, leaf := range leafErrors(err) {
+		if problem, ok := syncdomain.ProblemFrom(leaf); ok {
+			lines = append(lines, plaintextProblem(problem).Error())
+			continue
+		}
+		lines = append(lines, leaf.Error())
+	}
+	return strings.Join(lines, "\n")
+}
+
+// leafErrors returns the errors of a tree that wrap nothing else. A plan
+// error joins its problems, so a join of one problem has one leaf.
+func leafErrors(err error) []error {
+	if err == nil {
+		return nil
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var leaves []error
+		for _, child := range joined.Unwrap() {
+			leaves = append(leaves, leafErrors(child)...)
+		}
+		return leaves
+	}
+	return []error{err}
 }
 
 // newWatchCmd creates the watch command of a scope. help is the help text of
