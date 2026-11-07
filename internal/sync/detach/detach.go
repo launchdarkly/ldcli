@@ -8,7 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -200,10 +203,10 @@ func confirmDetach(
 		} else {
 			_ = console.Line("Resources to detach:")
 		}
-		changed := localChanges(options.RepositoryRoot, lock, variations, selected)
+		notes := localChanges(options.RepositoryRoot, lock, variations, selected)
 		for _, id := range selected {
-			if changed[id] {
-				_ = console.Printf("  %s (local changes will be lost)\n", id.Label())
+			if note := notes[id]; note != "" {
+				_ = console.Printf("  %s (%s)\n", id.Label(), note)
 			} else {
 				_ = console.Printf("  %s\n", id.Label())
 			}
@@ -217,44 +220,90 @@ func confirmDetach(
 	return confirmed, err
 }
 
-// localChanges reports each selected resource whose local file differs from
-// its sync.lock entry, because the detach deletes that file. A file that sync
-// cannot read counts as changed. A resource without a local file loses
-// nothing.
+// The notes that the detach review shows next to a resource.
+const (
+	// noteLocalChangesLost marks a managed file whose content differs from
+	// sync.lock. The detach deletes the file.
+	noteLocalChangesLost = "local changes will be lost"
+	// noteUnsyncedChanges marks a linked resource whose mapping, mapped
+	// source values, or relationships differ from sync.lock. The detach
+	// deletes the descriptor with its relationships, and keeps the source.
+	noteUnsyncedChanges = "unsynced changes"
+)
+
+// localChanges returns a note for each selected resource whose local state
+// differs from its sync.lock entry. A file that sync cannot read counts as
+// changed. A resource without a local file loses nothing.
 func localChanges(
 	repositoryRoot string,
 	lock syncmanifest.Manifest,
 	variations []syncdomain.SyncedResource,
 	selected []syncdomain.ResourceID,
-) map[syncdomain.ResourceID]bool {
-	local := make(map[syncdomain.ResourceID]string)
-	for _, variation := range variations {
-		if fingerprint, err := syncdomain.FingerprintVariation(variation.ProjectKey, variation.LookupKey, variation.Variation); err == nil {
-			local[variation.ID()] = fingerprint
+) map[syncdomain.ResourceID]string {
+	baseline := make(map[syncdomain.ResourceID]syncmanifest.Resource, len(lock.Resources))
+	for _, resource := range lock.Resources {
+		baseline[resource.ID()] = resource
+	}
+	// note returns the note of a resource, or an empty string when its lock
+	// entry still describes it. A linked resource compares its mapping and
+	// the fingerprint of its projection, which has the relationships.
+	note := func(id syncdomain.ResourceID, source *syncdomain.Reference, fingerprint func() (string, error)) string {
+		actual, err := fingerprint()
+		if source == nil {
+			if err == nil && actual == baseline[id].Fingerprint {
+				return ""
+			}
+			return noteLocalChangesLost
 		}
+		digest, digestErr := syncdomain.ReferenceDigest(*source)
+		if err == nil && digestErr == nil && digest == baseline[id].ReferenceDigest && actual == baseline[id].Fingerprint {
+			return ""
+		}
+		return noteUnsyncedChanges
+	}
+
+	notes := make(map[syncdomain.ResourceID]string)
+	for _, variation := range variations {
+		notes[variation.ID()] = note(variation.ID(), variation.Source, func() (string, error) {
+			if variation.Source == nil {
+				return syncdomain.FingerprintVariation(variation.ProjectKey, variation.LookupKey, variation.Variation)
+			}
+			projection, err := syncdomain.ProjectVariation(variation.Variation, *variation.Source)
+			if err != nil {
+				return "", err
+			}
+			return syncdomain.FingerprintProjection(variation.ID(), projection)
+		})
 	}
 	isSelected := func(id syncdomain.ResourceID) bool { return slices.Contains(selected, id) }
 	attachments, _ := synclocal.CompileAttachments(repositoryRoot, isSelected)
 	for _, attachment := range attachments {
-		if fingerprint, err := syncdomain.FingerprintAttachment(attachment.ProjectKey, attachment.Attachment); err == nil {
-			local[attachment.ID()] = fingerprint
-		}
-	}
-	baseline := make(map[syncdomain.ResourceID]string, len(lock.Resources))
-	for _, resource := range lock.Resources {
-		baseline[resource.ID()] = resource.Fingerprint
+		notes[attachment.ID()] = note(attachment.ID(), attachment.Source, attachment.Fingerprint)
 	}
 
 	files, _ := synclocal.SourceFiles(repositoryRoot)
-	changed := make(map[syncdomain.ResourceID]bool)
+	result := make(map[syncdomain.ResourceID]string)
 	for _, file := range files {
 		id, ok := synclocal.ParseManagedPath(file)
-		if ok && isSelected(id) {
-			fingerprint, readable := local[id]
-			changed[id] = !readable || fingerprint != baseline[id]
+		if !ok {
+			id, ok = synclocal.ParseReferencePath(file)
+		}
+		if !ok || !isSelected(id) {
+			continue
+		}
+		if link, err := leftoverLink(repositoryRoot, file); err != nil || link {
+			// A symbolic link at a managed path is not a definition, so a
+			// detach loses no content there.
+			continue
+		}
+		result[id] = noteLocalChangesLost
+		if _, readable := notes[id]; readable {
+			result[id] = notes[id]
+		} else if strings.HasSuffix(file, ".ref.yaml") {
+			result[id] = noteUnsyncedChanges
 		}
 	}
-	return changed
+	return result
 }
 
 // archiveVariations archives each variation that LaunchDarkly still has. It
@@ -325,7 +374,20 @@ func loadResources(
 		synced = append(synced, resource.ID())
 	}
 	for _, file := range files {
-		if id, ok := synclocal.ParseManagedPath(file); ok {
+		id, ok := synclocal.ParseManagedPath(file)
+		if !ok {
+			id, ok = synclocal.ParseReferencePath(file)
+		}
+		if !ok {
+			continue
+		}
+		// A symbolic link at a managed path is not a definition, so it is
+		// not a synced resource to detach.
+		link, err := leftoverLink(repositoryRoot, file)
+		if err != nil {
+			return nil, syncmanifest.Baseline{}, err
+		}
+		if !link {
 			synced = append(synced, id)
 		}
 	}
@@ -352,16 +414,15 @@ func detachResources(options Options, original syncmanifest.Baseline, selected [
 		return errors.Join(cause, restoreErr)
 	}
 
-	deletions, err := localAttachments(options.RepositoryRoot, selected)
+	deletions, err := localDefinitions(options.RepositoryRoot, selected)
 	if err != nil {
 		return restoreBaseline(err)
 	}
 	for _, id := range selected {
-		configKey, variationKey, err := id.VariationKeys()
-		if err != nil {
+		if slices.Contains(deletions, id) {
 			continue
 		}
-		exists, err := options.Store.VariationExists(id.ProjectKey, configKey, variationKey)
+		exists, err := options.Store.ResourceExists(id)
 		if err != nil {
 			return restoreBaseline(err)
 		}
@@ -369,23 +430,47 @@ func detachResources(options Options, original syncmanifest.Baseline, selected [
 			deletions = append(deletions, id)
 		}
 	}
-	if _, err := options.Store.DeleteResources(deletions); err != nil {
+	if _, err := options.Store.DeleteDefinitions(deletions); err != nil {
 		return restoreBaseline(err)
 	}
 	return nil
 }
 
-// localAttachments returns each selected tool and skill that has a local file.
-func localAttachments(repositoryRoot string, selected []syncdomain.ResourceID) ([]syncdomain.ResourceID, error) {
+// leftoverLink reports whether a repository file is a symbolic link.
+func leftoverLink(repositoryRoot, file string) (bool, error) {
+	info, err := os.Lstat(filepath.Join(repositoryRoot, filepath.FromSlash(file)))
+	if err != nil {
+		return false, fmt.Errorf("inspect %s: %w", file, err)
+	}
+	return info.Mode()&os.ModeSymlink != 0, nil
+}
+
+// localDefinitions returns each selected resource that has a managed file or descriptor.
+func localDefinitions(repositoryRoot string, selected []syncdomain.ResourceID) ([]syncdomain.ResourceID, error) {
 	files, err := synclocal.SourceFiles(repositoryRoot)
 	if err != nil {
 		return nil, err
 	}
-	var attachments []syncdomain.ResourceID
+	var definitions []syncdomain.ResourceID
 	for _, file := range files {
-		if id, ok := synclocal.ParseManagedPath(file); ok && id.Kind != syncdomain.KindVariation && slices.Contains(selected, id) {
-			attachments = append(attachments, id)
+		id, ok := synclocal.ParseManagedPath(file)
+		if !ok {
+			id, ok = synclocal.ParseReferencePath(file)
 		}
+		if !ok || !slices.Contains(selected, id) {
+			continue
+		}
+		// A symbolic link at a managed path is not a definition, as it is
+		// not for compile or for a delete, so the detach leaves it.
+		link, err := leftoverLink(repositoryRoot, file)
+		if err != nil {
+			return nil, err
+		}
+		if link {
+			continue
+		}
+		definitions = append(definitions, id)
 	}
-	return attachments, nil
+	slices.SortFunc(definitions, syncdomain.CompareResourceIDs)
+	return slices.Compact(definitions), nil
 }

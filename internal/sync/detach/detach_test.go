@@ -97,6 +97,46 @@ func TestDetachResourcesKeepsAttachmentManifestEntries(t *testing.T) {
 	require.NoError(t, err, "the tool file stays")
 }
 
+func TestDetachResourcesRemovesDescriptorAndManifestButKeepsSource(t *testing.T) {
+	root := t.TempDir()
+	referencePath := filepath.Join(root, "prompts", "prompt.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(referencePath), 0o755))
+	require.NoError(t, os.WriteFile(referencePath, []byte("Keep me.\n"), 0o644))
+
+	store := synclocal.NewStore(root)
+	resource := syncdomain.VariationID("project", "config", "prompt")
+	_, err := store.WriteDescriptor(resource, synclocal.Reference{
+		File: "prompts/prompt.md", Format: "markdown",
+	})
+	require.NoError(t, err)
+
+	manifestStore := newMemoryManifestStore()
+	original := syncmanifest.Manifest{
+		Resources: []syncmanifest.Resource{{
+			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
+			Fingerprint: testFingerprint(),
+		}},
+	}
+	require.NoError(t, manifestStore.Write(original))
+
+	err = detachResources(
+		Options{RepositoryRoot: root, Store: store, Baselines: manifestStore},
+		syncmanifest.Baseline{Lock: original},
+		[]syncdomain.ResourceID{resource},
+	)
+
+	require.NoError(t, err)
+	exists, err := store.VariationExists("project", "config", "prompt")
+	require.NoError(t, err)
+	assert.False(t, exists)
+	_, err = os.Stat(referencePath)
+	require.NoError(t, err)
+	baseline, err := manifestStore.Load([]string{"project"})
+	manifest := baseline.Lock
+	require.NoError(t, err)
+	assert.Empty(t, manifest.Resources)
+}
+
 func TestDetachResourcesRemovesManifestEntryWhenWrapperWasAlreadyDeleted(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
@@ -121,6 +161,80 @@ func TestDetachResourcesRemovesManifestEntryWhenWrapperWasAlreadyDeleted(t *test
 	manifest := baseline.Lock
 	require.NoError(t, err)
 	assert.Empty(t, manifest.Resources)
+}
+
+func TestDetachResourcesRemovesManifestEntryAndLeavesALeftoverLink(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	external := filepath.Join(root, "external.md")
+	require.NoError(t, os.WriteFile(external, []byte("---\nformatVersion: 1\nmode: agent\nkey: linked\n---\n\nOther.\n"), 0o644))
+	resource := syncdomain.VariationID("project", "config", "linked")
+	managedPath, err := synclocal.ResourcePath(resource)
+	require.NoError(t, err)
+	target := filepath.Join(root, filepath.FromSlash(managedPath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+	require.NoError(t, os.Symlink(external, target))
+	manifestStore := newMemoryManifestStore()
+	original := syncmanifest.Manifest{
+		Resources: []syncmanifest.Resource{{
+			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/linked",
+			Fingerprint: testFingerprint(),
+		}},
+	}
+	require.NoError(t, manifestStore.Write(original))
+
+	err = detachResources(
+		Options{RepositoryRoot: root, Store: store, Baselines: manifestStore},
+		syncmanifest.Baseline{Lock: original},
+		[]syncdomain.ResourceID{resource},
+	)
+
+	require.NoError(t, err, "a link is not a definition, so there is nothing to delete")
+	baseline, err := manifestStore.Load([]string{"project"})
+	require.NoError(t, err)
+	assert.Empty(t, baseline.Lock.Resources)
+	info, err := os.Lstat(target)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink, "the link stays")
+}
+
+func TestLocalChangesIgnoreALeftoverLink(t *testing.T) {
+	root := t.TempDir()
+	external := filepath.Join(root, "external.md")
+	require.NoError(t, os.WriteFile(external, []byte("Other.\n"), 0o644))
+	linked := syncdomain.VariationID("project", "config", "linked")
+	managedPath, err := synclocal.ResourcePath(linked)
+	require.NoError(t, err)
+	target := filepath.Join(root, filepath.FromSlash(managedPath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+	require.NoError(t, os.Symlink(external, target))
+	edited := syncdomain.VariationID("project", "config", "edited")
+	editedPath, err := synclocal.ResourcePath(edited)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(root, filepath.FromSlash(editedPath)), []byte("---\nformatVersion: 1\nmode: agent\nkey: edited\n---\n\nEdited.\n"), 0o644))
+
+	notes := localChanges(root, syncmanifest.Manifest{}, nil, []syncdomain.ResourceID{linked, edited})
+
+	assert.Equal(t, map[syncdomain.ResourceID]string{edited: noteLocalChangesLost}, notes, "a link is not a definition, so no content is lost there")
+}
+
+func TestLoadResourcesSkipsALeftoverLink(t *testing.T) {
+	root := t.TempDir()
+	external := filepath.Join(root, "external.md")
+	require.NoError(t, os.WriteFile(external, []byte("Other.\n"), 0o644))
+	linked := syncdomain.VariationID("project", "config", "linked")
+	managedPath, err := synclocal.ResourcePath(linked)
+	require.NoError(t, err)
+	target := filepath.Join(root, filepath.FromSlash(managedPath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+	require.NoError(t, os.Symlink(external, target))
+	manifestStore := newMemoryManifestStore()
+	require.NoError(t, manifestStore.Write(syncmanifest.Manifest{}))
+
+	synced, _, err := loadResources(root, manifestStore, []string{"project"})
+
+	require.NoError(t, err)
+	assert.Empty(t, synced, "a link is not a definition, so it is not a synced resource")
 }
 
 func TestDetachResourcesDeletesUnreadableWrapper(t *testing.T) {
@@ -686,4 +800,52 @@ func testVariation(key string) syncdomain.Variation {
 
 func testFingerprint() string {
 	return "sha256:" + strings.Repeat("0", 64)
+}
+
+// A detach deletes the descriptor of a linked resource, with its mapping and
+// its relationships, and keeps the source. A descriptor that sync.lock does
+// not describe has unsynced changes.
+func TestRunMarksALinkedResourceWithUnsyncedChanges(t *testing.T) {
+	workspace := newArchiveWorkspace(t)
+	require.NoError(t, os.WriteFile(filepath.Join(workspace.root, "prompt.md"), []byte("Edited locally.\n"), 0o644))
+	linked := syncdomain.VariationID("project", "config", "linked")
+	reference := synclocal.Reference{File: "prompt.md", Format: "markdown"}
+	_, err := workspace.store.WriteDescriptor(linked, reference)
+	require.NoError(t, err)
+	// A sync records the digest of the compiled descriptor and the
+	// fingerprint of its projection.
+	compiled, err := synclocal.CompileWorkspace(workspace.root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	projection, err := syncdomain.ProjectVariation(compiled[0].Variation, *compiled[0].Source)
+	require.NoError(t, err)
+	fingerprint, err := syncdomain.FingerprintProjection(linked, projection)
+	require.NoError(t, err)
+	workspace.baselines.manifest.SetFingerprint(linked, fingerprint)
+	require.NoError(t, workspace.baselines.manifest.SetSource(linked, compiled[0].Source, "markdown/1", nil))
+
+	run := func() string {
+		var output bytes.Buffer
+		options := workspace.options(&recordingArchiver{})
+		options.Selections = []syncdomain.ResourceID{linked}
+		options.NoInput, options.Input, options.Output = false, strings.NewReader("n\n"), &output
+		options.isTerminal = func(io.Reader, io.Writer) bool { return true }
+		require.NoError(t, Run(options))
+		return output.String()
+	}
+
+	assert.Contains(t, run(), "  variation project/config/linked\n", "the lock describes the descriptor")
+
+	// A relationship edit lives in the descriptor that the detach deletes.
+	reference.Tools = &[]syncdomain.AttachmentRef{{Key: "search"}}
+	_, err = workspace.store.WriteDescriptor(linked, reference)
+	require.NoError(t, err)
+	assert.Contains(t, run(), "  variation project/config/linked (unsynced changes)\n", "the relationship is not recorded")
+
+	reference.Tools = nil
+	require.NoError(t, os.WriteFile(filepath.Join(workspace.root, "other.md"), []byte("Other source.\n"), 0o644))
+	reference.File = "other.md"
+	_, err = workspace.store.WriteDescriptor(linked, reference)
+	require.NoError(t, err)
+	assert.Contains(t, run(), "  variation project/config/linked (unsynced changes)\n", "the mapping is not recorded")
 }
