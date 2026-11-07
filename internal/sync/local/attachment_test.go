@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -376,6 +377,93 @@ Help the customer.
 	require.ErrorContains(t, err, "symbolic links are not supported")
 }
 
+func TestCompileWorkspaceIgnoresASymlinkAtAManagedPathBesideADescriptor(t *testing.T) {
+	root := t.TempDir()
+	id := syncdomain.VariationID("project", "config", "default")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Help the customer.\n"), 0o644))
+	_, err := NewStore(root).WriteDescriptor(id, Reference{File: "prompt.md", Format: "markdown"})
+	require.NoError(t, err)
+	external := filepath.Join(root, "external.md")
+	require.NoError(t, os.WriteFile(external, []byte("---\nformatVersion: 1\nmode: agent\nkey: default\n---\n\nOther.\n"), 0o644))
+	managedPath, err := ResourcePath(id)
+	require.NoError(t, err)
+	require.NoError(t, os.Symlink(external, filepath.Join(root, filepath.FromSlash(managedPath))))
+
+	variations, err := CompileWorkspace(root)
+
+	require.NoError(t, err, "a link is not a definition, so the descriptor defines the variation")
+	require.Len(t, variations, 1)
+	assert.Contains(t, variations[0].Variation.Instructions, "Help the customer.")
+	assert.NotNil(t, variations[0].Source)
+}
+
+func TestCompileWorkspaceRejectsASymlinkOnlyVariation(t *testing.T) {
+	root := t.TempDir()
+	id := syncdomain.VariationID("project", "config", "default")
+	external := filepath.Join(root, "external.md")
+	require.NoError(t, os.WriteFile(external, []byte("---\nformatVersion: 1\nmode: agent\nkey: default\n---\n\nOther.\n"), 0o644))
+	managedPath, err := ResourcePath(id)
+	require.NoError(t, err)
+	target := filepath.Join(root, filepath.FromSlash(managedPath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+	require.NoError(t, os.Symlink(external, target))
+
+	_, err = CompileWorkspace(root)
+
+	require.ErrorContains(t, err, "symbolic links are not supported", "a link without a descriptor is an error, not an absent variation")
+}
+
+func TestCompileAttachmentsIgnoresASymlinkAtAManagedPathBesideADescriptor(t *testing.T) {
+	root := t.TempDir()
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Search","schema":{"type":"object"}}`), 0o644))
+	_, err := NewStore(root).WriteDescriptor(id, Reference{
+		File: "tool.json", Format: "json", Select: "$", Map: map[string]string{"description": "description", "schema": "schema"},
+	})
+	require.NoError(t, err)
+	external := filepath.Join(root, "external.json")
+	require.NoError(t, os.WriteFile(external, []byte(`{"formatVersion":1,"key":"search","schema":{}}`), 0o644))
+	managedPath, err := ResourcePath(id)
+	require.NoError(t, err)
+	require.NoError(t, os.Symlink(external, filepath.Join(root, filepath.FromSlash(managedPath))))
+
+	attachments, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+
+	require.NoError(t, err, "a link is not a definition, so the descriptor defines the tool")
+	require.Len(t, attachments, 1)
+	assert.Equal(t, "Search", *attachments[0].Attachment.Tool.Description)
+	assert.NotNil(t, attachments[0].Source)
+}
+
+func TestExistsAndDeleteTreatALeftoverLinkBesideADescriptorAsAbsent(t *testing.T) {
+	root := t.TempDir()
+	id := syncdomain.VariationID("project", "config", "default")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Help the customer.\n"), 0o644))
+	store := NewStore(root)
+	descriptorPath, err := store.WriteDescriptor(id, Reference{File: "prompt.md", Format: "markdown"})
+	require.NoError(t, err)
+	external := filepath.Join(root, "external.md")
+	require.NoError(t, os.WriteFile(external, []byte("Other.\n"), 0o644))
+	managedPath, err := ResourcePath(id)
+	require.NoError(t, err)
+	require.NoError(t, os.Symlink(external, filepath.Join(root, filepath.FromSlash(managedPath))))
+
+	exists, err := store.ResourceExists(id)
+	require.NoError(t, err, "a link is not a second definition")
+	assert.True(t, exists)
+
+	deleted, err := store.DeleteDefinitions([]syncdomain.ResourceID{id})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		strings.TrimPrefix(descriptorPath, syncdomain.RootDir+"/"),
+		strings.TrimPrefix(managedPath, syncdomain.RootDir+"/"),
+	}, deleted, "detach deletes the descriptor and the leftover link beside it")
+	assert.NoFileExists(t, filepath.Join(root, filepath.FromSlash(descriptorPath)))
+	_, err = os.Lstat(filepath.Join(root, filepath.FromSlash(managedPath)))
+	require.ErrorIs(t, err, os.ErrNotExist, "the link does not stand alone, where compile would reject it")
+	assert.FileExists(t, external, "the target of the link is kept")
+}
+
 func TestCompileWorkspaceRejectsAttachmentParentSymlink(t *testing.T) {
 	root := t.TempDir()
 	wrapperPath := filepath.Join(root, ".launchdarkly", "project", "configs", "config", "default.prompt.md")
@@ -410,4 +498,26 @@ Help the customer.
 	}
 	_, err = NewStore(root).ReplaceVariations([]VariationReplacement{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
 	require.ErrorContains(t, err, "symbolic links are not supported")
+}
+
+func TestCompileAttachmentsFollowsARepositoryLinkToALinkedSource(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "lib", "tools"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "lib", "tools", "search.json"),
+		[]byte(`{"description":"Linked","schema":{"type":"object"}}`), 0o644,
+	))
+	require.NoError(t, os.Symlink(filepath.Join(root, "lib"), filepath.Join(root, "linked")))
+	writeManagedFile(t, root, "project/tools/search.ref.yaml",
+		"formatVersion: 1\nfile: linked/tools/search.json\nformat: json\nselect: $\n"+
+			"map:\n  description: description\n  schema: schema\n")
+
+	attachments, err := CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+
+	require.NoError(t, err)
+	require.Len(t, attachments, 1)
+	assert.Equal(t, "Linked", *attachments[0].Attachment.Tool.Description)
+	variations, err := CompileWorkspace(root)
+	require.NoError(t, err)
+	assert.Empty(t, variations, "the same read rule applies to both compile paths")
 }
