@@ -103,14 +103,12 @@ func yamlPlainScalar(text []byte, flow bool) []byte {
 func quoteYAML(value, previous string) string {
 	if strings.HasPrefix(previous, "'") {
 		if strings.ContainsAny(value, "\r\n") {
-			encoded, _ := json.Marshal(value)
-			return string(encoded)
+			return quotedYAML(value)
 		}
 		return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 	}
 	if strings.HasPrefix(previous, `"`) {
-		encoded, _ := json.Marshal(value)
-		return string(encoded)
+		return quotedYAML(value)
 	}
 	if value != "" && !strings.ContainsAny(value, ":\n\r#{}[],&*!|>'\"%@`") &&
 		value == strings.TrimSpace(value) {
@@ -121,7 +119,17 @@ func quoteYAML(value, previous string) string {
 			}
 		}
 	}
-	encoded, _ := json.Marshal(value)
+	return quotedYAML(value)
+}
+
+// quotedYAML writes a double-quoted YAML string. JSON quoting is valid YAML,
+// and the encoder keeps <, >, and & as they are.
+func quotedYAML(value string) string {
+	encoded, err := adapter.EncodeJSON(value, "", "")
+	if err != nil {
+		fallback, _ := json.Marshal(value)
+		return string(fallback)
+	}
 	return string(encoded)
 }
 
@@ -296,14 +304,44 @@ func yamlValueNode(data []byte, node *yaml.Node, offset int, flow bool) (*adapte
 			break
 		}
 		result = adapter.Bool(value, start, end, nil)
-	case "!!int", "!!float":
+	case "!!int":
+		// An integer beyond 53 bits has no exact float64, so it stays
+		// read-only text instead of a rounded number.
+		var integer int64
+		if err := node.Decode(&integer); err != nil || !adapter.ExactInteger(integer) {
+			result = adapter.ReadOnly(start, end, "YAML integer is too large to represent exactly")
+			result.Value = node.Value
+			break
+		}
+		// An integer slot takes a whole number only, written as an integer,
+		// so that a write does not change the type of the value.
+		result = adapter.Number(float64(integer), start, end, func(next float64) ([]byte, error) {
+			if next != math.Trunc(next) || next > float64(adapter.MaxExactInteger) || next < -float64(adapter.MaxExactInteger) {
+				return nil, fmt.Errorf("YAML integer cannot hold %v", next)
+			}
+			return []byte(strconv.FormatInt(int64(next), 10)), nil
+		})
+	case "!!float":
+		// YAML tags an integer beyond int64 as a float, so an integer
+		// literal here is too large as well.
+		if !strings.ContainsAny(node.Value, ".eE") && !strings.HasPrefix(node.Value, "0x") && !strings.HasPrefix(node.Value, "0o") {
+			result = adapter.ReadOnly(start, end, "YAML integer is too large to represent exactly")
+			result.Value = node.Value
+			break
+		}
 		var number float64
 		if err := node.Decode(&number); err != nil || math.IsInf(number, 0) || math.IsNaN(number) {
 			result = unreadableScalar(node, start, end)
 			break
 		}
+		// A float slot keeps a fraction or an exponent, so that a whole
+		// number does not turn the slot into an integer.
 		result = adapter.Number(number, start, end, func(next float64) ([]byte, error) {
-			return []byte(strconv.FormatFloat(next, 'g', -1, 64)), nil
+			text := strconv.FormatFloat(next, 'g', -1, 64)
+			if !strings.ContainsAny(text, ".eE") {
+				text += ".0"
+			}
+			return []byte(text), nil
 		})
 	case "!!null":
 		result = adapter.ReadOnly(start, end, "YAML null values are read-only")
