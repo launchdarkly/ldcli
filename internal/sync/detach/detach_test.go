@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -425,11 +426,11 @@ func TestRunKeepsEveryFileWhenOneDeleteFails(t *testing.T) {
 	workspace := newArchiveWorkspace(t, "prompt")
 	tool := testTool()
 	workspace.addAttachments(t, tool)
-	// A symbolic link in place of the tool file makes its delete fail.
+	// A named pipe in place of the tool file is not a regular file, so its
+	// delete fails.
 	toolFile := filepath.Join(workspace.root, syncdomain.RootDir, "project", "tools", "search.json")
-	target := filepath.Join(t.TempDir(), "search.json")
-	require.NoError(t, os.Rename(toolFile, target))
-	require.NoError(t, os.Symlink(target, toolFile))
+	require.NoError(t, os.Remove(toolFile))
+	require.NoError(t, syscall.Mkfifo(toolFile, 0o644))
 	options := workspace.options(&recordingArchiver{})
 	options.Selections = append(options.Selections, tool.ID("project"))
 	options.Yes = true
