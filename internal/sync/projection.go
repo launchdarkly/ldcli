@@ -606,7 +606,17 @@ func ChangedProjection(local, server Projection) (Projection, error) {
 
 // ProjectionIncludes reports whether actual has every known value of expected.
 func ProjectionIncludes(actual, expected Projection) bool {
-	for _, field := range sortedFields(expected.States()) {
+	fields := sortedFields(expected.States())
+	if len(fields) == 0 {
+		// A projection without field states, such as a desired value built
+		// by a caller, is compared on every field that it has a value for.
+		for _, field := range comparableFields {
+			if _, ok := expected.Value(field); ok {
+				fields = append(fields, field)
+			}
+		}
+	}
+	for _, field := range fields {
 		want, wantOK := expected.Value(field)
 		have, haveOK := actual.Value(field)
 		if wantOK != haveOK || !sameJSON(want, have) {
@@ -614,6 +624,13 @@ func ProjectionIncludes(actual, expected Projection) bool {
 		}
 	}
 	return true
+}
+
+// comparableFields are the fields of every kind that a projection can hold
+// a value for, without the per-parameter model fields.
+var comparableFields = []Field{
+	FieldPrompt, FieldName, FieldModel, FieldModelParameters, FieldTools, FieldSkills,
+	FieldDescription, FieldSchema, FieldCustomParameters, FieldTags, FieldMarkdown,
 }
 
 var directState = FieldState{Capability: CapabilityDirect, Known: true}
