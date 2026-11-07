@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
 // Creation records the result of a create. VariationPaths are the variation
@@ -73,17 +76,54 @@ func (store Store) Bootstrap(files []VariationFile) (Creation, error) {
 }
 
 // Add creates a batch of variation files and the tool and skill files that
-// they use. Add never overwrites a file. An existing variation file is an
-// error, and an existing tool or skill file stays as it is, so that a local
-// edit is not lost. If one file fails, Add removes the files that it created.
+// they use. Add never overwrites a file. An existing variation file or
+// descriptor is an error, and an existing tool or skill, as a managed file or
+// as a descriptor, stays as it is, so that a local edit is not lost. If one
+// file fails, Add removes the files that it created.
 func (store Store) Add(files []VariationFile) (Creation, error) {
 	rendered, err := store.Render(files)
 	if err != nil {
 		return Creation{}, err
 	}
+	linked := make(map[string]bool)
+	for _, file := range rendered {
+		id, ok := ParseManagedPath(path.Join(syncdomain.RootDir, file.Path))
+		if !ok {
+			continue
+		}
+		repositoryReferencePath, err := ReferencePath(id)
+		if err != nil {
+			return Creation{}, err
+		}
+		referencePath := strings.TrimPrefix(repositoryReferencePath, syncdomain.RootDir+"/")
+		exists, err := store.fileExists(referencePath, id.Label()+" descriptor")
+		if err != nil {
+			return Creation{}, err
+		}
+		if !exists {
+			continue
+		}
+		if id.Kind == syncdomain.KindVariation {
+			return Creation{}, definitionConflict(id, id.Label()+" already has a descriptor")
+		}
+		// A tool or skill that a descriptor defines has that one definition.
+		// A managed file beside the descriptor is a conflict, not a file to
+		// keep.
+		managed, err := store.fileExists(file.Path, id.Label())
+		if err != nil {
+			return Creation{}, err
+		}
+		if managed {
+			return Creation{}, definitionConflict(id, id.Label()+" has a managed file and a descriptor")
+		}
+		linked[file.Path] = true
+	}
 
 	var creation Creation
 	for _, file := range rendered {
+		if linked[file.Path] {
+			continue
+		}
 		created, err := createFileIfAbsent(store.root, store.absolute(file.Path), file.Content)
 		if err != nil {
 			return Creation{}, errors.Join(err, store.RollbackCreation(creation))
