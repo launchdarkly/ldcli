@@ -3,6 +3,7 @@ package adapter
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
@@ -130,12 +131,22 @@ func fieldAllowed(kind syncdomain.Kind, field syncdomain.Field) bool {
 	}
 }
 
+// annotateProblem adds the resource and the file to the problem in an error.
+// A wrapper such as `select "x": ...` names the part of the reference that
+// failed, and the output prints the problem alone, so the problem takes that
+// context into its message.
 func annotateProblem(err error, id syncdomain.ResourceID, file string) error {
 	if err == nil {
 		return nil
 	}
-	if problem, ok := syncdomain.ProblemFrom(err); ok {
-		_ = problem.WithResource(id).WithFile(file, 0, 0)
+	problem, ok := syncdomain.ProblemFrom(err)
+	if !ok {
+		return err
 	}
-	return err
+	if err != error(problem) {
+		if prefix, found := strings.CutSuffix(err.Error(), ": "+problem.Error()); found && prefix != "" {
+			problem.Message = prefix + ": " + problem.Message
+		}
+	}
+	return problem.WithResource(id).WithFile(file, 0, 0)
 }
