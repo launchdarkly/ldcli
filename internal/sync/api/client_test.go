@@ -27,6 +27,9 @@ type recordingClient struct {
 	Requests  []recordedRequest
 	Responses [][]byte
 	Err       error
+	// Errors fails one request by its index. A nil entry lets the request
+	// answer from Responses.
+	Errors []error
 }
 
 var _ resources.Client = &recordingClient{}
@@ -51,6 +54,9 @@ func (client *recordingClient) MakeRequest(
 	})
 	if client.Err != nil {
 		return nil, client.Err
+	}
+	if index := len(client.Requests) - 1; index < len(client.Errors) && client.Errors[index] != nil {
+		return nil, client.Errors[index]
 	}
 	if len(client.Responses) < len(client.Requests) {
 		return nil, nil
