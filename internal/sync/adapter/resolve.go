@@ -22,6 +22,10 @@ type indexedResolution struct {
 	path             string
 	collectionLength int
 	item             *Node
+	// identity replaces the identity of the item when it is set. A positional
+	// id uses the count of the resources that share its name, so a resource
+	// added beside it changes the selection and an edit to it does not.
+	identity any
 }
 
 // resolve returns the node at a path and the index steps that it took. scope
@@ -80,6 +84,7 @@ func (root *Node) resolve(text, scope string) (*Node, []indexedResolution, error
 		if len(step.filters) == 0 {
 			continue
 		}
+		collection := current
 		var matches []*Node
 		for _, item := range current.Items {
 			matched := true
@@ -116,6 +121,17 @@ func (root *Node) resolve(text, scope string) (*Node, []indexedResolution, error
 			)
 		case 1:
 			current = matches[0]
+			// A positional id, such as Agent or Agent#2, is the position of a
+			// resource that has no name of its own, so the selection is as
+			// fragile as an index and is recorded like one.
+			if IsPositionalID(current) {
+				indexes = append(indexes, indexedResolution{
+					path:             fmt.Sprintf("%s#%d", scope, len(indexes)),
+					collectionLength: len(collection.Items),
+					item:             current,
+					identity:         positionalIdentity(collection, current),
+				})
+			}
 		default:
 			return nil, nil, syncdomain.NewProblem(
 				syncdomain.ErrorPathAmbiguous,
@@ -133,7 +149,10 @@ func indexedSelections(indexes []indexedResolution, selectedRoot *Node) ([]syncd
 	selections := make([]syncdomain.IndexedSelection, 0, len(indexes))
 	var ancestors []string
 	for _, index := range indexes {
-		identity := directSelectionIdentity(index.item)
+		identity := index.identity
+		if identity == nil {
+			identity = directSelectionIdentity(index.item)
+		}
 		if identity == nil {
 			// Without scalar identity, bind the nearest selected resource root and prior indexed ancestors.
 			identity = struct {
@@ -158,6 +177,28 @@ func indexedSelections(indexes []indexedResolution, selectedRoot *Node) ([]syncd
 	return selections, nil
 }
 
+// positionalIdentity identifies a resource with a positional id by the name
+// that it fell back to and the count of the resources in its collection that
+// fell back to the same name.
+func positionalIdentity(collection, item *Node) any {
+	id, _ := item.Fields["id"].Value.(string)
+	base, _, _ := strings.Cut(id, "#")
+	siblings := 0
+	for _, candidate := range collection.Items {
+		if !IsPositionalID(candidate) {
+			continue
+		}
+		if text, _ := candidate.Fields["id"].Value.(string); strings.HasPrefix(text, base) &&
+			(len(text) == len(base) || text[len(base)] == '#') {
+			siblings++
+		}
+	}
+	return struct {
+		Positional string `json:"positional"`
+		Siblings   int    `json:"siblings"`
+	}{Positional: base, Siblings: siblings}
+}
+
 func directSelectionIdentity(node *Node) any {
 	if node == nil || node.Fields == nil {
 		return nil
@@ -166,6 +207,10 @@ func directSelectionIdentity(node *Node) any {
 	for _, key := range []string{"id", "name", "role", "type"} {
 		field, ok := node.Fields[key]
 		if !ok || !scalarValue(field.Value) {
+			continue
+		}
+		// A positional id is a position, not an identity.
+		if key == "id" && IsPositionalID(node) {
 			continue
 		}
 		identity[key] = field.Value
