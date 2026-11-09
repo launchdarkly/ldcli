@@ -15,7 +15,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 )
 
@@ -68,7 +67,6 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		newAddCmd(client),
 		newAttachCmd(client),
 		newDetachCmd(client),
-		newLinkCmd(client),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -270,37 +268,6 @@ func newDetachCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func newLinkCmd(client resources.Client) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "link <file>",
-		Short: "Link an external prompt file",
-		Example: `  # Link a Markdown file as a new variation
-  ldcli sync prompts link prompts/support.md \
-    --format plain-markdown \
-    --to production/support/default \
-    --model-config-key claude \
-    --yes --no-input`,
-		Args: validatedArgs(cobra.ExactArgs(1)),
-		RunE: runCommand(client, syncdomain.ScopePrompts, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
-			format, _ := cmd.Flags().GetString(formatFlag)
-			target, err := linkTarget(cmd)
-			if err != nil {
-				return nil, err
-			}
-			return syncprompt.LinkAction{File: args[0], Format: format, ProjectKey: targetFilter(cmd).Project, Target: target}, nil
-		}),
-	}
-	addTargetFlags(cmd, targetFlagHelp{project: questionFlagHelp.project})
-	cmd.Flags().String(formatFlag, "", "Format adapter (for example, plain-markdown)")
-	cmd.Flags().String(toFlag, "", "New variation (project-key/config-key/variation-key)")
-	cmd.Flags().String(modelConfigKeyFlag, "", "Model config key for the new variation")
-	cmd.Flags().String(nameFlag, "", "Variation name when absent from the linked file")
-	cmd.Flags().String(contentFlag, "", "Prompt content when absent from the linked file")
-	_ = cmd.MarkFlagRequired(formatFlag)
-	addApplyFlags(cmd, syncdomain.ScopePrompts, false)
-	return cmd
-}
-
 // addApplyFlags registers the flags of a command that applies a plan. Only
 // the prompts scope has --resolve, which names variations.
 func addApplyFlags(cmd *cobra.Command, scope syncdomain.Scope, dryRun bool) {
@@ -432,28 +399,6 @@ func optionalVariationFlag(cmd *cobra.Command, name string) (*syncdomain.Resourc
 		return nil, err
 	}
 	return &variation, nil
-}
-
-func linkTarget(cmd *cobra.Command) (*synclink.Target, error) {
-	variation, err := optionalVariationFlag(cmd, toFlag)
-	if err != nil {
-		return nil, err
-	}
-	modelConfig, _ := cmd.Flags().GetString(modelConfigKeyFlag)
-	name, _ := cmd.Flags().GetString(nameFlag)
-	content, _ := cmd.Flags().GetString(contentFlag)
-	if variation == nil {
-		if modelConfig != "" || name != "" || content != "" {
-			return nil, fmt.Errorf("--model-config-key, --name, and --content require --to")
-		}
-		return nil, nil
-	}
-	return &synclink.Target{
-		Variation:      *variation,
-		ModelConfigKey: modelConfig,
-		Name:           name,
-		Content:        content,
-	}, nil
 }
 
 func conflictPolicy(cmd *cobra.Command) (syncprompt.ConflictPolicy, error) {

@@ -9,11 +9,15 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
+// SyncManifestFormatVersion is the remote sync manifest schema.
+const SyncManifestFormatVersion = 1
+
 // SyncManifest is the sync baseline that LaunchDarkly stores for one project
 // and one repository source.
 type SyncManifest struct {
-	Source string                 `json:"source"`
-	Items  []SyncManifestResource `json:"items"`
+	FormatVersion int                    `json:"formatVersion"`
+	Source        string                 `json:"source"`
+	Items         []SyncManifestResource `json:"items"`
 }
 
 // SyncManifestResource is one versioned baseline entry.
@@ -22,6 +26,9 @@ type SyncManifestResource struct {
 	ResourceLookupKey string          `json:"resourceLookupKey"`
 	Fingerprint       string          `json:"fingerprint"`
 	Version           int             `json:"version"`
+	FingerprintSchema string          `json:"fingerprintSchema,omitempty"`
+	ReferenceDigest   string          `json:"referenceDigest,omitempty"`
+	AdapterBehavior   string          `json:"adapterBehavior,omitempty"`
 }
 
 // SyncManifestUpsert creates an entry, or updates the entry at Version.
@@ -30,6 +37,9 @@ type SyncManifestUpsert struct {
 	ResourceLookupKey string          `json:"resourceLookupKey"`
 	Fingerprint       string          `json:"fingerprint"`
 	Version           int             `json:"version"`
+	FingerprintSchema string          `json:"fingerprintSchema,omitempty"`
+	ReferenceDigest   string          `json:"referenceDigest,omitempty"`
+	AdapterBehavior   string          `json:"adapterBehavior,omitempty"`
 }
 
 // SyncManifestDeletion removes the entry at Version.
@@ -48,7 +58,14 @@ func (client Client) GetSyncManifest(projectKey, source string) (SyncManifest, e
 	if err != nil {
 		return SyncManifest{}, err
 	}
-	return decodeJSON[SyncManifest](response, fmt.Sprintf("sync manifest for project %q", projectKey))
+	manifest, err := decodeJSON[SyncManifest](response, fmt.Sprintf("sync manifest for project %q", projectKey))
+	if err != nil {
+		return SyncManifest{}, err
+	}
+	if err := validateSyncManifest(manifest); err != nil {
+		return SyncManifest{}, fmt.Errorf("sync manifest for project %q: %w", projectKey, err)
+	}
+	return manifest, nil
 }
 
 // PatchSyncManifest applies versioned changes and returns the new baseline.
@@ -68,10 +85,16 @@ func (client Client) PatchSyncManifest(
 	request := mutation{
 		method: http.MethodPatch, action: "update", resource: "sync manifest for project", key: projectKey,
 		body: struct {
-			Source    string                 `json:"source"`
-			Upserts   []SyncManifestUpsert   `json:"upserts"`
-			Deletions []SyncManifestDeletion `json:"deletions"`
-		}{Source: source, Upserts: upserts, Deletions: deletions},
+			FormatVersion int                    `json:"formatVersion"`
+			Source        string                 `json:"source"`
+			Upserts       []SyncManifestUpsert   `json:"upserts"`
+			Deletions     []SyncManifestDeletion `json:"deletions"`
+		}{
+			FormatVersion: SyncManifestFormatVersion,
+			Source:        source,
+			Upserts:       upserts,
+			Deletions:     deletions,
+		},
 	}
 	response, err := client.mutate(request, manifestPath(projectKey)...)
 	if err != nil {
@@ -84,7 +107,17 @@ func (client Client) PatchSyncManifest(
 		// caller must read the manifest again to find its state.
 		return SyncManifest{}, newMutationError("decode updated", request.resource, projectKey, err)
 	}
+	if err := validateSyncManifest(manifest); err != nil {
+		return SyncManifest{}, newMutationError("decode updated", request.resource, projectKey, err)
+	}
 	return manifest, nil
+}
+
+func validateSyncManifest(manifest SyncManifest) error {
+	if manifest.FormatVersion != SyncManifestFormatVersion {
+		return fmt.Errorf("unsupported formatVersion %d", manifest.FormatVersion)
+	}
+	return nil
 }
 
 func manifestPath(projectKey string) []string {

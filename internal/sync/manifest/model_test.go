@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,4 +59,25 @@ func TestManifestPreservesExistingAttachmentBaselineWhenAddingConsumer(t *testin
 
 	require.Len(t, manifest.Resources, 1)
 	assert.Equal(t, "sha256:existing", manifest.Resources[0].Fingerprint)
+}
+
+func TestWithChangesCopiesSourceMetadata(t *testing.T) {
+	id := syncdomain.VariationID("project", "config", "default")
+	fingerprint := "sha256:" + strings.Repeat("a", 64)
+	before := Manifest{Resources: []Resource{{
+		ResourceKind: id.Kind, ProjectKey: id.ProjectKey, LookupKey: id.LookupKey, Fingerprint: fingerprint,
+	}}}
+	remote := Manifest{Resources: []Resource{{
+		ResourceKind: id.Kind, ProjectKey: id.ProjectKey, LookupKey: id.LookupKey, Fingerprint: fingerprint, Version: 3,
+	}}}
+	after := before.Clone()
+	require.NoError(t, after.SetSource(id, &syncdomain.Reference{File: "prompt.md", Format: "markdown"}, "markdown/1", nil))
+
+	result := remote.WithChanges(before, after)
+
+	require.Len(t, result.Resources, 1)
+	assert.Equal(t, "markdown/1", result.Resources[0].AdapterBehavior)
+	assert.Equal(t, syncdomain.ProjectionFingerprintSchema, result.Resources[0].FingerprintSchema)
+	assert.NotEmpty(t, result.Resources[0].ReferenceDigest)
+	assert.Equal(t, 3, result.Resources[0].Version, "the remote version survives a content update")
 }

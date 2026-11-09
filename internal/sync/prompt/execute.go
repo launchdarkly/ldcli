@@ -99,14 +99,6 @@ func executePlan(
 		execute(index)
 	}
 
-	if len(failures) == 0 {
-		variations, err := compileWorkspace(repositoryRoot)
-		if err != nil {
-			failures = append(failures, err)
-		} else {
-			next.SetRefs(variations)
-		}
-	}
 	return outcomes, next, errors.Join(failures...)
 }
 
@@ -325,7 +317,6 @@ func applyLocalChange(store synclocal.Store, resource PlannedResource) error {
 			ProjectKey:      resource.ID.ProjectKey,
 			ConfigKey:       configKey,
 			CreateIfMissing: resource.Local == nil,
-			Ref:             resource.restoreRef,
 			Variation:       *resource.Server,
 		}})
 		return err

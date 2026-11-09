@@ -14,6 +14,9 @@ import (
 
 var fingerprintPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
+// FormatVersion is the local sync manifest and sync.lock schema.
+const FormatVersion = 1
+
 // Manifest is the baseline of every tracked resource.
 type Manifest struct {
 	Resources []Resource
@@ -26,13 +29,19 @@ type Resource struct {
 	ProjectKey   string          `yaml:"project"`
 	LookupKey    string          `yaml:"key"`
 	Fingerprint  string          `yaml:"fingerprint"`
+	// FingerprintSchema identifies the meaning of a descriptor-backed fingerprint.
+	FingerprintSchema string `yaml:"fingerprintSchema,omitempty"`
+	// ReferenceDigest detects a descriptor mapping change.
+	ReferenceDigest string `yaml:"referenceDigest,omitempty"`
+	// AdapterBehavior is the behavior version of the adapter that produced
+	// the fingerprint, such as python/1. A new version needs a review.
+	AdapterBehavior string `yaml:"adapterBehavior,omitempty"`
+	// IndexedSelections detect a changed item at an indexed source path.
+	IndexedSelections []syncdomain.IndexedSelection `yaml:"indexedSelections,omitempty"`
 	// Version is the version of the remote manifest entry, which LaunchDarkly
 	// uses for optimistic locking. Only the remote manifest has it. The lock
 	// does not store it, so that a lock entry changes only with its content.
 	Version int `yaml:"-"`
-	// Ref is the linked prompt file of a variation. Only sync.lock stores it,
-	// so that sync can restore a missing variation file with its link.
-	Ref *syncdomain.Reference `yaml:"ref,omitempty"`
 }
 
 // ID returns the identity of the resource.
@@ -64,29 +73,45 @@ func (manifest *Manifest) SetFingerprint(id syncdomain.ResourceID, fingerprint s
 	})
 }
 
+// SetSource records how a descriptor-backed resource was read: the digest of
+// its mapping, the behavior version of its adapter, and the identity of each
+// indexed item on its paths. A nil reference clears them for a managed file.
+func (manifest *Manifest) SetSource(
+	id syncdomain.ResourceID,
+	reference *syncdomain.Reference,
+	behavior string,
+	selections []syncdomain.IndexedSelection,
+) error {
+	index := manifest.index(id)
+	if index < 0 {
+		return nil
+	}
+	resource := &manifest.Resources[index]
+	if reference == nil {
+		resource.FingerprintSchema, resource.ReferenceDigest = "", ""
+		resource.AdapterBehavior, resource.IndexedSelections = "", nil
+		return nil
+	}
+	digest, err := syncdomain.ReferenceDigest(*reference)
+	if err != nil {
+		return err
+	}
+	selections = slices.Clone(selections)
+	slices.SortFunc(selections, func(left, right syncdomain.IndexedSelection) int {
+		return strings.Compare(left.Path, right.Path)
+	})
+	resource.FingerprintSchema = syncdomain.ProjectionFingerprintSchema
+	resource.ReferenceDigest = digest
+	resource.AdapterBehavior = behavior
+	resource.IndexedSelections = selections
+	return nil
+}
+
 // Remove stops tracking one resource.
 func (manifest *Manifest) Remove(id syncdomain.ResourceID) {
 	if index := manifest.index(id); index >= 0 {
 		manifest.Resources = slices.Delete(manifest.Resources, index, index+1)
 	}
-}
-
-// SetRefs records the linked prompt file of each variation. A variation
-// without a local file keeps its recorded link.
-func (manifest *Manifest) SetRefs(variations []syncdomain.SyncedResource) {
-	for _, variation := range variations {
-		if index := manifest.index(variation.ID()); index >= 0 {
-			manifest.Resources[index].Ref = variation.Ref
-		}
-	}
-}
-
-// Ref returns the recorded linked prompt file of a resource, or nil.
-func (manifest Manifest) Ref(id syncdomain.ResourceID) *syncdomain.Reference {
-	if index := manifest.index(id); index >= 0 {
-		return manifest.Resources[index].Ref
-	}
-	return nil
 }
 
 // SetAttachments records the state of each tool and skill. Many variations
@@ -122,8 +147,8 @@ func (manifest *Manifest) setAttachments(projectKey string, attachments []syncdo
 func (manifest Manifest) WithChanges(before, after Manifest) Manifest {
 	result := manifest.Clone()
 	for _, resource := range after.Resources {
-		if index := before.index(resource.ID()); index < 0 || before.Resources[index].Fingerprint != resource.Fingerprint {
-			result.SetFingerprint(resource.ID(), resource.Fingerprint)
+		if index := before.index(resource.ID()); index < 0 || !before.Resources[index].SameContent(resource) {
+			result.put(resource)
 		}
 	}
 	for _, resource := range before.Resources {
@@ -132,6 +157,27 @@ func (manifest Manifest) WithChanges(before, after Manifest) Manifest {
 		}
 	}
 	return result
+}
+
+// SameContent reports whether two entries record the same state. The version
+// is not content.
+func (resource Resource) SameContent(other Resource) bool {
+	return resource.Fingerprint == other.Fingerprint &&
+		resource.FingerprintSchema == other.FingerprintSchema &&
+		resource.ReferenceDigest == other.ReferenceDigest &&
+		resource.AdapterBehavior == other.AdapterBehavior &&
+		slices.Equal(resource.IndexedSelections, other.IndexedSelections)
+}
+
+// put records the content of one entry. An existing entry keeps its version.
+func (manifest *Manifest) put(resource Resource) {
+	if index := manifest.index(resource.ID()); index >= 0 {
+		resource.Version = manifest.Resources[index].Version
+		manifest.Resources[index] = resource
+		return
+	}
+	resource.Version = 0
+	manifest.Resources = append(manifest.Resources, resource)
 }
 
 // WithVersionsFrom returns a copy of the manifest in which each entry has the
@@ -178,8 +224,29 @@ func (manifest Manifest) Validate() error {
 		switch {
 		case !fingerprintPattern.MatchString(resource.Fingerprint):
 			return fmt.Errorf("invalid fingerprint for %s", id)
+		case resource.FingerprintSchema != "" && resource.FingerprintSchema != syncdomain.ProjectionFingerprintSchema:
+			return fmt.Errorf("unsupported fingerprint schema %q for %s", resource.FingerprintSchema, id)
+		case resource.FingerprintSchema != "" && (resource.ReferenceDigest == "" || resource.AdapterBehavior == ""):
+			return fmt.Errorf("incomplete source metadata for %s", id)
+		case resource.FingerprintSchema == "" &&
+			(resource.ReferenceDigest != "" || resource.AdapterBehavior != "" || len(resource.IndexedSelections) != 0):
+			return fmt.Errorf("source metadata without a fingerprint schema for %s", id)
+		case resource.ReferenceDigest != "" && !fingerprintPattern.MatchString(resource.ReferenceDigest):
+			return fmt.Errorf("invalid reference digest for %s", id)
 		case resource.Version < 0:
 			return fmt.Errorf("invalid version for %s", id)
+		}
+		for index, selection := range resource.IndexedSelections {
+			switch {
+			case selection.Path == "":
+				return fmt.Errorf("indexed selection path is empty for %s", id)
+			case selection.CollectionLength <= 0:
+				return fmt.Errorf("invalid indexed collection length for %s", id)
+			case !fingerprintPattern.MatchString(selection.Fingerprint):
+				return fmt.Errorf("invalid indexed selection fingerprint for %s", id)
+			case index > 0 && resource.IndexedSelections[index-1].Path >= selection.Path:
+				return fmt.Errorf("indexed selections are not in path order for %s", id)
+			}
 		}
 		if _, duplicate := seen[id]; duplicate {
 			return fmt.Errorf("duplicate manifest resource %s", id)
