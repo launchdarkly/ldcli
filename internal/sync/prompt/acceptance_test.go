@@ -28,7 +28,6 @@ import (
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
-	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 type directAPI struct {
@@ -1211,63 +1210,6 @@ func TestPromptPullPreservesLocalModelOverridesAcrossVersions(t *testing.T) {
 	requireOnlyReads(t, api.requests)
 }
 
-func TestPromptPushesLinkedFileContent(t *testing.T) {
-	root := initRepository(t)
-	local := variation("Linked")
-	writeLinkedVariation(t, root, local, "Local linked prompt")
-	api := &directAPI{}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	require.NotNil(t, api.variation)
-	assert.Equal(t, "Local linked prompt", api.variation.Instructions)
-	local.Instructions = "Local linked prompt"
-	assertManifestFingerprint(t, root, local)
-}
-
-func TestPromptPullsServerContentIntoLinkedFile(t *testing.T) {
-	root := initRepository(t)
-	baseline := variation("Baseline")
-	baseline.Instructions = "Old prompt"
-	server := variation("Server")
-	server.Instructions = "Server prompt"
-	writeLinkedVariation(t, root, baseline, "Old prompt")
-	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(server)}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	content, err := os.ReadFile(filepath.Join(root, "prompts", "default.md"))
-	require.NoError(t, err)
-	assert.Equal(t, "Server prompt\n", string(content))
-	assertManifestFingerprint(t, root, server)
-}
-
-func TestPromptServerDeletionLeavesReferencedFile(t *testing.T) {
-	root := initRepository(t)
-	baseline := variation("Baseline")
-	baseline.Instructions = "Keep this file"
-	writeLinkedVariation(t, root, baseline, "Keep this file")
-	writeManifest(t, root, baseline)
-	api := &directAPI{}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	content, err := os.ReadFile(filepath.Join(root, "prompts", "default.md"))
-	require.NoError(t, err)
-	assert.Equal(t, "Keep this file\n", string(content))
-	resources, err := synclocal.CompileWorkspace(root)
-	if errors.Is(err, synclocal.ErrNoDirectory) {
-		resources = nil
-		err = nil
-	}
-	require.NoError(t, err)
-	assert.Empty(t, resources)
-}
-
 // A working copy that is behind another working copy must pull the newer
 // LaunchDarkly state. It must not write its older file back to LaunchDarkly.
 func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
@@ -1297,61 +1239,6 @@ func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 	assert.Equal(t, other.Name, resources[0].Variation.Name)
-}
-
-func TestPromptRestoresLinkedVariationWithItsLink(t *testing.T) {
-	root := initRepository(t)
-	api := syncLinkedVariation(t, root)
-	deleteVariationFile(t, root)
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	resources, err := synclocal.CompileWorkspace(root)
-	require.NoError(t, err)
-	require.Len(t, resources, 1)
-	require.NotNil(t, resources[0].Ref)
-	assert.Equal(t, "prompts/default.md", resources[0].Ref.File)
-
-	// An edit in the linked file still reaches LaunchDarkly.
-	require.NoError(t, os.WriteFile(filepath.Join(root, "prompts", "default.md"), []byte("Edited prompt\n"), 0o644))
-	_, _, err = runPrompt(t, root, api, "--yes")
-	require.NoError(t, err)
-	assert.Equal(t, "Edited prompt", api.variation.Instructions)
-}
-
-func TestPromptStopsRestoreWhenLinkedFileIsNotSafe(t *testing.T) {
-	tests := map[string]struct {
-		change    func(t *testing.T, linkedFile string)
-		wantError string
-	}{
-		"linked file is missing": {
-			change:    func(t *testing.T, linkedFile string) { require.NoError(t, os.Remove(linkedFile)) },
-			wantError: `its linked file "prompts/default.md" is not available`,
-		},
-		"linked file has local edits": {
-			change: func(t *testing.T, linkedFile string) {
-				require.NoError(t, os.WriteFile(linkedFile, []byte("Local edit\n"), 0o644))
-			},
-			wantError: `its linked file "prompts/default.md" differs from LaunchDarkly`,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			root := initRepository(t)
-			api := syncLinkedVariation(t, root)
-			deleteVariationFile(t, root)
-			test.change(t, filepath.Join(root, "prompts", "default.md"))
-
-			_, _, err := runPrompt(t, root, api, "--yes")
-
-			require.ErrorContains(t, err, test.wantError)
-			assert.Equal(t, "Linked prompt", api.variation.Instructions)
-			_, statErr := os.Stat(filepath.Join(root, syncdomain.RootDir, "production", "configs", "support", "default.prompt.md"))
-			assert.ErrorIs(t, statErr, os.ErrNotExist)
-		})
-	}
 }
 
 func TestPromptDetachArchive(t *testing.T) {
@@ -1402,25 +1289,6 @@ func TestPromptDetachArchive(t *testing.T) {
 
 // syncLinkedVariation writes a linked variation that matches LaunchDarkly and
 // runs one sync, so that sync.lock records the link.
-func syncLinkedVariation(t *testing.T, root string) *directAPI {
-	t.Helper()
-	linked := variation("Linked")
-	writeLinkedVariation(t, root, linked, "Linked prompt")
-	linked.Instructions = "Linked prompt"
-	api := &directAPI{variation: pointer(linked)}
-	_, _, err := runPrompt(t, root, api, "--yes")
-	require.NoError(t, err)
-	return api
-}
-
-func deleteVariationFile(t *testing.T, root string) {
-	t.Helper()
-	_, err := synclocal.NewStore(root).DeleteVariations([]synclocal.VariationDeletion{{
-		ProjectKey: "production", ConfigKey: "support", VariationKey: "default",
-	}})
-	require.NoError(t, err)
-}
-
 func TestPromptFilterSyncsOnlyTheNamedVariation(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
@@ -2092,7 +1960,7 @@ func runScoped(t *testing.T, root string, api *directAPI, options syncprompt.Opt
 func runWith(t *testing.T, root string, api *directAPI, runner syncprompt.Runner, options syncprompt.Options) (string, string, error) {
 	t.Helper()
 	if manifestsByRoot[root] == nil {
-		manifestsByRoot[root] = &syncapi.SyncManifest{Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
+		manifestsByRoot[root] = &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
 	}
 	api.manifest = manifestsByRoot[root]
 	var output, notes bytes.Buffer
@@ -2405,7 +2273,7 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	manifest := manifestsByRoot[root]
 	if manifest == nil {
-		manifest = &syncapi.SyncManifest{Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
+		manifest = &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
 		manifestsByRoot[root] = manifest
 	}
 	switch api := client.(type) {
@@ -2543,24 +2411,6 @@ func attachLocalTool(t *testing.T, root string, variation syncdomain.Variation, 
 	require.NoError(t, os.WriteFile(toolPath, []byte(content), 0o644))
 }
 
-func writeLinkedVariation(t *testing.T, root string, value syncdomain.Variation, content string) {
-	t.Helper()
-	referencePath := filepath.Join(root, "prompts", value.Key+".md")
-	require.NoError(t, os.MkdirAll(filepath.Dir(referencePath), 0o755))
-	require.NoError(t, os.WriteFile(referencePath, []byte(content+"\n"), 0o644))
-	value.Instructions = strings.TrimSpace(content)
-	_, err := synclocal.NewStore(root).Add([]synclocal.VariationFile{{
-		ProjectKey: "production",
-		ConfigKey:  "support",
-		Upsert:     true,
-		Ref: &synclocal.Reference{
-			File: "prompts/" + value.Key + ".md", Format: syncreference.PlainMarkdown,
-		},
-		Variation: value,
-	}})
-	require.NoError(t, err)
-}
-
 func writeManifest(t *testing.T, root string, value syncdomain.Variation) {
 	t.Helper()
 	writeManifestResources(t, root, value)
@@ -2586,7 +2436,7 @@ func writeRemoteManifest(t *testing.T, root string, values ...syncdomain.Variati
 			Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/" + value.Key,
 		}, fingerprint(t, value))
 	}
-	remote := &syncapi.SyncManifest{Source: "git:example/repo"}
+	remote := &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo"}
 	for _, resource := range manifest.Resources {
 		remote.Items = append(remote.Items, syncapi.SyncManifestResource{
 			ResourceKind:      resource.ResourceKind,

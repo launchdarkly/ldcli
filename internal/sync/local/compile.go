@@ -28,9 +28,7 @@ func (e ParseError) Unwrap() error { return e.Err }
 // Compile reads every variation in a file system that contains a managed
 // directory. Tests use it with an in-memory file system.
 func Compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
-	return compile(fsys, func(reference Reference) ([]byte, error) {
-		return readReferenceFromFS(fsys, reference)
-	})
+	return compile(fsys)
 }
 
 // CompileWorkspace reads every variation in a repository. It rejects a
@@ -40,9 +38,7 @@ func CompileWorkspace(repositoryRoot string) ([]syncdomain.SyncedResource, error
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository root: %w", err)
 	}
-	return compile(workspaceFS{root: root}, func(reference Reference) ([]byte, error) {
-		return ReadReference(root, reference)
-	})
+	return compile(workspaceFS{root: root})
 }
 
 // Compile reads every variation in the repository of the store.
@@ -72,7 +68,7 @@ func (fsys workspaceFS) Open(name string) (fs.File, error) {
 }
 
 // compile reads the variation files of each project, in identity order.
-func compile(fsys fs.FS, readReference func(Reference) ([]byte, error)) ([]syncdomain.SyncedResource, error) {
+func compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
 	entries, err := fs.ReadDir(fsys, syncdomain.RootDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, ErrNoDirectory
@@ -88,7 +84,7 @@ func compile(fsys fs.FS, readReference func(Reference) ([]byte, error)) ([]syncd
 		if !entry.IsDir() {
 			continue
 		}
-		projectVariations, err := compileProject(fsys, entry.Name(), readReference)
+		projectVariations, err := compileProject(fsys, entry.Name())
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +101,6 @@ func compile(fsys fs.FS, readReference func(Reference) ([]byte, error)) ([]syncd
 func compileProject(
 	fsys fs.FS,
 	projectKey string,
-	readReference func(Reference) ([]byte, error),
 ) ([]syncdomain.SyncedResource, error) {
 	configsRoot := path.Join(syncdomain.RootDir, projectKey, configsDir)
 	readAttachment := func(kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
@@ -135,7 +130,6 @@ func compileProject(
 			ProjectKey:     projectKey,
 			RelPath:        strings.TrimPrefix(name, configsRoot+"/"),
 			Data:           data,
-			ReadReference:  readReference,
 			ReadAttachment: readAttachment,
 		})
 		if err != nil {
