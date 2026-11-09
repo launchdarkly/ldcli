@@ -33,6 +33,9 @@ const (
 	ErrorResourceDeleted             ErrorCode = "resource_deleted_in_launchdarkly"
 	ErrorPlaceholderAmbiguous        ErrorCode = "placeholder_translation_ambiguous"
 	ErrorImportUnresolved            ErrorCode = "import_unresolved"
+	// ErrorMultipleProblems reports several problems at once. The message
+	// has every problem, and the problems field has the structured ones.
+	ErrorMultipleProblems ErrorCode = "multiple_problems"
 )
 
 // Problem describes one actionable sync error.
@@ -76,6 +79,28 @@ func ProblemFrom(err error) (*Problem, bool) {
 	var problem *Problem
 	ok := errors.As(err, &problem)
 	return problem, ok
+}
+
+// ProblemsFrom returns every sync problem in an error tree, in order. A
+// joined error, such as the blocking error of a plan, holds several.
+func ProblemsFrom(err error) []*Problem {
+	var problems []*Problem
+	var walk func(error)
+	walk = func(err error) {
+		switch typed := err.(type) {
+		case nil:
+		case *Problem:
+			problems = append(problems, typed)
+		case interface{ Unwrap() []error }:
+			for _, child := range typed.Unwrap() {
+				walk(child)
+			}
+		case interface{ Unwrap() error }:
+			walk(typed.Unwrap())
+		}
+	}
+	walk(err)
+	return problems
 }
 
 // WithResource adds a resource identity to a problem.

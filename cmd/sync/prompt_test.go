@@ -1,6 +1,9 @@
 package sync
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -17,17 +20,114 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	command := NewPromptCmd(nil)
 
 	assert.Equal(t, "prompts", command.Use)
-	for _, name := range []string{"watch", "add", "attach", "detach"} {
+	for _, name := range []string{"watch", "add", "attach", "detach", "link"} {
 		child, _, err := command.Find([]string{name})
 		require.NoError(t, err)
 		assert.Equal(t, name, child.Name())
 	}
-	for _, name := range []string{"add", "attach-tool", "attach-skill", "detach", "watch"} {
+	for _, name := range []string{"add", "attach-tool", "attach-skill", "detach", "link", "watch"} {
 		assert.Nil(t, command.Flags().Lookup(name), "legacy --%s should not exist", name)
 	}
 	add, _, err := command.Find([]string{"add"})
 	require.NoError(t, err)
 	assert.Equal(t, "add [project-key/config-key/variation-key...]", add.Use)
+	link, _, err := command.Find([]string{"link"})
+	require.NoError(t, err)
+	assert.Nil(t, link.Flags().Lookup(toFlag))
+	assert.Nil(t, link.Flags().Lookup(modelConfigKeyFlag))
+}
+
+func TestSourceLinkFlagsBuildTargetAndMappings(t *testing.T) {
+	command := newLinkCmd(nil, syncdomain.KindVariation)
+	require.NoError(t, command.ParseFlags([]string{
+		"--file", "agents.py",
+		"--format", "python",
+		"--select", `agents[id="support"]`,
+		"--map", "prompt=instructions",
+		"--project", "production",
+		"--config-key", "support",
+		"--key", "default",
+	}))
+
+	id, err := sourceLinkID(command, syncdomain.KindVariation)
+	require.NoError(t, err)
+	assert.Equal(t, syncdomain.VariationID("production", "support", "default"), id)
+	mappings, err := parseFieldMappings(mustStringArray(command, mapFlag))
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"prompt": "instructions"}, mappings)
+}
+
+func TestSyncProblemRendersStableFields(t *testing.T) {
+	problem := syncdomain.NewProblem(
+		syncdomain.ErrorPathNotFound,
+		"mapped field was not found",
+		"Update the map path.",
+	).WithResource(syncdomain.VariationID("project", "config", "default")).
+		WithFile("agents.py", 4, 12)
+
+	jsonError := syncCommandOutputError(problem, "json")
+	require.JSONEq(t, `{
+		"code": "path_not_found",
+		"message": "mapped field was not found",
+		"resource": "variation project/config/default",
+		"file": "agents.py",
+		"line": 4,
+		"column": 12,
+		"suggestion": "Update the map path."
+	}`, jsonError.Error())
+
+	plainError := syncCommandOutputError(problem, "plaintext")
+	assert.Contains(t, plainError.Error(),
+		"variation project/config/default agents.py:4:12: mapped field was not found (code: path_not_found)",
+		"plaintext names the resource and the source location")
+	assert.Contains(t, plainError.Error(), "Suggestion: Update the map path.")
+
+	bare := syncCommandOutputError(syncdomain.NewProblem(syncdomain.ErrorPathNotFound, "mapped field was not found", ""), "plaintext")
+	assert.Contains(t, bare.Error(), "mapped field was not found (code: path_not_found)")
+	assert.NotContains(t, bare.Error(), ": mapped field")
+}
+
+func TestSyncJoinedErrorKeepsEveryProblem(t *testing.T) {
+	problem := syncdomain.NewProblem(syncdomain.ErrorPathNotFound, "mapped field was not found", "Update the map path.")
+	joined := errors.Join(
+		errors.New("cannot sync conflicted resource variation project/config/other"),
+		fmt.Errorf("cannot sync variation project/config/default: %w", problem),
+	)
+
+	jsonError := syncCommandOutputError(joined, "json")
+
+	var report struct {
+		Code     string                `json:"code"`
+		Message  string                `json:"message"`
+		Problems []*syncdomain.Problem `json:"problems"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(jsonError.Error()), &report))
+	assert.Equal(t, "multiple_problems", report.Code)
+	assert.Contains(t, report.Message, "conflicted resource variation project/config/other")
+	assert.Contains(t, report.Message, "mapped field was not found")
+	require.Len(t, report.Problems, 1)
+	assert.Equal(t, syncdomain.ErrorPathNotFound, report.Problems[0].Code)
+
+	single := syncCommandOutputError(fmt.Errorf("cannot sync: %w", problem), "json")
+	assert.JSONEq(t, `{"code":"path_not_found","message":"mapped field was not found","suggestion":"Update the map path."}`, single.Error())
+
+	// A plan joins its problems, so a join of one problem keeps its code.
+	joinedSingle := syncCommandOutputError(errors.Join(fmt.Errorf("cannot sync variation x: %w", problem)), "json")
+	assert.JSONEq(t, `{"code":"path_not_found","message":"mapped field was not found","suggestion":"Update the map path."}`, joinedSingle.Error())
+}
+
+func TestLinkValidatesTheTargetFlags(t *testing.T) {
+	command := NewSyncCmd(nil, nil)
+	link, _, err := command.Find([]string{"prompts", "link"})
+	require.NoError(t, err)
+	require.NoError(t, link.Flags().Set("project", "p"))
+	require.NoError(t, link.Flags().Set("config-key", "c"))
+	require.NoError(t, link.Flags().Set("key", ".."))
+
+	_, err = sourceLinkID(link, syncdomain.KindVariation)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--key")
 }
 
 func TestSyncCommandIncludesExamples(t *testing.T) {
@@ -53,6 +153,7 @@ func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 		"attach tool":  {"attach", "tool"},
 		"attach skill": {"attach", "skill"},
 		"detach":       {"detach"},
+		"link":         {"link"},
 	}
 
 	for name, path := range tests {
@@ -107,6 +208,7 @@ func TestPromptCommandsRegisterTargetFlags(t *testing.T) {
 		"add":         {path: []string{"add"}, help: questionFlagHelp},
 		"detach":      {path: []string{"detach"}, help: questionFlagHelp},
 		"attach tool": {path: []string{"attach", "tool"}, help: targetFlagHelp{project: questionFlagHelp.project}},
+		"link":        {path: []string{"link"}, help: questionFlagHelp},
 	}
 
 	for name, test := range tests {
@@ -208,4 +310,31 @@ func TestConflictPolicyParsesDefaultAndOverrides(t *testing.T) {
 	assert.Equal(t, syncprompt.ConflictUseLocal, policy.Overrides[syncdomain.ResourceID{
 		Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
 	}])
+}
+
+func TestSyncJoinedPlaintextNamesEachLocation(t *testing.T) {
+	problem := syncdomain.NewProblem(syncdomain.ErrorPathNotFound, "mapped field was not found", "Update the map path.").
+		WithResource(syncdomain.VariationID("project", "config", "default")).
+		WithFile("agents.py", 4, 12)
+	joined := errors.Join(
+		errors.New("cannot sync conflicted resource variation project/config/other"),
+		fmt.Errorf("cannot sync variation project/config/default: %w", problem),
+	)
+
+	plainError := syncCommandOutputError(joined, "plaintext")
+
+	assert.Contains(t, plainError.Error(), "cannot sync conflicted resource variation project/config/other")
+	assert.Contains(t, plainError.Error(),
+		"variation project/config/default agents.py:4:12: mapped field was not found. Update the map path.")
+	assert.Contains(t, plainError.Error(), "(code: multiple_problems)")
+
+	jsonError := syncCommandOutputError(joined, "json")
+	var report struct {
+		Message  string                `json:"message"`
+		Problems []*syncdomain.Problem `json:"problems"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(jsonError.Error()), &report))
+	assert.NotContains(t, report.Message, "agents.py:4:12", "JSON keeps the location in its own fields")
+	require.Len(t, report.Problems, 1)
+	assert.Equal(t, 4, report.Problems[0].Line)
 }
