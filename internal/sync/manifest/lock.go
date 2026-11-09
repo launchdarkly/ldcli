@@ -12,7 +12,7 @@ import (
 // The sync.lock file stores the baseline of one working copy. Engineers commit
 // it with the .launchdarkly files, so that the baseline moves with the files.
 const (
-	lockFormatVersion = 1
+	lockFormatVersion = FormatVersion
 	lockHeader        = "# Written by ldcli sync. Commit this file with the .launchdarkly files.\n"
 )
 

@@ -63,6 +63,9 @@ func (skill Skill) CreateName() string {
 type Attachment struct {
 	Kind    AttachmentKind
 	Version int
+	// Projection records the fields that a linked definition owns. It lets a
+	// dependency keep unowned LaunchDarkly fields when sync publishes it.
+	Projection Projection `json:"-" yaml:"-"`
 	// Upsert lets sync create the tool or the skill in LaunchDarkly when it
 	// is absent.
 	Upsert bool
@@ -91,6 +94,11 @@ func (attachment Attachment) ID(projectKey string) ResourceID {
 type SyncedAttachment struct {
 	ProjectKey string
 	Attachment Attachment
+	// Source is the descriptor-backed repository source, or nil for a managed file.
+	Source            *Reference
+	Dependencies      []string
+	IndexedSelections []IndexedSelection
+	Projection        Projection
 }
 
 // ID returns the identity of the tool or the skill.
@@ -103,6 +111,7 @@ func (attachment SyncedAttachment) ID() ResourceID {
 // the same content.
 func CanonicalAttachment(attachment Attachment) Attachment {
 	attachment.Version = 0
+	attachment.Projection = nil
 	attachment.Upsert = false
 	if attachment.Tool != nil {
 		tool := *attachment.Tool
