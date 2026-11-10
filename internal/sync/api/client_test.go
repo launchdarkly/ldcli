@@ -469,7 +469,6 @@ func TestClientArchiveVariationReturnsTransportError(t *testing.T) {
 
 func TestClientGetsSyncManifest(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{[]byte(`{
-		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"items": [{
 			"resourceKind": "variation",
@@ -494,7 +493,6 @@ func TestClientGetsSyncManifest(t *testing.T) {
 
 func TestClientPatchesSyncManifest(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{[]byte(`{
-		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"items": []
 	}`)}}
@@ -516,7 +514,6 @@ func TestClientPatchesSyncManifest(t *testing.T) {
 	assert.Equal(t, http.MethodPatch, request.Method)
 	assert.Equal(t, "application/json", request.ContentType)
 	assert.JSONEq(t, `{
-		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"upserts": [{
 			"resourceKind": "variation",
@@ -528,36 +525,23 @@ func TestClientPatchesSyncManifest(t *testing.T) {
 	}`, string(request.Body))
 }
 
-// LaunchDarkly answers a project and a source that no sync wrote yet with an
-// empty manifest that has no formatVersion. That is an empty manifest, not
-// an unsupported one.
-func TestClientAcceptsAnUnwrittenSyncManifest(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{"items":[],"source":"git:example.com/acme/repo"}`)}}
+// The manifest API has no format version. An empty manifest and a manifest
+// with entries both read as they are.
+func TestClientReadsAManifestWithoutAFormatVersion(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{
+		[]byte(`{"items":[],"source":"git:example.com/acme/repo"}`),
+		[]byte(`{"items":[{"resourceKind":"variation","resourceLookupKey":"support/helpful","fingerprint":"sha256:abc","version":1}],"source":"git:example.com/acme/repo"}`),
+	}}
 	client := NewClient(transport, "token", "https://example.com")
 
-	manifest, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
-
+	empty, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
 	require.NoError(t, err)
-	assert.Empty(t, manifest.Items)
-	assert.True(t, manifest.Unwritten())
+	assert.Empty(t, empty.Items)
 
-	transport = &recordingClient{Responses: [][]byte{[]byte(`{"items":[{"resourceKind":"variation","resourceLookupKey":"support/helpful","fingerprint":"sha256:abc","version":1}],"source":"git:example.com/acme/repo"}`)}}
-	client = NewClient(transport, "token", "https://example.com")
-	_, err = client.GetSyncManifest("project", "git:example.com/acme/repo")
-	require.ErrorContains(t, err, "unsupported formatVersion 0", "entries without a format version are not an unwritten manifest")
-}
-
-func TestClientRejectsUnknownSyncManifestVersion(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
-		"formatVersion": 99,
-		"source": "git:example.com/acme/repo",
-		"items": []
-	}`)}}
-	client := NewClient(transport, "token", "https://example.com")
-
-	_, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
-
-	require.ErrorContains(t, err, "unsupported formatVersion 99")
+	written, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
+	require.NoError(t, err)
+	require.Len(t, written.Items, 1)
+	assert.Equal(t, 1, written.Items[0].Version)
 }
 
 func TestIsConflictRecognizesAPIStatus(t *testing.T) {
