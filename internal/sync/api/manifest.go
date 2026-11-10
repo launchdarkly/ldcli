@@ -18,15 +18,15 @@ type SyncManifest struct {
 	Items  []SyncManifestResource `json:"items"`
 }
 
-// SyncManifestResource is one versioned baseline entry.
+// SyncManifestResource is one versioned baseline entry. The remote manifest
+// records the fingerprint and the version of each entry. The descriptor
+// metadata of a linked resource, such as its reference digest, lives in the
+// sync.lock file only, and the API rejects it.
 type SyncManifestResource struct {
 	ResourceKind      syncdomain.Kind `json:"resourceKind"`
 	ResourceLookupKey string          `json:"resourceLookupKey"`
 	Fingerprint       string          `json:"fingerprint"`
 	Version           int             `json:"version"`
-	FingerprintSchema string          `json:"fingerprintSchema,omitempty"`
-	ReferenceDigest   string          `json:"referenceDigest,omitempty"`
-	AdapterBehavior   string          `json:"adapterBehavior,omitempty"`
 }
 
 // SyncManifestUpsert creates an entry, or updates the entry at Version.
@@ -35,9 +35,6 @@ type SyncManifestUpsert struct {
 	ResourceLookupKey string          `json:"resourceLookupKey"`
 	Fingerprint       string          `json:"fingerprint"`
 	Version           int             `json:"version"`
-	FingerprintSchema string          `json:"fingerprintSchema,omitempty"`
-	ReferenceDigest   string          `json:"referenceDigest,omitempty"`
-	AdapterBehavior   string          `json:"adapterBehavior,omitempty"`
 }
 
 // SyncManifestDeletion removes the entry at Version.
