@@ -133,15 +133,6 @@ func (store Store) patch(
 }
 
 func (store Store) resourcesFromRemote(projectKey string, remote syncapi.SyncManifest) ([]Resource, error) {
-	// A project and a source that no sync wrote yet have an empty manifest
-	// without a format version.
-	if !remote.Unwritten() && remote.FormatVersion != syncapi.SyncManifestFormatVersion {
-		return nil, fmt.Errorf(
-			"sync manifest for project %q has unsupported formatVersion %d",
-			projectKey,
-			remote.FormatVersion,
-		)
-	}
 	if remote.Source != "" && remote.Source != store.source {
 		return nil, fmt.Errorf(
 			"sync manifest for project %q returned source %q instead of %q", projectKey, remote.Source, store.source,

@@ -9,15 +9,13 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-// SyncManifestFormatVersion is the remote sync manifest schema.
-const SyncManifestFormatVersion = 1
-
 // SyncManifest is the sync baseline that LaunchDarkly stores for one project
-// and one repository source.
+// and one repository source. The API has no format version of its own: the
+// path version of the API governs the shape, and the sync.lock file has its
+// own formatVersion.
 type SyncManifest struct {
-	FormatVersion int                    `json:"formatVersion"`
-	Source        string                 `json:"source"`
-	Items         []SyncManifestResource `json:"items"`
+	Source string                 `json:"source"`
+	Items  []SyncManifestResource `json:"items"`
 }
 
 // SyncManifestResource is one versioned baseline entry.
@@ -58,14 +56,7 @@ func (client Client) GetSyncManifest(projectKey, source string) (SyncManifest, e
 	if err != nil {
 		return SyncManifest{}, err
 	}
-	manifest, err := decodeJSON[SyncManifest](response, fmt.Sprintf("sync manifest for project %q", projectKey))
-	if err != nil {
-		return SyncManifest{}, err
-	}
-	if err := validateSyncManifest(manifest); err != nil {
-		return SyncManifest{}, fmt.Errorf("sync manifest for project %q: %w", projectKey, err)
-	}
-	return manifest, nil
+	return decodeJSON[SyncManifest](response, fmt.Sprintf("sync manifest for project %q", projectKey))
 }
 
 // PatchSyncManifest applies versioned changes and returns the new baseline.
@@ -85,15 +76,13 @@ func (client Client) PatchSyncManifest(
 	request := mutation{
 		method: http.MethodPatch, action: "update", resource: "sync manifest for project", key: projectKey,
 		body: struct {
-			FormatVersion int                    `json:"formatVersion"`
-			Source        string                 `json:"source"`
-			Upserts       []SyncManifestUpsert   `json:"upserts"`
-			Deletions     []SyncManifestDeletion `json:"deletions"`
+			Source    string                 `json:"source"`
+			Upserts   []SyncManifestUpsert   `json:"upserts"`
+			Deletions []SyncManifestDeletion `json:"deletions"`
 		}{
-			FormatVersion: SyncManifestFormatVersion,
-			Source:        source,
-			Upserts:       upserts,
-			Deletions:     deletions,
+			Source:    source,
+			Upserts:   upserts,
+			Deletions: deletions,
 		},
 	}
 	response, err := client.mutate(request, manifestPath(projectKey)...)
@@ -107,26 +96,7 @@ func (client Client) PatchSyncManifest(
 		// caller must read the manifest again to find its state.
 		return SyncManifest{}, newMutationError("decode updated", request.resource, projectKey, err)
 	}
-	if err := validateSyncManifest(manifest); err != nil {
-		return SyncManifest{}, newMutationError("decode updated", request.resource, projectKey, err)
-	}
 	return manifest, nil
-}
-
-// Unwritten reports whether the manifest is the one that LaunchDarkly returns
-// for a project and a source that no sync wrote yet: no entries and no format
-// version. Sync treats it as an empty manifest of the supported format.
-func (manifest SyncManifest) Unwritten() bool {
-	return manifest.FormatVersion == 0 && len(manifest.Items) == 0
-}
-
-// validateSyncManifest accepts a manifest of the supported format, and an
-// unwritten manifest, which has no format to check.
-func validateSyncManifest(manifest SyncManifest) error {
-	if manifest.Unwritten() || manifest.FormatVersion == SyncManifestFormatVersion {
-		return nil
-	}
-	return fmt.Errorf("unsupported formatVersion %d", manifest.FormatVersion)
 }
 
 func manifestPath(projectKey string) []string {
