@@ -147,14 +147,11 @@ func (store Store) resourcesFromRemote(projectKey string, remote syncapi.SyncMan
 			)
 		}
 		resources = append(resources, Resource{
-			ResourceKind:      item.ResourceKind,
-			ProjectKey:        projectKey,
-			LookupKey:         item.ResourceLookupKey,
-			Fingerprint:       item.Fingerprint,
-			Version:           item.Version,
-			FingerprintSchema: item.FingerprintSchema,
-			ReferenceDigest:   item.ReferenceDigest,
-			AdapterBehavior:   item.AdapterBehavior,
+			ResourceKind: item.ResourceKind,
+			ProjectKey:   projectKey,
+			LookupKey:    item.ResourceLookupKey,
+			Fingerprint:  item.Fingerprint,
+			Version:      item.Version,
 		})
 	}
 	return resources, nil
@@ -180,9 +177,6 @@ func changes(before, after []Resource) ([]syncapi.SyncManifestUpsert, []syncapi.
 			ResourceLookupKey: resource.LookupKey,
 			Fingerprint:       resource.Fingerprint,
 			Version:           current.Version,
-			FingerprintSchema: resource.FingerprintSchema,
-			ReferenceDigest:   resource.ReferenceDigest,
-			AdapterBehavior:   resource.AdapterBehavior,
 		})
 	}
 
@@ -199,11 +193,12 @@ func changes(before, after []Resource) ([]syncapi.SyncManifestUpsert, []syncapi.
 	return upserts, deletions
 }
 
+// sameManifestContent reports whether two entries are the same to the remote
+// manifest, which records only the fingerprint. The descriptor metadata of a
+// linked resource stays in the sync.lock file, so a change to it alone sends
+// nothing.
 func sameManifestContent(left, right Resource) bool {
-	return left.Fingerprint == right.Fingerprint &&
-		left.FingerprintSchema == right.FingerprintSchema &&
-		left.ReferenceDigest == right.ReferenceDigest &&
-		left.AdapterBehavior == right.AdapterBehavior
+	return left.Fingerprint == right.Fingerprint
 }
 
 // changesApplied reports whether the remote manifest contains every change.
