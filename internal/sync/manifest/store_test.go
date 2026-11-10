@@ -49,6 +49,39 @@ func (client *manifestClient) PatchSyncManifest(
 	return response, nil
 }
 
+// A project that no sync wrote yet has an empty manifest without a format
+// version in LaunchDarkly. It loads as no entries, and a manifest with
+// entries still needs the supported format.
+func TestStoreLoadsAnUnwrittenManifestAsEmpty(t *testing.T) {
+	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{
+		"fresh": {Source: "git:example/repo"},
+		"written": {
+			FormatVersion: syncapi.SyncManifestFormatVersion,
+			Source:        "git:example/repo",
+			Items: []syncapi.SyncManifestResource{{
+				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/a",
+				Fingerprint: fingerprint("a"), Version: 2,
+			}},
+		},
+	}}
+
+	loaded, err := NewStore(client, "git:example/repo").Load([]string{"fresh", "written"})
+
+	require.NoError(t, err)
+	require.Len(t, loaded.Resources, 1)
+	assert.Equal(t, "written", loaded.Resources[0].ProjectKey)
+
+	client.manifests["fresh"] = syncapi.SyncManifest{
+		Source: "git:example/repo",
+		Items: []syncapi.SyncManifestResource{{
+			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/b",
+			Fingerprint: fingerprint("b"), Version: 1,
+		}},
+	}
+	_, err = NewStore(client, "git:example/repo").Load([]string{"fresh"})
+	require.ErrorContains(t, err, "unsupported formatVersion 0")
+}
+
 func TestStoreLoadsProjectManifests(t *testing.T) {
 	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{
 		"zeta": {

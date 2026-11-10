@@ -113,11 +113,20 @@ func (client Client) PatchSyncManifest(
 	return manifest, nil
 }
 
+// Unwritten reports whether the manifest is the one that LaunchDarkly returns
+// for a project and a source that no sync wrote yet: no entries and no format
+// version. Sync treats it as an empty manifest of the supported format.
+func (manifest SyncManifest) Unwritten() bool {
+	return manifest.FormatVersion == 0 && len(manifest.Items) == 0
+}
+
+// validateSyncManifest accepts a manifest of the supported format, and an
+// unwritten manifest, which has no format to check.
 func validateSyncManifest(manifest SyncManifest) error {
-	if manifest.FormatVersion != SyncManifestFormatVersion {
-		return fmt.Errorf("unsupported formatVersion %d", manifest.FormatVersion)
+	if manifest.Unwritten() || manifest.FormatVersion == SyncManifestFormatVersion {
+		return nil
 	}
-	return nil
+	return fmt.Errorf("unsupported formatVersion %d", manifest.FormatVersion)
 }
 
 func manifestPath(projectKey string) []string {
