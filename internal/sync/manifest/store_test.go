@@ -101,12 +101,7 @@ func TestStoreUpdatesWithRemoteVersions(t *testing.T) {
 	client := &manifestClient{patchResponses: []syncapi.SyncManifest{{
 		Source: "git:example/repo",
 		Items: []syncapi.SyncManifestResource{
-			{
-				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing",
-				Fingerprint: fingerprint("c"), Version: 4,
-				FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
-				AdapterBehavior: "markdown/1",
-			},
+			{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 4},
 			{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 1},
 		},
 	}}}
@@ -131,18 +126,36 @@ func TestStoreUpdatesWithRemoteVersions(t *testing.T) {
 	require.Len(t, client.patches, 1)
 	assert.Equal(t, []syncapi.SyncManifestUpsert{
 		{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 0},
-		{
-			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing",
-			Fingerprint: fingerprint("c"), Version: 3,
-			FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
-			AdapterBehavior: "markdown/1",
-		},
-	}, client.patches[0].upserts)
+		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 3},
+	}, client.patches[0].upserts, "the upsert carries the fingerprint and the version, and no descriptor metadata")
 	assert.Equal(t, []syncapi.SyncManifestDeletion{{
 		ResourceKind: syncdomain.KindSkill, ResourceLookupKey: "old", Version: 2,
 	}}, client.patches[0].deletions)
 	assert.Equal(t, 4, updated.Resources[1].Version)
-	assert.Equal(t, syncdomain.ProjectionFingerprintSchema, updated.Resources[1].FingerprintSchema)
+	assert.Empty(t, updated.Resources[1].FingerprintSchema, "the remote state has no descriptor metadata")
+}
+
+// The remote manifest records only the fingerprint, so a change to the
+// descriptor metadata of a linked resource with the same fingerprint sends
+// nothing. The sync.lock file keeps that metadata.
+func TestStoreSendsNothingForADescriptorMetadataChange(t *testing.T) {
+	client := &manifestClient{patchResponses: []syncapi.SyncManifest{{Source: "git:example/repo"}}}
+	store := NewStore(client, "git:example/repo")
+	previous := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/linked",
+		Fingerprint: fingerprint("a"), Version: 3,
+	}}}
+	next := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/linked",
+		Fingerprint: fingerprint("a"), Version: 3,
+		FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
+		AdapterBehavior: "markdown/1",
+	}}}
+
+	_, err := store.Update(previous, next)
+
+	require.NoError(t, err)
+	assert.Empty(t, client.patches, "no patch for a change that the remote manifest cannot record")
 }
 
 func TestStoreReportsOptimisticConflict(t *testing.T) {
