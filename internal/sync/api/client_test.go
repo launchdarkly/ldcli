@@ -528,6 +528,25 @@ func TestClientPatchesSyncManifest(t *testing.T) {
 	}`, string(request.Body))
 }
 
+// LaunchDarkly answers a project and a source that no sync wrote yet with an
+// empty manifest that has no formatVersion. That is an empty manifest, not
+// an unsupported one.
+func TestClientAcceptsAnUnwrittenSyncManifest(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{"items":[],"source":"git:example.com/acme/repo"}`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	manifest, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
+
+	require.NoError(t, err)
+	assert.Empty(t, manifest.Items)
+	assert.True(t, manifest.Unwritten())
+
+	transport = &recordingClient{Responses: [][]byte{[]byte(`{"items":[{"resourceKind":"variation","resourceLookupKey":"support/helpful","fingerprint":"sha256:abc","version":1}],"source":"git:example.com/acme/repo"}`)}}
+	client = NewClient(transport, "token", "https://example.com")
+	_, err = client.GetSyncManifest("project", "git:example.com/acme/repo")
+	require.ErrorContains(t, err, "unsupported formatVersion 0", "entries without a format version are not an unwritten manifest")
+}
+
 func TestClientRejectsUnknownSyncManifestVersion(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{[]byte(`{
 		"formatVersion": 99,
