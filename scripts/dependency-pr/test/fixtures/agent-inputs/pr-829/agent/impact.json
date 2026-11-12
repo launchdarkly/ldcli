@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "summary": "go-sqlite3 1.14.28 → 1.14.52 is a large \"patch\": 24 releases, bundled SQLite 3.49 → 3.53.4, minimum Go raised to 1.21 (ldcli is on 1.25), many bind/row-path rewrites, and an opt-in statement cache. ldcli reaches the driver only through database/sql in internal/dev_server/db, events_db, and db/backup (the Backup API). Reachable changes (behavior_changes_reachable is true): per-row cancellation goroutines removed (QueryEvents and other QueryContext calls), sqlite3_clear_bindings after reset, and SQLite engine changes under json_each, timestamps, and the ALTER TABLE migration. The statement-cache changes (1.14.51/52 schema probe and flush) are opt-in and not enabled by ldcli.",
+  "changelog": [
+    {
+      "package": "github.com/mattn/go-sqlite3",
+      "range": "1.14.48",
+      "notes": "SQLite 3.51–3.53 amalgamations, min Go 1.21, opt-in statement cache, bind fast-path rewrites, 'return error instead of silently ignoring unsupported bind types' (#1422)",
+      "breaking": false,
+      "url": "https://github.com/mattn/go-sqlite3/releases/tag/v1.14.48"
+    },
+    {
+      "package": "github.com/mattn/go-sqlite3",
+      "range": "1.14.49–1.14.50",
+      "notes": "vtable handle fixes, SQLite 3.53.4",
+      "breaking": false,
+      "url": "https://github.com/mattn/go-sqlite3/releases/tag/v1.14.49"
+    },
+    {
+      "package": "github.com/mattn/go-sqlite3",
+      "range": "1.14.51",
+      "notes": "no per-row goroutines for query cancellation; sync.Map handle table; flush statement cache on schema change",
+      "breaking": false,
+      "url": "https://github.com/mattn/go-sqlite3/releases/tag/v1.14.51"
+    },
+    {
+      "package": "github.com/mattn/go-sqlite3",
+      "range": "1.14.52",
+      "notes": "eager first step replaces the schema probe for cached statements (statement cache is opt-in)",
+      "breaking": false,
+      "url": "https://github.com/mattn/go-sqlite3/releases/tag/v1.14.52"
+    }
+  ],
+  "usage": [
+    "internal/dev_server/db/sqlite.go",
+    "internal/dev_server/events_db/sqlite.go",
+    "internal/dev_server/db/backup/sqllite_backup.go"
+  ],
+  "findings": [
+    {
+      "severity": "info",
+      "text": "#1422 (unsupported bind types now error) only affects values that reach the driver without database/sql conversion; ldcli binds strings, []byte/json.RawMessage, int, and time.Time through database/sql, so it is unreachable.",
+      "evidence": [
+        "https://github.com/mattn/go-sqlite3/pull/1422"
+      ]
+    }
+  ],
+  "recommendations": [],
+  "behavior_changes_reachable": true
+}

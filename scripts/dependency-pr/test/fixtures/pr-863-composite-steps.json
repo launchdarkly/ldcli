@@ -1,0 +1,12 @@
+{
+  "pr": 863,
+  "why": "#863 moves launchdarkly/gh-actions release-secrets from v1.2.0 to v1.2.1, a patch, in release-only workflows. Its composite steps move configure-aws-credentials from v4 to v6 and replace the SSM loader action with new code. On 2026-10-16 actions-coverage said that the interfaces match, and without the impact review the verdict was safe to merge. The check must ask a person. Without agent inputs, the high-tier update also needs an impact review, so the verdict is incomplete.",
+  "head": "7883b95ecc2dd00a3b7c9220543e51c4c292c57b",
+  "base": "d6105efe8e9f9ac517a8ff15462435ff3d95efb0",
+  "expect": {
+    "verdict": "incomplete",
+    "checks": {"actions-coverage": "decide"},
+    "decisions_contain": ["Accept launchdarkly/gh-actions/actions/release-secrets release-secrets-v1.2.1 in workflows that PR CI does not run"],
+    "incomplete_contain": ["needs an impact review"]
+  }
+}

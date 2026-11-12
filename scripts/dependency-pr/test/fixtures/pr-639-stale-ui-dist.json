@@ -1,0 +1,12 @@
+{
+  "pr": 639,
+  "why": "Dependabot's commit for #639 (react-router 7.7.1 → 7.12.0) did not rebuild the embedded UI. A person had to push 'chore: rebuild UI dist after dep upgrade' by hand before CI passed.",
+  "head": "794cfe765658a87734c081a3522f34321ace8be5",
+  "base": "b236535348ad5f58e8c94845c29de785c766b7cc",
+  "expect": {
+    "verdict": "block",
+    "checks": {"ui-build-drift": "regression"},
+    "blocks_contain": ["dist/ is stale"],
+    "fixes": ["ui-dist-rebuild"]
+  }
+}

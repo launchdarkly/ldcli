@@ -1,0 +1,115 @@
+{
+  "author": {
+    "is_bot": true,
+    "login": "app/dependabot"
+  },
+  "baseRefName": "main",
+  "body": "Bumps [actions/setup-go](https://github.com/actions/setup-go) from 4 to 6.\n<details>\n<summary>Release notes</summary>\n<p><em>Sourced from <a href=\"https://github.com/actions/setup-go/releases\">actions/setup-go's releases</a>.</em></p>\n<blockquote>\n<h2>v6.0.0</h2>\n<h2>What's Changed</h2>\n<h3>Breaking Changes</h3>\n<ul>\n<li>Improve toolchain handling to ensure more reliable and consistent toolchain selection and management by <a href=\"https://github.com/matthewhughes934\"><code>@​matthewhughes934</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/460\">actions/setup-go#460</a></li>\n<li>Upgrade Nodejs runtime from node20 to node 24 by <a href=\"https://github.com/salmanmkc\"><code>@​salmanmkc</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/624\">actions/setup-go#624</a></li>\n</ul>\n<p>Make sure your runner is on version v2.327.1 or later to ensure compatibility with this release. <a href=\"https://github.com/actions/runner/releases/tag/v2.327.1\">See Release Notes</a></p>\n<h3>Dependency Upgrades</h3>\n<ul>\n<li>Upgrade <code>@​types/jest</code> from 29.5.12 to 29.5.14 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a>[bot] in <a href=\"https://redirect.github.com/actions/setup-go/pull/589\">actions/setup-go#589</a></li>\n<li>Upgrade <code>@​actions/tool-cache</code> from 2.0.1 to 2.0.2 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a>[bot] in <a href=\"https://redirect.github.com/actions/setup-go/pull/591\">actions/setup-go#591</a></li>\n<li>Upgrade <code>@​typescript-eslint/parser</code> from 8.31.1 to 8.35.1 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a>[bot] in <a href=\"https://redirect.github.com/actions/setup-go/pull/590\">actions/setup-go#590</a></li>\n<li>Upgrade undici from 5.28.5 to 5.29.0 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a>[bot] in <a href=\"https://redirect.github.com/actions/setup-go/pull/594\">actions/setup-go#594</a></li>\n<li>Upgrade typescript from 5.4.2 to 5.8.3 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a>[bot] in <a href=\"https://redirect.github.com/actions/setup-go/pull/538\">actions/setup-go#538</a></li>\n<li>Upgrade eslint-plugin-jest from 28.11.0 to 29.0.1 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a>[bot] in <a href=\"https://redirect.github.com/actions/setup-go/pull/603\">actions/setup-go#603</a></li>\n<li>Upgrade <code>form-data</code> to bring in fix for critical vulnerability by <a href=\"https://github.com/matthewhughes934\"><code>@​matthewhughes934</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/618\">actions/setup-go#618</a></li>\n<li>Upgrade actions/checkout from 4 to 5 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a>[bot] in <a href=\"https://redirect.github.com/actions/setup-go/pull/631\">actions/setup-go#631</a></li>\n</ul>\n<h2>New Contributors</h2>\n<ul>\n<li><a href=\"https://github.com/matthewhughes934\"><code>@​matthewhughes934</code></a> made their first contribution in <a href=\"https://redirect.github.com/actions/setup-go/pull/618\">actions/setup-go#618</a></li>\n<li><a href=\"https://github.com/salmanmkc\"><code>@​salmanmkc</code></a> made their first contribution in <a href=\"https://redirect.github.com/actions/setup-go/pull/624\">actions/setup-go#624</a></li>\n</ul>\n<p><strong>Full Changelog</strong>: <a href=\"https://github.com/actions/setup-go/compare/v5...v6.0.0\">https://github.com/actions/setup-go/compare/v5...v6.0.0</a></p>\n<h2>v5.6.0</h2>\n<h2>What's Changed</h2>\n<ul>\n<li>Fall back to downloading from go.dev/dl instead of storage.googleapis.com/golang by <a href=\"https://github.com/aparnajyothi-y\"><code>@​aparnajyothi-y</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/689\">actions/setup-go#689</a></li>\n</ul>\n<p><strong>Full Changelog</strong>: <a href=\"https://github.com/actions/setup-go/compare/v5...v5.6.0\">https://github.com/actions/setup-go/compare/v5...v5.6.0</a></p>\n<h2>v5.5.0</h2>\n<h2>What's Changed</h2>\n<h3>Bug fixes:</h3>\n<ul>\n<li>Update self-hosted environment validation by <a href=\"https://github.com/priyagupta108\"><code>@​priyagupta108</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/556\">actions/setup-go#556</a></li>\n<li>Add manifest validation and improve error handling by <a href=\"https://github.com/priyagupta108\"><code>@​priyagupta108</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/586\">actions/setup-go#586</a></li>\n<li>Update template link by <a href=\"https://github.com/jsoref\"><code>@​jsoref</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/527\">actions/setup-go#527</a></li>\n</ul>\n<h3>Dependency  updates:</h3>\n<ul>\n<li>Upgrade <code>@​action/cache</code> from 4.0.2 to 4.0.3 by <a href=\"https://github.com/aparnajyothi-y\"><code>@​aparnajyothi-y</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/574\">actions/setup-go#574</a></li>\n<li>Upgrade <code>@​actions/glob</code> from 0.4.0 to 0.5.0 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/573\">actions/setup-go#573</a></li>\n<li>Upgrade ts-jest from 29.1.2 to 29.3.2 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/582\">actions/setup-go#582</a></li>\n<li>Upgrade eslint-plugin-jest from 27.9.0 to 28.11.0 by <a href=\"https://github.com/dependabot\"><code>@​dependabot</code></a> in <a href=\"https://redirect.github.com/actions/setup-go/pull/537\">actions/setup-go#537</a></li>\n</ul>\n<h2>New Contributors</h2>\n<ul>\n<li><a href=\"https://github.com/jsoref\"><code>@​jsoref</code></a> made their first contribution in <a href=\"https://redirect.github.com/actions/setup-go/pull/527\">actions/setup-go#527</a></li>\n</ul>\n<p><strong>Full Changelog</strong>: <a href=\"https://github.com/actions/setup-go/compare/v5...v5.5.0\">https://github.com/actions/setup-go/compare/v5...v5.5.0</a></p>\n<!-- raw HTML omitted -->\n</blockquote>\n<p>... (truncated)</p>\n</details>\n<details>\n<summary>Commits</summary>\n<ul>\n<li><a href=\"https://github.com/actions/setup-go/commit/4a3601121dd01d1626a1e23e37211e3254c1c06c\"><code>4a36011</code></a> docs: fix Microsoft build of Go link (<a href=\"https://redirect.github.com/actions/setup-go/issues/734\">#734</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/8f19afcc704763637be6b1718da0af52ca05785d\"><code>8f19afc</code></a> feat: add go-download-base-url input for custom Go distributions (<a href=\"https://redirect.github.com/actions/setup-go/issues/721\">#721</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/27fdb267c15a8835f1ead03dfa07f89be2bb741a\"><code>27fdb26</code></a> Bump minimatch from 3.1.2 to 3.1.5 (<a href=\"https://redirect.github.com/actions/setup-go/issues/727\">#727</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/def8c394e3ad351a79bc93815e4a585520fe993b\"><code>def8c39</code></a> Rearrange README.md, add advanced-usage.md (<a href=\"https://redirect.github.com/actions/setup-go/issues/724\">#724</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/4b73464bb391d4059bd26b0524d20df3927bd417\"><code>4b73464</code></a> Fix golang download url to go.dev (<a href=\"https://redirect.github.com/actions/setup-go/issues/469\">#469</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/a5f9b05d2d216f63e13859e0d847461041025775\"><code>a5f9b05</code></a> Update default Go module caching to use go.mod (<a href=\"https://redirect.github.com/actions/setup-go/issues/705\">#705</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5\"><code>7a3fe6c</code></a> Bump qs from 6.14.0 to 6.14.1 (<a href=\"https://redirect.github.com/actions/setup-go/issues/703\">#703</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/b9adafd441833a027479ddd0db37eaece68d35cb\"><code>b9adafd</code></a> Bump actions/checkout from 5 to 6 (<a href=\"https://redirect.github.com/actions/setup-go/issues/686\">#686</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/d73f6bcfc2b419b74f47075f8a487b40cc4680f8\"><code>d73f6bc</code></a> README.md: correct to actions/checkout@v6 (<a href=\"https://redirect.github.com/actions/setup-go/issues/683\">#683</a>)</li>\n<li><a href=\"https://github.com/actions/setup-go/commit/ae252ee6fb24babc50e89fc67c4aa608e69fbf8f\"><code>ae252ee</code></a> Bump <code>@​actions/cache</code> to v5 (<a href=\"https://redirect.github.com/actions/setup-go/issues/695\">#695</a>)</li>\n<li>Additional commits viewable in <a href=\"https://github.com/actions/setup-go/compare/v4...v6\">compare view</a></li>\n</ul>\n</details>\n<br />\n\n\n[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=actions/setup-go&package-manager=github_actions&previous-version=4&new-version=6)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)\n\nYou can trigger a rebase of this PR by commenting `@dependabot rebase`.\n\n[//]: # (dependabot-automerge-start)\n[//]: # (dependabot-automerge-end)\n\n---\n\n<details>\n<summary>Dependabot commands and options</summary>\n<br />\n\nYou can trigger Dependabot actions by commenting on this PR:\n- `@dependabot rebase` will rebase this PR\n- `@dependabot recreate` will recreate this PR, overwriting any edits that have been made to it\n- `@dependabot show <dependency name> ignore conditions` will show all of the ignore conditions of the specified dependency\n- `@dependabot ignore this major version` will close this PR and stop Dependabot creating any more for this major version (unless you reopen the PR or upgrade to it yourself)\n- `@dependabot ignore this minor version` will close this PR and stop Dependabot creating any more for this minor version (unless you reopen the PR or upgrade to it yourself)\n- `@dependabot ignore this dependency` will close this PR and stop Dependabot creating any more for this dependency (unless you reopen the PR or upgrade to it yourself)\n\n\n</details>\n\n<!-- CURSOR_SUMMARY -->\n---\n\n> [!NOTE]\n> **Low Risk**\n> CI-only dependency pin bumps with no application or security logic changes; v6 may alter toolchain behavior on runners, so watch for flaky Go setup in those two jobs.\n> \n> **Overview**\n> Upgrades **`actions/setup-go`** to **v6** in the two workflows that install Go for CI.\n> \n> In **`.github/workflows/go.yml`**, the build/test job moves from **v4** to **v6** (still using `go-version: stable`). In **`.github/workflows/dependency-scan.yml`**, the Go SBOM job moves from **v5** to **v6** (still using `go-version-file: go.mod`). No other workflow inputs or steps change.\n> \n> <sup>Reviewed by [Cursor Bugbot](https://cursor.com/bugbot) for commit c3c375a8b88c8affe8970c096ff1c70b4309c36d. Bugbot is set up for automated code reviews on this repo. Configure [here](https://www.cursor.com/dashboard/bugbot).</sup>\n<!-- /CURSOR_SUMMARY -->\n\n> **Note**\n> Automatic rebases have been disabled on this pull request as it has been open for over 30 days.\n",
+  "headRefName": "dependabot/github_actions/actions/setup-go-6",
+  "headRefOid": "348e5d8bd25abfeefa62f61b5195746f6dd64e70",
+  "isDraft": false,
+  "labels": [
+    {
+      "id": "LA_kwDOLbmPqc8AAAABkezHkQ",
+      "name": "dependencies",
+      "description": "Pull requests that update a dependency file",
+      "color": "0366d6"
+    },
+    {
+      "id": "LA_kwDOLbmPqc8AAAACon-48Q",
+      "name": "github_actions",
+      "description": "Pull requests that update GitHub Actions code",
+      "color": "000000"
+    }
+  ],
+  "number": 717,
+  "state": "OPEN",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-07T16:55:05Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://cursor.com/docs/bugbot",
+      "name": "Cursor Bugbot",
+      "startedAt": "2026-10-07T16:52:55Z",
+      "status": "COMPLETED",
+      "workflowName": ""
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-08T18:35:18Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://launchdarkly.atlassian.net/wiki/spaces/PD/pages/4527653121/Unified+Pull+Request+Assistant+UPRA#Bot-bouncer",
+      "name": "Require additional human oversight on bot PRs",
+      "startedAt": "2026-10-08T18:35:18Z",
+      "status": "COMPLETED",
+      "workflowName": ""
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-07T16:54:56Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://semgrep.dev/orgs/launchdarkly/projects/3359328/scans/241689661",
+      "name": "semgrep-cloud-platform/scan",
+      "startedAt": "2026-10-07T16:53:03Z",
+      "status": "COMPLETED",
+      "workflowName": ""
+    }
+  ],
+  "title": "chore(deps): bump actions/setup-go from 4 to 6",
+  "url": "https://github.com/launchdarkly/ldcli/pull/717",
+  "workflowRuns": [
+    {
+      "conclusion": null,
+      "created_at": "2026-10-07T16:52:54Z",
+      "event": "pull_request_target",
+      "head_sha": "348e5d8bd25abfeefa62f61b5195746f6dd64e70",
+      "html_url": "https://github.com/launchdarkly/ldcli/actions/runs/37655495561",
+      "id": 37655495561,
+      "name": "Lint PR title",
+      "path": ".github/workflows/lint-pr-title.yml",
+      "run_attempt": 1,
+      "status": "queued",
+      "jobs_count": 0
+    },
+    {
+      "conclusion": null,
+      "created_at": "2026-10-07T16:52:53Z",
+      "event": "pull_request",
+      "head_sha": "348e5d8bd25abfeefa62f61b5195746f6dd64e70",
+      "html_url": "https://github.com/launchdarkly/ldcli/actions/runs/37655495127",
+      "id": 37655495127,
+      "name": "Dependency Scan",
+      "path": ".github/workflows/dependency-scan.yml",
+      "run_attempt": 1,
+      "status": "queued",
+      "jobs_count": 0
+    },
+    {
+      "conclusion": "failure",
+      "created_at": "2026-10-07T16:52:53Z",
+      "event": "pull_request",
+      "head_sha": "348e5d8bd25abfeefa62f61b5195746f6dd64e70",
+      "html_url": "https://github.com/launchdarkly/ldcli/actions/runs/37655494844",
+      "id": 37655494844,
+      "name": "dev-server UI",
+      "path": ".github/workflows/dev-server-ui.yml",
+      "run_attempt": 1,
+      "status": "completed",
+      "jobs_count": 0
+    },
+    {
+      "conclusion": "failure",
+      "created_at": "2026-10-07T16:52:53Z",
+      "event": "pull_request",
+      "head_sha": "348e5d8bd25abfeefa62f61b5195746f6dd64e70",
+      "html_url": "https://github.com/launchdarkly/ldcli/actions/runs/37655494912",
+      "id": 37655494912,
+      "name": "Go",
+      "path": ".github/workflows/go.yml",
+      "run_attempt": 1,
+      "status": "completed",
+      "jobs_count": 0
+    }
+  ]
+}
