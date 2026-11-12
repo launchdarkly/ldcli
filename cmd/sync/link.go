@@ -21,6 +21,16 @@ var linkExamples = map[syncdomain.Kind]string{
     --select 'agents[id="support"]' \
     --map prompt=instructions \
     --project production --config-key support --key default \
+    --yes --no-input
+
+  # Create the config and the variation when LaunchDarkly has none
+  ldcli sync prompts link \
+    --file app/agents.py \
+    --format python \
+    --select 'agents[id="support"]' \
+    --map prompt=instructions \
+    --project production --config-key support --key default \
+    --upsert --model-config-key gpt-5 \
     --yes --no-input`,
 	syncdomain.KindTool: `  # Link one TypeScript MCP tool
   ldcli sync tools link \
@@ -52,7 +62,7 @@ func newLinkCmd(client resources.Client, kind syncdomain.Kind) *cobra.Command {
 		Short: fmt.Sprintf("Link a repository source to one %s", noun),
 		Long: fmt.Sprintf("Link a repository source to one %s. "+
 			"Link reads only the named file, shows the descriptor and the sync plan, and writes the descriptor after you confirm. "+
-			"It then syncs the %s.", noun, noun),
+			"It then syncs the %s. With --upsert, it creates the %s in LaunchDarkly when it does not exist, and the config of a variation too.", noun, noun, noun),
 		Example: linkExamples[kind],
 		Args:    validatedArgs(cobra.NoArgs),
 		RunE: runCommand(client, scope, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
@@ -64,12 +74,16 @@ func newLinkCmd(client resources.Client, kind syncdomain.Kind) *cobra.Command {
 			if err != nil {
 				return nil, err
 			}
+			upsert, _ := cmd.Flags().GetBool(upsertFlag)
 			return syncprompt.SourceLinkAction{
-				ID:     id,
-				File:   mustString(cmd, fileFlag),
-				Format: mustString(cmd, formatFlag),
-				Select: mustString(cmd, selectFlag),
-				Map:    fieldMap,
+				ID:             id,
+				File:           mustString(cmd, fileFlag),
+				Format:         mustString(cmd, formatFlag),
+				Select:         mustString(cmd, selectFlag),
+				Map:            fieldMap,
+				Upsert:         upsert,
+				ModelConfigKey: mustString(cmd, modelConfigKeyFlag),
+				Mode:           syncdomain.VariationMode(mustString(cmd, modeFlag)),
 			}, nil
 		}),
 	}
@@ -78,6 +92,11 @@ func newLinkCmd(client resources.Client, kind syncdomain.Kind) *cobra.Command {
 	cmd.Flags().String(formatFlag, "", "Source format, for example python, typescript, markdown, or json")
 	cmd.Flags().String(selectFlag, "", "Source value to select, for example 'agents[id=\"support\"]'")
 	cmd.Flags().StringArray(mapFlag, nil, "Mapped field in field=path form. Repeat for more fields.")
+	cmd.Flags().Bool(upsertFlag, false, fmt.Sprintf("Create the %s in LaunchDarkly when it does not exist", noun))
+	if kind == syncdomain.KindVariation {
+		cmd.Flags().String(modelConfigKeyFlag, "", "Model config of a variation that --upsert creates. The create uses its latest version.")
+		cmd.Flags().String(modeFlag, "", "Mode of a config that --upsert creates: agent or completion. The default comes from the source.")
+	}
 	_ = cmd.MarkFlagRequired(fileFlag)
 	_ = cmd.MarkFlagRequired(formatFlag)
 	addApplyFlags(cmd, scope, false)

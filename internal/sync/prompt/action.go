@@ -62,6 +62,15 @@ type SourceLinkAction struct {
 	Format string
 	Select string
 	Map    map[string]string
+	// Upsert creates the resource in LaunchDarkly when it does not exist,
+	// and the config of a variation when LaunchDarkly has none.
+	Upsert bool
+	// ModelConfigKey is the model config of a variation that Upsert
+	// creates. The create uses its latest version.
+	ModelConfigKey string
+	// Mode is the mode of a config that Upsert creates. Without it, the
+	// source decides: messages make a completion config, text an agent one.
+	Mode syncdomain.VariationMode
 }
 
 func (action SyncAction) validate(scope syncdomain.Scope) error {
@@ -120,6 +129,18 @@ func (action SourceLinkAction) validate(scope syncdomain.Scope) error {
 		if _, _, err := action.ID.VariationKeys(); err != nil {
 			return err
 		}
+	}
+	switch {
+	case action.ModelConfigKey != "" && action.ID.Kind != syncdomain.KindVariation:
+		return errors.New("--model-config-key applies to a prompt variation")
+	case action.Mode != "" && action.ID.Kind != syncdomain.KindVariation:
+		return errors.New("--mode applies to a prompt variation")
+	case action.Mode != "" && !action.Mode.Valid():
+		return fmt.Errorf("--mode must be agent or completion, not %q", action.Mode)
+	case (action.ModelConfigKey != "" || action.Mode != "") && !action.Upsert:
+		return errors.New("--model-config-key and --mode need --upsert")
+	case action.ModelConfigKey != "" && syncdomain.ValidateKey(action.ModelConfigKey) != nil:
+		return fmt.Errorf("invalid --model-config-key %q", action.ModelConfigKey)
 	}
 	_, err := syncadapter.NormalizeReference(action.ID, syncdomain.Reference{
 		File: action.File, Format: action.Format, Select: action.Select, Map: action.Map,
