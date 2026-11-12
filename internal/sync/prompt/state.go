@@ -41,6 +41,33 @@ func (workspace syncWorkspace) loadState(
 type sourceLink struct {
 	id       ResourceID
 	proposal *synclocal.SourceDefinition
+	intent   linkIntent
+}
+
+// linkIntent is what a link asks for beyond the descriptor: the creation of
+// a resource that LaunchDarkly does not have, with the model config and the
+// mode of a new variation. The descriptor records none of it, so the intent
+// applies to the compiled resource of the link on every load of a link run.
+type linkIntent struct {
+	upsert      bool
+	modelConfig *syncapi.ModelConfig
+	mode        syncdomain.VariationMode
+}
+
+// apply gives the compiled resource of the link the upsert and the model
+// config of the intent.
+func (intent linkIntent) apply(id ResourceID, variations []syncdomain.SyncedResource) {
+	for index := range variations {
+		if variations[index].ID() != id {
+			continue
+		}
+		variations[index].Upsert = variations[index].Upsert || intent.upsert
+		if intent.modelConfig != nil {
+			variations[index].Variation.ModelConfigKey = intent.modelConfig.Key
+			variations[index].Variation.ModelConfigVersion = intent.modelConfig.Version
+			variations[index].Variation.Model = intent.modelConfig.VariationModel()
+		}
+	}
 }
 
 func (workspace syncWorkspace) loadStateWithSource(
@@ -103,6 +130,9 @@ func loadWorkspacePlan(
 	if proposal != nil && proposal.Variation != nil {
 		variations = append(variations, *proposal.Variation)
 	}
+	if link != nil {
+		link.intent.apply(link.id, variations)
+	}
 	// A tool that a variation uses can also have a row of its own. The cache
 	// reads it from LaunchDarkly once.
 	attachments := newAttachmentCache(client)
@@ -111,14 +141,14 @@ func loadWorkspacePlan(
 	var localFiles map[ResourceID]syncdomain.SyncedResource
 	if scope.Includes(syncdomain.KindVariation) {
 		var rows Plan
-		if rows, localFiles, err = planVariationRows(baseline, client, attachments, filter, variations); err != nil {
+		if rows, localFiles, err = planVariationRows(baseline, client, attachments, filter, variations, link); err != nil {
 			return Plan{}, nil, err
 		}
 		plan.Resources = rows.Resources
 	}
 	if scope.Includes(syncdomain.KindTool) || scope.Includes(syncdomain.KindSkill) {
 		include := func(id ResourceID) bool { return scope.Includes(id.Kind) && filter.Includes(id) }
-		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include, proposal)
+		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include, proposal, link)
 		if err != nil {
 			return Plan{}, nil, err
 		}
@@ -242,6 +272,11 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 					continue
 				}
 				direction, ok := directions[resource.ID]
+				if !ok && resource.Action == ActionCreateServer && !resource.hasServer() {
+					// Nothing exists in LaunchDarkly yet for a setting to
+					// govern, so a create needs none.
+					continue
+				}
 				if !ok {
 					suggestion := "Configure the resource sync setting in LaunchDarkly, then run link again."
 					if resource.ID.Kind != syncdomain.KindVariation {
@@ -404,6 +439,7 @@ func planVariationRows(
 	attachments *attachmentCache,
 	filter syncdomain.Filter,
 	variations []syncdomain.SyncedResource,
+	link *sourceLink,
 ) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
 	localFiles := slices.DeleteFunc(slices.Clone(variations), func(resource syncdomain.SyncedResource) bool {
 		return !filter.Includes(resource.ID())
@@ -435,6 +471,11 @@ func planVariationRows(
 		if err != nil {
 			return Plan{}, nil, err
 		}
+		if resource.ConfigMissing {
+			// A config that a create makes takes the mode that the link
+			// asks for, else the mode that the local variation implies.
+			resource.ConfigMode = newConfigMode(id, localFilesByID[id], link)
+		}
 		server[id] = resource
 	}
 	plan := BuildPlan(tracked, local, server)
@@ -449,6 +490,7 @@ func planAttachmentRows(
 	attachments *attachmentCache,
 	include func(ResourceID) bool,
 	proposal *synclocal.SourceDefinition,
+	link *sourceLink,
 ) ([]PlannedResource, error) {
 	compiled := include
 	if proposal != nil && proposal.Attachment != nil {
@@ -463,6 +505,13 @@ func planAttachmentRows(
 	}
 	if proposal != nil && proposal.Attachment != nil && include(proposal.Attachment.ID()) {
 		local = append(local, *proposal.Attachment)
+	}
+	// A link with --upsert creates the tool or skill that LaunchDarkly does
+	// not have. The descriptor has no upsert, so the intent applies here.
+	for index := range local {
+		if link != nil && link.intent.upsert && local[index].ID() == link.id {
+			local[index].Attachment.Upsert = true
+		}
 	}
 	tracked := syncmanifest.New()
 	for _, resource := range lock.Resources {
@@ -560,7 +609,7 @@ func planReferencedAttachments(
 			!slices.ContainsFunc(resources, func(resource PlannedResource) bool { return resource.ID == id })
 	}
 
-	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced, proposal)
+	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced, proposal, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -789,6 +838,20 @@ func references(variation *syncdomain.Variation, id ResourceID) bool {
 	})
 }
 
+// newConfigMode returns the mode of a config that a create makes: the mode
+// that the link asks for, else the mode of the local variation, which a
+// source implies and a managed file states. Without a local variation the
+// mode does not matter, because nothing is created.
+func newConfigMode(id ResourceID, local syncdomain.SyncedResource, link *sourceLink) syncdomain.VariationMode {
+	if link != nil && link.id == id && link.intent.mode != "" {
+		return link.intent.mode
+	}
+	if local.Variation.Mode.Valid() {
+		return local.Variation.Mode
+	}
+	return syncdomain.VariationModeAgent
+}
+
 // readServerResource reads one variation from LaunchDarkly with the content
 // of its tools and skills.
 func readServerResource(client syncapi.Client, attachments *attachmentCache, id syncdomain.ResourceID) (ServerResource, error) {
@@ -797,6 +860,11 @@ func readServerResource(client syncapi.Client, attachments *attachmentCache, id 
 		return ServerResource{}, err
 	}
 	state, err := client.ReadVariation(id.ProjectKey, configKey, variationKey)
+	if syncapi.IsNotFound(err) {
+		// The config is gone or was never created. The row reports it, so
+		// that one such variation does not stop the plan of every other.
+		return ServerResource{ConfigMissing: true}, nil
+	}
 	if err != nil {
 		return ServerResource{}, err
 	}

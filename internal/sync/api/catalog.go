@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -113,6 +114,21 @@ func (client Client) Config(projectKey, configKey string) (Config, error) {
 		return Config{}, err
 	}
 	return config, nil
+}
+
+// CreateConfig creates an AI Config with no variations. A sync creates one
+// before the first variation of a linked source when the user asks for it.
+func (client Client) CreateConfig(projectKey string, config Config) error {
+	request := mutation{
+		method: http.MethodPost, action: "create", resource: "config", key: config.Key,
+		body: struct {
+			Key  string                   `json:"key"`
+			Name string                   `json:"name"`
+			Mode syncdomain.VariationMode `json:"mode"`
+		}{Key: config.Key, Name: config.Name, Mode: config.Mode},
+	}
+	_, err := client.mutate(request, projectPath(projectKey, "ai-configs")...)
+	return err
 }
 
 // ModelConfig returns the latest version of one model config.

@@ -32,6 +32,7 @@ const (
 	formatFlag         = "format"
 	jsonSchemaFlag     = "json-schema"
 	keyFlag            = "key"
+	modeFlag           = "mode"
 	modelConfigKeyFlag = "model-config-key"
 	nameFlag           = "name"
 	noInputFlag        = "no-input"
@@ -39,6 +40,7 @@ const (
 	selectFlag         = "select"
 	mapFlag            = "map"
 	toFlag             = "to"
+	upsertFlag         = "upsert"
 	yesFlag            = "yes"
 )
 

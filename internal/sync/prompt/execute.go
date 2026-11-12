@@ -217,6 +217,20 @@ func executePlan(
 	return outcomes, next, errors.Join(failures...)
 }
 
+// createConfig creates the config of a variation that a create needs, with
+// the name of its key and the mode of the variation. A config that another
+// working copy created after the plan is kept, and the variation create that
+// follows decides the rest.
+func createConfig(client syncapi.Client, projectKey, configKey string, mode syncdomain.VariationMode) error {
+	err := client.CreateConfig(projectKey, syncapi.Config{
+		Key: configKey, Name: syncdomain.DisplayName(configKey), Mode: mode,
+	})
+	if err != nil && !syncapi.IsConflict(err) {
+		return err
+	}
+	return nil
+}
+
 // verifySourceGroup checks the local result of every member of a document
 // group, and returns the first mismatch with the resource that it belongs to.
 func verifySourceGroup(repositoryRoot string, resources []PlannedResource) error {
@@ -701,6 +715,11 @@ func applyServerChange(
 	case ActionCreateServer:
 		if variation, err = attachments.resolveVariation(projectKey, *resource.Local); err != nil {
 			return nil, err
+		}
+		if resource.createsConfig {
+			if err := createConfig(client, projectKey, configKey, variation.Mode); err != nil {
+				return nil, err
+			}
 		}
 		writeErr = client.CreateVariation(projectKey, configKey, variation)
 	case ActionUpdateServer:

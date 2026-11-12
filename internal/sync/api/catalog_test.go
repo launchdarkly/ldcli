@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -321,4 +322,18 @@ func mustCatalogJSON(t *testing.T, value any) []byte {
 	require.NoError(t, err)
 
 	return data
+}
+
+func TestClientCreatesConfig(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{"key":"support","name":"Support","mode":"agent","variations":[]}`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	err := client.CreateConfig("project", Config{Key: "support", Name: "Support", Mode: syncdomain.VariationModeAgent})
+
+	require.NoError(t, err)
+	require.Len(t, transport.Requests, 1)
+	request := transport.Requests[0]
+	assert.Equal(t, http.MethodPost, request.Method)
+	assert.Equal(t, "https://example.com/api/v2/projects/project/ai-configs", request.Path)
+	assert.JSONEq(t, `{"key":"support","name":"Support","mode":"agent"}`, string(request.Body))
 }

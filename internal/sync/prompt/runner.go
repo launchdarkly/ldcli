@@ -107,7 +107,17 @@ func (runner Runner) runSourceLink(options Options, workspace syncWorkspace, act
 	if err != nil {
 		return err
 	}
-	return runner.runWorkspaceSyncWithSource(options, workspace, nil, &prepared)
+	intent := linkIntent{upsert: action.Upsert, mode: action.Mode}
+	if action.ModelConfigKey != "" {
+		// The create uses the latest version of the model config, as an add
+		// does. The read happens before the plan, so the plan shows it.
+		modelConfig, err := runner.api(options).ModelConfig(action.ID.ProjectKey, action.ModelConfigKey)
+		if err != nil {
+			return err
+		}
+		intent.modelConfig = &modelConfig
+	}
+	return runner.runWorkspaceSyncWithSource(options, workspace, nil, &prepared, intent)
 }
 
 // nothingToSync tells the user how to start a sync of every kind.

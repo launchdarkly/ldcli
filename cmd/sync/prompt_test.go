@@ -34,7 +34,13 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	link, _, err := command.Find([]string{"link"})
 	require.NoError(t, err)
 	assert.Nil(t, link.Flags().Lookup(toFlag))
-	assert.Nil(t, link.Flags().Lookup(modelConfigKeyFlag))
+	assert.NotNil(t, link.Flags().Lookup(upsertFlag))
+	assert.NotNil(t, link.Flags().Lookup(modelConfigKeyFlag), "a link with --upsert can name the model config of the new variation")
+	assert.NotNil(t, link.Flags().Lookup(modeFlag))
+	toolLink := newLinkCmd(nil, syncdomain.KindTool)
+	assert.NotNil(t, toolLink.Flags().Lookup(upsertFlag))
+	assert.Nil(t, toolLink.Flags().Lookup(modelConfigKeyFlag), "a tool has no model config")
+	assert.Nil(t, toolLink.Flags().Lookup(modeFlag))
 }
 
 func TestSourceLinkFlagsBuildTargetAndMappings(t *testing.T) {
@@ -55,6 +61,21 @@ func TestSourceLinkFlagsBuildTargetAndMappings(t *testing.T) {
 	mappings, err := parseFieldMappings(mustStringArray(command, mapFlag))
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"prompt": "instructions"}, mappings)
+}
+
+func TestSourceLinkFlagsCarryTheUpsertIntent(t *testing.T) {
+	command := newLinkCmd(nil, syncdomain.KindVariation)
+	require.NoError(t, command.ParseFlags([]string{
+		"--file", "agents.py", "--format", "python", "--select", `agents[id="support"]`,
+		"--project", "production", "--config-key", "support", "--key", "default",
+		"--upsert", "--model-config-key", "gpt-5", "--mode", "completion",
+	}))
+
+	upsert, err := command.Flags().GetBool(upsertFlag)
+	require.NoError(t, err)
+	assert.True(t, upsert)
+	assert.Equal(t, "gpt-5", mustString(command, modelConfigKeyFlag))
+	assert.Equal(t, "completion", mustString(command, modeFlag))
 }
 
 func TestSyncProblemRendersStableFields(t *testing.T) {

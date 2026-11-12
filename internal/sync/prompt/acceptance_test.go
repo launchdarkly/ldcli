@@ -34,13 +34,16 @@ type directAPI struct {
 	variation      *syncdomain.Variation
 	variationState string
 	// configMode is the mode of the config "support". The empty mode is agent.
-	configMode   syncdomain.VariationMode
-	modelConfigs []syncapi.ModelConfig
-	tools        map[string]versionedTool
-	skills       map[string]versionedSkill
-	manifest     *syncapi.SyncManifest
-	directions   map[string]syncdomain.SyncDirection
-	requests     []string
+	configMode syncdomain.VariationMode
+	// configMissing makes every read of the config "support" a 404 until a
+	// create of the config, as a project without the config does.
+	configMissing bool
+	modelConfigs  []syncapi.ModelConfig
+	tools         map[string]versionedTool
+	skills        map[string]versionedSkill
+	manifest      *syncapi.SyncManifest
+	directions    map[string]syncdomain.SyncDirection
+	requests      []string
 	// expandTools makes each read of the variation add the content of its
 	// tools to model.parameters.tools, as LaunchDarkly does.
 	expandTools bool
@@ -198,6 +201,24 @@ func (api *directAPI) MakeRequest(
 			}
 		}
 		return nil, fmt.Errorf("model config not found")
+	}
+	if method == http.MethodPost && strings.HasSuffix(path, "/ai-configs") {
+		var request struct {
+			Key  string                   `json:"key"`
+			Name string                   `json:"name"`
+			Mode syncdomain.VariationMode `json:"mode"`
+		}
+		if err := json.Unmarshal(body, &request); err != nil {
+			return nil, err
+		}
+		if !api.configMissing {
+			return nil, fmt.Errorf(`{"code":"conflict","message":"AI config already exists","statusCode":409}`)
+		}
+		api.configMissing, api.configMode = false, request.Mode
+		return json.Marshal(map[string]any{"key": request.Key, "name": request.Name, "mode": request.Mode, "variations": []any{}})
+	}
+	if api.configMissing {
+		return nil, fmt.Errorf(`{"code":"not_found","message":"AI config not found","statusCode":404}`)
 	}
 
 	switch method {
@@ -2051,6 +2072,135 @@ support = Agent(instructions="Server instructions after link.")
 `, string(actual))
 }
 
+// A link with --upsert creates the config and the variation that
+// LaunchDarkly does not have, in one run, from the source alone. The config
+// takes the mode that the source implies and the name of its key.
+func TestLinkUpsertCreatesTheConfigAndTheVariation(t *testing.T) {
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	api := &directAPI{configMissing: true}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "agents.py", Format: "python", Select: `agents[id="support"]`,
+			Map: map[string]string{"prompt": "instructions"}, Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	assert.Equal(t, 1, countRequests(api.requests, "POST", "/ai-configs"), "the config is created once")
+	assert.False(t, api.configMissing)
+	assert.Equal(t, syncdomain.VariationModeAgent, api.configMode, "a text prompt makes an agent config")
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "Local instructions.", api.variation.Instructions)
+	assert.Equal(t, "Default", api.variation.Name, "the name comes from the key")
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"))
+	lock, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "sync.lock"))
+	require.NoError(t, err)
+	assert.Contains(t, string(lock), "key: support/default", "the lock records the created variation")
+	actual, err := os.ReadFile(filepath.Join(root, "agents.py"))
+	require.NoError(t, err)
+	assert.Equal(t, source, actual, "the source is not changed")
+}
+
+// --model-config-key gives the created variation a model config at its
+// latest version, as an add does. An existing config is not created again.
+func TestLinkUpsertCreatesTheVariationWithAModelConfig(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{{Key: "gpt-5", Name: "GPT-5", Version: 3}}}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown", Upsert: true, ModelConfigKey: "gpt-5",
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"), "the config exists")
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "gpt-5", api.variation.ModelConfigKey)
+	assert.Equal(t, 3, api.variation.ModelConfigVersion)
+	assert.Equal(t, "Local instructions.", api.variation.Instructions)
+}
+
+// --mode decides the mode of a config that --upsert creates. A text prompt
+// becomes the one system message of a completion variation.
+func TestLinkUpsertModeOverridesTheSourceMode(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	api := &directAPI{configMissing: true}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown", Upsert: true, Mode: syncdomain.VariationModeCompletion,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, syncdomain.VariationModeCompletion, api.configMode)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: "Local instructions."}}, api.variation.Messages)
+}
+
+// Without --upsert, a missing config is a row of the plan that names the
+// config and the flag, and it blocks the apply without a write.
+func TestLinkWithoutUpsertNamesTheMissingConfig(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	api := &directAPI{configMissing: true}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope:  syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{ID: id, File: "prompt.md", Format: "markdown"},
+		Yes:    true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `config "support" does not exist in LaunchDarkly`)
+	assert.Contains(t, err.Error(), "--upsert")
+	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"))
+	assert.True(t, api.configMissing)
+	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"), "a blocked link writes no descriptor")
+}
+
+// A link of a tool with --upsert creates the tool that LaunchDarkly does not
+// have, through the same publish as a managed tool file with upsert.
+func TestLinkUpsertCreatesAMissingTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	api := &directAPI{tools: map[string]versionedTool{}}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tool.json", Format: "json", Select: "$",
+			Map: map[string]string{"description": "description", "schema": "schema"}, Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	require.Contains(t, api.tools, "search")
+	assert.Equal(t, "Local", *api.tools["search"].Description)
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "search.ref.yaml"))
+}
+
 func TestPromptDescriptorTopLevelToolSyncsEndToEnd(t *testing.T) {
 	root := initRepository(t)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
@@ -3489,8 +3639,7 @@ func TestVariationPushDoesNotCreateAServerCanonicalLinkedTool(t *testing.T) {
 
 	require.Error(t, err, "the missing linked tool blocks the plan")
 	assert.Equal(t, []string{"tool search error", "variation support/default update_server"}, planRows(t, stdout))
-	assert.Contains(t, stdout, `tool \"search\" does not exist in LaunchDarkly. Create it in LaunchDarkly and run sync again.`)
-	assert.NotContains(t, stdout, "upsert", "a descriptor has no upsert, so the message does not ask for one")
+	assert.Contains(t, stdout, `tool \"search\" does not exist in LaunchDarkly. Run link again with --upsert to create it, or create it in LaunchDarkly and run sync again.`)
 	_, _, err = runPrompt(t, root, api, "--yes")
 	require.Error(t, err)
 	assert.Empty(t, api.tools, "the push does not create the tool")
