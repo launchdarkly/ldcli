@@ -81,6 +81,22 @@ func TestDeletedLinkedResourceRequiresDetach(t *testing.T) {
 	)
 }
 
+// A create of a linked resource has nothing in LaunchDarkly for a setting
+// to govern yet, so a missing setting does not block it.
+func TestCreateOfALinkedResourceNeedsNoSetting(t *testing.T) {
+	local := testVariation("local")
+	resources := []PlannedResource{{
+		ID: testResourceID(), Action: ActionCreateServer, Upsert: true, Local: &local,
+		Source: &syncdomain.Reference{File: "agents.py", Format: "python"},
+	}}
+	client := syncapi.NewClient(emptySettingsTransport{}, "token", "https://example.com")
+
+	err := applySourceDirections(client, resources)
+
+	require.NoError(t, err)
+	assert.Equal(t, ActionCreateServer, resources[0].Action)
+}
+
 func TestMissingToolSettingIsActionable(t *testing.T) {
 	id := ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "lookup"}
 	resources := []PlannedResource{{

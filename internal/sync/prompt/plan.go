@@ -45,6 +45,9 @@ type ResourceID = syncdomain.ResourceID
 type ServerResource struct {
 	Variation  *syncdomain.Variation
 	ConfigMode syncdomain.VariationMode
+	// ConfigMissing is true when LaunchDarkly has no config for the
+	// variation. ConfigMode is then the mode that a create gives the config.
+	ConfigMissing bool
 }
 
 // PlannedResource is the local and the server state of one resource, and the
@@ -95,6 +98,9 @@ type PlannedResource struct {
 	// directionOverride is true when the LaunchDarkly sync setting of the
 	// resource chose the side that wins, instead of the three-way comparison.
 	directionOverride bool
+	// createsConfig is true when the create of the variation also creates
+	// its config, because LaunchDarkly has none.
+	createsConfig bool
 }
 
 func setProblem(resource *PlannedResource, problem *syncdomain.Problem) {
@@ -257,6 +263,7 @@ func planResource(
 ) PlannedResource {
 	resource := PlannedResource{
 		ID: id, BaselineFingerprint: baselineFingerprint, Server: server.Variation, ServerMode: server.ConfigMode,
+		createsConfig: server.ConfigMissing,
 	}
 	fail := func(message string) PlannedResource {
 		resource.Action, resource.Error = ActionError, message
@@ -335,16 +342,10 @@ func planResource(
 
 	resource.Action = chooseAction(tracked, resource)
 	if resource.Action == ActionError {
-		resource.Error = "variation does not exist in LaunchDarkly; set upsert: true to create it"
-		if resource.Source != nil {
-			// A descriptor has no upsert, so the recovery is to create the
-			// variation in LaunchDarkly or to detach it.
-			configKey, variationKey, _ := id.VariationKeys()
-			resource.Error = fmt.Sprintf(
-				"variation does not exist in LaunchDarkly. Create it in LaunchDarkly and run sync again. To stop syncing it, run ldcli sync prompts detach --project %s --config-key %s --key %s.",
-				id.ProjectKey, configKey, variationKey,
-			)
-		}
+		resource.Error = missingVariationError(id, server.ConfigMissing, resource.Source != nil)
+	}
+	if resource.Action != ActionCreateServer {
+		resource.createsConfig = false
 	}
 	if resource.Action == ActionCreateServer {
 		_, variationKey, _ := id.VariationKeys()
@@ -415,6 +416,31 @@ func planAttachments(
 		resources = append(resources, row)
 	}
 	return resources
+}
+
+// missingVariationError is the error of a local variation that LaunchDarkly
+// does not have and that the plan cannot create. A managed file creates it
+// with upsert. A descriptor has no upsert, so a link with --upsert creates
+// it, and the config too when LaunchDarkly has none.
+func missingVariationError(id ResourceID, configMissing, linked bool) string {
+	configKey, variationKey, _ := id.VariationKeys()
+	missing := "variation does not exist in LaunchDarkly"
+	create := "set upsert: true to create it"
+	if configMissing {
+		missing = fmt.Sprintf("config %q does not exist in LaunchDarkly", configKey)
+		create = "set upsert: true in the variation file to create the config and the variation"
+	}
+	if !linked {
+		return missing + "; " + create
+	}
+	create = "Run link again with --upsert to create it, or create it in LaunchDarkly and run sync again."
+	if configMissing {
+		create = "Run link again with --upsert to create the config and the variation, or create them in LaunchDarkly and run sync again."
+	}
+	return fmt.Sprintf(
+		"%s. %s To stop syncing it, run ldcli sync prompts detach --project %s --config-key %s --key %s.",
+		missing, create, id.ProjectKey, configKey, variationKey,
+	)
 }
 
 // baselineApplies reports whether a lock entry is a baseline for the local
@@ -578,9 +604,9 @@ func planSyncedAttachment(
 func missingAttachmentError(id ResourceID, linked bool) string {
 	missing := missingAttachment(id)
 	if linked {
-		// A descriptor has no upsert, so the recovery is to create the
-		// resource in LaunchDarkly.
-		missing = fmt.Sprintf("%s %q does not exist in LaunchDarkly. Create it in LaunchDarkly and run sync again.",
+		// A descriptor has no upsert, so a link with --upsert creates the
+		// resource, or the user creates it in LaunchDarkly.
+		missing = fmt.Sprintf("%s %q does not exist in LaunchDarkly. Run link again with --upsert to create it, or create it in LaunchDarkly and run sync again.",
 			id.Kind, id.LookupKey)
 	}
 	return fmt.Sprintf("%s To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",

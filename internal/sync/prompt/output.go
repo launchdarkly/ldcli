@@ -428,6 +428,9 @@ func planReason(resource PlannedResource) string {
 	switch {
 	case resource.Action == ActionCreateServer && resource.LocalAttachment != nil && resource.LocalAttachment.Skill != nil:
 		return fmt.Sprintf("new, name %q", resource.LocalAttachment.Skill.CreateName())
+	case resource.Action == ActionCreateServer && resource.createsConfig:
+		configKey, _, _ := resource.ID.VariationKeys()
+		return fmt.Sprintf("new, creates config %q", configKey)
 	case resource.Action == ActionCreateServer:
 		return "new"
 	case repinsOnly(resource):

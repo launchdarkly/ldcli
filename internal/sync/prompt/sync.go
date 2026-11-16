@@ -24,7 +24,7 @@ import (
 // In watch mode, watcher is not nil. A file change during the review returns
 // errRefreshWatchPlan, so that the watch loop builds a new plan.
 func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, watcher *sourceWatcher) error {
-	return runner.runWorkspaceSyncWithSource(options, workspace, watcher, nil)
+	return runner.runWorkspaceSyncWithSource(options, workspace, watcher, nil, linkIntent{})
 }
 
 func (runner Runner) runWorkspaceSyncWithSource(
@@ -32,6 +32,7 @@ func (runner Runner) runWorkspaceSyncWithSource(
 	workspace syncWorkspace,
 	watcher *sourceWatcher,
 	prepared *synclink.Prepared,
+	intent linkIntent,
 ) error {
 	options = options.withDefaults()
 	client := runner.api(options)
@@ -48,7 +49,7 @@ func (runner Runner) runWorkspaceSyncWithSource(
 	target := options.syncAction()
 	var link *sourceLink
 	if prepared != nil {
-		link = &sourceLink{id: prepared.ID, proposal: &prepared.Definition}
+		link = &sourceLink{id: prepared.ID, proposal: &prepared.Definition, intent: intent}
 	}
 	reviewed, err := workspace.loadStateWithSource(client, options.Scope, target.Filter, link)
 	if err != nil {
@@ -99,7 +100,7 @@ func (runner Runner) runWorkspaceSyncWithSource(
 	// Read both sides again, so that no action uses state from before the
 	// review. The descriptor exists now, so the link has no proposal.
 	if link != nil {
-		link = &sourceLink{id: link.id}
+		link = &sourceLink{id: link.id, intent: intent}
 	}
 	current, err := workspace.loadStateWithSource(client, options.Scope, target.Filter, link)
 	if err == nil {
