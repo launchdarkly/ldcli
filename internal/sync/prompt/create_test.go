@@ -648,7 +648,18 @@ func TestCreateAdoptsAVariationWhoseModelConfigHasANewerVersion(t *testing.T) {
 	assert.Equal(t, "Bootstrapped 1 variation file in .launchdarkly.\n", stdout)
 	assert.Equal(t, "Note: variation production/support/escalation already exists in LaunchDarkly with this content, "+
 		"so add started syncing it.\n", notes)
-	requireOnlyReads(t, api.requests)
+	// The adoption is a first pull, so it only reads, records the manifest,
+	// and claims the variation for code.
+	for _, request := range api.requests {
+		if strings.HasPrefix(request, http.MethodGet+" ") {
+			continue
+		}
+		require.True(t, strings.HasPrefix(request, http.MethodPatch+" ") &&
+			(strings.HasSuffix(request, "/configs/sync/manifests") || strings.HasSuffix(request, "/configs/sync/settings")),
+			request)
+	}
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodPatch, "/configs/sync/settings"), "one claim")
+	assert.Equal(t, []string{"variation:support/escalation code_canonical"}, codeClaims(api.settingsWrites))
 	assert.Contains(t, readLocalFile(t, root, escalationFile), "modelConfigVersion: 2\n", "the file takes the version from LaunchDarkly")
 }
 

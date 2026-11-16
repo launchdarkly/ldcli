@@ -5,6 +5,7 @@ package bootstrap
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +35,13 @@ type AttachmentReader interface {
 	ReadAttachment(projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error)
 }
 
+// Settings reads and writes the LaunchDarkly sync settings that decide which
+// side owns a variation.
+type Settings interface {
+	ResolveOwnership(projectKey string, ids []syncdomain.ResourceID) (map[syncdomain.ResourceID]syncdomain.Ownership, error)
+	ClaimForCode(projectKey string, ids []syncdomain.ResourceID) error
+}
+
 // Options are the dependencies and the input of one add.
 type Options struct {
 	// Kind is the kind of resource to add. The empty kind is a variation.
@@ -55,6 +63,19 @@ type Options struct {
 	// Selections are the resources to add. If it is empty, Run asks the user.
 	Selections []syncdomain.ResourceID
 	NoInput    bool
+	// Settings makes code the owner of each variation that the add brings
+	// into the repo for the first time.
+	Settings Settings
+	// ErrorOutput receives warnings and ownership notices.
+	ErrorOutput io.Writer
+	// Yes continues without a confirmation prompt when the sync settings are
+	// unavailable.
+	Yes bool
+	// Context stops the settings-unavailable question when it ends. A nil
+	// Context never ends.
+	Context context.Context
+	// isTerminal reports whether the streams are a terminal. Tests replace it.
+	isTerminal func(io.Reader, io.Writer) bool
 }
 
 // Run writes the files of the selected resources and records their baseline.
@@ -286,6 +307,19 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if err != nil {
 		return err
 	}
+	claimed, proceed, err := claimNewVariations(options, baseline.Lock, files)
+	if err != nil || !proceed {
+		return err
+	}
+	// The claim is already written, so a later failure says so. The add can
+	// run again, because the claim sets the same rules.
+	claimedNote := func(err error) error {
+		if len(claimed) == 0 {
+			return err
+		}
+		return fmt.Errorf("%w; the new variations in project %s were already claimed for code, and running add again is safe",
+			err, strings.Join(claimed, ", "))
+	}
 
 	var creation synclocal.Creation
 	if options.Initial {
@@ -294,18 +328,150 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		creation, err = options.Store.Add(files)
 	}
 	if err != nil {
-		return err
+		return claimedNote(err)
 	}
 	next, err := recordCreatedVariations(baseline.Lock, options.Store, files)
 	if err == nil {
 		_, err = options.Baselines.Save(baseline, next)
 	}
 	if err != nil {
-		return errors.Join(err, options.Store.RollbackCreation(creation))
+		return claimedNote(errors.Join(err, options.Store.RollbackCreation(creation)))
 	}
 
 	writeSummary(options.Output, options.Initial, len(creation.VariationPaths), "variation")
 	return nil
+}
+
+// claimNewVariations makes code the owner of each variation that enters the
+// repo for the first time, before the add writes any file. It reads the
+// ownership of every project first, and claims nothing until every read
+// succeeded, so that a failed read or a canceled add leaves no claim behind.
+// Then it makes at most one claim per project. A variation that an explicit
+// LaunchDarkly rule owns is pulled but not claimed. When a project has no
+// sync settings, it warns, and asks whether to add anyway unless Yes is set.
+// It returns the projects that it claimed in. The bool result is false when
+// the user declines.
+func claimNewVariations(options Options, lock syncmanifest.Manifest, files []synclocal.VariationFile) ([]string, bool, error) {
+	if options.Settings == nil {
+		return nil, true, nil
+	}
+	byProject := make(map[string][]syncdomain.ResourceID)
+	var projectKeys []string
+	for _, file := range files {
+		id := syncdomain.VariationID(file.ProjectKey, file.ConfigKey, file.Variation.Key)
+		if lock.Has(id) {
+			continue
+		}
+		if _, seen := byProject[id.ProjectKey]; !seen {
+			projectKeys = append(projectKeys, id.ProjectKey)
+		}
+		byProject[id.ProjectKey] = append(byProject[id.ProjectKey], id)
+	}
+	slices.Sort(projectKeys)
+
+	errorOutput := options.ErrorOutput
+	if errorOutput == nil {
+		errorOutput = io.Discard
+	}
+	decisions := make(map[string]ownershipDecision, len(projectKeys))
+	var unavailable []string
+	for _, projectKey := range projectKeys {
+		decision, err := decideProject(options.Settings, projectKey, byProject[projectKey])
+		switch {
+		case syncapi.IsNotFound(err):
+			unavailable = append(unavailable, projectKey)
+			continue
+		case errors.Is(err, syncapi.ErrSyncSettingsForbidden):
+			return nil, false, syncdomain.SyncSettingsForbiddenProblem(projectKey, "record code ownership", "nothing was added", err)
+		case err != nil:
+			return nil, false, fmt.Errorf("make code the owner of the new variations in project %s: %w", projectKey, err)
+		}
+		decisions[projectKey] = decision
+	}
+	if len(unavailable) != 0 {
+		ctx := options.Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		proceed, err := syncinteractive.ConfirmWithoutSettings(syncinteractive.SettingsUnavailable{
+			Context:     ctx,
+			Input:       options.Input,
+			Prompt:      options.Output,
+			Output:      options.Output,
+			ErrorOutput: errorOutput,
+			NoInput:     options.NoInput,
+			Yes:         options.Yes,
+			IsTerminal:  options.isTerminal,
+			ProjectKeys: unavailable,
+			Unrecorded:  "code ownership of the new variations",
+			Question:    withoutOwnershipQuestion,
+			Verb:        "Add",
+		})
+		if err != nil || !proceed {
+			return nil, false, err
+		}
+	}
+
+	console := syncconsole.New(errorOutput)
+	var claimed []string
+	for _, projectKey := range projectKeys {
+		decision, available := decisions[projectKey]
+		if !available {
+			continue
+		}
+		if len(decision.claims) != 0 {
+			err := options.Settings.ClaimForCode(projectKey, decision.claims)
+			switch {
+			case errors.Is(err, syncapi.ErrSyncSettingsForbidden):
+				return nil, false, syncdomain.SyncSettingsForbiddenProblem(projectKey, "record code ownership", addConsequence(claimed), err)
+			case err != nil:
+				return nil, false, fmt.Errorf("make code the owner of the new variations in project %s, so %s: %w", projectKey, addConsequence(claimed), err)
+			}
+			claimed = append(claimed, projectKey)
+		}
+		for _, id := range decision.managed {
+			_ = console.Line(syncdomain.ManagedInLaunchDarklyMessage(id))
+		}
+	}
+	return claimed, true, nil
+}
+
+// addConsequence says what a failed claim leaves behind: no file, and the
+// claims of the projects that were already claimed.
+func addConsequence(claimed []string) string {
+	if len(claimed) == 0 {
+		return "nothing was added"
+	}
+	return fmt.Sprintf("nothing was added, but variations in project %s were already claimed for code", strings.Join(claimed, ", "))
+}
+
+// withoutOwnershipQuestion asks whether to add variations whose ownership
+// LaunchDarkly cannot record.
+const withoutOwnershipQuestion = "Add without recording ownership? [y/N] "
+
+// ownershipDecision splits the new variations of one project into those to
+// claim for code and those that LaunchDarkly manages.
+type ownershipDecision struct {
+	claims, managed []syncdomain.ResourceID
+}
+
+// decideProject reads the ownership of the new variations of one project
+// and decides which ones to claim. It claims nothing.
+func decideProject(settings Settings, projectKey string, ids []syncdomain.ResourceID) (ownershipDecision, error) {
+	ownership, err := settings.ResolveOwnership(projectKey, ids)
+	if err != nil {
+		return ownershipDecision{}, err
+	}
+	var decision ownershipDecision
+	for _, id := range ids {
+		switch syncdomain.DecideOwnership(id, ownership[id]) {
+		case syncdomain.OwnershipClaim:
+			decision.claims = append(decision.claims, id)
+		case syncdomain.OwnershipManagedInLaunchDarkly:
+			decision.managed = append(decision.managed, id)
+		}
+	}
+	return decision, nil
 }
 
 // recordCreatedVariations returns a copy of the manifest with a baseline for

@@ -235,6 +235,7 @@ func (runner Runner) bootstrapOptions(options Options, workspace syncWorkspace, 
 	api := runner.api(options)
 	kind := options.Scope.KeyKind()
 	return syncbootstrap.Options{
+		Context:     options.Context,
 		Kind:        kind,
 		Catalog:     api,
 		Attachments: api,
@@ -249,6 +250,9 @@ func (runner Runner) bootstrapOptions(options Options, workspace syncWorkspace, 
 		Selections:  selections(action.Resources, action.Filter, kind),
 		NoInput:     options.NoInput,
 		Diff:        options.Diff,
+		Settings:    api,
+		ErrorOutput: options.ErrorOutput,
+		Yes:         options.Yes,
 	}
 }
 
