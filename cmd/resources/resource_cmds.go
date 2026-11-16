@@ -142,12 +142,20 @@ func AddAllResourceCmds(
 		"\u003e ### Data Export is an add-on feature\n\u003e\n\u003e Data Export is available as an add-on for customers on a Foundation or Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nData Export provides a real-time export of raw analytics data, including feature flag requests, analytics events, custom events, and more.\n\nData Export destinations are locations that receive exported data. The Data Export destinations API allows you to configure destinations so that your data can be exported.\n\nSeveral of the endpoints in the Data Export destinations API require a Data Export destination ID. The Data Export destination ID is returned as part of the [Create a Data Export destination](https://launchdarkly.com/docs/api/data-export-destinations/post-destination) and [List destinations](https://launchdarkly.com/docs/api/data-export-destinations/get-destinations) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n\nTo learn more, read [Data Export](https://launchdarkly.com/docs/integrations/data-export).\n",
 	)
 
+	gen_EnvironmentReleasePlansBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		markdownRenderer,
+		"environment-release-plans-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nAn environment release plan is a reusable release configuration for one environment. Each plan has an ordered list of phases that [progressively](https://launchdarkly.com/docs/home/releases/progressive-rollouts) roll out a new flag variation to an audience, and can [guard](https://launchdarkly.com/docs/home/releases/guarded-rollouts) one or more metrics to monitor for regressions. When you start a release in that environment, you can select one of its plans instead of configuring the release from scratch. An environment can also have a default release plan, which is preselected when you start a release.\n\nUse the environment release plans API to create, list, view, update, and delete the release plans in an environment, and to read, set, or clear an environment's default release plan. Environment release plans replace release policies.\n",
+	)
+
 	gen_EnvironmentReleasesBetaResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
 		markdownRenderer,
 		"environment-releases-beta",
-		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nAn environment release [progressively](https://launchdarkly.com/docs/home/releases/progressive-rollouts#progressive-rollouts) rolls out a new flag variation in one environment. On select plans, you can [guard](https://launchdarkly.com/docs/home/releases/guarded-rollouts) one or more metrics, monitoring them for regressions. Use the environment releases API to list releases, get a release, start a release, or stop an active release.\n",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nAn environment release [progressively](https://launchdarkly.com/docs/home/releases/progressive-rollouts) rolls out a new flag variation in one environment. On select plans, you can [guard](https://launchdarkly.com/docs/home/releases/guarded-rollouts) one or more metrics, monitoring them for regressions. Use the environment releases API to list releases, get a release, start a release, or stop an active release.\n",
 	)
 
 	gen_EnvironmentsResourceCmd := NewResourceCmd(
@@ -180,6 +188,14 @@ func AddAllResourceCmds(
 		markdownRenderer,
 		"flag-links-beta",
 		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nFlag links let you view external mentions of flags from other tools and services. Links to external conversations and references to your flags allow you to collaborate more easily and quickly review relevant flag contexts. To learn more, read [Flag links](https://launchdarkly.com/docs/home/flags/links).\n\nYou can create custom flag links by associating an external URL with a feature flag. After you create a flag link, it applies across all your environments. You should use caution when you delete a flag link, because it will be deleted from all your environments.\n\nWith the flag links API, you can view, create, update, and delete links to flags.\n\nSeveral of the endpoints in the flag links API require a flag link ID. The flag link ID is returned as part of the [Create flag link](https://launchdarkly.com/docs/api/flag-links-beta/create-flag-link) and [List flag links](https://launchdarkly.com/docs/api/flag-links-beta/get-flag-links) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n",
+	)
+
+	gen_FlagReleasePlansBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		markdownRenderer,
+		"flag-release-plans-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nA flag release plan is a reusable release configuration for a flag across the environments in a project. It lists the environments to release to, the order to release them in, and how each one releases: either immediately or by running one of that environment's [environment release plans](https://launchdarkly.com/docs/api/environment-release-plans-beta). Each environment also has a trigger that starts its release, such as a manual start or a promotion from the previous environment. A project can have one default flag release plan.\n\nUse the flag release plans API to create, list, view, update, and delete the flag release plans in a project.\n",
 	)
 
 	gen_FlagTriggersResourceCmd := NewResourceCmd(
@@ -366,14 +382,6 @@ func AddAllResourceCmds(
 		"\u003e ### Release pipelines are deprecated\n\u003e\n\u003e Release pipelines and the endpoints in this section are deprecated.\n\n\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nRelease pipelines standardize and automate the release process for feature flags across a series of phases, where each phase consists of one or more environments and audiences. Each phase can use an immediate or guarded rollout to a designated audience, and can require approvals for selected environments. You can use release pipelines to ensure that you correctly roll out a flag in one environment before moving on to the next. To learn more, read [Release pipelines](https://launchdarkly.com/docs/home/releases/release-pipelines).\n\nUse the release pipelines API to view, create, update, and delete release pipelines. You can also use this API to view the progress of all ongoing releases across all flags in a project for a given release pipeline.\n\n### Creating releases and updating release phases\n\nWhen you add a flag to an existing release pipeline, you create a \"release\" to automate that flag's progress through the pipeline's phases. Use the release endpoints in this section to add a flag to an existing release pipeline, or to monitor or update an ongoing release for a flag. Updating an ongoing release generally involves the following steps:\n\n1. Obtain the release phases associated with the release. The `phases` field provides an ordered list of all pipeline phases associated with the flag's release. `phases` is returned in the response when you [Create a new release for a flag](https://launchdarkly.com/docs/api/release-pipelines-deprecated/create-release-for-flag) or [Get the release for a flag](https://launchdarkly.com/docs/api/release-pipelines-deprecated/get-release-by-flag-key).\n\n2. Determine the `_id` of the phase you want to start. Release pipeline phases take place in their configured order, so find the first incomplete, unstarted phase in the `phases` list. For example, in a newly-created release the first phase in the `phases` list has both the `complete` and `started` fields set to `false`.\n\n3. Use the phase `_id` value with the [Update phase status for release](https://launchdarkly.com/docs/api/release-pipelines-deprecated/update-phase-status) endpoint to start the release phase. At a minimum, you must provide `{\"status\": active}` in the request object to start a pipeline phase. If the phase requires approvals or guarded rollouts, provide the additional required information in the `audiences` list.\n",
 	)
 
-	gen_ReleasePoliciesBetaResourceCmd := NewResourceCmd(
-		rootCmd,
-		analyticsTrackerFn,
-		markdownRenderer,
-		"release-policies-beta",
-		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\n\u003e ### This feature is deprecated\n\u003e\n\u003e The release policies API is deprecated and will be removed. Release policies continue to work during the deprecation period. LaunchDarkly will announce the exact dates for end of support and removal of access separately.\n\nRelease policies let you specify your preferred rollout method for a given set of environments.\n",
-	)
-
 	gen_ScheduledChangesResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
@@ -395,7 +403,7 @@ func AddAllResourceCmds(
 		analyticsTrackerFn,
 		markdownRenderer,
 		"segments",
-		"\n\u003e ### Synced segments and larger list-based segments are an Enterprise feature\n\u003e\n\u003e This section documents endpoints for rule-based, list-based, and synced segments.\n\u003e\n\u003e A \"big segment\" is a segment that is either a synced segment, or a list-based segment with more than 15,000 entries that includes only one targeted context kind. LaunchDarkly uses different implementations for different types of segments so that all of your segments have good performance.\n\u003e\n\u003e In the segments API, a big segment is indicated by the `unbounded` field being set to `true`.\n\u003e\n\u003e These segments are available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nSegments are groups of contexts that you can use to manage flag targeting behavior in bulk. LaunchDarkly supports:\n\n* rule-based segments, which let you target groups of contexts individually or by attribute,\n* list-based segments, which let you target individual contexts or uploaded lists of contexts, and\n* synced segments, which let you target groups of contexts backed by an external data store.\n\nTo learn more, read [Segments](https://launchdarkly.com/docs/home/flags/segments).\n\nThe segments API allows you to list, create, modify, and delete segments programmatically.\n\nYou can find other APIs for working with big segments under [Persistent store integrations (beta)](https://launchdarkly.com/docs/api/persistent-store-integrations-beta).\n",
+		"\n\u003e ### Synced segments and larger list-based segments are an Enterprise feature\n\u003e\n\u003e This section documents endpoints for rule-based, list-based, and synced segments.\n\u003e\n\u003e A \"big segment\" is a segment that is either a synced segment, or a list-based segment with more than 15,000 entries that includes only one targeted context kind. LaunchDarkly uses different implementations for different types of segments so that all of your segments have good performance.\n\u003e\n\u003e In the segments API, a big segment is indicated by the `unbounded` field being set to `true`.\n\u003e\n\u003e These segments are available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nSegments are groups of contexts that you can use to manage flag targeting behavior in bulk. LaunchDarkly supports:\n\n* rule-based segments, which let you target groups of contexts individually or by attribute,\n* list-based segments, which let you target individual contexts or uploaded lists of contexts, and\n* synced segments, which let you target groups of contexts backed by an external data store.\n\nTo learn more, read [Segments](https://launchdarkly.com/docs/home/flags/segments).\n\nThe segments API allows you to list, create, modify, and delete segments programmatically.\n\nYou can also schedule segment changes that take effect at a later time. Scheduled changes use the same semantic patch instructions as updating a segment. You can list, edit, and delete scheduled changes for each segment. Use the `scheduled-changes` endpoints to manage them.\n\nYou can find other APIs for working with big segments under [Persistent store integrations (beta)](https://launchdarkly.com/docs/api/persistent-store-integrations-beta).\n",
 	)
 
 	gen_TagsResourceCmd := NewResourceCmd(
@@ -3322,7 +3330,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_AgentControlResourceCmd, client, markdownRenderer, OperationData{
 		Short: "List agent optimizations",
-		Long:  "Get a list of all agent optimizations in the given project.",
+		Long:  "Get a list of all agent optimizations in the given project.\n\n### Filtering optimizations\n\nThe `filter` parameter supports the following fields and operators:\n\n- `query` with the `equals` operator: case-insensitive substring match on the optimization key, label, or AgentControl config key.\n- `aiConfigKey` with the `equals` operator: exact match on the key of the AgentControl config being optimized.\n\nSeparate multiple fields with a comma, for example `filter=aiConfigKey equals \"my-agent\",query equals \"tone\"`.\n",
 		Use:   "list-agent-optimizations",
 		Params: []Param{
 			{
@@ -3461,6 +3469,12 @@ func AddAllResourceCmds(
 				Name:        "filter",
 				In:          "query",
 				Description: "A filter to apply to the list.",
+				Type:        "string",
+			},
+			{
+				Name:        "sort",
+				In:          "query",
+				Description: "A sort to apply to the list of agent skills. Use 'usedIn' to sort by the number of AgentControl configs that use each skill, fewest first, or '-usedIn' for most first. Without a sort, skills are ordered by creation date, newest first.",
 				Type:        "string",
 			},
 		},
@@ -5117,6 +5131,12 @@ func AddAllResourceCmds(
 				Description: "An access token ID that lets you filter audit log listings by the token that made the change. Repeat the parameter to filter by multiple tokens.",
 				Type:        "string",
 			},
+			{
+				Name:        "rollup",
+				In:          "query",
+				Description: "Set to 1 to return rolled-up audit log entries, which group related changes into one entry. By default, entries aren't rolled up.",
+				Type:        "integer",
+			},
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
@@ -6203,6 +6223,298 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
+	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Clear the default release plan",
+		Long:  "Clear the environment's default release plan, incrementing the formerly-default plan's version by 1; the environment then has none. Idempotent: returns `204` whether or not a default was set.",
+		Use:   "delete-default",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/default-release-plan",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Delete a release plan",
+		Long:  "Delete a release plan by its key. The plan no longer appears in reads, and its key becomes available for reuse by a new plan. Returns 409 while a flag release plan still uses the release plan; remove it from those flag release plans first.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "release-plan-key",
+				In:          "path",
+				Description: "The release plan key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/release-plans/{releasePlanKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get the default release plan",
+		Long:  "Get the environment's default release plan — the plan consumers preselect when starting a release. Returns `204 No Content` when the environment has no default.",
+		Use:   "get-default",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/default-release-plan",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get a release plan",
+		Long:  "Get a single release plan by its key.",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "release-plan-key",
+				In:          "path",
+				Description: "The release plan key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/release-plans/{releasePlanKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "List release plans",
+		Long:  "Get the environment's release plans, ordered by creation time.",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "filter",
+				In:          "query",
+				Description: "A queryfilter expression that narrows the list by text match. Supported field and operators: 'query' ('equals', 'contains'). When present, only release plans whose name or key contains the text, case-insensitively, are returned, and totalCount counts the matches. Surrounding whitespace is ignored, and the text is at most 256 bytes. Omitting the filter lists every release plan in the environment.",
+				Type:        "string",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The number of release plans to return. Defaults to 20. Maximum is 100.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "The number of release plans to skip. Used for pagination.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/release-plans",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Create a release plan",
+		Long:  "Create a new release plan for the specified environment.",
+		Use:   "create",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/release-plans",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Set the default release plan",
+		Long:  "Set the plan with the given key as the environment's default, atomically replacing whatever was default before. Each plan whose default flag changes has its version incremented by 1. Idempotent: setting the current default again changes nothing. Rejects a key that is not an active plan in the environment, or a plan that has no randomization unit.",
+		Use:   "replace-default",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PUT",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/default-release-plan",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Update a release plan",
+		Long:  "Replace a release plan's configuration. This is a full replace, not a merge: the plan's phases, steps, clauses, and metrics become exactly what the request specifies, and anything omitted is removed. The plan's key and environment are immutable, and its version increments by 1 on every successful update. The request's version is an optional optimistic lock: when present it must match the plan's current version, and on mismatch the request is rejected with 409 and no changes are applied, meaning the plan was edited since it was read; get the plan again and retry with its current version. When omitted the update applies unconditionally to the plan currently holding the key. A release already started from the plan is not affected.",
+		Use:   "replace",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "release-plan-key",
+				In:          "path",
+				Description: "The release plan key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PUT",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/release-plans/{releasePlanKey}",
+		SupportsSemanticPatch: false,
+	})
+
 	NewOperationCmd(gen_EnvironmentReleasesBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get an environment release",
 		Long:  "Returns an environment release and all its phases in phase-index order.\nThe release ID must belong to the flag and environment in the path.\nReturns `404` for a release that ended more than 90 days ago.\nPass `expand=metrics` to attach each metric's definition to the top-level\n`metrics` array. Analysis settings come from the version pinned when the\nrelease started (`metricVersionId`); name, description, tags, maintainer,\nand archive state reflect the current metric and may change afterwards.\n",
@@ -6821,7 +7133,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ExperimentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Patch experiment",
-		Long:  "Update an experiment. Updating an experiment uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating experiments.\n\n#### updateName\n\n\u003e **Deprecated**: `updateName` will be removed in a future version. Use `updateExperimentFields` instead.\n\nUpdates the experiment name.\n\n##### Parameters\n\n- `value`: The new name.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateName\",\n    \"value\": \"Example updated experiment name\"\n  }]\n}\n```\n\n#### updateDescription\n\n\u003e **Deprecated**: `updateDescription` will be removed in a future version. Use `updateExperimentFields` instead.\n\nUpdates the experiment description.\n\n##### Parameters\n\n- `value`: The new description.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateDescription\",\n    \"value\": \"Example updated description\"\n  }]\n}\n```\n\n#### updateExperimentFields\n\nUpdates one or more fields on an experiment or its current iteration. Each field update specifies an operation (`add`, `update`, or `remove`) and an optional value.\n\nWhich fields are mutable depends on the current iteration status. To discover which fields and operations are allowed, expand `mutableFieldsByStatus` on the [Get experiment](https://launchdarkly.com/docs/api/experiments/get-experiment) response.\n\n##### Parameters\n\n- `value`: An object mapping field names to field updates. Each field update has the following properties:\n  - `operation`: The operation to perform. One of `add`, `update`, or `remove`.\n  - `value`: The new value for the field. Required for `add` and `update` operations.\n\nTo find which fields are supported and which operations are allowed for each iteration status, expand `mutableFieldsByStatus` on the [Get experiment](https://launchdarkly.com/docs/api/experiments/get-experiment) response.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateExperimentFields\",\n    \"value\": {\n      \"name\": {\n        \"operation\": \"update\",\n        \"value\": \"Updated experiment name\"\n      },\n      \"tags\": {\n        \"operation\": \"add\",\n        \"value\": [\"tag1\", \"tag2\"]\n      }\n    }\n  }]\n}\n```\n\n#### saveAndStartNewIteration\n\nStops the current running iteration, creates a new iteration from it, optionally applies field updates, and starts the new iteration. This is a convenience instruction that combines stopping, updating, and starting in a single operation.\n\n##### Parameters\n\n- `changeJustification`: (Optional) The reason for stopping and starting a new iteration.\n- `value`: (Optional) An object mapping field names to field updates, using the same format as `updateExperimentFields`. These updates are applied to the new iteration before it is started.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"saveAndStartNewIteration\",\n    \"changeJustification\": \"Adjusting hypothesis based on early results\",\n    \"value\": {\n      \"hypothesis\": {\n        \"operation\": \"update\",\n        \"value\": \"Updated hypothesis text\"\n      }\n    }\n  }]\n}\n```\n\n#### startIteration\n\nStarts a new iteration for this experiment. You must [create a new iteration](https://launchdarkly.com/docs/api/experiments/create-iteration) before calling this instruction.\n\nAn iteration may not be started until it meets the following criteria:\n\n* Its associated flag is toggled on and is not archived\n* Its `randomizationUnit` is set\n* At least one of its `treatments` has a non-zero `allocationPercent`\n\n##### Parameters\n\n- `changeJustification`: The reason for starting a new iteration. Required when you call `startIteration` on an already running experiment, otherwise optional.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"startIteration\",\n    \"changeJustification\": \"It's time to start a new iteration\"\n  }]\n}\n```\n\n#### stopIteration\n\nStops the current iteration for this experiment.\n\n##### Parameters\n\n- `winningTreatmentId`: The ID of the winning treatment. Treatment IDs are returned as part of the [Get experiment](https://launchdarkly.com/docs/api/experiments/get-experiment) response. They are the `_id` of each element in the `treatments` array.\n- `winningReason`: The reason for the winner\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"stopIteration\",\n    \"winningTreatmentId\": \"3a548ec2-72ac-4e59-8518-5c24f5609ccf\",\n    \"winningReason\": \"Example reason to stop the iteration\"\n  }]\n}\n```\n\n#### archiveExperiment\n\nArchives this experiment. Archived experiments are hidden by default in the LaunchDarkly user interface. You cannot start new iterations for archived experiments.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"archiveExperiment\" }]\n}\n```\n\n#### restoreExperiment\n\nRestores an archived experiment. After restoring an experiment, you can start new iterations for it again.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"restoreExperiment\" }]\n}\n```\n",
+		Long:  "Update an experiment. Updating an experiment uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating experiments.\n\n#### updateName\n\n\u003e **Deprecated**: `updateName` will be removed in a future version. Use `updateExperimentFields` instead.\n\nUpdates the experiment name.\n\n##### Parameters\n\n- `value`: The new name.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateName\",\n    \"value\": \"Example updated experiment name\"\n  }]\n}\n```\n\n#### updateDescription\n\n\u003e **Deprecated**: `updateDescription` will be removed in a future version. Use `updateExperimentFields` instead.\n\nUpdates the experiment description.\n\n##### Parameters\n\n- `value`: The new description.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateDescription\",\n    \"value\": \"Example updated description\"\n  }]\n}\n```\n\n#### updateExperimentFields\n\nUpdates one or more fields on an experiment or its current iteration. Each field update specifies an operation (`add`, `update`, or `remove`) and an optional value.\n\nWhich fields are mutable depends on the current iteration status. To discover which fields and operations are allowed, expand `mutableFieldsByStatus` on the [Get experiment](https://launchdarkly.com/docs/api/experiments/get-experiment) response.\n\n##### Parameters\n\n- `value`: An object mapping field names to field updates. Each field update has the following properties:\n  - `operation`: The operation to perform. One of `add`, `update`, or `remove`.\n  - `value`: The new value for the field. Required for `add` and `update` operations.\n\nTo find which fields are supported and which operations are allowed for each iteration status, expand `mutableFieldsByStatus` on the [Get experiment](https://launchdarkly.com/docs/api/experiments/get-experiment) response.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateExperimentFields\",\n    \"value\": {\n      \"name\": {\n        \"operation\": \"update\",\n        \"value\": \"Updated experiment name\"\n      },\n      \"tags\": {\n        \"operation\": \"add\",\n        \"value\": [\"tag1\", \"tag2\"]\n      }\n    }\n  }]\n}\n```\n\n##### Custom assignment source fields\n\nIf your experiment reads its assignment data from your data warehouse, two additional fields control the assignment source it uses.\n\nUse `assignmentDataSource` to attach an assignment source to an iteration, change which source it points at, or detach it. Its value is an object with the following properties:\n\n- `key`: (Required) The key of the assignment data source.\n- `experimentId`: The experiment identifier in the assignment data source. You can omit this while the experiment is a draft, but you must set it before you start the experiment.\n- `startTime`: (Optional) The start of the assignment data window, in Unix milliseconds.\n- `endTime`: (Optional) The end of the assignment data window, in Unix milliseconds. This must be later than `startTime`.\n\nTo detach the assignment source, send `null` as the value. You can only change this field while the iteration is still a draft.\n\nUse `assignmentDataSourceWindow` to change only the dates on an assignment source that is already attached. Its value is an object with the same `startTime` and `endTime` properties. The iteration must already have an assignment source. This is how you adjust the dates after an iteration has run, because the source itself is fixed at that point.\n\nMulti-armed bandits use flags for assignment, so they support neither field.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateExperimentFields\",\n    \"value\": {\n      \"assignmentDataSource\": {\n        \"operation\": \"update\",\n        \"value\": {\n          \"key\": \"my-assignment-data-source\",\n          \"experimentId\": \"experiment-123\",\n          \"startTime\": 1690000000000,\n          \"endTime\": 1690600000000\n        }\n      }\n    }\n  }]\n}\n```\n\n#### saveAndStartNewIteration\n\nStops the current running iteration, creates a new iteration from it, optionally applies field updates, and starts the new iteration. This is a convenience instruction that combines stopping, updating, and starting in a single operation.\n\n##### Parameters\n\n- `changeJustification`: (Optional) The reason for stopping and starting a new iteration.\n- `value`: (Optional) An object mapping field names to field updates, using the same format as `updateExperimentFields`. These updates are applied to the new iteration before it is started.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"saveAndStartNewIteration\",\n    \"changeJustification\": \"Adjusting hypothesis based on early results\",\n    \"value\": {\n      \"hypothesis\": {\n        \"operation\": \"update\",\n        \"value\": \"Updated hypothesis text\"\n      }\n    }\n  }]\n}\n```\n\n#### startIteration\n\nStarts a new iteration for this experiment. You must [create a new iteration](https://launchdarkly.com/docs/api/experiments/create-iteration) before calling this instruction.\n\nAn iteration may not be started until it meets the following criteria:\n\n* Its associated flag is toggled on and is not archived\n* Its `randomizationUnit` is set\n* At least one of its `treatments` has a non-zero `allocationPercent`\n\n##### Parameters\n\n- `changeJustification`: The reason for starting a new iteration. Required when you call `startIteration` on an already running experiment, otherwise optional.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"startIteration\",\n    \"changeJustification\": \"It's time to start a new iteration\"\n  }]\n}\n```\n\n#### stopIteration\n\nStops the current iteration for this experiment.\n\n##### Parameters\n\n- `winningTreatmentId`: The ID of the winning treatment. Treatment IDs are returned as part of the [Get experiment](https://launchdarkly.com/docs/api/experiments/get-experiment) response. They are the `_id` of each element in the `treatments` array.\n- `winningReason`: The reason for the winner\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"stopIteration\",\n    \"winningTreatmentId\": \"3a548ec2-72ac-4e59-8518-5c24f5609ccf\",\n    \"winningReason\": \"Example reason to stop the iteration\"\n  }]\n}\n```\n\n#### archiveExperiment\n\nArchives this experiment. Archived experiments are hidden by default in the LaunchDarkly user interface. You cannot start new iterations for archived experiments.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"archiveExperiment\" }]\n}\n```\n\n#### restoreExperiment\n\nRestores an archived experiment. After restoring an experiment, you can start new iterations for it again.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"restoreExperiment\" }]\n}\n```\n",
 		Use:   "update",
 		Params: []Param{
 			{
@@ -7151,6 +7463,166 @@ func AddAllResourceCmds(
 		IsBeta:                true,
 		RequiresBody:          true,
 		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Create a flag release plan for a project",
+		Long:  "Creates a flag release plan. The key must not be in use by another\nactive plan in the project, or the request is rejected with 409.\nThe request is rejected with 400 when an environment isn't in the\nproject, the maintainer isn't in the account, an environment release\nplan doesn't exist, is incomplete, or is in another environment,\n`default` is set while the project already has a default plan, or the\nproject already has the maximum number of plans. To make a new plan\nthe project's default, create it, then update it with `default` set,\nwhich demotes the current default.\n",
+		Use:   "create",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/flag-release-plans",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Delete a flag release plan in a project",
+		Long:  "Delete a flag release plan in a project.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "plan-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/flag-release-plans/{planKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get a flag release plan in a project by plan key",
+		Long:  "Get a flag release plan in a project by plan key.",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "plan-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/flag-release-plans/{planKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "List a project's flag release plans",
+		Long:  "List a project's flag release plans, in creation order.",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The number of flag release plans to return.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "The number of flag release plans to skip. Used for pagination.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/flag-release-plans",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Replace a flag release plan configuration in a project",
+		Long:  "Replace a flag release plan configuration in a project. This is a\nfull replace, not a merge, and anything omitted is overwritten.\nOmitting `default` clears it, so a request without it demotes the\nproject's default plan. The flag release plan's key is immutable, and\nits version increments by 1 on every successful update. The request's\nversion is an optional optimistic lock: when present it must match the\nplan's current version, and on mismatch the request is rejected with\n409 and no changes are applied, meaning the plan was edited since it\nwas read; get the plan again and retry with its current version. When\nomitted the update applies unconditionally to the plan currently\nholding the key. A flag release already started from the plan is not\naffected.\n",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "plan-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PUT",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/flag-release-plans/{planKey}",
 		SupportsSemanticPatch: false,
 	})
 
@@ -7710,7 +8182,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Update feature flag",
-		Long:  "Perform a partial update to a feature flag. The request body must be a valid semantic patch, JSON patch, or JSON merge patch. To learn more the different formats, read [Updates](https://launchdarkly.com/docs/api#updates).\n\n### Using semantic patches on a feature flag\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\nThe body of a semantic patch request for updating feature flags takes the following properties:\n\n* `comment` (string): (Optional) A description of the update.\n* `environmentKey` (string): (Required for some instructions only) The key of the LaunchDarkly environment.\n* `instructions` (array): (Required) A list of actions the update should perform. Each action in the list must be an object with a `kind` property that indicates the instruction. If the action requires parameters, you must include those parameters as additional fields in the object. The body of a single semantic patch can contain many different instructions.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating feature flags.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eturning flags on and off\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions require the `environmentKey` parameter.\n\n#### turnFlagOff\n\nSets the flag's targeting state to **Off**.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"turnFlagOff\" } ]\n}\n```\n\n#### turnFlagOn\n\nSets the flag's targeting state to **On**.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"turnFlagOn\" } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eworking with targeting and variations\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions require the `environmentKey` parameter.\n\nSeveral of the instructions for working with targeting and variations require flag rule IDs, variation IDs, or clause IDs as parameters. Each of these are returned as part of the [Get feature flag](https://launchdarkly.com/docs/api/feature-flags/get-feature-flag) response. The flag rule ID is the `_id` field of each element in the `rules` array within each environment listed in the `environments` object. The variation ID is the `_id` field in each element of the `variations` array. The clause ID is the `_id` field of each element of the `clauses` array within the `rules` array within each environment listed in the `environments` object.\n\n#### addClauses\n\nAdds the given clauses to the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addClauses\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauses\": [{\n\t\t\t\"contextKind\": \"user\",\n\t\t\t\"attribute\": \"country\",\n\t\t\t\"op\": \"in\",\n\t\t\t\"negate\": false,\n\t\t\t\"values\": [\"USA\", \"Canada\"]\n\t\t}]\n\t}]\n}\n```\n\n#### addPrerequisite\n\nAdds the flag indicated by `key` with variation `variationId` as a prerequisite to the flag in the path parameter.\n\n##### Parameters\n\n- `key`: Flag key of the prerequisite flag.\n- `variationId`: ID of a variation of the prerequisite flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addPrerequisite\",\n\t\t\"key\": \"example-prereq-flag-key\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addRule\n\nAdds a new targeting rule to the flag. The rule may contain `clauses` and serve the variation that `variationId` indicates, or serve a percentage rollout that `rolloutWeights`, `rolloutBucketBy`, and `rolloutContextKind` indicate.\n\nIf you set `beforeRuleId`, this adds the new rule before the indicated rule. Otherwise, adds the new rule to the end of the list.\n\n##### Parameters\n\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n- `beforeRuleId`: (Optional) ID of a flag rule.\n- Either\n  - `variationId`: ID of a variation of the flag.\n\n  or\n\n  - `rolloutWeights`: (Optional) Map of `variationId` to weight, in thousandths of a percent (0-100000).\n  - `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n  - `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example that uses a `variationId`:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"addRule\",\n    \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n    \"clauses\": [{\n      \"contextKind\": \"organization\",\n      \"attribute\": \"located_in\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Sweden\", \"Norway\"]\n    }]\n  }]\n}\n```\n\nHere's an example that uses a percentage rollout:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"addRule\",\n    \"clauses\": [{\n      \"contextKind\": \"organization\",\n      \"attribute\": \"located_in\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Sweden\", \"Norway\"]\n    }],\n    \"rolloutContextKind\": \"organization\",\n    \"rolloutWeights\": {\n      \"2f43f67c-3e4e-4945-a18a-26559378ca00\": 15000, // serve 15% this variation\n      \"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 85000  // serve 85% this variation\n    }\n  }]\n}\n```\n\n#### addTargets\n\nAdds context keys to the individual context targets for the context kind that `contextKind` specifies and the variation that `variationId` specifies. Returns an error if this causes the flag to target the same context key in multiple variations.\n\n##### Parameters\n\n- `values`: List of context keys.\n- `contextKind`: (Optional) Context kind to target, defaults to `user`\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addTargets\",\n\t\t\"values\": [\"context-key-123abc\", \"context-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addUserTargets\n\nAdds user keys to the individual user targets for the variation that `variationId` specifies. Returns an error if this causes the flag to target the same user key in multiple variations. If you are working with contexts, use `addTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addUserTargets\",\n\t\t\"values\": [\"user-key-123abc\", \"user-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addValuesToClause\n\nAdds `values` to the values of the clause that `ruleId` and `clauseId` indicate. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addValuesToClause\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n\t\t\"values\": [\"beta_testers\"]\n\t}]\n}\n```\n\n#### addVariation\n\nAdds a variation to the flag.\n\n##### Parameters\n\n- `value`: The variation value.\n- `name`: (Optional) The variation name.\n- `description`: (Optional) A description for the variation.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"addVariation\", \"value\": 20, \"name\": \"New variation\" } ]\n}\n```\n\n#### clearTargets\n\nRemoves all individual targets from the variation that `variationId` specifies. This includes both user and non-user targets.\n\n##### Parameters\n\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"clearTargets\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### clearUserTargets\n\nRemoves all individual user targets from the variation that `variationId` specifies. If you are working with contexts, use `clearTargets` instead of this instruction.\n\n##### Parameters\n\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"clearUserTargets\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### removeClauses\n\nRemoves the clauses specified by `clauseIds` from the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseIds`: Array of IDs of clauses in the rule.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeClauses\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseIds\": [\"10a58772-3121-400f-846b-b8a04e8944ed\", \"36a461dc-235e-4b08-97b9-73ce9365873e\"]\n\t}]\n}\n```\n\n#### removePrerequisite\n\nRemoves the prerequisite flag indicated by `key`. Does nothing if this prerequisite does not exist.\n\n##### Parameters\n\n- `key`: Flag key of an existing prerequisite flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"removePrerequisite\", \"key\": \"prereq-flag-key-123abc\" } ]\n}\n```\n\n#### removeRule\n\nRemoves the targeting rule specified by `ruleId`. Does nothing if the rule does not exist.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"removeRule\", \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\" } ]\n}\n```\n\n#### removeTargets\n\nRemoves context keys from the individual context targets for the context kind that `contextKind` specifies and the variation that `variationId` specifies. Does nothing if the flag does not target the context keys.\n\n##### Parameters\n\n- `values`: List of context keys.\n- `contextKind`: (Optional) Context kind to target, defaults to `user`\n- `variationId`: ID of a flag variation.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeTargets\",\n\t\t\"values\": [\"context-key-123abc\", \"context-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### removeUserTargets\n\nRemoves user keys from the individual user targets for the variation that `variationId` specifies. Does nothing if the flag does not target the user keys. If you are working with contexts, use `removeTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n- `variationId`: ID of a flag variation.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeUserTargets\",\n\t\t\"values\": [\"user-key-123abc\", \"user-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### removeValuesFromClause\n\nRemoves `values` from the values of the clause indicated by `ruleId` and `clauseId`. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeValuesFromClause\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n\t\t\"values\": [\"beta_testers\"]\n\t}]\n}\n```\n\n#### removeVariation\n\nRemoves a variation from the flag.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag to remove.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"removeVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### reorderRules\n\nRearranges the rules to match the order given in `ruleIds`. Returns an error if `ruleIds` does not match the current set of rules on the flag.\n\n##### Parameters\n\n- `ruleIds`: Array of IDs of all rules in the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"reorderRules\",\n\t\t\"ruleIds\": [\"a902ef4a-2faf-4eaf-88e1-ecc356708a29\", \"63c238d1-835d-435e-8f21-c8d5e40b2a3d\"]\n\t}]\n}\n```\n\n#### replacePrerequisites\n\nRemoves all existing prerequisites and replaces them with the list you provide.\n\n##### Parameters\n\n- `prerequisites`: A list of prerequisites. Each item in the list must include a flag `key` and `variationId`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replacePrerequisites\",\n      \"prerequisites\": [\n        {\n          \"key\": \"prereq-flag-key-123abc\",\n          \"variationId\": \"10a58772-3121-400f-846b-b8a04e8944ed\"\n        },\n        {\n          \"key\": \"another-prereq-flag-key-456def\",\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\"\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### replaceRules\n\nRemoves all targeting rules for the flag and replaces them with the list you provide.\n\n##### Parameters\n\n- `rules`: A list of rules.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceRules\",\n      \"rules\": [\n        {\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"description\": \"My new rule\",\n          \"clauses\": [\n            {\n              \"contextKind\": \"user\",\n              \"attribute\": \"segmentMatch\",\n              \"op\": \"segmentMatch\",\n              \"values\": [\"test\"]\n            }\n          ],\n          \"trackEvents\": true\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### replaceTargets\n\nRemoves all existing targeting and replaces it with the list of targets you provide.\n\n##### Parameters\n\n- `targets`: A list of context targeting. Each item in the list includes an optional `contextKind` that defaults to `user`, a required `variationId`, and a required list of `values`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceTargets\",\n      \"targets\": [\n        {\n          \"contextKind\": \"user\",\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"values\": [\"user-key-123abc\"]\n        },\n        {\n          \"contextKind\": \"device\",\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\",\n          \"values\": [\"device-key-456def\"]\n        }\n      ]\n    }    \n  ]\n}\n```\n\n#### replaceUserTargets\n\nRemoves all existing user targeting and replaces it with the list of targets you provide. In the list of targets, you must include a target for each of the flag's variations. If you are working with contexts, use `replaceTargets` instead of this instruction.\n\n##### Parameters\n\n- `targets`: A list of user targeting. Each item in the list must include a `variationId` and a list of `values`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceUserTargets\",\n      \"targets\": [\n        {\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"values\": [\"user-key-123abc\", \"user-key-456def\"]\n        },\n        {\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\",\n          \"values\": [\"user-key-789ghi\"]\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### updateClause\n\nReplaces the clause indicated by `ruleId` and `clauseId` with `clause`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `clause`: New `clause` object, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"updateClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10c7462a-2062-45ba-a8bb-dfb3de0f8af5\",\n    \"clause\": {\n      \"contextKind\": \"user\",\n      \"attribute\": \"country\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Mexico\", \"Canada\"]\n    }\n  }]\n}\n```\n\n#### updateDefaultVariation\n\nUpdates the default on or off variation of the flag.\n\n##### Parameters\n\n- `onVariationValue`: (Optional) The value of the variation of the new on variation.\n- `offVariationValue`: (Optional) The value of the variation of the new off variation\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"updateDefaultVariation\", \"OnVariationValue\": true, \"OffVariationValue\": false } ]\n}\n```\n\n#### updateFallthroughVariationOrRollout\n\nUpdates the default or \"fallthrough\" rule for the flag, which the flag serves when a context matches none of the targeting rules. The rule can serve either the variation that `variationId` indicates, or a percentage rollout that `rolloutWeights` and `rolloutBucketBy` indicate.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag.\n\nor\n\n- `rolloutWeights`: Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example that uses a `variationId`:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateFallthroughVariationOrRollout\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\nHere's an example that uses a percentage rollout:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateFallthroughVariationOrRollout\",\n\t\t\"rolloutContextKind\": \"user\",\n\t\t\"rolloutWeights\": {\n\t\t\t\"2f43f67c-3e4e-4945-a18a-26559378ca00\": 15000, // serve 15% this variation\n\t\t\t\"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 85000  // serve 85% this variation\n\t\t}\n\t}]\n}\n```\n\n#### updateOffVariation\n\nUpdates the default off variation to `variationId`. The flag serves the default off variation when the flag's targeting is **Off**.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateOffVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### updatePrerequisite\n\nChanges the prerequisite flag that `key` indicates to use the variation that `variationId` indicates. Returns an error if this prerequisite does not exist.\n\n##### Parameters\n\n- `key`: Flag key of an existing prerequisite flag.\n- `variationId`: ID of a variation of the prerequisite flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updatePrerequisite\",\n\t\t\"key\": \"example-prereq-flag-key\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### updateRuleDescription\n\nUpdates the description of the feature flag rule.\n\n##### Parameters\n\n- `description`: The new human-readable description for this rule.\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleDescription\",\n\t\t\"description\": \"New rule description\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n\t}]\n}\n```\n\n#### updateRuleTrackEvents\n\nUpdates whether the SDK sends a detailed event for every evaluation of this rule, instead of only summary counts. Required for Data Export, but doesn't enable Data Export on its own.\n\n##### Parameters\n\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the flag.\n- `trackEvents`: Whether or not detailed events are sent for this rule.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleTrackEvents\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"trackEvents\": true\n\t}]\n}\n```\n\n#### updateRuleVariationOrRollout\n\nUpdates what `ruleId` serves when its clauses evaluate to true. The rule can serve either the variation that `variationId` indicates, or a percent rollout that `rolloutWeights` and `rolloutBucketBy` indicate.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `variationId`: ID of a variation of the flag.\n\n  or\n\n- `rolloutWeights`: Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleVariationOrRollout\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### updateTrackEvents\n\nUpdates whether the SDK sends detailed evaluation events for this flag, for all rules. Required for Data Export, but doesn't enable Data Export on its own.\n\n##### Parameters\n\n- `trackEvents`: Whether or not detailed events are sent for this flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateTrackEvents\", \"trackEvents\": true } ]\n}\n```\n\n#### updateTrackEventsFallthrough\n\nUpdates whether the SDK sends detailed evaluation events for the flag's default rule. Required for Data Export, but doesn't enable Data Export on its own.\n\n##### Parameters\n\n- `trackEvents`: Whether or not detailed events are sent for the default rule.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateTrackEventsFallthrough\", \"trackEvents\": true } ]\n}\n```\n\n#### updateVariation\n\nUpdates a variation of the flag.\n\n##### Parameters\n\n- `variationId`: The ID of the variation to update.\n- `name`: (Optional) The updated variation name.\n- `value`: (Optional) The updated variation value.\n- `description`: (Optional) The updated variation description.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"updateVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\", \"value\": 20 } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating flag settings\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions do not require the `environmentKey` parameter. They make changes that apply to the flag across all environments.\n\n#### addCustomProperties\n\nAdds a new custom property to the feature flag. Custom properties are used to associate feature flags with LaunchDarkly integrations. For example, if you create an integration with an issue tracking service, you may want to associate a flag with a list of issues related to a feature's development.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `name`: The custom property name.\n - `values`: A list of the associated values for the custom property.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [{\n\t\t\"kind\": \"addCustomProperties\",\n\t\t\"key\": \"example-custom-property\",\n\t\t\"name\": \"Example custom property\",\n\t\t\"values\": [\"value1\", \"value2\"]\n\t}]\n}\n```\n\n#### addTags\n\nAdds tags to the feature flag.\n\n##### Parameters\n\n- `values`: A list of tags to add.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"addTags\", \"values\": [\"tag1\", \"tag2\"] } ]\n}\n```\n\n#### makeFlagPermanent\n\nMarks the feature flag as permanent. LaunchDarkly does not prompt you to remove permanent flags, even if one variation is rolled out to all your customers.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"makeFlagPermanent\" } ]\n}\n```\n\n#### makeFlagTemporary\n\nMarks the feature flag as temporary.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"makeFlagTemporary\" } ]\n}\n```\n\n#### removeCustomProperties\n\nRemoves the associated values from a custom property. If all the associated values are removed, this instruction also removes the custom property.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `values`: A list of the associated values to remove from the custom property.\n\n```json\n{\n\t\"instructions\": [{\n\t\t\"kind\": \"replaceCustomProperties\",\n\t\t\"key\": \"example-custom-property\",\n\t\t\"values\": [\"value1\", \"value2\"]\n\t}]\n}\n```\n\n#### removeMaintainer\n\nRemoves the flag's maintainer. To set a new maintainer, use the `updateMaintainerMember` or `updateMaintainerTeam` instructions.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"removeMaintainer\" } ]\n}\n```\n\n#### removeTags\n\nRemoves tags from the feature flag.\n\n##### Parameters\n\n- `values`: A list of tags to remove.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"removeTags\", \"values\": [\"tag1\", \"tag2\"] } ]\n}\n```\n\n#### replaceCustomProperties\n\nReplaces the existing associated values for a custom property with the new values.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `name`: The custom property name.\n - `values`: A list of the new associated values for the custom property.\n\nHere's an example:\n\n```json\n{\n \"instructions\": [{\n   \"kind\": \"replaceCustomProperties\",\n   \"key\": \"example-custom-property\",\n   \"name\": \"Example custom property\",\n   \"values\": [\"value1\", \"value2\"]\n }]\n}\n```\n\n#### turnOffClientSideAvailability\n\nTurns off client-side SDK availability for the flag. This is equivalent to unchecking the **SDKs using Mobile key** and/or **SDKs using Client-side ID** boxes for the flag. If you're using a client-side or mobile SDK, you must expose your feature flags in order for the client-side or mobile SDKs to evaluate them.\n\n##### Parameters\n\n- `value`: Use \"usingMobileKey\" to turn off availability for mobile SDKs. Use \"usingEnvironmentId\" to turn on availability for client-side SDKs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"turnOffClientSideAvailability\", \"value\": \"usingMobileKey\" } ]\n}\n```\n\n#### turnOnClientSideAvailability\n\nTurns on client-side SDK availability for the flag. This is equivalent to checking the **SDKs using Mobile key** and/or **SDKs using Client-side ID** boxes for the flag. If you're using a client-side or mobile SDK, you must expose your feature flags in order for the client-side or mobile SDKs to evaluate them.\n\n##### Parameters\n\n- `value`: Use \"usingMobileKey\" to turn on availability for mobile SDKs. Use \"usingEnvironmentId\" to turn on availability for client-side SDKs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"turnOnClientSideAvailability\", \"value\": \"usingMobileKey\" } ]\n}\n```\n\n#### updateDescription\n\nUpdates the feature flag description.\n\n##### Parameters\n\n- `value`: The new description.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateDescription\", \"value\": \"Updated flag description\" } ]\n}\n```\n#### updateMaintainerMember\n\nUpdates the maintainer of the flag to an existing member and removes the existing maintainer.\n\n##### Parameters\n\n- `value`: The ID of the member.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateMaintainerMember\", \"value\": \"61e9b714fd47591727db558a\" } ]\n}\n```\n\n#### updateMaintainerTeam\n\nUpdates the maintainer of the flag to an existing team and removes the existing maintainer.\n\n##### Parameters\n\n- `value`: The key of the team.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateMaintainerTeam\", \"value\": \"example-team-key\" } ]\n}\n```\n\n#### updateName\n\nUpdates the feature flag name.\n\n##### Parameters\n\n- `value`: The new name.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateName\", \"value\": \"Updated flag name\" } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating the flag lifecycle\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions do not require the `environmentKey` parameter. They make changes that apply to the flag across all environments.\n\n#### archiveFlag\n\nArchives the feature flag. This retires it from LaunchDarkly without deleting it. You cannot archive a flag that is a prerequisite of other flags.\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"archiveFlag\" } ]\n}\n```\n\n#### deleteFlag\n\nDeletes the feature flag and its rules. You cannot restore a deleted flag. If this flag is requested again, the flag value defined in code will be returned for all contexts.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"deleteFlag\" } ]\n}\n```\n\n#### deprecateFlag\n\nDeprecates the feature flag. This hides it from the live flags list without archiving or deleting it.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"deprecateFlag\" } ]\n}\n```\n\n#### restoreDeprecatedFlag\n\nRestores the feature flag if it was previously deprecated.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"restoreDeprecatedFlag\" } ]\n}\n```\n\n#### restoreFlag\n\nRestores the feature flag if it was previously archived.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"restoreFlag\" } ]\n}\n```\n\n\u003c/details\u003e\n\n### Using JSON patches on a feature flag\n\nIf you do not include the semantic patch header described above, you can use a [JSON patch](https://launchdarkly.com/docs/api#updates-using-json-patch) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes.\n\nIn the JSON patch representation, use a JSON pointer in the `path` element to describe what field to change. Use the [Get feature flag](https://launchdarkly.com/docs/api/feature-flags/get-feature-flag) endpoint to find the field you want to update.\n\nThere are a few special cases to keep in mind when determining the value of the `path` element:\n\n  * To add an individual target to a specific variation if the flag variation already has individual targets, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/environments/devint/targets/0/values/-\",\n      \"value\": \"TestClient10\"\n    }\n  ]\n  ```\n\n  * To add an individual target to a specific variation if the flag variation does not already have individual targets, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/environments/devint/targets/-\",\n      \"value\": { \"variation\": 0, \"values\": [\"TestClient10\"] }\n    }\n  ]\n  ```\n\n  * To add a flag to a release pipeline, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/releasePipelineKey\",\n      \"value\": \"example-release-pipeline-key\"\n    }\n  ]\n  ```\n\n### Required approvals\nIf a request attempts to alter a flag configuration in an environment where approvals are required for the flag, the request will fail with a 405. Changes to the flag configuration in that environment will require creating an [approval request](https://launchdarkly.com/docs/api/approvals).\n\n### Conflicts\nIf a flag configuration change made through this endpoint would cause a pending scheduled change or approval request to fail, this endpoint will return a 400. You can ignore this check by adding an `ignoreConflicts` query parameter set to `true`.\n\n### Migration flags\nFor migration flags, the cohort information is included in the `rules` property of a flag's response. You can update cohorts by updating `rules`. Default cohort information is included in the `fallthrough` property of a flag's response. You can update the default cohort by updating `fallthrough`.\nWhen you update the rollout for a cohort or the default cohort through the API, provide a rollout instead of a single `variationId`.\nTo learn more, read [Migration flags](https://launchdarkly.com/docs/home/flags/migration).\n",
+		Long:  "Perform a partial update to a feature flag. The request body must be a valid semantic patch, JSON patch, or JSON merge patch. To learn more the different formats, read [Updates](https://launchdarkly.com/docs/api#updates).\n\n### Using semantic patches on a feature flag\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\nThe body of a semantic patch request for updating feature flags takes the following properties:\n\n* `comment` (string): (Optional) A description of the update.\n* `environmentKey` (string): (Required for some instructions only) The key of the LaunchDarkly environment.\n* `instructions` (array): (Required) A list of actions the update should perform. Each action in the list must be an object with a `kind` property that indicates the instruction. If the action requires parameters, you must include those parameters as additional fields in the object. The body of a single semantic patch can contain many different instructions.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating feature flags.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eturning flags on and off\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions require the `environmentKey` parameter.\n\n#### turnFlagOff\n\nSets the flag's targeting state to **Off**.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"turnFlagOff\" } ]\n}\n```\n\n#### turnFlagOn\n\nSets the flag's targeting state to **On**.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"turnFlagOn\" } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eworking with targeting and variations\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions require the `environmentKey` parameter.\n\nSeveral of the instructions for working with targeting and variations require flag rule IDs, variation IDs, or clause IDs as parameters. Each of these are returned as part of the [Get feature flag](https://launchdarkly.com/docs/api/feature-flags/get-feature-flag) response. The flag rule ID is the `_id` field of each element in the `rules` array within each environment listed in the `environments` object. The variation ID is the `_id` field in each element of the `variations` array. The clause ID is the `_id` field of each element of the `clauses` array within the `rules` array within each environment listed in the `environments` object.\n\n#### addClauses\n\nAdds the given clauses to the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addClauses\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauses\": [{\n\t\t\t\"contextKind\": \"user\",\n\t\t\t\"attribute\": \"country\",\n\t\t\t\"op\": \"in\",\n\t\t\t\"negate\": false,\n\t\t\t\"values\": [\"USA\", \"Canada\"]\n\t\t}]\n\t}]\n}\n```\n\n#### addPrerequisite\n\nAdds the flag indicated by `key` with variation `variationId` as a prerequisite to the flag in the path parameter.\n\n##### Parameters\n\n- `key`: Flag key of the prerequisite flag.\n- `variationId`: ID of a variation of the prerequisite flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addPrerequisite\",\n\t\t\"key\": \"example-prereq-flag-key\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addRule\n\nAdds a new targeting rule to the flag. The rule may contain `clauses` and serve the variation that `variationId` indicates, or serve a percentage rollout that `rolloutWeights`, `rolloutBucketBy`, and `rolloutContextKind` indicate.\n\nIf you set `beforeRuleId`, this adds the new rule before the indicated rule. Otherwise, adds the new rule to the end of the list.\n\n##### Parameters\n\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n- `beforeRuleId`: (Optional) ID of a flag rule.\n- Either\n  - `variationId`: ID of a variation of the flag.\n\n  or\n\n  - `rolloutWeights`: (Optional) Map of `variationId` to weight, in thousandths of a percent (0-100000).\n  - `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n  - `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example that uses a `variationId`:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"addRule\",\n    \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n    \"clauses\": [{\n      \"contextKind\": \"organization\",\n      \"attribute\": \"located_in\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Sweden\", \"Norway\"]\n    }]\n  }]\n}\n```\n\nHere's an example that uses a percentage rollout:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"addRule\",\n    \"clauses\": [{\n      \"contextKind\": \"organization\",\n      \"attribute\": \"located_in\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Sweden\", \"Norway\"]\n    }],\n    \"rolloutContextKind\": \"organization\",\n    \"rolloutWeights\": {\n      \"2f43f67c-3e4e-4945-a18a-26559378ca00\": 15000, // serve 15% this variation\n      \"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 85000  // serve 85% this variation\n    }\n  }]\n}\n```\n\n#### addTargets\n\nAdds context keys to the individual context targets for the context kind that `contextKind` specifies and the variation that `variationId` specifies. Returns an error if this causes the flag to target the same context key in multiple variations.\n\n##### Parameters\n\n- `values`: List of context keys.\n- `contextKind`: (Optional) Context kind to target, defaults to `user`\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addTargets\",\n\t\t\"values\": [\"context-key-123abc\", \"context-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addUserTargets\n\nAdds user keys to the individual user targets for the variation that `variationId` specifies. Returns an error if this causes the flag to target the same user key in multiple variations. If you are working with contexts, use `addTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addUserTargets\",\n\t\t\"values\": [\"user-key-123abc\", \"user-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addValuesToClause\n\nAdds `values` to the values of the clause that `ruleId` and `clauseId` indicate. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addValuesToClause\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n\t\t\"values\": [\"beta_testers\"]\n\t}]\n}\n```\n\n#### addVariation\n\nAdds a variation to the flag.\n\n##### Parameters\n\n- `value`: The variation value.\n- `name`: (Optional) The variation name.\n- `description`: (Optional) A description for the variation.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"addVariation\", \"value\": 20, \"name\": \"New variation\" } ]\n}\n```\n\n#### clearTargets\n\nRemoves all individual targets from the variation that `variationId` specifies. This includes both user and non-user targets.\n\n##### Parameters\n\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"clearTargets\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### clearUserTargets\n\nRemoves all individual user targets from the variation that `variationId` specifies. If you are working with contexts, use `clearTargets` instead of this instruction.\n\n##### Parameters\n\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"clearUserTargets\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### removeClauses\n\nRemoves the clauses specified by `clauseIds` from the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseIds`: Array of IDs of clauses in the rule.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeClauses\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseIds\": [\"10a58772-3121-400f-846b-b8a04e8944ed\", \"36a461dc-235e-4b08-97b9-73ce9365873e\"]\n\t}]\n}\n```\n\n#### removePrerequisite\n\nRemoves the prerequisite flag indicated by `key`. Does nothing if this prerequisite does not exist.\n\n##### Parameters\n\n- `key`: Flag key of an existing prerequisite flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"removePrerequisite\", \"key\": \"prereq-flag-key-123abc\" } ]\n}\n```\n\n#### removeRule\n\nRemoves the targeting rule specified by `ruleId`. Does nothing if the rule does not exist.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"removeRule\", \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\" } ]\n}\n```\n\n#### removeTargets\n\nRemoves context keys from the individual context targets for the context kind that `contextKind` specifies and the variation that `variationId` specifies. Does nothing if the flag does not target the context keys.\n\n##### Parameters\n\n- `values`: List of context keys.\n- `contextKind`: (Optional) Context kind to target, defaults to `user`\n- `variationId`: ID of a flag variation.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeTargets\",\n\t\t\"values\": [\"context-key-123abc\", \"context-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### removeUserTargets\n\nRemoves user keys from the individual user targets for the variation that `variationId` specifies. Does nothing if the flag does not target the user keys. If you are working with contexts, use `removeTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n- `variationId`: ID of a flag variation.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeUserTargets\",\n\t\t\"values\": [\"user-key-123abc\", \"user-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### removeValuesFromClause\n\nRemoves `values` from the values of the clause indicated by `ruleId` and `clauseId`. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeValuesFromClause\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n\t\t\"values\": [\"beta_testers\"]\n\t}]\n}\n```\n\n#### removeVariation\n\nRemoves a variation from the flag.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag to remove.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"removeVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### reorderRules\n\nRearranges the rules to match the order given in `ruleIds`. Returns an error if `ruleIds` does not match the current set of rules on the flag.\n\n##### Parameters\n\n- `ruleIds`: Array of IDs of all rules in the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"reorderRules\",\n\t\t\"ruleIds\": [\"a902ef4a-2faf-4eaf-88e1-ecc356708a29\", \"63c238d1-835d-435e-8f21-c8d5e40b2a3d\"]\n\t}]\n}\n```\n\n#### replacePrerequisites\n\nRemoves all existing prerequisites and replaces them with the list you provide.\n\n##### Parameters\n\n- `prerequisites`: A list of prerequisites. Each item in the list must include a flag `key` and `variationId`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replacePrerequisites\",\n      \"prerequisites\": [\n        {\n          \"key\": \"prereq-flag-key-123abc\",\n          \"variationId\": \"10a58772-3121-400f-846b-b8a04e8944ed\"\n        },\n        {\n          \"key\": \"another-prereq-flag-key-456def\",\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\"\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### replaceRules\n\nRemoves all targeting rules for the flag and replaces them with the list you provide.\n\n##### Parameters\n\n- `rules`: A list of rules.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceRules\",\n      \"rules\": [\n        {\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"description\": \"My new rule\",\n          \"clauses\": [\n            {\n              \"contextKind\": \"user\",\n              \"attribute\": \"segmentMatch\",\n              \"op\": \"segmentMatch\",\n              \"values\": [\"test\"]\n            }\n          ],\n          \"trackEvents\": true\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### replaceTargets\n\nRemoves all existing targeting and replaces it with the list of targets you provide.\n\n##### Parameters\n\n- `targets`: A list of context targeting. Each item in the list includes an optional `contextKind` that defaults to `user`, a required `variationId`, and a required list of `values`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceTargets\",\n      \"targets\": [\n        {\n          \"contextKind\": \"user\",\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"values\": [\"user-key-123abc\"]\n        },\n        {\n          \"contextKind\": \"device\",\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\",\n          \"values\": [\"device-key-456def\"]\n        }\n      ]\n    }    \n  ]\n}\n```\n\n#### replaceUserTargets\n\nRemoves all existing user targeting and replaces it with the list of targets you provide. In the list of targets, you must include a target for each of the flag's variations. If you are working with contexts, use `replaceTargets` instead of this instruction.\n\n##### Parameters\n\n- `targets`: A list of user targeting. Each item in the list must include a `variationId` and a list of `values`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceUserTargets\",\n      \"targets\": [\n        {\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"values\": [\"user-key-123abc\", \"user-key-456def\"]\n        },\n        {\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\",\n          \"values\": [\"user-key-789ghi\"]\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### updateClause\n\nReplaces the clause indicated by `ruleId` and `clauseId` with `clause`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `clause`: New `clause` object, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"updateClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10c7462a-2062-45ba-a8bb-dfb3de0f8af5\",\n    \"clause\": {\n      \"contextKind\": \"user\",\n      \"attribute\": \"country\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Mexico\", \"Canada\"]\n    }\n  }]\n}\n```\n\n#### updateDefaultVariation\n\nUpdates the default on or off variation of the flag.\n\n##### Parameters\n\n- `onVariationValue`: (Optional) The value of the variation of the new on variation.\n- `offVariationValue`: (Optional) The value of the variation of the new off variation\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"updateDefaultVariation\", \"OnVariationValue\": true, \"OffVariationValue\": false } ]\n}\n```\n\n#### updateFallthroughVariationOrRollout\n\nUpdates the default or \"fallthrough\" rule for the flag, which the flag serves when a context matches none of the targeting rules. The rule can serve either the variation that `variationId` indicates, or a percentage rollout that `rolloutWeights` and `rolloutBucketBy` indicate.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag.\n\nor\n\n- `rolloutWeights`: Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example that uses a `variationId`:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateFallthroughVariationOrRollout\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\nHere's an example that uses a percentage rollout:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateFallthroughVariationOrRollout\",\n\t\t\"rolloutContextKind\": \"user\",\n\t\t\"rolloutWeights\": {\n\t\t\t\"2f43f67c-3e4e-4945-a18a-26559378ca00\": 15000, // serve 15% this variation\n\t\t\t\"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 85000  // serve 85% this variation\n\t\t}\n\t}]\n}\n```\n\n#### updateOffVariation\n\nUpdates the default off variation to `variationId`. The flag serves the default off variation when the flag's targeting is **Off**.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateOffVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### updatePrerequisite\n\nChanges the prerequisite flag that `key` indicates to use the variation that `variationId` indicates. Returns an error if this prerequisite does not exist.\n\n##### Parameters\n\n- `key`: Flag key of an existing prerequisite flag.\n- `variationId`: ID of a variation of the prerequisite flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updatePrerequisite\",\n\t\t\"key\": \"example-prereq-flag-key\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### updateRuleDescription\n\nUpdates the description of the feature flag rule.\n\n##### Parameters\n\n- `description`: The new human-readable description for this rule.\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleDescription\",\n\t\t\"description\": \"New rule description\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n\t}]\n}\n```\n\n#### updateRuleTrackEvents\n\nUpdates whether the SDK sends a detailed event for every evaluation of this rule, instead of only summary counts. Required for Data Export, but doesn't enable Data Export on its own.\n\n##### Parameters\n\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the flag.\n- `trackEvents`: Whether or not detailed events are sent for this rule.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleTrackEvents\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"trackEvents\": true\n\t}]\n}\n```\n\n#### updateRuleVariationOrRollout\n\nUpdates what `ruleId` serves when its clauses evaluate to true. The rule can serve either the variation that `variationId` indicates, or a percent rollout that `rolloutWeights` and `rolloutBucketBy` indicate.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `variationId`: ID of a variation of the flag.\n\n  or\n\n- `rolloutWeights`: Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleVariationOrRollout\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### updateTrackEvents\n\nUpdates whether the SDK sends detailed evaluation events for this flag, for all rules. Required for Data Export, but doesn't enable Data Export on its own.\n\n##### Parameters\n\n- `trackEvents`: Whether or not detailed events are sent for this flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateTrackEvents\", \"trackEvents\": true } ]\n}\n```\n\n#### updateTrackEventsFallthrough\n\nUpdates whether the SDK sends detailed evaluation events for the flag's default rule. Required for Data Export, but doesn't enable Data Export on its own.\n\n##### Parameters\n\n- `trackEvents`: Whether or not detailed events are sent for the default rule.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateTrackEventsFallthrough\", \"trackEvents\": true } ]\n}\n```\n\n#### updateVariation\n\nUpdates a variation of the flag.\n\n##### Parameters\n\n- `variationId`: The ID of the variation to update.\n- `name`: (Optional) The updated variation name.\n- `value`: (Optional) The updated variation value.\n- `description`: (Optional) The updated variation description.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"updateVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\", \"value\": 20 } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating flag settings\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions do not require the `environmentKey` parameter. They make changes that apply to the flag across all environments.\n\n#### addCustomProperties\n\nAdds a new custom property to the feature flag. Custom properties are used to associate feature flags with LaunchDarkly integrations. For example, if you create an integration with an issue tracking service, you may want to associate a flag with a list of issues related to a feature's development.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `name`: The custom property name.\n - `values`: A list of the associated values for the custom property.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [{\n\t\t\"kind\": \"addCustomProperties\",\n\t\t\"key\": \"example-custom-property\",\n\t\t\"name\": \"Example custom property\",\n\t\t\"values\": [\"value1\", \"value2\"]\n\t}]\n}\n```\n\n#### addTags\n\nAdds tags to the feature flag.\n\n##### Parameters\n\n- `values`: A list of tags to add.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"addTags\", \"values\": [\"tag1\", \"tag2\"] } ]\n}\n```\n\n#### makeFlagPermanent\n\nMarks the feature flag as permanent. LaunchDarkly does not prompt you to remove permanent flags, even if one variation is rolled out to all your customers.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"makeFlagPermanent\" } ]\n}\n```\n\n#### makeFlagTemporary\n\nMarks the feature flag as temporary.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"makeFlagTemporary\" } ]\n}\n```\n\n#### removeCustomProperties\n\nRemoves the associated values from a custom property. If all the associated values are removed, this instruction also removes the custom property.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `values`: A list of the associated values to remove from the custom property.\n\n```json\n{\n\t\"instructions\": [{\n\t\t\"kind\": \"replaceCustomProperties\",\n\t\t\"key\": \"example-custom-property\",\n\t\t\"values\": [\"value1\", \"value2\"]\n\t}]\n}\n```\n\n#### removeMaintainer\n\nRemoves the flag's maintainer. To set a new maintainer, use the `updateMaintainerMember` or `updateMaintainerTeam` instructions.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"removeMaintainer\" } ]\n}\n```\n\n#### removeTags\n\nRemoves tags from the feature flag.\n\n##### Parameters\n\n- `values`: A list of tags to remove.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"removeTags\", \"values\": [\"tag1\", \"tag2\"] } ]\n}\n```\n\n#### replaceCustomProperties\n\nReplaces the existing associated values for a custom property with the new values.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `name`: The custom property name.\n - `values`: A list of the new associated values for the custom property.\n\nHere's an example:\n\n```json\n{\n \"instructions\": [{\n   \"kind\": \"replaceCustomProperties\",\n   \"key\": \"example-custom-property\",\n   \"name\": \"Example custom property\",\n   \"values\": [\"value1\", \"value2\"]\n }]\n}\n```\n\n#### turnOffClientSideAvailability\n\nTurns off client-side SDK availability for the flag. This is equivalent to unchecking the **SDKs using Mobile key** and/or **SDKs using Client-side ID** boxes for the flag. If you're using a client-side or mobile SDK, you must expose your feature flags in order for the client-side or mobile SDKs to evaluate them.\n\n##### Parameters\n\n- `value`: Use \"usingMobileKey\" to turn off availability for mobile SDKs. Use \"usingEnvironmentId\" to turn on availability for client-side SDKs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"turnOffClientSideAvailability\", \"value\": \"usingMobileKey\" } ]\n}\n```\n\n#### turnOnClientSideAvailability\n\nTurns on client-side SDK availability for the flag. This is equivalent to checking the **SDKs using Mobile key** and/or **SDKs using Client-side ID** boxes for the flag. If you're using a client-side or mobile SDK, you must expose your feature flags in order for the client-side or mobile SDKs to evaluate them.\n\n##### Parameters\n\n- `value`: Use \"usingMobileKey\" to turn on availability for mobile SDKs. Use \"usingEnvironmentId\" to turn on availability for client-side SDKs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"turnOnClientSideAvailability\", \"value\": \"usingMobileKey\" } ]\n}\n```\n\n#### updateDescription\n\nUpdates the feature flag description.\n\n##### Parameters\n\n- `value`: The new description.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateDescription\", \"value\": \"Updated flag description\" } ]\n}\n```\n#### updateMaintainerMember\n\nUpdates the maintainer of the flag to an existing member and removes the existing maintainer.\n\n##### Parameters\n\n- `value`: The ID of the member.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateMaintainerMember\", \"value\": \"61e9b714fd47591727db558a\" } ]\n}\n```\n\n#### updateMaintainerTeam\n\nUpdates the maintainer of the flag to an existing team and removes the existing maintainer.\n\n##### Parameters\n\n- `value`: The key of the team.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateMaintainerTeam\", \"value\": \"example-team-key\" } ]\n}\n```\n\n#### updateName\n\nUpdates the feature flag name.\n\n##### Parameters\n\n- `value`: The new name.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateName\", \"value\": \"Updated flag name\" } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating the flag lifecycle\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions do not require the `environmentKey` parameter. They make changes that apply to the flag across all environments.\n\n#### archiveFlag\n\nArchives the feature flag. This retires it from LaunchDarkly without deleting it. You cannot archive a flag that is a prerequisite of other flags.\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"archiveFlag\" } ]\n}\n```\n\n#### deleteFlag\n\nDeletes the feature flag and its rules. You cannot restore a deleted flag. If this flag is requested again, the flag value defined in code will be returned for all contexts.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"deleteFlag\" } ]\n}\n```\n\n#### deprecateFlag\n\nDeprecates the feature flag. This hides it from the live flags list without archiving or deleting it. You cannot deprecate an archived flag. If the flag is archived, this instruction fails with a `409` status code and makes no changes. To deprecate an archived flag, restore it with `restoreFlag` first.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"deprecateFlag\" } ]\n}\n```\n\n#### restoreDeprecatedFlag\n\nRestores the feature flag if it was previously deprecated. If the flag is archived, this instruction fails with a `409` status code and makes no changes. To restore an archived flag, use `restoreFlag`.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"restoreDeprecatedFlag\" } ]\n}\n```\n\n#### restoreFlag\n\nRestores the feature flag if it was previously archived.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"restoreFlag\" } ]\n}\n```\n\n\u003c/details\u003e\n\n### Using JSON patches on a feature flag\n\nIf you do not include the semantic patch header described above, you can use a [JSON patch](https://launchdarkly.com/docs/api#updates-using-json-patch) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes.\n\nIn the JSON patch representation, use a JSON pointer in the `path` element to describe what field to change. Use the [Get feature flag](https://launchdarkly.com/docs/api/feature-flags/get-feature-flag) endpoint to find the field you want to update.\n\nThere are a few special cases to keep in mind when determining the value of the `path` element:\n\n  * To add an individual target to a specific variation if the flag variation already has individual targets, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/environments/devint/targets/0/values/-\",\n      \"value\": \"TestClient10\"\n    }\n  ]\n  ```\n\n  * To add an individual target to a specific variation if the flag variation does not already have individual targets, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/environments/devint/targets/-\",\n      \"value\": { \"variation\": 0, \"values\": [\"TestClient10\"] }\n    }\n  ]\n  ```\n\n  * To add a flag to a release pipeline, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/releasePipelineKey\",\n      \"value\": \"example-release-pipeline-key\"\n    }\n  ]\n  ```\n\n### Required approvals\nIf a request attempts to alter a flag configuration in an environment where approvals are required for the flag, the request will fail with a 405. Changes to the flag configuration in that environment will require creating an [approval request](https://launchdarkly.com/docs/api/approvals).\n\n### Conflicts\nIf a flag configuration change made through this endpoint would cause a pending scheduled change or approval request to fail, this endpoint will return a 400. You can ignore this check by adding an `ignoreConflicts` query parameter set to `true`.\n\n### Migration flags\nFor migration flags, the cohort information is included in the `rules` property of a flag's response. You can update cohorts by updating `rules`. Default cohort information is included in the `fallthrough` property of a flag's response. You can update the default cohort by updating `fallthrough`.\nWhen you update the rollout for a cohort or the default cohort through the API, provide a rollout instead of a single `variationId`.\nTo learn more, read [Migration flags](https://launchdarkly.com/docs/home/flags/migration).\n",
 		Use:   "update",
 		Params: []Param{
 			{
@@ -9340,7 +9812,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create integration configuration",
-		Long:  "Create a new integration configuration. (Excludes [persistent store](https://launchdarkly.com/docs/api/persistent-store-integrations-beta) and [flag import configurations](https://launchdarkly.com/docs/api/flag-import-configurations-beta).)",
+		Long:  "Create a new integration configuration. This endpoint does not include persistent store integrations or flag import configurations. To manage those, use the [persistent store](https://launchdarkly.com/docs/api/persistent-store-integrations-beta) and [flag import configuration](https://launchdarkly.com/docs/api/flag-import-configurations-beta) endpoints.",
 		Use:   "create-configuration",
 		Params: []Param{
 			{
@@ -9360,7 +9832,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Delete integration configuration",
-		Long:  "Delete an integration configuration by ID. (Excludes [persistent store](https://launchdarkly.com/docs/api/persistent-store-integrations-beta) and [flag import configurations](https://launchdarkly.com/docs/api/flag-import-configurations-beta).)",
+		Long:  "Delete an integration configuration by ID. This endpoint does not include persistent store integrations or flag import configurations. To manage those, use the [persistent store](https://launchdarkly.com/docs/api/persistent-store-integrations-beta) and [flag import configuration](https://launchdarkly.com/docs/api/flag-import-configurations-beta) endpoints.",
 		Use:   "delete-configuration",
 		Params: []Param{
 			{
@@ -9380,7 +9852,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get all configurations for the integration",
-		Long:  "Get all integration configurations with the specified integration key. (Excludes [persistent store](https://launchdarkly.com/docs/api/persistent-store-integrations-beta) and [flag import configurations](https://launchdarkly.com/docs/api/flag-import-configurations-beta).).",
+		Long:  "Get all integration configurations with the specified integration key. This endpoint does not include persistent store integrations or flag import configurations. To manage those, use the [persistent store](https://launchdarkly.com/docs/api/persistent-store-integrations-beta) and [flag import configuration](https://launchdarkly.com/docs/api/flag-import-configurations-beta) endpoints.",
 		Use:   "list-configurations",
 		Params: []Param{
 			{
@@ -9406,7 +9878,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get an integration configuration",
-		Long:  "Get integration configuration with the specified ID. (Excludes [persistent store](https://launchdarkly.com/docs/api/persistent-store-integrations-beta) and [flag import configurations](https://launchdarkly.com/docs/api/flag-import-configurations-beta).)",
+		Long:  "Get integration configuration with the specified ID. This endpoint does not include persistent store integrations or flag import configurations. To manage those, use the [persistent store](https://launchdarkly.com/docs/api/persistent-store-integrations-beta) and [flag import configuration](https://launchdarkly.com/docs/api/flag-import-configurations-beta) endpoints.",
 		Use:   "get-configuration",
 		Params: []Param{
 			{
@@ -10854,186 +11326,6 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ReleasePoliciesBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "Delete a release policy",
-		Long:  "Delete an existing release policy for the specified project.",
-		Use:   "delete-release-policy",
-		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "policy-key",
-				In:          "path",
-				Description: "The human-readable key of the release policy",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "DELETE",
-		HasBody:               false,
-		IsBeta:                true,
-		RequiresBody:          false,
-		Path:                  "/api/v2/projects/{projectKey}/release-policies/{policyKey}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_ReleasePoliciesBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "List release policies",
-		Long:  "Get a list of release policies for the specified project with optional filtering.",
-		Use:   "list",
-		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "exclude-default",
-				In:          "query",
-				Description: "When true, exclude the default release policy from the response. When false or omitted, include the default policy if an environment filter is present.",
-				Type:        "boolean",
-			},
-		},
-		HTTPMethod:            "GET",
-		HasBody:               false,
-		IsBeta:                true,
-		RequiresBody:          false,
-		Path:                  "/api/v2/projects/{projectKey}/release-policies",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_ReleasePoliciesBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "Get a release policy by key",
-		Long:  "Retrieve a single release policy by its key for the specified project.",
-		Use:   "get-release-policy",
-		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "policy-key",
-				In:          "path",
-				Description: "The release policy key",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "GET",
-		HasBody:               false,
-		IsBeta:                true,
-		RequiresBody:          false,
-		Path:                  "/api/v2/projects/{projectKey}/release-policies/{policyKey}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_ReleasePoliciesBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "Update the order of existing release policies",
-		Long:  "Update the order of existing release policies for the specified project.",
-		Use:   "create-order",
-		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "POST",
-		HasBody:               true,
-		IsBeta:                true,
-		RequiresBody:          true,
-		Path:                  "/api/v2/projects/{projectKey}/release-policies/order",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_ReleasePoliciesBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "Create a release policy",
-		Long:  "Create a new release policy for the specified project.",
-		Use:   "create-release-policy",
-		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "POST",
-		HasBody:               true,
-		IsBeta:                true,
-		RequiresBody:          true,
-		Path:                  "/api/v2/projects/{projectKey}/release-policies",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_ReleasePoliciesBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "Update a release policy",
-		Long:  "Update an existing release policy for the specified project.",
-		Use:   "replace-release-policy",
-		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "policy-key",
-				In:          "path",
-				Description: "The human-readable key of the release policy",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "PUT",
-		HasBody:               true,
-		IsBeta:                true,
-		RequiresBody:          true,
-		Path:                  "/api/v2/projects/{projectKey}/release-policies/{policyKey}",
-		SupportsSemanticPatch: false,
-	})
-
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Delete scheduled changes workflow",
 		Long:  "Delete a scheduled changes workflow.",
@@ -11629,6 +11921,44 @@ func AddAllResourceCmds(
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Delete a scheduled change for a segment",
+		Long:  "Delete a scheduled change before its execution date, so that its instructions are never applied to the segment.\n\nDeleting a change with a `failed` status removes it from the segment's scheduled changes. Its instructions were not applied.\n\nThe caller must be allowed to update scheduled changes on the segment.\n\nIf an approval request scheduled the change, deleting the change also terminates that request, so it cannot be applied again. Declining the request is only an option while it is still awaiting review. Once it is applied, its instructions belong to a scheduled change, and this endpoint is how to stop them.\n\nReturns 409 if the scheduled change is already being applied or has already run.\n",
+		Use:   "delete-scheduled-change",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the scheduled change",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/scheduled-changes/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get big segment export",
 		Long:  "Returns information about a big segment export process. This is an export for a synced segment or a list-based segment that can include more than 15,000 entries.",
 		Use:   "get-big-export",
@@ -11903,6 +12233,76 @@ func AddAllResourceCmds(
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get a scheduled change for a segment",
+		Long:  "Get one scheduled change that has not been applied yet, or that failed to apply. Returns 404 if the ID is not a scheduled change for the segment in the path.\n\nThe caller must be allowed to view the segment's project.\n",
+		Use:   "get-scheduled-change",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the scheduled change",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/scheduled-changes/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "List scheduled changes for a segment",
+		Long:  "Get every scheduled change for a segment that has not been applied yet, plus any that failed to apply, soonest first. Use the `status` of each change to tell them apart.\n\nThe caller must be allowed to view the segment's project.\n",
+		Use:   "list-scheduled-changes",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/scheduled-changes",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "List segments",
 		Long:  "Get a list of all segments in the given project.\n\nSegments can be rule-based, list-based, or synced. Big segments include larger list-based segments and synced segments. Some fields in the response only apply to big segments.\n\n### Filtering segments\n\nThe `filter` parameter supports the following operators: `equals`, `anyOf`, and `exists`.\n\nYou can also combine filters in the following ways:\n\n- Use a comma (`,`) as an AND operator\n- Use a vertical bar (`|`) as an OR operator\n- Use parentheses (`()`) to group filters\n\n#### Supported fields and operators\n\nYou can only filter certain fields in segments when using the `filter` parameter. Additionally, you can only filter some fields with certain operators.\n\nWhen you search for segments, the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n| `excludedKeys` | The segment keys of segments to exclude from the results. | `anyOf` |\n| `external` | Whether the segment is a synced segment. | `exists` |\n| `includedKeys` | The segment keys of segments to include in the results. | `anyOf` |\n| `query` | A \"fuzzy\" search across segment key, name, and description. Supply a string or list of strings to the operator. | `equals` |\n| `tags` | The segment tags. | `anyOf` |\n| `unbounded` | Whether the segment is a standard segment (`false`) or a big segment (`true`). Standard segments include rule-based segments and smaller list-based segments. Big segments include larger list-based segments and synced segments. | `equals` |\n\nHere are a few examples:\n\n* The filter `?filter=tags anyOf [\"enterprise\", \"beta\"],query equals \"toggle\"` matches segments with \"toggle\" in their key, name, or description that also have \"enterprise\" or \"beta\" as a tag.\n* The filter `?filter=excludedKeys anyOf [\"segmentKey1\", \"segmentKey2\"]` excludes the segments with those keys from the results.\n* The filter `?filter=unbounded equals true` matches larger list-based segments and synced segments.\n\nThe documented values for `filter` query parameters are prior to URL encoding. For example, the `[` in `?filter=tags anyOf [\"enterprise\", \"beta\"]` must be encoded to `%5B`.\n",
 		Use:   "list",
@@ -12055,6 +12455,44 @@ func AddAllResourceCmds(
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Update a scheduled change for a segment",
+		Long:  "Edit the execution date and/or the comment of a scheduled change that has not been applied yet. A field you leave out is unchanged, and an empty comment clears the comment.\n\nThe caller must be allowed to update scheduled changes on the segment, and must also be allowed to make the change's instructions directly. If the segment requires approvals, the caller must also be allowed to bypass them.\n\nReturns 409 if the scheduled change is already being applied or was changed by someone else in the meantime.\n",
+		Use:   "update-scheduled-change",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the scheduled change",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                false,
+		RequiresBody:          true,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/scheduled-changes/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create segment",
 		Long:  "Create a new segment. The new segment has no individual targets or rules.\n\nThe request body only accepts the fields documented below. If you include targeting fields such as `included`, `excluded`, `includedContexts`, `excludedContexts`, or `rules`, LaunchDarkly ignores them and does not return an error. These fields are empty in the response.\n\nTo add individual targets or rules after you create the segment, use [Update segment](https://launchdarkly.com/docs/api/segments/patch-segment) with a semantic patch. For example, use the `addIncludedTargets` or `addExcludedTargets` instruction to add individual targets, and the `addRule` instruction to add a rule. For big segments, use the `addBigSegmentIncludedTargets` or `addBigSegmentExcludedTargets` instruction.\n",
 		Use:   "create",
@@ -12077,6 +12515,38 @@ func AddAllResourceCmds(
 		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}",
+		SupportsSemanticPatch: true,
+	})
+
+	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Create a scheduled change for a segment",
+		Long:  "Schedule semantic patch instructions to be applied to a segment at a future time.\n\nEach instruction uses the same format as an instruction in a semantic patch request to update a segment. Send between 1 and 100 instructions. LaunchDarkly rejects the request with a 400 if an instruction has an unknown `kind` or is malformed.\n\nThe caller must be allowed to update scheduled changes on the segment, and must also be allowed to make each instruction's change directly. If the segment requires approvals for an instruction, the caller must also be allowed to bypass them. Otherwise, request the change through an approval request instead. To learn more about semantic patches, read [Updates](/reference#updates-using-semantic-patch).\n",
+		Use:   "create-scheduled-change",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                false,
+		RequiresBody:          true,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/scheduled-changes",
 		SupportsSemanticPatch: true,
 	})
 
