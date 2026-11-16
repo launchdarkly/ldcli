@@ -254,3 +254,49 @@ func TestErrorDoesNotEchoNonKeyArguments(t *testing.T) {
 		assert.NotContains(t, err.Error(), token)
 	})
 }
+
+func TestDevServerConfigurationRoundTrip(t *testing.T) {
+	for _, enabled := range []string{"true", "false"} {
+		t.Run(enabled, func(t *testing.T) {
+			values := map[string]string{
+				"port":         "9876",
+				"cors-enabled": enabled,
+				"cors-origin":  "http://localhost:3000",
+				"sync-once":    enabled,
+			}
+			c := config.Config{}
+			for key, value := range values {
+				var err error
+				var fields []string
+				c, fields, err = c.Update([]string{key, value})
+				require.NoError(t, err)
+				assert.Equal(t, []string{key}, fields)
+			}
+			data, err := yaml.Marshal(c)
+			require.NoError(t, err)
+			c, err = config.New("test", mockReadFile{contents: data}.readFile)
+			require.NoError(t, err)
+			c, _, err = c.Update([]string{"project", "test-project"})
+			require.NoError(t, err)
+			for _, marshal := range []func(interface{}) ([]byte, error){yaml.Marshal, json.Marshal} {
+				data, err := marshal(c)
+				require.NoError(t, err)
+				actual := map[string]interface{}{}
+				require.NoError(t, yaml.Unmarshal(data, &actual))
+				assert.Equal(t, "9876", actual["port"])
+				assert.Equal(t, enabled == "true", actual["cors-enabled"])
+				assert.Equal(t, "http://localhost:3000", actual["cors-origin"])
+				assert.Equal(t, enabled == "true", actual["sync-once"])
+			}
+		})
+	}
+}
+
+func TestDevServerConfigurationRejectsInvalidBooleans(t *testing.T) {
+	for _, key := range []string{"cors-enabled", "sync-once"} {
+		t.Run(key, func(t *testing.T) {
+			_, _, err := config.Config{}.Update([]string{key, "invalid"})
+			assert.EqualError(t, err, key+" must be true or false")
+		})
+	}
+}
