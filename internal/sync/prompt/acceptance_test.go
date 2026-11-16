@@ -3158,6 +3158,39 @@ func handleManifestRequest(
 	return json.Marshal(manifest)
 }
 
+// configGoneAPI answers each read of the config "support" with a 404, as
+// LaunchDarkly does after the config is deleted, or when --project names a
+// project that does not have it.
+type configGoneAPI struct{ *directAPI }
+
+func (api configGoneAPI) MakeRequest(
+	token, method, path, contentType string, query url.Values, body []byte, isBeta bool,
+) ([]byte, error) {
+	if method == http.MethodGet && strings.HasSuffix(path, "/ai-configs/support") {
+		return nil, lderrors.NewError(`{"code":"not_found","message":"AI config not found","statusCode":404}`)
+	}
+	return api.directAPI.MakeRequest(token, method, path, contentType, query, body, isBeta)
+}
+
+// A tracked variation whose config answers 404 stops the sync, as a wrong
+// --project does. The plan must not read the 404 as a variation that
+// LaunchDarkly archived and delete the local file.
+func TestPromptSyncWithYesDoesNotDeleteTrackedVariationWhenConfigIs404(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := configGoneAPI{&directAPI{variation: pointer(baseline), manifest: manifestsByRoot[root]}}
+
+	stdout, _, err := runPrompt(t, root, api, "--yes")
+
+	resources, compileErr := synclocal.Compile(os.DirFS(root))
+	assert.NoError(t, compileErr, "the local variation file of a tracked, unchanged variation was deleted; stdout: %s", stdout)
+	assert.Len(t, resources, 1)
+	assert.Error(t, err, "a 404 for the config stops the sync")
+	assert.NotEmpty(t, manifestsByRoot[root].Items, "the lock and the remote manifest keep the tracked variation")
+}
+
 func initRepository(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

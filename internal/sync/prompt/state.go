@@ -461,13 +461,16 @@ func planVariationRows(
 		localFilesByID[resource.ID()] = resource
 		ids[resource.ID()] = struct{}{}
 	}
+	trackedIDs := make(map[ResourceID]struct{}, len(tracked.Resources))
 	for _, resource := range tracked.Resources {
 		ids[resource.ID()] = struct{}{}
+		trackedIDs[resource.ID()] = struct{}{}
 	}
 
 	server := make(map[ResourceID]ServerResource, len(ids))
 	for id := range ids {
-		resource, err := readServerResource(client, attachments, id)
+		_, isTracked := trackedIDs[id]
+		resource, err := readServerResource(client, attachments, id, isTracked)
 		if err != nil {
 			return Plan{}, nil, err
 		}
@@ -853,16 +856,19 @@ func newConfigMode(id ResourceID, local syncdomain.SyncedResource, link *sourceL
 }
 
 // readServerResource reads one variation from LaunchDarkly with the content
-// of its tools and skills.
-func readServerResource(client syncapi.Client, attachments *attachmentCache, id syncdomain.ResourceID) (ServerResource, error) {
+// of its tools and skills. A 404 of the config is an error for a tracked
+// variation, because the config was there at the last sync, and a wrong
+// --project gives the same answer. Reading it as a deleted variation would
+// delete the local file. For an untracked variation the row reports the
+// missing config, so that a create can make it and one such variation does
+// not stop the plan of every other.
+func readServerResource(client syncapi.Client, attachments *attachmentCache, id syncdomain.ResourceID, tracked bool) (ServerResource, error) {
 	configKey, variationKey, err := id.VariationKeys()
 	if err != nil {
 		return ServerResource{}, err
 	}
 	state, err := client.ReadVariation(id.ProjectKey, configKey, variationKey)
-	if syncapi.IsNotFound(err) {
-		// The config is gone or was never created. The row reports it, so
-		// that one such variation does not stop the plan of every other.
+	if syncapi.IsNotFound(err) && !tracked {
 		return ServerResource{ConfigMissing: true}, nil
 	}
 	if err != nil {
