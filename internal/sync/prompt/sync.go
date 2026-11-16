@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"maps"
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -192,6 +193,9 @@ func (runner Runner) applyPlan(
 	resolutions map[syncdomain.ResourceID]ConflictResolution,
 ) ([]ResourceOutcome, error) {
 	plan := applyConflictResolutions(current.plan, resolutions)
+	if err := claimOwnership(options, client, plan); err != nil {
+		return nil, err
+	}
 	outcomes, next, err := executePlan(workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles)
 
 	failures := []error{err}
@@ -206,4 +210,26 @@ func (runner Runner) applyPlan(
 	}
 	writeRepinNotes(options.ErrorOutput, plan, outcomes)
 	return outcomes, errors.Join(failures...)
+}
+
+// claimOwnership records code as the owner of each variation that the plan
+// pushes, one write per project, before the plan writes anything. Without the
+// sync settings API, the push goes on and the user learns that its ownership
+// is not recorded.
+func claimOwnership(options Options, client syncapi.Client, plan Plan) error {
+	claims := plan.ownershipClaims()
+	for _, projectKey := range slices.Sorted(maps.Keys(claims)) {
+		err := client.ClaimForCode(projectKey, claims[projectKey])
+		if syncapi.IsNotFound(err) {
+			_ = syncconsole.New(options.ErrorOutput).Line(pushUnrecordedWarning([]string{projectKey}))
+			continue
+		}
+		if errors.Is(err, syncapi.ErrSyncSettingsForbidden) {
+			return syncdomain.SyncSettingsForbiddenProblem(projectKey, "record code ownership", "nothing was pushed", err)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

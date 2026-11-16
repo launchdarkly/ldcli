@@ -251,10 +251,17 @@ func allowRelink(resources []PlannedResource, id ResourceID) {
 	}
 }
 
+// applySourceDirections applies the LaunchDarkly sync settings to the rows.
+// Every variation follows its ownership: an explicit LaunchDarkly rule makes
+// it pull, and any other setting lets it push after a claim for code. A
+// linked tool or skill follows its direction.
 func applySourceDirections(client syncapi.Client, resources []PlannedResource) error {
+	if err := applyVariationOwnership(client, resources); err != nil {
+		return err
+	}
 	byProject := make(map[string][]ResourceID)
 	for _, resource := range resources {
-		if resource.Source != nil {
+		if resource.Source != nil && resource.ID.Kind != syncdomain.KindVariation {
 			byProject[resource.ID.ProjectKey] = append(byProject[resource.ID.ProjectKey], resource.ID)
 		}
 	}
@@ -278,17 +285,13 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 					continue
 				}
 				if !ok {
-					suggestion := "Configure the resource sync setting in LaunchDarkly, then run link again."
-					if resource.ID.Kind != syncdomain.KindVariation {
-						suggestion = fmt.Sprintf(
-							"LaunchDarkly does not provide a %s sync setting. Configure one when support is available, or run detach.",
-							resource.ID.Kind,
-						)
-					}
 					return syncdomain.NewProblem(
 						syncdomain.ErrorSyncSettingUnavailable,
 						"LaunchDarkly returned no sync setting",
-						suggestion,
+						fmt.Sprintf(
+							"LaunchDarkly does not provide a %s sync setting. Configure one when support is available, or run detach.",
+							resource.ID.Kind,
+						),
 					).WithResource(resource.ID)
 				}
 				enforceDirection(resource, direction)
@@ -296,6 +299,64 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 		}
 	}
 	return nil
+}
+
+// applyVariationOwnership reads the ownership of every variation row and
+// applies it. Without the sync settings API, the rows keep their actions and
+// record that their ownership is unknown.
+func applyVariationOwnership(client syncapi.Client, resources []PlannedResource) error {
+	byProject := make(map[string][]ResourceID)
+	for _, resource := range resources {
+		if resource.ID.Kind == syncdomain.KindVariation {
+			byProject[resource.ID.ProjectKey] = append(byProject[resource.ID.ProjectKey], resource.ID)
+		}
+	}
+	for projectKey, ids := range byProject {
+		for start := 0; start < len(ids); start += 100 {
+			end := min(start+100, len(ids))
+			ownership, err := client.ResolveOwnership(projectKey, ids[start:end])
+			unavailable := syncapi.IsNotFound(err)
+			if err != nil && !unavailable {
+				return err
+			}
+			for index := range resources {
+				resource := &resources[index]
+				if resource.ID.Kind != syncdomain.KindVariation || resource.ID.ProjectKey != projectKey ||
+					!slices.Contains(ids[start:end], resource.ID) {
+					continue
+				}
+				if unavailable {
+					resource.ownershipUnavailable = true
+					enforceDirection(resource, syncdomain.SyncDirectionBoth)
+					continue
+				}
+				enforceOwnership(resource, ownership[resource.ID])
+			}
+		}
+	}
+	return nil
+}
+
+// enforceOwnership applies the ownership of one variation. An explicit
+// LaunchDarkly rule makes it server-canonical. An exact code rule makes it
+// code-canonical. Any other setting lets it push, and a push claims it for
+// code first: a code_canonical direction stays code-canonical, and a
+// server_canonical direction that no rule produced does not make it pull.
+func enforceOwnership(resource *PlannedResource, ownership syncdomain.Ownership) {
+	switch syncdomain.DecideOwnership(resource.ID, ownership) {
+	case syncdomain.OwnershipManagedInLaunchDarkly:
+		resource.managedInLaunchDarkly = resource.Action.changesServer() || resource.Action == ActionConflict
+		enforceDirection(resource, syncdomain.SyncDirectionServerCanonical)
+	case syncdomain.OwnershipNothingToDo:
+		enforceDirection(resource, syncdomain.SyncDirectionCodeCanonical)
+	default:
+		resource.claimOwnership = true
+		direction := syncdomain.SyncDirectionBoth
+		if ownership.Direction == syncdomain.SyncDirectionCodeCanonical {
+			direction = syncdomain.SyncDirectionCodeCanonical
+		}
+		enforceDirection(resource, direction)
+	}
 }
 
 func enforceDirection(resource *PlannedResource, direction syncdomain.SyncDirection) {

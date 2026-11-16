@@ -123,7 +123,23 @@ func writePlanOutput(out io.Writer, outputKind string, plan Plan, showDiffs bool
 		}
 		resources = append(resources, item)
 	}
-	return writeJSON(out, map[string]any{"resources": resources})
+	return writeJSON(out, jsonDocument(resources, plan))
+}
+
+// jsonDocument is the top-level JSON document: the resources, plus notes such
+// as a push skipped because the variation is managed in LaunchDarkly.
+func jsonDocument(resources any, plan Plan) map[string]any {
+	document := map[string]any{"resources": resources}
+	var notes []string
+	for _, resource := range plan.Resources {
+		if resource.managedInLaunchDarkly {
+			notes = append(notes, syncdomain.ManagedInLaunchDarklyMessage(resource.ID))
+		}
+	}
+	if len(notes) > 0 {
+		document["notes"] = notes
+	}
+	return document
 }
 
 // writeOutcomeOutput writes the result of each action, which includes
@@ -152,7 +168,7 @@ func writeOutcomeOutput(out io.Writer, outputKind string, plan Plan, outcomes []
 				Create: skillCreate(planned[outcome.ID]), Source: plannedSource(planned[outcome.ID]),
 			})
 		}
-		return writeJSON(out, map[string]any{"resources": resources})
+		return writeJSON(out, jsonDocument(resources, plan))
 	}
 
 	var rows []reviewRow
@@ -277,6 +293,12 @@ func writePlanNotes(out io.Writer, plan Plan) {
 				"Note: Another working copy synced %s after your sync.lock. %s\n", resource.ID.Label(), staleSuggestion(resource),
 			)
 		}
+		if resource.managedInLaunchDarkly {
+			_ = console.Printf("Note: %s\n", syncdomain.ManagedInLaunchDarklyMessage(resource.ID))
+		}
+	}
+	if projectKeys := plan.ownershipUnrecordedProjects(); len(projectKeys) != 0 {
+		_ = console.Line(pushUnrecordedWarning(projectKeys))
 	}
 
 	var counts []string

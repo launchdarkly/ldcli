@@ -8,6 +8,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncadapter "github.com/launchdarkly/ldcli/internal/sync/adapter"
+	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
@@ -101,6 +102,15 @@ type PlannedResource struct {
 	// createsConfig is true when the create of the variation also creates
 	// its config, because LaunchDarkly has none.
 	createsConfig bool
+	// claimOwnership is true when a push of the variation first records code
+	// as its owner in the LaunchDarkly sync settings.
+	claimOwnership bool
+	// managedInLaunchDarkly is true when an explicit LaunchDarkly rule turned
+	// a push of the variation into a pull or a skip.
+	managedInLaunchDarkly bool
+	// ownershipUnavailable is true when LaunchDarkly has no sync settings to
+	// read the ownership of the variation from.
+	ownershipUnavailable bool
 }
 
 func setProblem(resource *PlannedResource, problem *syncdomain.Problem) {
@@ -721,6 +731,37 @@ func (plan Plan) RequiresConfirmation() bool {
 	return slices.ContainsFunc(plan.Resources, func(resource PlannedResource) bool {
 		return resource.Action.changesServer() || resource.Action.changesLocal()
 	})
+}
+
+// pushUnrecordedWarning tells the user that a push cannot record code as the
+// owner of its variations in the named projects.
+func pushUnrecordedWarning(projectKeys []string) string {
+	return syncinteractive.SettingsUnavailableWarning("code ownership of the pushed variations", projectKeys)
+}
+
+// ownershipUnrecordedProjects returns, sorted, the projects in which the plan
+// pushes a variation whose ownership LaunchDarkly cannot record.
+func (plan Plan) ownershipUnrecordedProjects() []string {
+	var projectKeys []string
+	for _, resource := range plan.Resources {
+		if resource.ownershipUnavailable && resource.Action.changesServer() && !slices.Contains(projectKeys, resource.ID.ProjectKey) {
+			projectKeys = append(projectKeys, resource.ID.ProjectKey)
+		}
+	}
+	slices.Sort(projectKeys)
+	return projectKeys
+}
+
+// ownershipClaims returns, by project, the variations that the plan pushes
+// and that code does not own yet in the LaunchDarkly sync settings.
+func (plan Plan) ownershipClaims() map[string][]ResourceID {
+	claims := make(map[string][]ResourceID)
+	for _, resource := range plan.Resources {
+		if resource.ID.Kind == syncdomain.KindVariation && resource.claimOwnership && resource.Action.changesServer() {
+			claims[resource.ID.ProjectKey] = append(claims[resource.ID.ProjectKey], resource.ID)
+		}
+	}
+	return claims
 }
 
 // HasDestructiveActions reports whether the plan deletes a local file.

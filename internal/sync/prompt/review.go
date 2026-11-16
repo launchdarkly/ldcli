@@ -32,7 +32,8 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 		}
 		return false, review()
 	}
-	autoApply := options.Yes || (options.watching() && !plan.HasDestructiveActions())
+	// A push that cannot record ownership asks first, even in watch mode.
+	autoApply := options.Yes || (options.watching() && !plan.HasDestructiveActions() && len(plan.ownershipUnrecordedProjects()) == 0)
 	if autoApply || !plan.RequiresConfirmation() {
 		return true, nil
 	}

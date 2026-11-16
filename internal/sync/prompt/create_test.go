@@ -820,3 +820,24 @@ func createVariationAction(key string, input synccreate.Input) syncprompt.AddAct
 		Filter: syncdomain.Filter{Project: "production", ConfigKey: "support", Keys: []string{key}}, Create: &input,
 	}
 }
+
+// A variation that add creates is claimed for code in the same run, before
+// LaunchDarkly creates it.
+func TestCreateVariationClaimsItBeforeTheCreate(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{claude}}
+
+	_, _, err := runPrompt(t, root, api, "add", "--project", "production", "--config-key", "support", "--key", "escalation",
+		"--model-config-key", "claude", "--content", "Hand the conversation to a person.", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation:support/escalation code_canonical"}, codeClaims(api.settingsWrites))
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodPatch, "/configs/sync/settings"), "one claim")
+	claim := requestIndex(api.requests, http.MethodPatch, "/configs/sync/settings")
+	create := requestIndex(api.requests, http.MethodPost, "/variations")
+	require.NotEqual(t, -1, claim, "the claim is sent")
+	require.NotEqual(t, -1, create, "the variation is created")
+	assert.Less(t, claim, create, "the claim comes before the create")
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "escalation", api.variation.Key)
+}
