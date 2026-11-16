@@ -25,14 +25,14 @@ func TestEmptyResponse(t *testing.T) {
 			expected: "{}\n",
 		},
 		{
-			name:     "GET with plaintext output says no resource was found",
+			name:     "GET with plaintext output says no resource was returned",
 			args:     []string{"projects", "get", "--project", "my-project", "--output", "plaintext"},
-			expected: "No projects found\n",
+			expected: "No projects returned\n",
 		},
 		{
 			name:     "GET on a beta resource drops the suffix from the message",
 			args:     []string{"flags-beta", "list-dependent", "--project", "my-project", "--flag", "my-flag", "--output", "plaintext"},
-			expected: "No flags found\n",
+			expected: "No flags returned\n",
 		},
 		{
 			name:     "DELETE still prints the key of the deleted resource",

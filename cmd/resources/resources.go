@@ -374,7 +374,7 @@ func emptyGetOutput(cmd *cobra.Command) string {
 	}
 	resourceName := strings.ReplaceAll(strings.TrimSuffix(cmd.Parent().Name(), "-beta"), "-", " ")
 
-	return fmt.Sprintf("No %s found", resourceName)
+	return fmt.Sprintf("No %s returned", resourceName)
 }
 
 func NewOperationCmd(
