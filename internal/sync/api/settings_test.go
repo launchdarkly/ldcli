@@ -130,3 +130,28 @@ func TestSyncDirectionsPagesWithoutATotalCount(t *testing.T) {
 	require.Len(t, transport.Requests, 2, "a full page without a total count is followed by a request for the next page")
 	assert.Equal(t, []string{"100"}, transport.Requests[1].Query["offset"])
 }
+
+// ResolveOwnership keeps the stored rule pattern that matched each resource.
+// A missing or empty pattern means that no rule is stored.
+func TestResolveOwnershipReportsTheMatchedRule(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{
+		[]byte(`{"items": [
+			{"resourceKind":"variation","resourceLookupKey":"support/wild","direction":"code_canonical","matchedResourcePattern":"support/*"},
+			{"resourceKind":"variation","resourceLookupKey":"support/absent","direction":"both"},
+			{"resourceKind":"variation","resourceLookupKey":"support/empty","direction":"server_canonical","matchedResourcePattern":""}
+		], "totalCount": 3}`),
+	}}
+	client := NewClient(transport, "token", "https://example.com")
+	wild := syncdomain.VariationID("project", "support", "wild")
+	absent := syncdomain.VariationID("project", "support", "absent")
+	empty := syncdomain.VariationID("project", "support", "empty")
+
+	ownership, err := client.ResolveOwnership("project", []syncdomain.ResourceID{wild, absent, empty})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[syncdomain.ResourceID]syncdomain.Ownership{
+		wild:   {Direction: syncdomain.SyncDirectionCodeCanonical, MatchedPattern: "support/*"},
+		absent: {Direction: syncdomain.SyncDirectionBoth},
+		empty:  {Direction: syncdomain.SyncDirectionServerCanonical},
+	}, ownership)
+}

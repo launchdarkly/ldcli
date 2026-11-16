@@ -81,14 +81,35 @@ func responseStatusCode(err error) (int, bool) {
 	return int(status), ok && status != 0
 }
 
-// responseError finds the JSON response body in an error chain. The resources
+// responseError finds the JSON response body in an error tree. The resources
 // client reports an API failure as an error whose text is the response body.
 func responseError(err error) (map[string]any, bool) {
-	for current := err; current != nil; current = errors.Unwrap(current) {
-		var response map[string]any
-		if json.Unmarshal([]byte(current.Error()), &response) == nil && len(response) != 0 {
-			return response, true
+	if err == nil {
+		return nil, false
+	}
+	var response map[string]any
+	if json.Unmarshal([]byte(err.Error()), &response) == nil && len(response) != 0 {
+		return response, true
+	}
+	switch wrapped := err.(type) {
+	case interface{ Unwrap() error }:
+		return responseError(wrapped.Unwrap())
+	case interface{ Unwrap() []error }:
+		for _, inner := range wrapped.Unwrap() {
+			if response, ok := responseError(inner); ok {
+				return response, true
+			}
 		}
 	}
 	return nil, false
+}
+
+// ErrSyncSettingsForbidden marks a sync settings write the caller's role does
+// not allow.
+var ErrSyncSettingsForbidden = errors.New("sync settings write forbidden")
+
+// IsForbidden reports whether a LaunchDarkly API error has a 403 status.
+func IsForbidden(err error) bool {
+	status, ok := responseStatusCode(err)
+	return ok && status == http.StatusForbidden
 }

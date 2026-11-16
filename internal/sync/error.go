@@ -26,6 +26,8 @@ const (
 	ErrorLinkedSourceMissing         ErrorCode = "linked_source_missing"
 	ErrorAttachmentDefinitionMissing ErrorCode = "attachment_definition_missing"
 	ErrorSyncSettingUnavailable      ErrorCode = "sync_setting_unavailable"
+	ErrorSyncSettingsForbidden       ErrorCode = "sync_settings_forbidden"
+	ErrorSyncVariationForbidden      ErrorCode = "sync_variation_forbidden"
 	ErrorBindingStale                ErrorCode = "binding_stale"
 	ErrorStateChanged                ErrorCode = "state_changed"
 	ErrorSourceNotWritable           ErrorCode = "source_not_writable"
@@ -72,6 +74,19 @@ func (problem *Problem) Unwrap() error {
 // NewProblem creates one sync problem.
 func NewProblem(code ErrorCode, message, suggestion string) *Problem {
 	return &Problem{Code: code, Message: message, Suggestion: suggestion}
+}
+
+// SyncSettingsForbiddenProblem reports that the caller's role cannot write
+// the project's sync settings, so the action, for example "record code
+// ownership", failed.
+func SyncSettingsForbiddenProblem(projectKey, action, consequence string, cause error) *Problem {
+	problem := NewProblem(
+		ErrorSyncSettingsForbidden,
+		fmt.Sprintf("your role cannot %s in project %q, so %s", action, projectKey, consequence),
+		fmt.Sprintf("Ask a LaunchDarkly admin to grant your role the updateSyncSettings action on proj/%s:ai-code-sync/*.", projectKey),
+	)
+	problem.Cause = cause
+	return problem
 }
 
 // ProblemFrom returns the first sync problem in an error chain.

@@ -19,6 +19,9 @@ type resolvedSetting struct {
 	ResourceKind      syncdomain.Kind          `json:"resourceKind"`
 	ResourceLookupKey string                   `json:"resourceLookupKey"`
 	Direction         syncdomain.SyncDirection `json:"direction"`
+	// MatchedResourcePattern is the stored rule pattern that produced the
+	// direction. It is absent or empty when no rule matched.
+	MatchedResourcePattern string `json:"matchedResourcePattern,omitempty"`
 }
 
 // SyncDirections returns the effective LaunchDarkly setting for each
@@ -28,8 +31,26 @@ func (client Client) SyncDirections(
 	projectKey string,
 	ids []syncdomain.ResourceID,
 ) (map[syncdomain.ResourceID]syncdomain.SyncDirection, error) {
+	ownership, err := client.ResolveOwnership(projectKey, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[syncdomain.ResourceID]syncdomain.SyncDirection, len(ownership))
+	for id, owner := range ownership {
+		result[id] = owner.Direction
+	}
+	return result, nil
+}
+
+// ResolveOwnership returns the effective LaunchDarkly setting of each
+// resource and the stored rule pattern that matched it. A resource of a kind
+// that LaunchDarkly has no setting for is left out.
+func (client Client) ResolveOwnership(
+	projectKey string,
+	ids []syncdomain.ResourceID,
+) (map[syncdomain.ResourceID]syncdomain.Ownership, error) {
 	if len(ids) == 0 {
-		return map[syncdomain.ResourceID]syncdomain.SyncDirection{}, nil
+		return map[syncdomain.ResourceID]syncdomain.Ownership{}, nil
 	}
 	if len(ids) > 100 {
 		return nil, fmt.Errorf("read sync settings: at most 100 resources are allowed")
@@ -41,31 +62,31 @@ func (client Client) SyncDirections(
 		}
 		byKind[id.Kind] = append(byKind[id.Kind], id)
 	}
-	result := make(map[syncdomain.ResourceID]syncdomain.SyncDirection, len(ids))
+	result := make(map[syncdomain.ResourceID]syncdomain.Ownership, len(ids))
 	// The endpoint rejects a request that names a kind it has no setting for,
 	// and the rejection fails every resource of the request. Each kind travels
 	// alone, so a tool or a skill cannot take the variations down with it.
 	for _, kind := range slices.Sorted(maps.Keys(byKind)) {
-		directions, err := client.syncDirectionsOfKind(projectKey, byKind[kind])
+		ownership, err := client.ownershipOfKind(projectKey, byKind[kind])
 		if err != nil {
 			return nil, err
 		}
-		maps.Copy(result, directions)
+		maps.Copy(result, ownership)
 	}
 	return result, nil
 }
 
-// syncDirectionsOfKind reads the settings of resources of one kind. A kind
-// that LaunchDarkly rejects as unsupported has no settings.
-func (client Client) syncDirectionsOfKind(
+// ownershipOfKind reads the settings of resources of one kind. A kind that
+// LaunchDarkly rejects as unsupported has no settings.
+func (client Client) ownershipOfKind(
 	projectKey string,
 	ids []syncdomain.ResourceID,
-) (map[syncdomain.ResourceID]syncdomain.SyncDirection, error) {
+) (map[syncdomain.ResourceID]syncdomain.Ownership, error) {
 	query := url.Values{}
 	for _, id := range ids {
 		query.Add("resources", string(id.Kind)+":"+id.LookupKey)
 	}
-	result := make(map[syncdomain.ResourceID]syncdomain.SyncDirection, len(ids))
+	result := make(map[syncdomain.ResourceID]syncdomain.Ownership, len(ids))
 	// The endpoint pages its items. Read every page, so that a batch of more
 	// than one page of resources does not look like missing settings.
 	for offset := 0; ; {
@@ -87,7 +108,7 @@ func (client Client) syncDirectionsOfKind(
 					"Configure a supported sync setting in LaunchDarkly.",
 				).WithResource(id)
 			}
-			result[id] = item.Direction
+			result[id] = syncdomain.Ownership{Direction: item.Direction, MatchedPattern: item.MatchedResourcePattern}
 		}
 		offset += len(page.Items)
 		// The total count ends the paging when the response has one. Without
