@@ -6226,7 +6226,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Clear the default release plan",
 		Long:  "Clear the environment's default release plan, incrementing the formerly-default plan's version by 1; the environment then has none. Idempotent: returns `204` whether or not a default was set.",
-		Use:   "delete-default",
+		Use:   "clear-default",
 		Params: []Param{
 			{
 				Name:        "ld-api-version",
@@ -6448,7 +6448,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_EnvironmentReleasePlansBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Set the default release plan",
 		Long:  "Set the plan with the given key as the environment's default, atomically replacing whatever was default before. Each plan whose default flag changes has its version incremented by 1. Idempotent: setting the current default again changes nothing. Rejects a key that is not an active plan in the environment, or a plan that has no randomization unit.",
-		Use:   "replace-default",
+		Use:   "set-default",
 		Params: []Param{
 			{
 				Name:        "ld-api-version",
