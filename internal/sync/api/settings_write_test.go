@@ -161,3 +161,38 @@ func TestSyncSettingsWritesSendCLIUserAgent(t *testing.T) {
 	assert.Equal(t, "/api/v2/projects/project/configs/sync/settings", path)
 	assert.Equal(t, "launchdarkly-cli/v"+version, userAgent)
 }
+
+// A key from a repo file reaches the rule pattern as is, so a pattern
+// character such as * would write a wildcard rule. Every key must be a
+// LaunchDarkly key, and one bad key sends nothing for the whole batch.
+func TestSetSyncDirectionRejectsAKeyThatIsNotALaunchDarklyKey(t *testing.T) {
+	for name, bad := range map[string]struct {
+		projectKey string
+		id         syncdomain.ResourceID
+		key        string
+	}{
+		"config key":    {"project", syncdomain.VariationID("project", "*", "default"), "*"},
+		"variation key": {"project", syncdomain.VariationID("project", "support", "de*"), "de*"},
+		"project key":   {"proj*", syncdomain.VariationID("proj*", "support", "default"), "proj*"},
+	} {
+		for direction, write := range map[string]func(Client, string, []syncdomain.ResourceID) error{
+			"claim":  Client.ClaimForCode,
+			"return": Client.ReturnToLaunchDarkly,
+		} {
+			t.Run(name+" "+direction, func(t *testing.T) {
+				transport := &recordingClient{}
+				client := NewClient(transport, "token", "https://example.com")
+				ids := []syncdomain.ResourceID{bad.id}
+				if bad.projectKey == "project" {
+					ids = append([]syncdomain.ResourceID{syncdomain.VariationID("project", "support", "concise")}, ids...)
+				}
+
+				err := write(client, bad.projectKey, ids)
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), fmt.Sprintf("%q", bad.key))
+				assert.Empty(t, transport.Requests)
+			})
+		}
+	}
+}

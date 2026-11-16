@@ -456,7 +456,8 @@ type ownershipDecision struct {
 }
 
 // decideProject reads the ownership of the new variations of one project
-// and decides which ones to claim. It claims nothing.
+// and decides which ones to claim. It claims nothing. A variation that the
+// read answers without an entry for fails closed.
 func decideProject(settings Settings, projectKey string, ids []syncdomain.ResourceID) (ownershipDecision, error) {
 	ownership, err := settings.ResolveOwnership(projectKey, ids)
 	if err != nil {
@@ -464,7 +465,15 @@ func decideProject(settings Settings, projectKey string, ids []syncdomain.Resour
 	}
 	var decision ownershipDecision
 	for _, id := range ids {
-		switch syncdomain.DecideOwnership(id, ownership[id]) {
+		owner, ok := ownership[id]
+		if !ok {
+			return ownershipDecision{}, syncdomain.NewProblem(
+				syncdomain.ErrorSyncSettingUnavailable,
+				"LaunchDarkly returned no sync setting",
+				"Configure the resource sync setting in LaunchDarkly, then add it again.",
+			).WithResource(id)
+		}
+		switch syncdomain.DecideOwnership(id, owner) {
 		case syncdomain.OwnershipClaim:
 			decision.claims = append(decision.claims, id)
 		case syncdomain.OwnershipManagedInLaunchDarkly:

@@ -82,7 +82,8 @@ func TestDeletedLinkedResourceRequiresDetach(t *testing.T) {
 }
 
 // A create of a linked resource has nothing in LaunchDarkly for a setting
-// to govern yet, so a missing setting does not block it.
+// to govern yet, so a missing setting does not block it, and the create
+// records code as the owner of the new variation.
 func TestCreateOfALinkedResourceNeedsNoSetting(t *testing.T) {
 	local := testVariation("local")
 	resources := []PlannedResource{{
@@ -95,6 +96,7 @@ func TestCreateOfALinkedResourceNeedsNoSetting(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, ActionCreateServer, resources[0].Action)
+	assert.True(t, resources[0].claimOwnership)
 }
 
 func TestMissingToolSettingIsActionable(t *testing.T) {

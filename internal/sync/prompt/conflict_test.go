@@ -504,11 +504,20 @@ func (api *conflictAPI) MakeRequest(
 	method string,
 	path string,
 	_ string,
-	_ url.Values,
+	query url.Values,
 	body []byte,
 	_ bool,
 ) ([]byte, error) {
 	api.requests = append(api.requests, method)
+	if strings.HasSuffix(path, "/configs/sync/settings") && method == "GET" {
+		// Every resource resolves to the default setting, with no rule.
+		items := make([]map[string]any, 0, len(query["resources"]))
+		for _, resource := range query["resources"] {
+			kind, lookupKey, _ := strings.Cut(resource, ":")
+			items = append(items, map[string]any{"resourceKind": kind, "resourceLookupKey": lookupKey, "direction": "both"})
+		}
+		return json.Marshal(map[string]any{"items": items})
+	}
 	if strings.Contains(path, "/ai-tools/") {
 		if method == "PATCH" {
 			var tool syncdomain.Tool

@@ -26,14 +26,16 @@ import (
 var _ Settings = syncapi.Client{}
 
 // recordingSettings stands in for the LaunchDarkly sync settings API. It
-// answers ResolveOwnership from ownership, fails the reads and claims of the
-// projects in resolveErrs and claimErrs, records every claim, and records
+// answers ResolveOwnership from ownership, leaves out the resources in
+// omitted, fails the reads and claims of the projects in resolveErrs and
+// claimErrs, records every claim, and records
 // whether a claimed variation's file was already on disk when it was claimed.
 type recordingSettings struct {
 	root        string
 	ownership   map[syncdomain.ResourceID]syncdomain.Ownership
 	resolveErrs map[string]error
 	claimErrs   map[string]error
+	omitted     []syncdomain.ResourceID
 
 	claims []claim
 }
@@ -56,6 +58,9 @@ func (settings *recordingSettings) ResolveOwnership(
 	for _, id := range ids {
 		if id.ProjectKey != projectKey {
 			return nil, fmt.Errorf("%s is not in project %q", id.LookupKey, projectKey)
+		}
+		if slices.Contains(settings.omitted, id) {
+			continue
 		}
 		// A variation without a stored rule resolves to the project default
 		// with no matched pattern.
@@ -298,6 +303,23 @@ func TestRunWritesNothingWhenTheSettingsFail(t *testing.T) {
 	err := Run(options)
 
 	require.ErrorContains(t, err, "statusCode\":500")
+	run.assertNothingWritten(t)
+}
+
+// A sync settings read that answers without an entry for a new variation
+// fails closed: nothing is claimed or written.
+func TestRunFailsClosedWhenTheSyncSettingIsMissing(t *testing.T) {
+	run, id, options := singleAdd(t)
+	run.settings.omitted = []syncdomain.ResourceID{id}
+	options.Yes = true
+
+	err := Run(options)
+
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok, "want a sync problem, got %v", err)
+	assert.Equal(t, syncdomain.ErrorSyncSettingUnavailable, problem.Code)
+	assert.Equal(t, "LaunchDarkly returned no sync setting", problem.Message)
+	assert.Empty(t, run.settings.claims)
 	run.assertNothingWritten(t)
 }
 

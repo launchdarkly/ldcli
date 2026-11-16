@@ -154,6 +154,12 @@ var (
 	windowsReservedNames = regexp.MustCompile(`^(con|prn|aux|nul|com[0-9]|lpt[0-9])$`)
 )
 
+// IsLaunchDarklyKey reports whether key matches the LaunchDarkly key pattern.
+// A key that matches holds no rule pattern character such as *.
+func IsLaunchDarklyKey(key string) bool {
+	return createKeyPattern.MatchString(key)
+}
+
 // ValidateCreate checks the key, the name, and the description of a resource
 // that sync creates in LaunchDarkly.
 func ValidateCreate(kind Kind, key, name, description string) error {

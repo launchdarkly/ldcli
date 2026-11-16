@@ -253,9 +253,9 @@ func (options Options) interactive() bool {
 // variation in the sync settings, with one write per project. LaunchDarkly
 // keeps a detached tool or skill without a rule. It reads the sync settings
 // of every project before it writes any rule, so a project without sync
-// settings, or a read that fails, leaves no rule behind. When a project has
-// no sync settings, it warns, and asks whether to detach anyway unless Yes is
-// set. The bool result is false when the user declines.
+// settings, a read that fails, or a read without an entry for a variation,
+// leaves no rule behind. When a project has no sync settings, it warns, and
+// asks whether to detach anyway unless Yes is set. The bool result is false when the user declines.
 func returnToLaunchDarkly(options Options, selected []syncdomain.ResourceID) (bool, error) {
 	if options.Settings == nil {
 		return true, nil
@@ -275,7 +275,7 @@ func returnToLaunchDarkly(options Options, selected []syncdomain.ResourceID) (bo
 
 	var available, unavailable []string
 	for _, projectKey := range projectKeys {
-		_, err := options.Settings.ResolveOwnership(projectKey, byProject[projectKey])
+		ownership, err := options.Settings.ResolveOwnership(projectKey, byProject[projectKey])
 		switch {
 		case syncapi.IsNotFound(err):
 			unavailable = append(unavailable, projectKey)
@@ -284,6 +284,15 @@ func returnToLaunchDarkly(options Options, selected []syncdomain.ResourceID) (bo
 			return false, syncdomain.SyncSettingsForbiddenProblem(projectKey, "return ownership to LaunchDarkly", detachConsequence(nil), err)
 		case err != nil:
 			return false, fmt.Errorf("read the sync settings of project %s, so %s: %w", projectKey, detachConsequence(nil), err)
+		}
+		for _, id := range byProject[projectKey] {
+			if _, ok := ownership[id]; !ok {
+				return false, syncdomain.NewProblem(
+					syncdomain.ErrorSyncSettingUnavailable,
+					"LaunchDarkly returned no sync setting",
+					"Configure the resource sync setting in LaunchDarkly, then run detach again.",
+				).WithResource(id)
+			}
 		}
 		available = append(available, projectKey)
 	}

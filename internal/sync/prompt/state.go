@@ -303,7 +303,9 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 
 // applyVariationOwnership reads the ownership of every variation row and
 // applies it. Without the sync settings API, the rows keep their actions and
-// record that their ownership is unknown.
+// record that their ownership is unknown. A variation that the API answers
+// without an entry for fails closed, before anything is claimed or written,
+// unless it is a create of a variation LaunchDarkly does not have yet.
 func applyVariationOwnership(client syncapi.Client, resources []PlannedResource) error {
 	byProject := make(map[string][]ResourceID)
 	for _, resource := range resources {
@@ -330,7 +332,17 @@ func applyVariationOwnership(client syncapi.Client, resources []PlannedResource)
 					enforceDirection(resource, syncdomain.SyncDirectionBoth)
 					continue
 				}
-				enforceOwnership(resource, ownership[resource.ID])
+				owner, ok := ownership[resource.ID]
+				// A create with nothing in LaunchDarkly yet has no rule to
+				// read, so it goes ahead and records code as the owner.
+				if !ok && !(resource.Action == ActionCreateServer && !resource.hasServer()) {
+					return syncdomain.NewProblem(
+						syncdomain.ErrorSyncSettingUnavailable,
+						"LaunchDarkly returned no sync setting",
+						"Configure the resource sync setting in LaunchDarkly, then run sync again.",
+					).WithResource(resource.ID)
+				}
+				enforceOwnership(resource, owner)
 			}
 		}
 	}

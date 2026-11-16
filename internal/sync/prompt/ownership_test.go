@@ -234,6 +234,22 @@ func TestPushStopsWhenTheSyncSettingsFail(t *testing.T) {
 	}
 }
 
+// A sync settings read that answers without an entry for a variation (here
+// the 400 for an unsupported kind) fails closed: no claim and no push.
+func TestPushFailsClosedWhenTheSyncSettingIsMissing(t *testing.T) {
+	root, api := managedVariationWithLocalChange(t)
+	api.settingsReadErr = errors.New(`{"code":"invalid_request","message":"unsupported resource kind","statusCode":400}`)
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "LaunchDarkly returned no sync setting")
+	assert.Contains(t, err.Error(), string(syncdomain.ErrorSyncSettingUnavailable))
+	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/configs/sync/settings"), "no claim")
+	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/default"), "no push")
+	assert.Equal(t, "Baseline", api.variation.Name)
+}
+
 // Without the sync settings API, the push warns, naming the project, that
 // ownership is not recorded. --yes proceeds, whether the read or the claim
 // after the confirmation finds the API missing.

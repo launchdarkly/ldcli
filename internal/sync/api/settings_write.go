@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
@@ -32,7 +33,9 @@ func (client Client) ReturnToLaunchDarkly(projectKey string, ids []syncdomain.Re
 }
 
 // setSyncDirection upserts one exact rule per resource, in batches of at most
-// syncSettingsWriteLimit rules. It checks every resource before it writes.
+// syncSettingsWriteLimit rules. It checks every resource before it writes:
+// each key becomes part of a rule pattern, so a key that is not a
+// LaunchDarkly key, such as *, would write a wildcard rule.
 func (client Client) setSyncDirection(
 	projectKey string, ids []syncdomain.ResourceID, direction syncdomain.SyncDirection,
 ) error {
@@ -40,6 +43,11 @@ func (client Client) setSyncDirection(
 	for _, id := range ids {
 		if id.ProjectKey != projectKey {
 			return fmt.Errorf("update sync settings: %s is not in project %q", id.Label(), projectKey)
+		}
+		for _, key := range append([]string{id.ProjectKey}, strings.Split(id.LookupKey, "/")...) {
+			if !syncdomain.IsLaunchDarklyKey(key) {
+				return fmt.Errorf("update sync settings: %s has key %q, which is not a LaunchDarkly key", id.Label(), key)
+			}
 		}
 		rules = append(rules, syncSettingRule{ResourceKind: id.Kind, ResourcePattern: id.LookupKey, Direction: direction})
 	}

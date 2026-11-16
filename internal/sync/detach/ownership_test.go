@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -19,7 +20,8 @@ import (
 )
 
 // recordingSettings stands in for the LaunchDarkly sync settings API. Every
-// variation resolves to the project default with no matched rule. It fails
+// variation resolves to the project default with no matched rule, except the
+// ones in omitted, which the read leaves out. It fails
 // the reads and writes of the projects in resolveErrs and returnErrs, and
 // logs every read and write in order. When workspace is set, each write
 // records whether every variation it names still has its local file and
@@ -28,6 +30,7 @@ type recordingSettings struct {
 	workspace   *archiveWorkspace
 	resolveErrs map[string]error
 	returnErrs  map[string]error
+	omitted     []syncdomain.ResourceID
 	log         []string
 	calls       []settingsCall
 }
@@ -53,6 +56,9 @@ func (settings *recordingSettings) ResolveOwnership(
 	for _, id := range ids {
 		if id.ProjectKey != projectKey {
 			return nil, fmt.Errorf("%s is not in project %q", id.Label(), projectKey)
+		}
+		if slices.Contains(settings.omitted, id) {
+			continue
 		}
 		result[id] = syncdomain.Ownership{Direction: syncdomain.SyncDirectionServerCanonical}
 	}
@@ -226,6 +232,25 @@ func TestRunDoesNotWriteSyncSettingsForToolsAndSkills(t *testing.T) {
 	require.NoError(t, Run(options))
 
 	assert.Empty(t, settings.calls)
+}
+
+// A sync settings read that answers without an entry for a selected
+// variation fails closed: no return rule is written and nothing is detached.
+func TestRunFailsClosedWhenTheSyncSettingIsMissing(t *testing.T) {
+	workspace, settings, options := singleDetach(t)
+	lockBefore := workspace.baselines.manifest.Clone()
+	settings.omitted = []syncdomain.ResourceID{syncdomain.VariationID("project", "config", "prompt")}
+	options.Yes = true
+
+	err := Run(options)
+
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok, "want a sync problem, got %v", err)
+	assert.Equal(t, syncdomain.ErrorSyncSettingUnavailable, problem.Code)
+	assert.Equal(t, "LaunchDarkly returned no sync setting", problem.Message)
+	assert.Empty(t, settings.calls, "no return rule")
+	workspace.requireTracked(t, "prompt", true)
+	assert.Equal(t, lockBefore, workspace.baselines.manifest)
 }
 
 // A 403 describes returning ownership to LaunchDarkly, not recording code
