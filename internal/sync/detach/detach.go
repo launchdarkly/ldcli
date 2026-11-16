@@ -21,13 +21,27 @@ import (
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
-const detachQuestion = "\nDetach these resources? [y/N] "
+const (
+	detachQuestion = "\nDetach these resources? [y/N] "
+	// withoutOwnershipQuestion asks whether to detach when LaunchDarkly
+	// cannot record that it owns the detached variations.
+	withoutOwnershipQuestion = "\nDetach anyway? [y/N] "
+)
 
 // Archiver reads and archives a variation in LaunchDarkly.
 type Archiver interface {
 	ReadVariation(projectKey, configKey, variationKey string) (syncapi.VariationState, error)
 	ArchiveVariation(projectKey, configKey, variationKey string) error
 }
+
+// Settings reads and changes which side owns a variation in the
+// LaunchDarkly sync settings.
+type Settings interface {
+	ResolveOwnership(projectKey string, ids []syncdomain.ResourceID) (map[syncdomain.ResourceID]syncdomain.Ownership, error)
+	ReturnToLaunchDarkly(projectKey string, ids []syncdomain.ResourceID) error
+}
+
+var _ Settings = syncapi.Client{}
 
 // Options are the dependencies and the input of one detach.
 type Options struct {
@@ -53,6 +67,11 @@ type Options struct {
 	Yes bool
 	// Context stops the confirmation and the archive when it ends.
 	Context context.Context
+	// Settings returns each detached variation to LaunchDarkly in the sync
+	// settings. If it is nil, the detach does not change the sync settings.
+	Settings Settings
+	// ErrorOutput receives warnings.
+	ErrorOutput io.Writer
 
 	// isTerminal reports whether the streams are a terminal. Tests replace it.
 	isTerminal func(io.Reader, io.Writer) bool
@@ -113,6 +132,11 @@ func Run(options Options) error {
 	}
 	confirmed, err := confirmDetach(options, baseline.Lock, variations, selected)
 	if err != nil || !confirmed {
+		return err
+	}
+	// Return ownership first. If a later step fails, the same command can run
+	// again, because the write sets the same rules.
+	if confirmed, err := returnToLaunchDarkly(options, selected); err != nil || !confirmed {
 		return err
 	}
 	if options.Archive {
@@ -191,11 +215,7 @@ func confirmDetach(
 	if options.Yes {
 		return true, nil
 	}
-	isTerminal := options.isTerminal
-	if isTerminal == nil {
-		isTerminal = syncinteractive.StreamsAreTerminal
-	}
-	interactive := !options.NoInput && isTerminal(options.Input, options.Output)
+	interactive := options.interactive()
 	if interactive {
 		console := syncconsole.New(options.Output)
 		if options.Archive {
@@ -218,6 +238,123 @@ func confirmDetach(
 		_ = syncconsole.New(options.Output).Line("Detach canceled.")
 	}
 	return confirmed, err
+}
+
+// interactive reports whether the detach can ask the user for input.
+func (options Options) interactive() bool {
+	isTerminal := options.isTerminal
+	if isTerminal == nil {
+		isTerminal = syncinteractive.StreamsAreTerminal
+	}
+	return !options.NoInput && isTerminal(options.Input, options.Output)
+}
+
+// returnToLaunchDarkly makes LaunchDarkly the owner of each selected
+// variation in the sync settings, with one write per project. LaunchDarkly
+// keeps a detached tool or skill without a rule. It reads the sync settings
+// of every project before it writes any rule, so a project without sync
+// settings, or a read that fails, leaves no rule behind. When a project has
+// no sync settings, it warns, and asks whether to detach anyway unless Yes is
+// set. The bool result is false when the user declines.
+func returnToLaunchDarkly(options Options, selected []syncdomain.ResourceID) (bool, error) {
+	if options.Settings == nil {
+		return true, nil
+	}
+	byProject := make(map[string][]syncdomain.ResourceID)
+	var projectKeys []string
+	for _, id := range selected {
+		if id.Kind != syncdomain.KindVariation {
+			continue
+		}
+		if _, seen := byProject[id.ProjectKey]; !seen {
+			projectKeys = append(projectKeys, id.ProjectKey)
+		}
+		byProject[id.ProjectKey] = append(byProject[id.ProjectKey], id)
+	}
+	slices.Sort(projectKeys)
+
+	var available, unavailable []string
+	for _, projectKey := range projectKeys {
+		_, err := options.Settings.ResolveOwnership(projectKey, byProject[projectKey])
+		switch {
+		case syncapi.IsNotFound(err):
+			unavailable = append(unavailable, projectKey)
+			continue
+		case errors.Is(err, syncapi.ErrSyncSettingsForbidden):
+			return false, syncdomain.SyncSettingsForbiddenProblem(projectKey, "return ownership to LaunchDarkly", detachConsequence(nil), err)
+		case err != nil:
+			return false, fmt.Errorf("read the sync settings of project %s, so %s: %w", projectKey, detachConsequence(nil), err)
+		}
+		available = append(available, projectKey)
+	}
+	if len(unavailable) != 0 {
+		if confirmed, err := confirmWithoutOwnership(options, unavailable, nil); err != nil || !confirmed {
+			return false, err
+		}
+	}
+
+	var returned []string
+	unavailable = nil
+	for _, projectKey := range available {
+		err := options.Settings.ReturnToLaunchDarkly(projectKey, byProject[projectKey])
+		switch {
+		case syncapi.IsNotFound(err):
+			unavailable = append(unavailable, projectKey)
+			continue
+		case errors.Is(err, syncapi.ErrSyncSettingsForbidden):
+			return false, syncdomain.SyncSettingsForbiddenProblem(projectKey, "return ownership to LaunchDarkly", detachConsequence(returned), err)
+		case err != nil:
+			return false, fmt.Errorf("return ownership of the detached variations in project %s to LaunchDarkly, so %s: %w", projectKey, detachConsequence(returned), err)
+		}
+		returned = append(returned, projectKey)
+	}
+	if len(unavailable) == 0 {
+		return true, nil
+	}
+	return confirmWithoutOwnership(options, unavailable, returned)
+}
+
+// confirmWithoutOwnership warns that the unavailable projects have no sync
+// settings, and asks whether to detach anyway unless Yes is set. When the
+// user declines, it says which projects were already returned.
+func confirmWithoutOwnership(options Options, unavailable, returned []string) (bool, error) {
+	confirmed, err := syncinteractive.ConfirmWithoutSettings(syncinteractive.SettingsUnavailable{
+		Context:     options.context(),
+		Input:       options.Input,
+		Prompt:      options.Output,
+		Output:      options.Output,
+		ErrorOutput: options.ErrorOutput,
+		NoInput:     options.NoInput,
+		Yes:         options.Yes,
+		IsTerminal:  options.isTerminal,
+		ProjectKeys: unavailable,
+		Unrecorded:  "ownership of the detached variations",
+		Question:    withoutOwnershipQuestion,
+		Verb:        "Detach",
+	})
+	if !confirmed && len(returned) != 0 {
+		message := returnedMessage(returned)
+		if err != nil {
+			return false, fmt.Errorf("%w, but %s", err, message)
+		}
+		_ = syncconsole.New(options.Output).Line(strings.ToUpper(message[:1]) + message[1:] + ".")
+	}
+	return confirmed, err
+}
+
+// returnedMessage says which projects already returned the ownership of
+// their detached variations to LaunchDarkly.
+func returnedMessage(returned []string) string {
+	return fmt.Sprintf("variations in project %s were already returned to LaunchDarkly", strings.Join(returned, ", "))
+}
+
+// detachConsequence says what a failed return leaves behind: no detached
+// resource, and the projects that were already returned to LaunchDarkly.
+func detachConsequence(returned []string) string {
+	if len(returned) == 0 {
+		return "nothing was detached"
+	}
+	return "nothing was detached, but " + returnedMessage(returned)
 }
 
 // The notes that the detach review shows next to a resource.

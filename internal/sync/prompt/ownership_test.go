@@ -324,3 +324,27 @@ func TestLinkLeavesAVariationManagedInLaunchDarkly(t *testing.T) {
 	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/default"), "no push")
 	assert.Equal(t, "Help", api.variation.Instructions)
 }
+
+// A role that cannot write the sync settings stops a detach with a message
+// that names the missing permission, not with "unknown error occurred", and
+// the variation stays tracked.
+func TestDetachNamesTheMissingPermissionWhenReturningToLaunchDarklyIsForbidden(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local prompt.\n"), 0o644))
+	api := &directAPI{variation: pointer(variation("Server"))}
+	_, err := linkPrompt(t, root, api)
+	require.NoError(t, err)
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	require.FileExists(t, descriptor)
+
+	api.settingsWriteErr = errors.New(`{"code":"forbidden","statusCode":403}`)
+	before := countRequests(api.requests, http.MethodPatch, "/configs/sync/settings")
+	_, _, err = runPrompt(t, root, api, "detach", "--project", "production", "--config-key", "support", "--key", "default", "--yes", "--no-input", "--output=plaintext")
+
+	require.Error(t, err)
+	assert.Equal(t, before+1, countRequests(api.requests, http.MethodPatch, "/configs/sync/settings"), "the return is tried")
+	assert.Contains(t, err.Error(), "updateSyncSettings")
+	assert.Contains(t, err.Error(), "proj/production:ai-code-sync/*")
+	assert.NotContains(t, err.Error(), "unknown error occurred")
+	assert.FileExists(t, descriptor, "nothing is detached")
+}

@@ -197,6 +197,8 @@ func (runner Runner) runDetach(options Options, workspace syncWorkspace, action 
 		Archiver:       runner.api(options),
 		Yes:            options.Yes,
 		Context:        options.Context,
+		Settings:       runner.api(options),
+		ErrorOutput:    options.ErrorOutput,
 	})
 }
 
