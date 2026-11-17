@@ -44,16 +44,14 @@ func (client Client) SyncDirections(
 
 // ResolveOwnership returns the effective LaunchDarkly setting of each
 // resource and the stored rule pattern that matched it. A resource of a kind
-// that LaunchDarkly has no setting for is left out.
+// that LaunchDarkly has no setting for is left out. Any number of resources
+// can be read; they are asked for one page at a time.
 func (client Client) ResolveOwnership(
 	projectKey string,
 	ids []syncdomain.ResourceID,
 ) (map[syncdomain.ResourceID]syncdomain.Ownership, error) {
 	if len(ids) == 0 {
 		return map[syncdomain.ResourceID]syncdomain.Ownership{}, nil
-	}
-	if len(ids) > 100 {
-		return nil, fmt.Errorf("read sync settings: at most 100 resources are allowed")
 	}
 	byKind := map[syncdomain.Kind][]syncdomain.ResourceID{}
 	for _, id := range ids {
@@ -66,12 +64,15 @@ func (client Client) ResolveOwnership(
 	// The endpoint rejects a request that names a kind it has no setting for,
 	// and the rejection fails every resource of the request. Each kind travels
 	// alone, so a tool or a skill cannot take the variations down with it.
+	// The endpoint accepts at most one page of resources per request.
 	for _, kind := range slices.Sorted(maps.Keys(byKind)) {
-		ownership, err := client.ownershipOfKind(projectKey, byKind[kind])
-		if err != nil {
-			return nil, err
+		for batch := range slices.Chunk(byKind[kind], syncSettingsPageLimit) {
+			ownership, err := client.ownershipOfKind(projectKey, batch)
+			if err != nil {
+				return nil, err
+			}
+			maps.Copy(result, ownership)
 		}
-		maps.Copy(result, ownership)
 	}
 	return result, nil
 }

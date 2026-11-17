@@ -314,36 +314,32 @@ func applyVariationOwnership(client syncapi.Client, resources []PlannedResource)
 		}
 	}
 	for projectKey, ids := range byProject {
-		for start := 0; start < len(ids); start += 100 {
-			end := min(start+100, len(ids))
-			ownership, err := client.ResolveOwnership(projectKey, ids[start:end])
-			unavailable := syncapi.IsNotFound(err)
-			if err != nil && !unavailable {
-				return err
+		ownership, err := client.ResolveOwnership(projectKey, ids)
+		unavailable := syncapi.IsNotFound(err)
+		if err != nil && !unavailable {
+			return err
+		}
+		for index := range resources {
+			resource := &resources[index]
+			if resource.ID.Kind != syncdomain.KindVariation || resource.ID.ProjectKey != projectKey {
+				continue
 			}
-			for index := range resources {
-				resource := &resources[index]
-				if resource.ID.Kind != syncdomain.KindVariation || resource.ID.ProjectKey != projectKey ||
-					!slices.Contains(ids[start:end], resource.ID) {
-					continue
-				}
-				if unavailable {
-					resource.ownershipUnavailable = true
-					enforceDirection(resource, syncdomain.SyncDirectionBoth)
-					continue
-				}
-				owner, ok := ownership[resource.ID]
-				// A create with nothing in LaunchDarkly yet has no rule to
-				// read, so it goes ahead and records code as the owner.
-				if !ok && !(resource.Action == ActionCreateServer && !resource.hasServer()) {
-					return syncdomain.NewProblem(
-						syncdomain.ErrorSyncSettingUnavailable,
-						"LaunchDarkly returned no sync setting",
-						"Configure the resource sync setting in LaunchDarkly, then run sync again.",
-					).WithResource(resource.ID)
-				}
-				enforceOwnership(resource, owner)
+			if unavailable {
+				resource.ownershipUnavailable = true
+				enforceDirection(resource, syncdomain.SyncDirectionBoth)
+				continue
 			}
+			owner, ok := ownership[resource.ID]
+			// A create with nothing in LaunchDarkly yet has no rule to
+			// read, so it goes ahead and records code as the owner.
+			if !ok && !(resource.Action == ActionCreateServer && !resource.hasServer()) {
+				return syncdomain.NewProblem(
+					syncdomain.ErrorSyncSettingUnavailable,
+					"LaunchDarkly returned no sync setting",
+					"Configure the resource sync setting in LaunchDarkly, then run sync again.",
+				).WithResource(resource.ID)
+			}
+			enforceOwnership(resource, owner)
 		}
 	}
 	return nil

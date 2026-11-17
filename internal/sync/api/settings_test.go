@@ -155,3 +155,28 @@ func TestResolveOwnershipReportsTheMatchedRule(t *testing.T) {
 		empty:  {Direction: syncdomain.SyncDirectionServerCanonical},
 	}, ownership)
 }
+
+// The endpoint accepts at most 100 resources per request, so a read of more
+// asks for them 100 at a time and answers for all of them.
+func TestResolveOwnershipOfMoreThan100ResourcesReadsThemInBatches(t *testing.T) {
+	ids := make([]syncdomain.ResourceID, 0, 101)
+	items := make([]string, 0, 101)
+	for index := range 101 {
+		key := fmt.Sprintf("support/v%03d", index)
+		ids = append(ids, syncdomain.VariationID("project", "support", fmt.Sprintf("v%03d", index)))
+		items = append(items, fmt.Sprintf(`{"resourceKind":"variation","resourceLookupKey":%q,"direction":"server_canonical"}`, key))
+	}
+	transport := &recordingClient{Responses: [][]byte{
+		[]byte(`{"items": [` + strings.Join(items[:100], ",") + `], "totalCount": 100}`),
+		[]byte(`{"items": [` + items[100] + `], "totalCount": 1}`),
+	}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	ownership, err := client.ResolveOwnership("project", ids)
+
+	require.NoError(t, err)
+	assert.Len(t, ownership, 101)
+	require.Len(t, transport.Requests, 2)
+	assert.Len(t, transport.Requests[0].Query["resources"], 100)
+	assert.Equal(t, []string{"variation:support/v100"}, transport.Requests[1].Query["resources"])
+}

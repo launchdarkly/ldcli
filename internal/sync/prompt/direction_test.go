@@ -1,9 +1,11 @@
 package prompt
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -176,4 +178,39 @@ server.registerTool("lookup", {
 	full, err := syncdomain.FingerprintAttachment("project", attachment)
 	require.NoError(t, err)
 	assert.NotEqual(t, full, manifest.Resources[0].Fingerprint)
+}
+
+// forbidClaimInProject refuses the sync settings write of one project with a
+// 403 and accepts every other request.
+type forbidClaimInProject struct{ project string }
+
+var _ resources.Client = forbidClaimInProject{}
+
+func (transport forbidClaimInProject) MakeRequest(
+	_, method, path, _ string, _ url.Values, _ []byte, _ bool,
+) ([]byte, error) {
+	if method == "PATCH" && strings.Contains(path, "/projects/"+transport.project+"/") {
+		return nil, errors.New(`{"code":"forbidden","statusCode":403}`)
+	}
+	return []byte(`{}`), nil
+}
+
+func (forbidClaimInProject) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+// A push across projects is not atomic. When a later project's claim is
+// forbidden, the error names the projects already recorded as code-owned.
+func TestForbiddenClaimNamesTheProjectsAlreadyClaimed(t *testing.T) {
+	plan := Plan{Resources: []PlannedResource{
+		{ID: syncdomain.VariationID("a", "support", "default"), Action: ActionUpdateServer, claimOwnership: true},
+		{ID: syncdomain.VariationID("b", "support", "default"), Action: ActionUpdateServer, claimOwnership: true},
+	}}
+	client := syncapi.NewClient(forbidClaimInProject{project: "b"}, "token", "https://example.com")
+
+	err := claimOwnership(Options{}, client, plan)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `project "b", so nothing was pushed`)
+	assert.Contains(t, err.Error(), "project a is already recorded as code-owned")
 }

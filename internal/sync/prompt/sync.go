@@ -3,9 +3,11 @@ package prompt
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"slices"
+	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -218,6 +220,7 @@ func (runner Runner) applyPlan(
 // is not recorded.
 func claimOwnership(options Options, client syncapi.Client, plan Plan) error {
 	claims := plan.ownershipClaims()
+	var claimed []string
 	for _, projectKey := range slices.Sorted(maps.Keys(claims)) {
 		err := client.ClaimForCode(projectKey, claims[projectKey])
 		if syncapi.IsNotFound(err) {
@@ -225,11 +228,26 @@ func claimOwnership(options Options, client syncapi.Client, plan Plan) error {
 			continue
 		}
 		if errors.Is(err, syncapi.ErrSyncSettingsForbidden) {
-			return syncdomain.SyncSettingsForbiddenProblem(projectKey, "record code ownership", "nothing was pushed", err)
+			return syncdomain.SyncSettingsForbiddenProblem(projectKey, "record code ownership", pushConsequence(claimed), err)
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("record code ownership in project %s, so %s: %w", projectKey, pushConsequence(claimed), err)
 		}
+		claimed = append(claimed, projectKey)
 	}
 	return nil
+}
+
+// pushConsequence says what a failed claim leaves behind: nothing pushed, and
+// the projects whose variations were already recorded as code-owned, because
+// a push across projects is not atomic.
+func pushConsequence(claimed []string) string {
+	switch len(claimed) {
+	case 0:
+		return "nothing was pushed"
+	case 1:
+		return "nothing was pushed, but project " + claimed[0] + " is already recorded as code-owned"
+	default:
+		return "nothing was pushed, but projects " + strings.Join(claimed, ", ") + " are already recorded as code-owned"
+	}
 }
