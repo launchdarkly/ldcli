@@ -41,6 +41,11 @@ func getResourceNames(name string) (string, string) {
 }
 
 var mapOperationIdToCmdUse = map[string]string{
+	// The generated verb misdescribes these operations, which set or clear
+	// which plan is the default. The names follow the operation summaries.
+	"DeleteDefaultEnvironmentReleasePlan": "clear-default",
+	"PutDefaultEnvironmentReleasePlan":    "set-default",
+
 	"createSubscription":               "create",
 	"createTriggerWorkflow":            "create",
 	"deleteDestination":                "delete",
