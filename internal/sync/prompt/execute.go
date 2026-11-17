@@ -755,6 +755,15 @@ func applyServerChange(
 	if writeErr == nil {
 		return pinsOf(variation), nil
 	}
+	if syncapi.IsForbidden(writeErr) {
+		problem := syncdomain.NewProblem(
+			syncdomain.ErrorSyncVariationForbidden,
+			fmt.Sprintf("your role cannot write variation %q of AI Config %q in project %q", variationKey, configKey, projectKey),
+			fmt.Sprintf("Ask a LaunchDarkly admin to grant your role the syncAIConfigVariation action on the AI Config proj/%s:env/*:aiconfig/%s.", projectKey, configKey),
+		)
+		problem.Cause = writeErr
+		return nil, problem
+	}
 	createConflict := resource.Action == ActionCreateServer && syncapi.IsConflict(writeErr)
 	if !syncapi.MutationMayHaveSucceeded(writeErr) && !createConflict {
 		return nil, writeErr

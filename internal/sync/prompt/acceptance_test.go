@@ -43,7 +43,12 @@ type directAPI struct {
 	skills        map[string]versionedSkill
 	manifest      *syncapi.SyncManifest
 	directions    map[string]syncdomain.SyncDirection
-	requests      []string
+	// patterns is the matchedResourcePattern of each resource, such as
+	// "variation:support/default". A resource without one matched no rule.
+	patterns map[string]string
+	// settingsReadErr fails each read of the sync settings.
+	settingsReadErr error
+	requests        []string
 	// expandTools makes each read of the variation add the content of its
 	// tools to model.parameters.tools, as LaunchDarkly does.
 	expandTools bool
@@ -59,6 +64,8 @@ type directAPI struct {
 	manifestWriteErr error
 	// toolWriteErr fails each update of a tool.
 	toolWriteErr error
+	// variationWriteErr fails each update of a variation.
+	variationWriteErr error
 }
 
 type notFoundAPI struct{}
@@ -104,6 +111,9 @@ func (api *directAPI) MakeRequest(
 	if api.onRequest != nil {
 		api.onRequest(method, path)
 	}
+	if api.variationWriteErr != nil && method == http.MethodPatch && strings.Contains(path, "/ai-configs/support/variations/") {
+		return nil, api.variationWriteErr
+	}
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		if api.manifestWriteErr != nil && method != http.MethodGet {
 			return nil, api.manifestWriteErr
@@ -111,6 +121,9 @@ func (api *directAPI) MakeRequest(
 		return handleManifestRequest(api.manifest, method, query, body)
 	}
 	if strings.HasSuffix(path, "/configs/sync/settings") && method == http.MethodGet {
+		if api.settingsReadErr != nil {
+			return nil, api.settingsReadErr
+		}
 		items := make([]map[string]any, 0, len(query["resources"]))
 		for _, resource := range query["resources"] {
 			kind, lookupKey, _ := strings.Cut(resource, ":")
@@ -118,9 +131,13 @@ func (api *directAPI) MakeRequest(
 			if configured := api.directions[resource]; configured != "" {
 				direction = configured
 			}
-			items = append(items, map[string]any{
+			item := map[string]any{
 				"resourceKind": kind, "resourceLookupKey": lookupKey, "direction": direction,
-			})
+			}
+			if pattern := api.patterns[resource]; pattern != "" {
+				item["matchedResourcePattern"] = pattern
+			}
+			items = append(items, item)
 		}
 		return json.Marshal(map[string]any{"items": items})
 	}
@@ -2027,7 +2044,7 @@ support = Agent(instructions="Local instructions.")
 		variation: &server,
 		directions: map[string]syncdomain.SyncDirection{
 			"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
-		},
+		}, patterns: map[string]string{"variation:support/default": "support/default"},
 	}
 	id := syncdomain.VariationID("production", "support", "default")
 
@@ -2296,6 +2313,7 @@ func TestCompletionSourcePullsOneSystemMessage(t *testing.T) {
 		directions: map[string]syncdomain.SyncDirection{
 			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
 		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
 	}
 	id := syncdomain.VariationID("production", "support", "default")
 
@@ -2338,6 +2356,7 @@ completion = Agent(
 		directions: map[string]syncdomain.SyncDirection{
 			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
 		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
 	}
 	id := syncdomain.VariationID("production", "support", "default")
 	action := syncprompt.SourceLinkAction{
@@ -2537,6 +2556,7 @@ func TestStructuredSourceLinksPushAndPull(t *testing.T) {
 			changeServer: func(api *directAPI) {
 				api.variation.Instructions = "Pulled YAML prompt"
 				api.directions["variation:support/default"] = syncdomain.SyncDirectionServerCanonical
+				api.patterns = map[string]string{"variation:support/default": "support/default"}
 			},
 			wantPush: func(t *testing.T, api *directAPI) {
 				assert.Equal(t, "Local YAML prompt", api.variation.Instructions)
@@ -2559,6 +2579,7 @@ func TestStructuredSourceLinksPushAndPull(t *testing.T) {
 			changeServer: func(api *directAPI) {
 				api.variation.Instructions = "Pulled TOML prompt"
 				api.directions["variation:support/default"] = syncdomain.SyncDirectionServerCanonical
+				api.patterns = map[string]string{"variation:support/default": "support/default"}
 			},
 			wantPush: func(t *testing.T, api *directAPI) {
 				assert.Equal(t, "Local TOML prompt", api.variation.Instructions)
@@ -2718,6 +2739,7 @@ func TestMarkdownProviderProfilesPullAndPreserveMetadata(t *testing.T) {
 				directions: map[string]syncdomain.SyncDirection{
 					"variation:support/default": syncdomain.SyncDirectionServerCanonical,
 				},
+				patterns: map[string]string{"variation:support/default": "support/default"},
 			}
 			id := syncdomain.VariationID("production", "support", "default")
 
@@ -2936,7 +2958,9 @@ func (api *ambiguousWriteAPI) MakeRequest(
 	beta bool,
 ) ([]byte, error) {
 	response, err := api.directAPI.MakeRequest(accessToken, method, path, contentType, query, body, beta)
-	if err == nil && (method == "POST" || method == "PATCH") {
+	// The ambiguity is about the write of the variation, not about the claim
+	// of its ownership.
+	if err == nil && (method == "POST" || method == "PATCH") && !strings.HasSuffix(path, "/configs/sync/settings") {
 		return nil, fmt.Errorf("connection closed after write")
 	}
 	return response, err
@@ -2956,7 +2980,8 @@ func (api *changingReadAPI) MakeRequest(
 	body []byte,
 	beta bool,
 ) ([]byte, error) {
-	if method == "GET" && !strings.Contains(path, "/configs/sync/manifests") {
+	if method == "GET" && !strings.Contains(path, "/configs/sync/manifests") &&
+		!strings.Contains(path, "/configs/sync/settings") {
 		api.reads++
 		if api.reads == 2 {
 			api.variation = pointer(variation("Concurrent"))
@@ -3016,6 +3041,20 @@ func (api *multiDirectAPI) MakeRequest(
 	api.requests = append(api.requests, method+" "+path)
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		return handleManifestRequest(api.manifest, method, query, body)
+	}
+	if strings.HasSuffix(path, "/configs/sync/settings") {
+		// No resource matches a rule, and a claim succeeds.
+		if method != http.MethodGet {
+			return nil, nil
+		}
+		items := make([]map[string]any, 0, len(query["resources"]))
+		for _, resource := range query["resources"] {
+			kind, lookupKey, _ := strings.Cut(resource, ":")
+			items = append(items, map[string]any{
+				"resourceKind": kind, "resourceLookupKey": lookupKey, "direction": syncdomain.SyncDirectionBoth,
+			})
+		}
+		return json.Marshal(map[string]any{"items": items})
 	}
 	if method == "GET" {
 		variations := make([]syncdomain.Variation, 0, len(api.variations))
@@ -3378,6 +3417,7 @@ func TestServerCanonicalSourcePullRepinsStaleToolVersions(t *testing.T) {
 		directions: map[string]syncdomain.SyncDirection{
 			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
 		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
 	}
 
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
@@ -3412,6 +3452,7 @@ func TestLinkedPullRepinsOnTheLatestLaunchDarklyCopy(t *testing.T) {
 		directions: map[string]syncdomain.SyncDirection{
 			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
 		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
 	}
 	onNthRead(api, "/ai-configs/support", 3, func() { api.variation.Name = "Renamed after review" })
 
@@ -3443,6 +3484,7 @@ func TestLinkedPullRecordsTheLockBeforeAFailedPinRefresh(t *testing.T) {
 		directions: map[string]syncdomain.SyncDirection{
 			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
 		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
 	}
 	pulled := server.Instructions
 	// The mapped field changes after the review, so the pin update stops.

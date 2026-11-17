@@ -101,6 +101,9 @@ type PlannedResource struct {
 	// createsConfig is true when the create of the variation also creates
 	// its config, because LaunchDarkly has none.
 	createsConfig bool
+	// managedInLaunchDarkly is true when an explicit LaunchDarkly rule turned
+	// a push of the variation into a pull or a skip.
+	managedInLaunchDarkly bool
 }
 
 func setProblem(resource *PlannedResource, problem *syncdomain.Problem) {
