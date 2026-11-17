@@ -98,3 +98,22 @@ func IsForbidden(err error) bool {
 	status, ok := responseStatusCode(err)
 	return ok && status == http.StatusForbidden
 }
+
+// ResponseCode returns the machine-readable code of a LaunchDarkly API error
+// body, or "" when the body has none.
+func ResponseCode(err error) string {
+	response, ok := responseError(err)
+	if !ok {
+		return ""
+	}
+	code, _ := response["code"].(string)
+	return code
+}
+
+// ResponseMessage returns the message of a LaunchDarkly API error body, or ""
+// when the body has none.
+func ResponseMessage(err error) string {
+	response, _ := responseError(err)
+	message, _ := response["message"].(string)
+	return message
+}

@@ -246,3 +246,35 @@ func TestLinkLeavesAVariationManagedInLaunchDarkly(t *testing.T) {
 	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/default"), "no push")
 	assert.Equal(t, "Help", api.variation.Instructions)
 }
+
+// A 403 that the server lock sends because code owns the variation is not a
+// missing permission: the error passes on what LaunchDarkly said instead of
+// asking for syncAIConfigVariation.
+func TestPromptPushDoesNotBlameTheRoleWhenTheLockRejectsTheWrite(t *testing.T) {
+	root, api := managedVariationWithLocalChange(t)
+	api.directions = map[string]syncdomain.SyncDirection{supportDefaultSetting: syncdomain.SyncDirectionCodeCanonical}
+	api.patterns = map[string]string{supportDefaultSetting: "support/default"}
+	api.variationWriteErr = errors.New(`{"code":"managed_in_code","message":"Variation default in AI Config support is managed in code, so LaunchDarkly rejected this change.","statusCode":403}`)
+
+	_, _, err := runPrompt(t, root, api, "--yes", "--output=plaintext")
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "syncAIConfigVariation", "the caller holds the permission; the lock is the cause")
+	assert.Contains(t, err.Error(), "is managed in code")
+}
+
+// A create that an explicit LaunchDarkly rule blocks is an error, not a pull,
+// so it gets no "pulled, not pushed" note.
+func TestCreateBlockedByALaunchDarklyRuleHasNoManagedNote(t *testing.T) {
+	root := initRepository(t)
+	writeVariation(t, root, variation("New"), true)
+	api := &directAPI{}
+	api.directions = map[string]syncdomain.SyncDirection{supportDefaultSetting: syncdomain.SyncDirectionServerCanonical}
+	api.patterns = map[string]string{supportDefaultSetting: "support/*"}
+
+	_, stderr, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server-canonical resource does not exist in LaunchDarkly")
+	assert.NotContains(t, stderr, "pulled, not pushed")
+}
