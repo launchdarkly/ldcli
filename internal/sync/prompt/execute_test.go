@@ -998,3 +998,35 @@ func TestSettledRowKeepsTheProjectionOfALinkedTool(t *testing.T) {
 	assert.NotNil(t, result.Local.Attachments[1].Projection, "the linked tool keeps its projection for the publish")
 	assert.Nil(t, result.Local.Attachments[1].Tool.CustomParameters)
 }
+
+// lockedMutationAPI answers every write with the 403 that the sync lock sends
+// for a variation that code owns, with the given message.
+type lockedMutationAPI struct{ message string }
+
+func (api lockedMutationAPI) MakeRequest(_ string, method string, _ string, _ string, _ url.Values, _ []byte, _ bool) ([]byte, error) {
+	if method == "PATCH" {
+		body, _ := json.Marshal(map[string]any{"code": "managed_in_code", "message": api.message, "statusCode": 403})
+		return nil, errors.New(string(body))
+	}
+	return []byte(`{}`), nil
+}
+
+func (lockedMutationAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+// A write that the sync lock rejects is a variation_managed_in_code problem
+// about that variation, not a missing permission.
+func TestApplyServerChangeReportsALockRejectionForTheVariation(t *testing.T) {
+	variation := testVariation("local")
+	resource := PlannedResource{ID: testResourceID(), Action: ActionUpdateServer, Local: &variation}
+	client := syncapi.NewClient(lockedMutationAPI{message: "X is managed in code."}, "token", "https://example.com")
+
+	_, err := applyServerChange(client, newAttachmentResolver(client), resource)
+
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok, "err: %v", err)
+	assert.Equal(t, syncdomain.ErrorVariationManagedInCode, problem.Code)
+	assert.Contains(t, problem.Message, "because it is managed in code")
+	assert.Equal(t, resource.ID.Label(), problem.Resource)
+}

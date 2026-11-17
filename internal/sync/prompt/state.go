@@ -352,11 +352,8 @@ func applyVariationOwnership(client syncapi.Client, resources []PlannedResource)
 func enforceOwnership(resource *PlannedResource, ownership syncdomain.Ownership) {
 	switch {
 	case ownership.ManagedInLaunchDarkly():
-		wasPush := resource.Action.changesServer() || resource.Action == ActionConflict
+		resource.managedInLaunchDarkly = resource.Action.changesServer() || resource.Action == ActionConflict
 		enforceDirection(resource, syncdomain.SyncDirectionServerCanonical)
-		// Only a row that really ends up pulled or skipped gets the note; a
-		// row the rule turned into an error or problem has its own message.
-		resource.managedInLaunchDarkly = wasPush && resource.Action != ActionError
 	case ownership.Direction == syncdomain.SyncDirectionCodeCanonical:
 		enforceDirection(resource, syncdomain.SyncDirectionCodeCanonical)
 	default:

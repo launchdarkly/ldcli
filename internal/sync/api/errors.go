@@ -109,11 +109,3 @@ func ResponseCode(err error) string {
 	code, _ := response["code"].(string)
 	return code
 }
-
-// ResponseMessage returns the message of a LaunchDarkly API error body, or ""
-// when the body has none.
-func ResponseMessage(err error) string {
-	response, _ := responseError(err)
-	message, _ := response["message"].(string)
-	return message
-}

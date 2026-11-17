@@ -132,7 +132,7 @@ func jsonDocument(resources any, plan Plan) map[string]any {
 	document := map[string]any{"resources": resources}
 	var notes []string
 	for _, resource := range plan.Resources {
-		if resource.managedInLaunchDarkly {
+		if resource.showsManagedNote() {
 			notes = append(notes, syncdomain.ManagedInLaunchDarklyMessage(resource.ID))
 		}
 	}
@@ -293,7 +293,7 @@ func writePlanNotes(out io.Writer, plan Plan) {
 				"Note: Another working copy synced %s after your sync.lock. %s\n", resource.ID.Label(), staleSuggestion(resource),
 			)
 		}
-		if resource.managedInLaunchDarkly {
+		if resource.showsManagedNote() {
 			_ = console.Printf("Note: %s\n", syncdomain.ManagedInLaunchDarklyMessage(resource.ID))
 		}
 	}

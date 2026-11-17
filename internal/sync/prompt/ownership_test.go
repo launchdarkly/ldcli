@@ -278,3 +278,25 @@ func TestCreateBlockedByALaunchDarklyRuleHasNoManagedNote(t *testing.T) {
 	assert.Contains(t, err.Error(), "server-canonical resource does not exist in LaunchDarkly")
 	assert.NotContains(t, stderr, "pulled, not pushed")
 }
+
+// A pull of a variation that LaunchDarkly owns, which a changed tool then
+// turns into a conflict, is not pulled, so it gets no "pulled, not pushed"
+// note.
+func TestManagedVariationTurnedIntoAConflictHasNoManagedNote(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeManifest(t, root, baseline)
+	trackTool(t, root, searchTool("old"))
+	local := baseline
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{toolAttachment(searchTool("edited"), 0)}
+	writeVariation(t, root, local, true)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{"search": {Tool: searchTool("new"), Version: 2}}}
+	managedInLaunchDarkly(api)
+
+	stdout, stderr, _ := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	assert.Contains(t, planRows(t, stdout), "variation support/default conflict")
+	assert.NotContains(t, stdout, "pulled, not pushed")
+	assert.NotContains(t, stderr, "pulled, not pushed")
+}

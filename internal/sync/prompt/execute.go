@@ -759,15 +759,11 @@ func applyServerChange(
 		// The sync lock rejects a caller who holds the permission, so the
 		// message from LaunchDarkly is the cause, not the role.
 		if syncapi.ResponseCode(writeErr) == "managed_in_code" {
-			message := syncapi.ResponseMessage(writeErr)
-			if message == "" {
-				message = fmt.Sprintf("LaunchDarkly rejected the write of variation %q of AI Config %q because it is managed in code", variationKey, configKey)
-			}
 			problem := syncdomain.NewProblem(
 				syncdomain.ErrorVariationManagedInCode,
-				message,
+				fmt.Sprintf("LaunchDarkly rejected the write of variation %q of AI Config %q because it is managed in code", variationKey, configKey),
 				"Run sync from the repository that LaunchDarkly records as the source of this variation.",
-			)
+			).WithResource(resource.ID)
 			problem.Cause = writeErr
 			return nil, problem
 		}
@@ -775,7 +771,7 @@ func applyServerChange(
 			syncdomain.ErrorSyncVariationForbidden,
 			fmt.Sprintf("your role cannot write variation %q of AI Config %q in project %q", variationKey, configKey, projectKey),
 			fmt.Sprintf("Ask a LaunchDarkly admin to grant your role the syncAIConfigVariation action on the AI Config proj/%s:env/*:aiconfig/%s.", projectKey, configKey),
-		)
+		).WithResource(resource.ID)
 		problem.Cause = writeErr
 		return nil, problem
 	}
