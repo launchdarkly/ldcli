@@ -344,6 +344,10 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	}
 
 	if string(res) == "" {
+		if strings.EqualFold(op.HTTPMethod, "GET") {
+			fmt.Fprint(cmd.OutOrStdout(), emptyGetOutput(cmd)+"\n")
+			return nil
+		}
 		// assuming the key to be deleted/replaced is last in the list of params,
 		// e.g. contexts delete-instances or code-refs replace-branch
 		res = []byte(fmt.Sprintf(`{"key": %q}`, urlParms[len(urlParms)-1]))
@@ -360,6 +364,17 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	fmt.Fprint(cmd.OutOrStdout(), output+"\n")
 
 	return nil
+}
+
+// emptyGetOutput reports a GET that found no resource, such as an environment
+// with no default release plan, so the response is not mistaken for a resource.
+func emptyGetOutput(cmd *cobra.Command) string {
+	if cliflags.GetOutputKind(cmd) == output.OutputKindJSON.String() {
+		return "{}"
+	}
+	resourceName := strings.ReplaceAll(strings.TrimSuffix(cmd.Parent().Name(), "-beta"), "-", " ")
+
+	return fmt.Sprintf("No %s returned", resourceName)
 }
 
 func NewOperationCmd(
