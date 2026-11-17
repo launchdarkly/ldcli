@@ -324,6 +324,20 @@ func TestLinkClaimsAVariationWithoutARule(t *testing.T) {
 	assert.Equal(t, "Local prompt.", api.variation.Instructions)
 }
 
+// A link makes the variation code-owned even when its content already matches
+// LaunchDarkly, so nothing else is pushed.
+func TestLinkClaimsAVariationWhoseContentAlreadyMatches(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Help\n"), 0o644))
+	api := &directAPI{variation: pointer(variation("Server"))}
+
+	_, err := linkPrompt(t, root, api)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation:support/default code_canonical"}, codeClaims(api.settingsWrites))
+	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/default"), "no content push")
+}
+
 // A link of a variation with an explicit LaunchDarkly rule neither claims nor
 // pushes it, and the user learns why.
 func TestLinkLeavesAVariationManagedInLaunchDarkly(t *testing.T) {

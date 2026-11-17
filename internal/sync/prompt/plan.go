@@ -752,12 +752,16 @@ func (plan Plan) ownershipUnrecordedProjects() []string {
 	return projectKeys
 }
 
-// ownershipClaims returns, by project, the variations that the plan pushes
-// and that code does not own yet in the LaunchDarkly sync settings.
+// ownershipClaims returns, by project, the variations that the plan pushes or
+// links, and that code does not own yet in the LaunchDarkly sync settings. A
+// link claims its variation even when the content already matches, so only
+// the manifest changes.
 func (plan Plan) ownershipClaims() map[string][]ResourceID {
 	claims := make(map[string][]ResourceID)
 	for _, resource := range plan.Resources {
-		if resource.ID.Kind == syncdomain.KindVariation && resource.claimOwnership && resource.Action.changesServer() {
+		linked := resource.Source != nil && resource.Action == ActionUpdateManifest
+		claimed := resource.Action.changesServer() || linked
+		if resource.ID.Kind == syncdomain.KindVariation && resource.claimOwnership && claimed {
 			claims[resource.ID.ProjectKey] = append(claims[resource.ID.ProjectKey], resource.ID)
 		}
 	}
