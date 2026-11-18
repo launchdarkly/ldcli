@@ -300,3 +300,20 @@ func TestManagedVariationTurnedIntoAConflictHasNoManagedNote(t *testing.T) {
 	assert.NotContains(t, stdout, "pulled, not pushed")
 	assert.NotContains(t, stderr, "pulled, not pushed")
 }
+
+// Every request of a sync carries the sync source of the repository in
+// LD-Sync-Source, so LaunchDarkly can tell a sync write from a UI write and
+// check it against the sources that sync the resource. The User-Agent stays.
+func TestSyncSendsTheRepositorySourceWithEveryRequest(t *testing.T) {
+	root, api := managedVariationWithLocalChange(t)
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	require.NotEmpty(t, api.requests)
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodPatch, "/variations/default"), "the push happened")
+	require.Len(t, api.syncSources, len(api.requests), "every request sent the header")
+	for _, source := range api.syncSources {
+		assert.Equal(t, "git:example/repo", source)
+	}
+}

@@ -212,6 +212,28 @@ func TestMakeRequestAPIVersion(t *testing.T) {
 	}
 }
 
+// Extra headers go with the request, and the headers that every request
+// sends stay in place.
+func TestMakeRequestWithHeaders(t *testing.T) {
+	var got http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	c := resources.NewClient("test-version")
+	headers := http.Header{}
+	headers.Set("LD-Sync-Source", "git:example/repo")
+
+	_, err := c.MakeRequestWithHeaders("token", "GET", server.URL, "application/json", nil, nil, false, headers)
+
+	require.NoError(t, err)
+	assert.Equal(t, "git:example/repo", got.Get("LD-Sync-Source"))
+	assert.Equal(t, "launchdarkly-cli/vtest-version", got.Get("User-Agent"))
+	assert.Equal(t, "20240415", got.Get("LD-API-Version"))
+	assert.Equal(t, "token", got.Get("Authorization"))
+}
+
 func makeServer(t *testing.T, statusResponse int, responseBody string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))

@@ -21,6 +21,9 @@ type recordedRequest struct {
 	Query       url.Values
 	Body        []byte
 	IsBeta      bool
+	// Headers holds the extra headers of a request sent with headers. It is
+	// nil for a request sent without them.
+	Headers http.Header
 }
 
 type recordingClient struct {
@@ -32,7 +35,24 @@ type recordingClient struct {
 	Errors []error
 }
 
-var _ resources.Client = &recordingClient{}
+var _ resources.HeaderClient = &recordingClient{}
+
+// MakeRequestWithHeaders records the extra headers and answers as
+// MakeRequest does.
+func (client *recordingClient) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
+	response, err := client.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+	client.Requests[len(client.Requests)-1].Headers = headers
+	return response, err
+}
 
 func (client *recordingClient) MakeRequest(
 	accessToken string,
@@ -598,4 +618,69 @@ func testVariation(mode syncdomain.VariationMode) syncdomain.Variation {
 		ModelConfigKey: "claude",
 		Model:          map[string]any{"modelName": "claude-3-5-sonnet"},
 	}
+}
+
+// A client with a source sends it in LD-Sync-Source with every read and
+// write, so LaunchDarkly knows which repository syncs.
+func TestClientWithSourceSendsTheSyncSourceHeader(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`[]`), nil}}
+	client := NewClient(transport, "token", "https://example.com").WithSource("git:example/repo")
+
+	_, err := client.ModelConfigs("project")
+	require.NoError(t, err)
+	err = client.ArchiveVariation("project", "support", "default")
+	require.NoError(t, err)
+
+	require.Len(t, transport.Requests, 2)
+	for _, request := range transport.Requests {
+		assert.Equal(t, "git:example/repo", request.Headers.Get(SyncSourceHeader), request.Method+" "+request.Path)
+	}
+}
+
+// A client without a source sends no sync source header.
+func TestClientWithoutSourceSendsNoSyncSourceHeader(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`[]`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	_, err := client.ModelConfigs("project")
+
+	require.NoError(t, err)
+	require.Len(t, transport.Requests, 1)
+	assert.Nil(t, transport.Requests[0].Headers)
+}
+
+// plainClient cannot send extra headers. It holds the recording client in a
+// field, so that the header method is not promoted.
+type plainClient struct {
+	inner *recordingClient
+}
+
+var _ resources.Client = plainClient{}
+
+func (client plainClient) MakeRequest(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+) ([]byte, error) {
+	return client.inner.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+}
+
+func (client plainClient) MakeUnauthenticatedRequest(method, path string, body []byte) ([]byte, error) {
+	return client.inner.MakeUnauthenticatedRequest(method, path, body)
+}
+
+// A transport that cannot send headers still gets the request.
+func TestClientWithSourceFallsBackToAPlainTransport(t *testing.T) {
+	inner := &recordingClient{Responses: [][]byte{[]byte(`[]`)}}
+	client := NewClient(plainClient{inner: inner}, "token", "https://example.com").WithSource("git:example/repo")
+
+	_, err := client.ModelConfigs("project")
+
+	require.NoError(t, err)
+	require.Len(t, inner.Requests, 1)
+	assert.Nil(t, inner.Requests[0].Headers)
 }

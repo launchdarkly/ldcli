@@ -12,16 +12,44 @@ import (
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
+// SyncSourceHeader names the request header that carries the sync source of
+// the repository, for example git:acme/support-agent. LaunchDarkly uses it to
+// tell a sync write from a UI or API write, and to check the write against
+// the sources that sync the resource.
+const SyncSourceHeader = "LD-Sync-Source"
+
 // Client calls the LaunchDarkly REST API with one access token.
 type Client struct {
 	transport   resources.Client
 	accessToken string
 	baseURI     string
+	// source is the sync source that every request sends in SyncSourceHeader.
+	// An empty source sends no header.
+	source string
 }
 
 // NewClient creates a client for the API at baseURI.
 func NewClient(transport resources.Client, accessToken, baseURI string) Client {
 	return Client{transport: transport, accessToken: accessToken, baseURI: baseURI}
+}
+
+// WithSource returns a client that sends source in SyncSourceHeader with
+// every request.
+func (client Client) WithSource(source string) Client {
+	client.source = source
+	return client
+}
+
+// send makes one request. It adds the sync source header when the client
+// has a source and the transport can send headers.
+func (client Client) send(method, endpoint, contentType string, query url.Values, body []byte) ([]byte, error) {
+	transport, canSendHeaders := client.transport.(resources.HeaderClient)
+	if client.source == "" || !canSendHeaders {
+		return client.transport.MakeRequest(client.accessToken, method, endpoint, contentType, query, body, false)
+	}
+	headers := http.Header{}
+	headers.Set(SyncSourceHeader, client.source)
+	return transport.MakeRequestWithHeaders(client.accessToken, method, endpoint, contentType, query, body, false, headers)
 }
 
 // Page is one server-filtered page of catalog items.
@@ -47,7 +75,7 @@ func (client Client) read(description, projectKey string, query url.Values, path
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", query, nil, false)
+	response, err := client.send(http.MethodGet, endpoint, "", query, nil)
 	if err != nil {
 		return nil, contextualAPIError(err, description, projectKey)
 	}
@@ -65,7 +93,7 @@ func (client Client) mutate(request mutation, path ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.transport.MakeRequest(client.accessToken, request.method, endpoint, "application/json", nil, body, false)
+	response, err := client.send(request.method, endpoint, "application/json", nil, body)
 	if err != nil {
 		return nil, newMutationError(request.action, request.resource, request.key, err)
 	}

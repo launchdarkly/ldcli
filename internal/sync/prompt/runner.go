@@ -33,7 +33,10 @@ type syncWorkspace struct {
 
 // Runner runs the prompt sync commands. Tests replace its function fields.
 type Runner struct {
-	client     resources.Client
+	client resources.Client
+	// source is the sync source of the repository that Run found. Every
+	// request sends it, so LaunchDarkly knows which repository writes.
+	source     string
 	bootstrap  func(syncbootstrap.Options) error
 	detach     func(syncdetach.Options) error
 	watch      watchRunner
@@ -64,6 +67,7 @@ func (runner Runner) Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	runner.source = resolved.Source
 	local := synclocal.NewStore(resolved.Root)
 	workspace := syncWorkspace{
 		root:      resolved.Root,
@@ -254,7 +258,7 @@ func (runner Runner) bootstrapOptions(options Options, workspace syncWorkspace, 
 
 // api returns the LaunchDarkly client for the command.
 func (runner Runner) api(options Options) syncapi.Client {
-	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI)
+	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI).WithSource(runner.source)
 }
 
 // interactive reports whether the command can ask the user for input.
