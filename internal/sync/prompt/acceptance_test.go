@@ -49,6 +49,8 @@ type directAPI struct {
 	// settingsReadErr fails each read of the sync settings.
 	settingsReadErr error
 	requests        []string
+	// syncSources is the LD-Sync-Source header of each request, in order.
+	syncSources []string
 	// expandTools makes each read of the variation add the content of its
 	// tools to model.parameters.tools, as LaunchDarkly does.
 	expandTools bool
@@ -97,6 +99,22 @@ type directAPIVariation struct {
 }
 
 var _ resources.Client = &directAPI{}
+
+// MakeRequestWithHeaders records the sync source header of each request and
+// answers as MakeRequest does.
+func (api *directAPI) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
+	api.syncSources = append(api.syncSources, headers.Get(syncapi.SyncSourceHeader))
+	return api.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+}
 
 func (api *directAPI) MakeRequest(
 	_ string,
@@ -3029,6 +3047,22 @@ type ambiguousWriteAPI struct {
 	directAPI
 }
 
+// MakeRequestWithHeaders answers as the MakeRequest of this fake does, not
+// as the embedded one does.
+func (api *ambiguousWriteAPI) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
+	api.syncSources = append(api.syncSources, headers.Get(syncapi.SyncSourceHeader))
+	return api.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+}
+
 func (api *ambiguousWriteAPI) MakeRequest(
 	accessToken string,
 	method string,
@@ -3050,6 +3084,22 @@ func (api *ambiguousWriteAPI) MakeRequest(
 type changingReadAPI struct {
 	directAPI
 	reads int
+}
+
+// MakeRequestWithHeaders answers as the MakeRequest of this fake does, not
+// as the embedded one does.
+func (api *changingReadAPI) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
+	api.syncSources = append(api.syncSources, headers.Get(syncapi.SyncSourceHeader))
+	return api.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
 }
 
 func (api *changingReadAPI) MakeRequest(
@@ -3290,6 +3340,15 @@ func (api configGoneAPI) MakeRequest(
 		return nil, lderrors.NewError(`{"code":"not_found","message":"AI config not found","statusCode":404}`)
 	}
 	return api.directAPI.MakeRequest(token, method, path, contentType, query, body, isBeta)
+}
+
+// MakeRequestWithHeaders answers as the MakeRequest of this fake does, not
+// as the embedded one does.
+func (api configGoneAPI) MakeRequestWithHeaders(
+	token, method, path, contentType string, query url.Values, body []byte, isBeta bool, headers http.Header,
+) ([]byte, error) {
+	api.syncSources = append(api.syncSources, headers.Get(syncapi.SyncSourceHeader))
+	return api.MakeRequest(token, method, path, contentType, query, body, isBeta)
 }
 
 // A tracked variation whose config answers 404 stops the sync, as a wrong
