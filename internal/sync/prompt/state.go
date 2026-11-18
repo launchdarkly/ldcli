@@ -251,10 +251,18 @@ func allowRelink(resources []PlannedResource, id ResourceID) {
 	}
 }
 
+// applySourceDirections applies the LaunchDarkly sync settings to the rows.
+// A variation that an explicit LaunchDarkly rule owns pulls, and any other
+// variation may push: LaunchDarkly records code as its owner once the
+// variation is in a synced manifest. A linked tool or skill follows its
+// direction.
 func applySourceDirections(client syncapi.Client, resources []PlannedResource) error {
+	if err := applyVariationOwnership(client, resources); err != nil {
+		return err
+	}
 	byProject := make(map[string][]ResourceID)
 	for _, resource := range resources {
-		if resource.Source != nil {
+		if resource.Source != nil && resource.ID.Kind != syncdomain.KindVariation {
 			byProject[resource.ID.ProjectKey] = append(byProject[resource.ID.ProjectKey], resource.ID)
 		}
 	}
@@ -278,17 +286,13 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 					continue
 				}
 				if !ok {
-					suggestion := "Configure the resource sync setting in LaunchDarkly, then run link again."
-					if resource.ID.Kind != syncdomain.KindVariation {
-						suggestion = fmt.Sprintf(
-							"LaunchDarkly does not provide a %s sync setting. Configure one when support is available, or run detach.",
-							resource.ID.Kind,
-						)
-					}
 					return syncdomain.NewProblem(
 						syncdomain.ErrorSyncSettingUnavailable,
 						"LaunchDarkly returned no sync setting",
-						suggestion,
+						fmt.Sprintf(
+							"LaunchDarkly does not provide a %s sync setting. Configure one when support is available, or run detach.",
+							resource.ID.Kind,
+						),
 					).WithResource(resource.ID)
 				}
 				enforceDirection(resource, direction)
@@ -296,6 +300,65 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 		}
 	}
 	return nil
+}
+
+// applyVariationOwnership reads the ownership of every variation row and
+// applies it. Without the sync settings API, the rows keep their actions. A
+// variation that the API answers without an entry for fails closed, before
+// anything is written, unless it is a create of a variation LaunchDarkly does
+// not have yet.
+func applyVariationOwnership(client syncapi.Client, resources []PlannedResource) error {
+	byProject := make(map[string][]ResourceID)
+	for _, resource := range resources {
+		if resource.ID.Kind == syncdomain.KindVariation {
+			byProject[resource.ID.ProjectKey] = append(byProject[resource.ID.ProjectKey], resource.ID)
+		}
+	}
+	for projectKey, ids := range byProject {
+		ownership, err := client.ResolveOwnership(projectKey, ids)
+		unavailable := syncapi.IsNotFound(err)
+		if err != nil && !unavailable {
+			return err
+		}
+		for index := range resources {
+			resource := &resources[index]
+			if resource.ID.Kind != syncdomain.KindVariation || resource.ID.ProjectKey != projectKey {
+				continue
+			}
+			if unavailable {
+				enforceDirection(resource, syncdomain.SyncDirectionBoth)
+				continue
+			}
+			owner, ok := ownership[resource.ID]
+			// A create with nothing in LaunchDarkly yet has no rule to read.
+			if !ok && !(resource.Action == ActionCreateServer && !resource.hasServer()) {
+				return syncdomain.NewProblem(
+					syncdomain.ErrorSyncSettingUnavailable,
+					"LaunchDarkly returned no sync setting",
+					"Configure the resource sync setting in LaunchDarkly, then run sync again.",
+				).WithResource(resource.ID)
+			}
+			enforceOwnership(resource, owner)
+		}
+	}
+	return nil
+}
+
+// enforceOwnership applies the ownership of one variation. An explicit
+// LaunchDarkly rule makes it server-canonical, and code_canonical makes it
+// code-canonical, whether a rule or a synced manifest produced it. A
+// variation without a rule may move either way: the server_canonical default
+// of the settings API does not make it pull.
+func enforceOwnership(resource *PlannedResource, ownership syncdomain.Ownership) {
+	switch {
+	case ownership.ManagedInLaunchDarkly():
+		resource.managedInLaunchDarkly = resource.Action.changesServer() || resource.Action == ActionConflict
+		enforceDirection(resource, syncdomain.SyncDirectionServerCanonical)
+	case ownership.Direction == syncdomain.SyncDirectionCodeCanonical:
+		enforceDirection(resource, syncdomain.SyncDirectionCodeCanonical)
+	default:
+		enforceDirection(resource, syncdomain.SyncDirectionBoth)
+	}
 }
 
 func enforceDirection(resource *PlannedResource, direction syncdomain.SyncDirection) {

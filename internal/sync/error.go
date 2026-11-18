@@ -26,6 +26,8 @@ const (
 	ErrorLinkedSourceMissing         ErrorCode = "linked_source_missing"
 	ErrorAttachmentDefinitionMissing ErrorCode = "attachment_definition_missing"
 	ErrorSyncSettingUnavailable      ErrorCode = "sync_setting_unavailable"
+	ErrorSyncVariationForbidden      ErrorCode = "sync_variation_forbidden"
+	ErrorVariationManagedInCode      ErrorCode = "variation_managed_in_code"
 	ErrorBindingStale                ErrorCode = "binding_stale"
 	ErrorStateChanged                ErrorCode = "state_changed"
 	ErrorSourceNotWritable           ErrorCode = "source_not_writable"

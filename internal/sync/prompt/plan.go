@@ -101,6 +101,17 @@ type PlannedResource struct {
 	// createsConfig is true when the create of the variation also creates
 	// its config, because LaunchDarkly has none.
 	createsConfig bool
+	// managedInLaunchDarkly is true when an explicit LaunchDarkly rule turned
+	// a push of the variation into a pull or a skip. Use showsManagedNote to
+	// know whether the final plan row still deserves the note.
+	managedInLaunchDarkly bool
+}
+
+// showsManagedNote reports whether the row ends up pulled or skipped because
+// of a LaunchDarkly rule. A row that later planning turned into an error or a
+// conflict has its own message instead.
+func (r PlannedResource) showsManagedNote() bool {
+	return r.managedInLaunchDarkly && r.Action != ActionError && r.Action != ActionConflict
 }
 
 func setProblem(resource *PlannedResource, problem *syncdomain.Problem) {
