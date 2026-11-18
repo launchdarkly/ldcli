@@ -1,6 +1,7 @@
 package awsdevops_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,88 +12,102 @@ import (
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
-func writeConfig(t *testing.T, content string) string {
+const ssoSession = "\n[sso-session corp]\nsso_start_url = https://example.awsapps.com/start\nsso_region = us-east-1\n"
+
+// writeConfig points the SDK at a temp config with this content.
+func writeConfig(t *testing.T, content string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config")
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-
-	return path
+	t.Setenv("AWS_CONFIG_FILE", path)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
 }
 
-func TestHasSSOConfigFindsSSOSession(t *testing.T) {
-	path := writeConfig(t, "[profile dev]\nsso_session = corp\nregion = us-east-1\n")
+func TestSSOProfileFindsSSOSession(t *testing.T) {
+	writeConfig(t, "[profile dev]\nsso_session = corp\nregion = us-east-1\n"+ssoSession)
 
-	assert.True(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Equal(t, "dev", awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigFindsLegacyStartURL(t *testing.T) {
-	path := writeConfig(t, "[profile dev]\nsso_start_url=https://corp.awsapps.com/start\n")
+func TestSSOProfileFindsLegacyStartURL(t *testing.T) {
+	writeConfig(t, "[profile dev]\nsso_start_url=https://corp.awsapps.com/start\n")
 
-	assert.True(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Equal(t, "dev", awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigReadsDefaultSection(t *testing.T) {
-	path := writeConfig(t, "[default]\nsso_session = corp\n")
+func TestSSOProfileReadsDefaultSection(t *testing.T) {
+	writeConfig(t, "[default]\nsso_session = corp\n"+ssoSession)
 
-	assert.True(t, awsdevops.HasSSOConfig(path, "default"))
+	assert.Equal(t, "default", awsdevops.SSOProfile(context.Background(), "default"))
 }
 
-func TestHasSSOConfigIgnoresNearMissProfile(t *testing.T) {
-	path := writeConfig(t, "[profile dev]\nregion = us-east-1\n\n[profile dev-admin]\nsso_session = corp\n")
+func TestSSOProfileIgnoresNearMissProfile(t *testing.T) {
+	writeConfig(t, "[profile dev]\nregion = us-east-1\n\n[profile dev-admin]\nsso_session = corp\n"+ssoSession)
 
-	assert.False(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigIgnoresOtherProfileBeforeIt(t *testing.T) {
-	path := writeConfig(t, "[profile dev-admin]\nsso_session = corp\n\n[profile dev]\nregion = us-east-1\n")
+func TestSSOProfileIgnoresOtherProfileBeforeIt(t *testing.T) {
+	writeConfig(t, "[profile dev-admin]\nsso_session = corp\n\n[profile dev]\nregion = us-east-1\n"+ssoSession)
 
-	assert.False(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigIgnoresSSORegionOnly(t *testing.T) {
-	path := writeConfig(t, "[profile dev]\nsso_region = us-east-1\nsso_account_id = 123\n")
+func TestSSOProfileIgnoresSSORegionOnly(t *testing.T) {
+	writeConfig(t, "[profile dev]\nsso_region = us-east-1\nsso_account_id = 123\n")
 
-	assert.False(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigIgnoresCommentedLines(t *testing.T) {
-	path := writeConfig(t, "[profile dev]\n# sso_start_url = https://corp.awsapps.com/start\n; sso_session = corp\n")
+func TestSSOProfileIgnoresCommentedLines(t *testing.T) {
+	writeConfig(t, "[profile dev]\n# sso_start_url = https://corp.awsapps.com/start\n; sso_session = corp\n")
 
-	assert.False(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigIgnoresNearMissKey(t *testing.T) {
-	path := writeConfig(t, "[profile dev]\nsso_session_name = corp\nmy_sso_start_url = x\n")
+func TestSSOProfileIgnoresNearMissKey(t *testing.T) {
+	writeConfig(t, "[profile dev]\nsso_session_name = corp\nmy_sso_start_url = x\n")
 
-	assert.False(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigIgnoresSessionSection(t *testing.T) {
-	path := writeConfig(t, "[sso-session dev]\nsso_start_url = https://corp.awsapps.com/start\n")
+func TestSSOProfileIgnoresSessionSection(t *testing.T) {
+	writeConfig(t, "[sso-session dev]\nsso_start_url = https://corp.awsapps.com/start\n")
 
-	assert.False(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigIgnoresBareDefaultForOtherName(t *testing.T) {
-	path := writeConfig(t, "[default]\nsso_session = corp\n")
+func TestSSOProfileIgnoresBareDefaultForOtherName(t *testing.T) {
+	writeConfig(t, "[default]\nsso_session = corp\n"+ssoSession)
 
-	assert.False(t, awsdevops.HasSSOConfig(path, "dev"))
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestHasSSOConfigHandlesMissingFile(t *testing.T) {
-	assert.False(t, awsdevops.HasSSOConfig(filepath.Join(t.TempDir(), "absent"), "dev"))
+func TestSSOProfileHandlesMissingFile(t *testing.T) {
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(t.TempDir(), "absent"))
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "dev"))
 }
 
-func TestConfigFilePathUsesEnvOverride(t *testing.T) {
-	t.Setenv("AWS_CONFIG_FILE", "/elsewhere/aws-config")
+// A role profile gets its credentials from its source profile.
+func TestSSOProfileFollowsSourceProfile(t *testing.T) {
+	writeConfig(t, "[profile app]\nrole_arn = arn:aws:iam::123456789012:role/App\nsource_profile = base\n\n"+
+		"[profile base]\nsso_session = corp\n"+ssoSession)
 
-	assert.Equal(t, "/elsewhere/aws-config", awsdevops.ConfigFilePath())
+	assert.Equal(t, "base", awsdevops.SSOProfile(context.Background(), "app"))
 }
 
-func TestConfigFilePathDefaultsToHome(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("AWS_CONFIG_FILE", "")
+func TestSSOProfileIgnoresRoleWithStaticSource(t *testing.T) {
+	writeConfig(t, "[profile app]\nrole_arn = arn:aws:iam::123456789012:role/App\nsource_profile = base\n\n"+
+		"[profile base]\naws_access_key_id = AKIAEXAMPLE\naws_secret_access_key = secret\n")
 
-	assert.Equal(t, filepath.Join(home, ".aws", "config"), awsdevops.ConfigFilePath())
+	assert.Empty(t, awsdevops.SSOProfile(context.Background(), "app"))
+}
+
+func TestSSOProfileReadsTheSelectedProfile(t *testing.T) {
+	writeConfig(t, "[profile dev]\nsso_session = corp\n"+ssoSession)
+	t.Setenv("AWS_PROFILE", "dev")
+
+	assert.Equal(t, "dev", awsdevops.SSOProfile(context.Background(), ""))
 }
