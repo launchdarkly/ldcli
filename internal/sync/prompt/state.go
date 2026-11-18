@@ -269,7 +269,7 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 	for projectKey, ids := range byProject {
 		for start := 0; start < len(ids); start += 100 {
 			end := min(start+100, len(ids))
-			directions, err := client.SyncDirections(projectKey, ids[start:end])
+			ownership, err := client.ResolveOwnership(projectKey, ids[start:end])
 			if err != nil {
 				return err
 			}
@@ -279,10 +279,13 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 					!slices.Contains(ids[start:end], resource.ID) {
 					continue
 				}
-				direction, ok := directions[resource.ID]
-				if !ok && resource.Action == ActionCreateServer && !resource.hasServer() {
+				owner, ok := ownership[resource.ID]
+				if resource.Action == ActionCreateServer && !resource.hasServer() && (!ok || !owner.HasRule()) {
 					// Nothing exists in LaunchDarkly yet for a setting to
-					// govern, so a create needs none.
+					// govern, so a create needs none. The server_canonical
+					// default of a resource without a rule is not one either:
+					// the create puts the resource in the synced manifest,
+					// which makes it code-owned.
 					continue
 				}
 				if !ok {
@@ -295,7 +298,7 @@ func applySourceDirections(client syncapi.Client, resources []PlannedResource) e
 						),
 					).WithResource(resource.ID)
 				}
-				enforceDirection(resource, direction)
+				enforceDirection(resource, owner.Direction)
 			}
 		}
 	}

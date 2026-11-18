@@ -2218,6 +2218,87 @@ func TestLinkUpsertCreatesAMissingTool(t *testing.T) {
 	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "search.ref.yaml"))
 }
 
+// LaunchDarkly answers server_canonical for a resource that no rule matches
+// and no manifest syncs yet. That default does not block the create of a
+// missing tool, because the create puts the tool in the synced manifest.
+func TestLinkUpsertCreatesAMissingToolUnderTheDefaultSetting(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	api := &directAPI{
+		tools:      map[string]versionedTool{},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tool.json", Format: "json", Select: "$",
+			Map: map[string]string{"description": "description", "schema": "schema"}, Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	require.Contains(t, api.tools, "search")
+	assert.Equal(t, "Local", *api.tools["search"].Description)
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "search.ref.yaml"))
+}
+
+// The same default does not block the create of a missing skill.
+func TestLinkUpsertCreatesAMissingSkillUnderTheDefaultSetting(t *testing.T) {
+	root := initRepository(t)
+	sourcePath := filepath.Join(root, ".agents", "skills", "refunds", "SKILL.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(sourcePath), 0o755))
+	require.NoError(t, os.WriteFile(sourcePath, []byte("---\ndescription: Local refund guidance.\n---\n# Refunds\n\nUse the local policy.\n"), 0o644))
+	api := &directAPI{
+		skills:     map[string]versionedSkill{},
+		directions: map[string]syncdomain.SyncDirection{"skill:refunds": syncdomain.SyncDirectionServerCanonical},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "production", LookupKey: "refunds"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeSkills,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: ".agents/skills/refunds/SKILL.md", Format: "agent-skill", Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	require.Contains(t, api.skills, "refunds")
+	assert.Equal(t, "Local refund guidance.", api.skills["refunds"].Description)
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "skills", "refunds.ref.yaml"))
+}
+
+// An explicit LaunchDarkly rule still blocks the create of a missing tool.
+func TestLinkUpsertDoesNotCreateAToolThatALaunchDarklyRuleOwns(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	api := &directAPI{
+		tools:      map[string]versionedTool{},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+		patterns:   map[string]string{"tool:search": "search"},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tool.json", Format: "json", Select: "$",
+			Map: map[string]string{"description": "description", "schema": "schema"}, Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server-canonical resource does not exist in LaunchDarkly")
+	assert.Empty(t, api.tools, "the link does not create the tool")
+	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "search.ref.yaml"))
+}
+
 func TestPromptDescriptorTopLevelToolSyncsEndToEnd(t *testing.T) {
 	root := initRepository(t)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
