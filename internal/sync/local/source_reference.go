@@ -174,12 +174,12 @@ func compileSource(id syncdomain.ResourceID, reference Reference, bundle syncada
 			).WithFile(reference.File, 0, 0)
 		}
 		return SourceDefinition{Variation: &syncdomain.SyncedResource{
-			Kind: id.Kind, ProjectKey: id.ProjectKey, LookupKey: id.LookupKey,
+			Kind: id.Kind, ProjectKey: id.ProjectKey, LookupKey: id.LookupKey, Upsert: reference.Upsert,
 			Source: &reference, Dependencies: dependencies,
 			IndexedSelections: indexedSelections, Projection: projection, Variation: variation,
 		}}, nil
 	case syncdomain.KindTool, syncdomain.KindSkill:
-		attachment := syncdomain.Attachment{Kind: syncdomain.AttachmentKind(id.Kind)}
+		attachment := syncdomain.Attachment{Kind: syncdomain.AttachmentKind(id.Kind), Upsert: reference.Upsert}
 		if id.Kind == syncdomain.KindTool {
 			attachment.Tool = &syncdomain.Tool{Key: id.LookupKey}
 		} else {

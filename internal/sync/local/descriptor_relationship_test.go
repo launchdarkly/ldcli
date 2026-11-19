@@ -245,3 +245,47 @@ func TestDescriptorRelationshipReplacementSkipsIdenticalContent(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, changed)
 }
+
+// A descriptor opts in to creating its missing variation with upsert: true, as
+// a variation, tool, or skill file does.
+func TestDescriptorAcceptsUpsert(t *testing.T) {
+	id := syncdomain.VariationID("project", "config", "default")
+
+	_, err := ReadDescriptor(fstest.MapFS{
+		"value.ref.yaml": {Data: []byte("formatVersion: 1\nupsert: true\nfile: prompt.md\nformat: markdown\n")},
+	}, "value.ref.yaml", id)
+
+	assert.NoError(t, err)
+}
+
+// A descriptor that sync renders again to change its relationship lists keeps
+// upsert: true, because upsert describes the file, not LaunchDarkly.
+func TestDescriptorRelationshipRewriteKeepsUpsert(t *testing.T) {
+	root := t.TempDir()
+	id := syncdomain.VariationID("project", "support", "default")
+	descriptorPath, err := ReferencePath(id)
+	require.NoError(t, err)
+	// A flow mapping cannot be edited in place, so the descriptor is
+	// rendered again.
+	writeTestFile(t, root, descriptorPath,
+		"{formatVersion: 1, upsert: true, file: prompt.md, format: markdown, tools: [{key: old}]}\n")
+	old := []syncdomain.AttachmentRef{{Key: "old"}}
+	projected := []string{"search"}
+	replacement := SourceReplacement{
+		ID:        id,
+		Reference: Reference{File: "prompt.md", Format: "markdown", Tools: &old},
+		Projection: syncdomain.VariationProjection{
+			Tools: &projected,
+			FieldStates: map[syncdomain.Field]syncdomain.FieldState{
+				syncdomain.FieldTools: {Capability: syncdomain.CapabilityDirect, Known: true},
+			},
+		},
+	}
+
+	staged, changed, err := NewStore(root).prepareDescriptorRelationshipReplacement(replacement)
+
+	require.NoError(t, err)
+	require.True(t, changed)
+	assert.Contains(t, string(staged.replacement), "key: search")
+	assert.Contains(t, string(staged.replacement), "upsert: true")
+}
