@@ -144,6 +144,38 @@ support = Agent(instructions="Help with orders.")
 	require.Contains(t, string(prepared.Content), "key: handoff")
 }
 
+// A relink keeps upsert: true of the current descriptor, because upsert
+// describes the file and the link options do not set it.
+func TestPrepareKeepsTheUpsertOfTheCurrentDescriptor(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte(`from agents import Agent
+support = Agent(instructions="Help with orders.")
+`), 0o644))
+	id := syncdomain.VariationID("production", "support", "default")
+	store := synclocal.NewStore(root)
+	path, err := synclocal.ReferencePath(id)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, filepath.FromSlash(path))), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, filepath.FromSlash(path)), []byte(
+		"formatVersion: 1\nupsert: true\nfile: agents.py\nformat: python\nselect: agents[0]\nmap:\n  prompt: instructions\n",
+	), 0o644))
+
+	prepared, err := Prepare(Options{
+		Store: store, RepositoryRoot: root, WorkingDirectory: root, ID: id,
+		File: "agents.py", Format: "python", Select: `agents[id="support"]`,
+		Map: map[string]string{"prompt": "instructions"},
+	})
+	require.NoError(t, err)
+	require.Contains(t, string(prepared.Content), "upsert: true")
+	_, err = prepared.Write(store)
+	require.NoError(t, err)
+
+	written, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	require.NoError(t, err)
+	require.Contains(t, string(written), "upsert: true")
+	require.Contains(t, string(written), `agents[id="support"]`)
+}
+
 func TestRollbackAfterARefusedWriteLeavesAnIdenticalDescriptor(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte(`from agents import Agent

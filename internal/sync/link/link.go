@@ -65,14 +65,15 @@ func Prepare(options Options) (Prepared, error) {
 	if previous != nil {
 		// The link options set the file, the format, the selection, and the
 		// map. A relink keeps the tools and skills of the current descriptor,
-		// so that it does not read as a local removal of them. The one read
+		// so that it does not read as a local removal of them, and its
+		// upsert, which describes the file and is not a link option. The one read
 		// serves the snapshot and the lists, so Write checks the bytes that
 		// the lists came from.
 		current, err := synclocal.ParseDescriptor(previous, options.ID)
 		if err != nil {
 			return Prepared{}, fmt.Errorf("read the current descriptor %s: %w", path, err)
 		}
-		reference.Tools, reference.Skills = current.Tools, current.Skills
+		reference.Tools, reference.Skills, reference.Upsert = current.Tools, current.Skills, current.Upsert
 	}
 	reference, err = syncadapter.NormalizeReference(options.ID, reference)
 	if err != nil {

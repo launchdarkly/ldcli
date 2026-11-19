@@ -184,6 +184,10 @@ func ValidateCreate(kind Kind, key, name, description string) error {
 // Select identifies one value in the file. Map connects resource fields to
 // paths below that value.
 type Reference struct {
+	// Upsert lets sync create the resource in LaunchDarkly when it is absent,
+	// as upsert: true in a managed file does. It describes the descriptor, not
+	// the source mapping, so ReferenceDigest and projections leave it out.
+	Upsert bool              `json:"-" yaml:"upsert,omitempty"`
 	File   string            `json:"file" yaml:"file"`
 	Format string            `json:"format" yaml:"format"`
 	Select string            `json:"select,omitempty" yaml:"select,omitempty"`
