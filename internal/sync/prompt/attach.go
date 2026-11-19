@@ -65,6 +65,11 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 		return err
 	}
 
+	// A linked variation has a descriptor and no managed file, so the
+	// descriptor lists the attachment.
+	if target.Source != nil {
+		return store.AttachToDescriptor(target.ID(), attachment)
+	}
 	configKey, _, err := target.ID().VariationKeys()
 	if err != nil {
 		return err

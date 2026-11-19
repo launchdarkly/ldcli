@@ -490,3 +490,74 @@ func renderRelationshipNode(name string, refs []syncdomain.AttachmentRef, commen
 	}
 	return []byte(content.String())
 }
+
+// AttachToDescriptor adds a tool or a skill to the top-level list of a
+// variation descriptor, and keeps the rest of the descriptor and its
+// comments. The same transaction writes the file of the attachment when the
+// repository has none.
+func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachment syncdomain.Attachment) error {
+	descriptorPath, err := ReferencePath(id)
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(store.repositoryRoot, filepath.FromSlash(descriptorPath))
+	// Sync owns the managed directory, so the write refuses a path that goes
+	// through a symbolic link, as every other managed write does.
+	if err := rejectSymlinkedPath(store.root, target); err != nil {
+		return err
+	}
+	original, err := os.ReadFile(target)
+	if err != nil {
+		return fmt.Errorf("read descriptor %q: %w", descriptorPath, err)
+	}
+	current, err := decodeDescriptor(original, id)
+	if err != nil {
+		return err
+	}
+	isSkill := attachment.Kind == syncdomain.AttachmentSkill
+	list := current.Tools
+	if isSkill {
+		list = current.Skills
+	}
+	var refs []syncdomain.AttachmentRef
+	if list != nil {
+		refs = slices.Clone(*list)
+	}
+	if !slices.ContainsFunc(refs, func(ref syncdomain.AttachmentRef) bool { return ref.Key == attachment.Key() }) {
+		refs = append(refs, syncdomain.AttachmentRef{Key: attachment.Key()})
+	}
+	toolsChanged, skillsChanged := !isSkill, isSkill
+	next := referenceWithRelationships(current, refs, toolsChanged, refs, skillsChanged)
+	updated, err := updateDescriptorRelationships(original, refs, toolsChanged, refs, skillsChanged)
+	if err == nil && !descriptorReadsBack(updated, id, next) {
+		err = errRelationshipsShareLine
+	}
+	if errors.Is(err, errRelationshipsShareLine) {
+		// The list cannot be edited in place, so the descriptor is rendered
+		// again from its content. The comments do not survive.
+		updated, err = RenderDescriptor(id, next)
+	}
+	if err != nil {
+		return fmt.Errorf("update descriptor %q: %w", descriptorPath, err)
+	}
+
+	rendered, err := RenderAttachment(syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
+	if err != nil {
+		return err
+	}
+	files, err := store.prepareAttachmentFiles([]RenderedFile{rendered})
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(original, updated) {
+		info, err := os.Stat(target)
+		if err != nil {
+			return fmt.Errorf("inspect descriptor %q: %w", descriptorPath, err)
+		}
+		files = append(files, stagedFile{
+			displayPath: descriptorPath, path: target, original: original, originalExists: true,
+			replacement: updated, mode: info.Mode().Perm(),
+		})
+	}
+	return replaceFiles(files)
+}

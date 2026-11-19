@@ -4614,3 +4614,77 @@ func TestSettingFlipToPushStillPlansTheLinkedToolRow(t *testing.T) {
 	assert.Equal(t, "Baseline tool", *api.tools["search"].Description, "the server-canonical tool is not published")
 	assert.Equal(t, "Local text", api.variation.Instructions, "the code-canonical variation is pushed")
 }
+
+// linkUpsertedAgent links agents.py to production/support/default with
+// --upsert, which creates the config and the variation, and gives the
+// repository and LaunchDarkly the tool "lookup". It returns the repository
+// root, the API and the path of the variation's descriptor.
+func linkUpsertedAgent(t *testing.T) (string, *directAPI, string) {
+	t.Helper()
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	description := "Get the status of an order."
+	api := &directAPI{
+		configMissing: true,
+		tools: map[string]versionedTool{"lookup": {Tool: syncdomain.Tool{
+			Key: "lookup", Description: &description, Schema: map[string]any{"type": "object"},
+		}, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{},
+	}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[id="support"]`, Map: map[string]string{"prompt": "instructions"}, Upsert: true,
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	toolFile := filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(toolFile), 0o755))
+	require.NoError(t, os.WriteFile(toolFile, []byte(`{
+  "formatVersion": 1,
+  "key": "lookup",
+  "description": "Get the status of an order.",
+  "schema": {"type": "object"}
+}
+`), 0o644))
+	api.directions["variation:support/default"] = syncdomain.SyncDirectionCodeCanonical
+	return root, api, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+}
+
+// attach works on a variation linked to a repository source: it lists the
+// tool in the variation's descriptor, which has no .prompt.md file.
+func TestAttachToolToALinkedVariationListsItInTheDescriptor(t *testing.T) {
+	root, api, descriptor := linkUpsertedAgent(t)
+
+	_, _, err := runPrompt(t, root, api, "attach", "tool", "lookup", "--to", "production/support/default", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	content, err := os.ReadFile(descriptor)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "tools:\n  - key: lookup\n")
+}
+
+// attach skill works on a variation linked to a repository source as attach
+// tool does: it lists the skill in the variation's descriptor, writes the
+// skill file, and the sync that follows attaches the skill in LaunchDarkly.
+func TestAttachSkillToALinkedVariationListsItInTheDescriptor(t *testing.T) {
+	root, api, descriptor := linkUpsertedAgent(t)
+	api.skills = map[string]versionedSkill{"handoff": {Skill: syncdomain.Skill{
+		Key: "handoff", Name: "Handoff", Description: "Hand off to a human", Markdown: "Hand off.\n",
+	}, Version: 2}}
+
+	_, _, err := runPrompt(t, root, api, "attach", "skill", "handoff", "--to", "production/support/default", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	content, err := os.ReadFile(descriptor)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "skills:\n  - key: handoff\n")
+	assert.Contains(t, string(content), "file: agents.py", "the rest of the descriptor stays")
+	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "skills", "handoff.md"))
+	require.NoError(t, err, "attach writes the skill file")
+	require.NotNil(t, api.variation)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "handoff", Version: 2}}, api.variation.Skills)
+}
