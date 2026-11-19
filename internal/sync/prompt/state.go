@@ -46,8 +46,9 @@ type sourceLink struct {
 
 // linkIntent is what a link asks for beyond the descriptor: the creation of
 // a resource that LaunchDarkly does not have, with the model config and the
-// mode of a new variation. The descriptor records none of it, so the intent
-// applies to the compiled resource of the link on every load of a link run.
+// mode of a new variation. A link does not write them into the descriptor,
+// so the intent applies to the compiled resource of the link on every load
+// of a link run.
 type linkIntent struct {
 	upsert      bool
 	modelConfig *syncapi.ModelConfig
@@ -590,8 +591,8 @@ func planAttachmentRows(
 		local = append(local, *proposal.Attachment)
 	}
 	// A link with --upsert creates the tool or skill that LaunchDarkly does
-	// not have. The descriptor has no upsert, so the intent applies here, as
-	// the upsert of the run does.
+	// not have. The link does not write upsert into the descriptor, so the
+	// intent applies here, as the upsert of the run does.
 	for index := range local {
 		if upsert || link != nil && link.intent.upsert && local[index].ID() == link.id {
 			local[index].Attachment.Upsert = true
