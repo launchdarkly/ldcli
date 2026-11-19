@@ -44,25 +44,22 @@ type sourceLink struct {
 	intent   linkIntent
 }
 
-// linkIntent is what a link asks for beyond the descriptor: the creation of
-// a resource that LaunchDarkly does not have, with the model config and the
-// mode of a new variation. A link does not write them into the descriptor,
-// so the intent applies to the compiled resource of the link on every load
-// of a link run.
+// linkIntent is what a link asks for beyond the descriptor: the model config
+// and the mode of a variation that the upsert of the run creates. A link does
+// not write them into the descriptor, so the intent applies to the compiled
+// resource of the link on every load of a link run.
 type linkIntent struct {
-	upsert      bool
 	modelConfig *syncapi.ModelConfig
 	mode        syncdomain.VariationMode
 }
 
-// apply gives the compiled resource of the link the upsert and the model
-// config of the intent.
+// apply gives the compiled resource of the link the model config of the
+// intent.
 func (intent linkIntent) apply(id ResourceID, variations []syncdomain.SyncedResource) {
 	for index := range variations {
 		if variations[index].ID() != id {
 			continue
 		}
-		variations[index].Upsert = variations[index].Upsert || intent.upsert
 		if intent.modelConfig != nil {
 			variations[index].Variation.ModelConfigKey = intent.modelConfig.Key
 			variations[index].Variation.ModelConfigVersion = intent.modelConfig.Version
@@ -160,7 +157,7 @@ func loadWorkspacePlan(
 	}
 	if scope.Includes(syncdomain.KindTool) || scope.Includes(syncdomain.KindSkill) {
 		include := func(id ResourceID) bool { return scope.Includes(id.Kind) && filter.Includes(id) }
-		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include, proposal, upsert, link)
+		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include, proposal, upsert)
 		if err != nil {
 			return Plan{}, nil, err
 		}
@@ -574,7 +571,6 @@ func planAttachmentRows(
 	include func(ResourceID) bool,
 	proposal *synclocal.SourceDefinition,
 	upsert bool,
-	link *sourceLink,
 ) ([]PlannedResource, error) {
 	compiled := include
 	if proposal != nil && proposal.Attachment != nil {
@@ -590,11 +586,10 @@ func planAttachmentRows(
 	if proposal != nil && proposal.Attachment != nil && include(proposal.Attachment.ID()) {
 		local = append(local, *proposal.Attachment)
 	}
-	// A link with --upsert creates the tool or skill that LaunchDarkly does
-	// not have. The link does not write upsert into the descriptor, so the
-	// intent applies here, as the upsert of the run does.
+	// The upsert of the run, from --upsert, creates each tool or skill that
+	// LaunchDarkly does not have. No file records it.
 	for index := range local {
-		if upsert || link != nil && link.intent.upsert && local[index].ID() == link.id {
+		if upsert {
 			local[index].Attachment.Upsert = true
 		}
 	}
@@ -695,7 +690,7 @@ func planReferencedAttachments(
 			!slices.ContainsFunc(resources, func(resource PlannedResource) bool { return resource.ID == id })
 	}
 
-	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced, proposal, upsert, nil)
+	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced, proposal, upsert)
 	if err != nil {
 		return nil, err
 	}
