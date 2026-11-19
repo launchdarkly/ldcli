@@ -4688,3 +4688,20 @@ func TestAttachSkillToALinkedVariationListsItInTheDescriptor(t *testing.T) {
 	require.NotNil(t, api.variation)
 	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "handoff", Version: 2}}, api.variation.Skills)
 }
+
+// Attaching a tool that the descriptor already lists leaves the descriptor as
+// it is, comments included.
+func TestAttachToolAlreadyListedInTheDescriptorLeavesItUnchanged(t *testing.T) {
+	root, api, descriptor := linkUpsertedAgent(t)
+	linked, err := os.ReadFile(descriptor)
+	require.NoError(t, err)
+	before := append(linked, []byte("tools:\n  - key: lookup # why\n")...)
+	require.NoError(t, os.WriteFile(descriptor, before, 0o644))
+
+	_, _, err = runPrompt(t, root, api, "attach", "tool", "lookup", "--to", "production/support/default", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	after, err := os.ReadFile(descriptor)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after))
+}

@@ -523,22 +523,25 @@ func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachment syncd
 	if list != nil {
 		refs = slices.Clone(*list)
 	}
+	// A descriptor that already lists the attachment stays as it is, so its
+	// list keeps its form and comments.
+	updated := original
 	if !slices.ContainsFunc(refs, func(ref syncdomain.AttachmentRef) bool { return ref.Key == attachment.Key() }) {
 		refs = append(refs, syncdomain.AttachmentRef{Key: attachment.Key()})
-	}
-	toolsChanged, skillsChanged := !isSkill, isSkill
-	next := referenceWithRelationships(current, refs, toolsChanged, refs, skillsChanged)
-	updated, err := updateDescriptorRelationships(original, refs, toolsChanged, refs, skillsChanged)
-	if err == nil && !descriptorReadsBack(updated, id, next) {
-		err = errRelationshipsShareLine
-	}
-	if errors.Is(err, errRelationshipsShareLine) {
-		// The list cannot be edited in place, so the descriptor is rendered
-		// again from its content. The comments do not survive.
-		updated, err = RenderDescriptor(id, next)
-	}
-	if err != nil {
-		return fmt.Errorf("update descriptor %q: %w", descriptorPath, err)
+		toolsChanged, skillsChanged := !isSkill, isSkill
+		next := referenceWithRelationships(current, refs, toolsChanged, refs, skillsChanged)
+		updated, err = updateDescriptorRelationships(original, refs, toolsChanged, refs, skillsChanged)
+		if err == nil && !descriptorReadsBack(updated, id, next) {
+			err = errRelationshipsShareLine
+		}
+		if errors.Is(err, errRelationshipsShareLine) {
+			// The list cannot be edited in place, so the descriptor is
+			// rendered again from its content. The comments do not survive.
+			updated, err = RenderDescriptor(id, next)
+		}
+		if err != nil {
+			return fmt.Errorf("update descriptor %q: %w", descriptorPath, err)
+		}
 	}
 
 	rendered, err := RenderAttachment(syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
@@ -548,6 +551,11 @@ func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachment syncd
 	files, err := store.prepareAttachmentFiles([]RenderedFile{rendered})
 	if err != nil {
 		return err
+	}
+	// A rendered attachment path is relative to the managed directory, and
+	// the descriptor path is relative to the repository.
+	for index := range files {
+		files[index].displayPath = path.Join(syncdomain.RootDir, files[index].displayPath)
 	}
 	if !bytes.Equal(original, updated) {
 		info, err := os.Stat(target)
