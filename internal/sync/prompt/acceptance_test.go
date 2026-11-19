@@ -4698,3 +4698,22 @@ func TestToolDescriptorWithUpsertCreatesMissingTool(t *testing.T) {
 	assert.Equal(t, "Local", *api.tools["search"].Description)
 	assert.Contains(t, readLocalFile(t, root, "tools/search.ref.yaml"), "upsert: true")
 }
+
+// A link with --upsert also creates a tool that the linked variation uses,
+// as sync prompts --upsert does.
+func TestLinkUpsertCreatesAToolThatTheVariationUses(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local prompt.\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: prompt.md\nformat: markdown\ntools:\n  - key: search\n")
+	writeLocalFile(t, root, "tools/search.json",
+		`{"formatVersion":1,"key":"search","schema":{"type":"object"}}`+"\n")
+	api := &directAPI{tools: map[string]versionedTool{}}
+
+	_, _, err := runPrompt(t, root, api, "link", "--file", "prompt.md", "--format", "markdown",
+		"--project", "production", "--config-key", "support", "--key", "default",
+		"--upsert", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	assert.Contains(t, api.tools, "search")
+}
