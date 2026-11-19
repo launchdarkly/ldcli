@@ -111,7 +111,7 @@ func (runner Runner) runSourceLink(options Options, workspace syncWorkspace, act
 	if err != nil {
 		return err
 	}
-	intent := linkIntent{upsert: action.Upsert, mode: action.Mode}
+	intent := linkIntent{mode: action.Mode}
 	if action.ModelConfigKey != "" {
 		// The create uses the latest version of the model config, as an add
 		// does. The read happens before the plan, so the plan shows it.
