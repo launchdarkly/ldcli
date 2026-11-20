@@ -4843,3 +4843,23 @@ func linkExistingAgentWithServerTools(t *testing.T, keys ...string) (string, *di
 	require.NoError(t, err)
 	return root, api
 }
+
+// A descriptor that already has a tools list, even an empty one, owns it, so
+// attach adds only the new tool and lists none of LaunchDarkly's.
+func TestAttachToolToALinkedVariationWithAnEmptyListAddsOnlyTheNewTool(t *testing.T) {
+	root, api := linkExistingAgentWithServerTools(t, "a")
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	file, err := os.OpenFile(descriptor, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+	_, err = file.WriteString("tools: []\n")
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	_, _, err = runPrompt(t, root, api, "attach", "tool", "c", "--to", "production/support/default", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	content, err := os.ReadFile(descriptor)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "tools:\n  - key: c\n")
+	assert.NotContains(t, string(content), "key: a")
+}
