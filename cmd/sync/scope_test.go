@@ -15,9 +15,9 @@ import (
 // syncCommandFlags is the exact flag set of every sync command that runs. A
 // new command, or a new question without a flag, must change this list.
 var syncCommandFlags = map[string][]string{
-	"sync all":           {"conflict", "diff", "dry-run", "no-input", "project", "yes"},
+	"sync all":           {"conflict", "diff", "dry-run", "no-input", "project", "upsert", "yes"},
 	"sync all watch":     {"conflict", "diff", "no-input", "project", "yes"},
-	"sync prompts":       {"config-key", "conflict", "diff", "dry-run", "key", "no-input", "project", "resolve", "yes"},
+	"sync prompts":       {"config-key", "conflict", "diff", "dry-run", "key", "no-input", "project", "resolve", "upsert", "yes"},
 	"sync prompts watch": {"config-key", "conflict", "diff", "key", "no-input", "project", "resolve", "yes"},
 	"sync prompts add": {
 		"config-key", "content", "diff", "dry-run", "key", "model-config-key", "name", "no-input", "project", "yes",
@@ -29,12 +29,12 @@ var syncCommandFlags = map[string][]string{
 		"config-key", "conflict", "diff", "file", "format", "key", "map",
 		"mode", "model-config-key", "no-input", "project", "resolve", "select", "upsert", "yes",
 	},
-	"sync tools":         {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
+	"sync tools":         {"conflict", "diff", "dry-run", "key", "no-input", "project", "upsert", "yes"},
 	"sync tools watch":   {"conflict", "diff", "key", "no-input", "project", "yes"},
 	"sync tools add":     {"description", "diff", "dry-run", "json-schema", "key", "no-input", "project", "yes"},
 	"sync tools detach":  {"key", "no-input", "project", "yes"},
 	"sync tools link":    {"conflict", "diff", "file", "format", "key", "map", "no-input", "project", "select", "upsert", "yes"},
-	"sync skills":        {"conflict", "diff", "dry-run", "key", "no-input", "project", "yes"},
+	"sync skills":        {"conflict", "diff", "dry-run", "key", "no-input", "project", "upsert", "yes"},
 	"sync skills watch":  {"conflict", "diff", "key", "no-input", "project", "yes"},
 	"sync skills add":    {"content", "description", "diff", "dry-run", "key", "name", "no-input", "project", "yes"},
 	"sync skills detach": {"key", "no-input", "project", "yes"},

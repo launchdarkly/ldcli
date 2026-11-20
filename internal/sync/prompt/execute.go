@@ -37,6 +37,7 @@ func executePlan(
 	outcomes := make([]ResourceOutcome, len(plan.Resources))
 	var failures []error
 	attachments := newAttachmentResolver(client)
+	attachments.upsert = plan.upsert
 	handled := make(map[int]bool)
 	execute := func(index int) {
 		if handled[index] {

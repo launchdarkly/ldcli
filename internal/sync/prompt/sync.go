@@ -51,7 +51,7 @@ func (runner Runner) runWorkspaceSyncWithSource(
 	if prepared != nil {
 		link = &sourceLink{id: prepared.ID, proposal: &prepared.Definition, intent: intent}
 	}
-	reviewed, err := workspace.loadStateWithSource(client, options.Scope, target.Filter, link)
+	reviewed, err := workspace.loadStateWithSource(client, options.Scope, target.Filter, target.Upsert, link)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (runner Runner) runWorkspaceSyncWithSource(
 	if link != nil {
 		link = &sourceLink{id: link.id, intent: intent}
 	}
-	current, err := workspace.loadStateWithSource(client, options.Scope, target.Filter, link)
+	current, err := workspace.loadStateWithSource(client, options.Scope, target.Filter, target.Upsert, link)
 	if err == nil {
 		err = checkUnchanged(options, reviewed, current)
 	}

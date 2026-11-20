@@ -32,6 +32,7 @@ func NewAllCmd(client resources.Client) *cobra.Command {
 	}
 	addTargetFlags(cmd, help)
 	addApplyFlags(cmd, syncdomain.ScopeAll, true)
+	addUpsertFlag(cmd)
 	cmd.AddCommand(newWatchCmd(client, syncdomain.ScopeAll, help))
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 	return cmd
