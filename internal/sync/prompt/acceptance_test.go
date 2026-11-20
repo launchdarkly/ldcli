@@ -4649,15 +4649,7 @@ func linkUpsertedAgent(t *testing.T) (string, *directAPI, string) {
 		Yes: true,
 	})
 	require.NoError(t, err)
-	toolFile := filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.json")
-	require.NoError(t, os.MkdirAll(filepath.Dir(toolFile), 0o755))
-	require.NoError(t, os.WriteFile(toolFile, []byte(`{
-  "formatVersion": 1,
-  "key": "lookup",
-  "description": "Get the status of an order.",
-  "schema": {"type": "object"}
-}
-`), 0o644))
+	writeLookupToolFile(t, root)
 	api.directions["variation:support/default"] = syncdomain.SyncDirectionCodeCanonical
 	return root, api, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
 }
@@ -4667,11 +4659,7 @@ func linkUpsertedAgent(t *testing.T) (string, *directAPI, string) {
 // changed it, and does not claim that a LaunchDarkly change is replaced.
 func TestPushAfterLinkUpsertDoesNotClaimALaunchDarklyChange(t *testing.T) {
 	root, api, descriptor := linkUpsertedAgent(t)
-	file, err := os.OpenFile(descriptor, os.O_APPEND|os.O_WRONLY, 0o644)
-	require.NoError(t, err)
-	_, err = file.WriteString("tools:\n  - key: lookup\n")
-	require.NoError(t, err)
-	require.NoError(t, file.Close())
+	listLookupInDescriptor(t, descriptor)
 
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
 
@@ -4720,21 +4708,9 @@ func linkExistingAgent(t *testing.T, serverTools []syncdomain.AttachmentRef) (st
 		Yes: true,
 	})
 	require.NoError(t, err)
-	toolFile := filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.json")
-	require.NoError(t, os.MkdirAll(filepath.Dir(toolFile), 0o755))
-	require.NoError(t, os.WriteFile(toolFile, []byte(`{
-  "formatVersion": 1,
-  "key": "lookup",
-  "description": "Get the status of an order.",
-  "schema": {"type": "object"}
-}
-`), 0o644))
+	writeLookupToolFile(t, root)
 	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
-	file, err := os.OpenFile(descriptor, os.O_APPEND|os.O_WRONLY, 0o644)
-	require.NoError(t, err)
-	_, err = file.WriteString("tools:\n  - key: lookup\n")
-	require.NoError(t, err)
-	require.NoError(t, file.Close())
+	listLookupInDescriptor(t, descriptor)
 	return root, api
 }
 
@@ -4792,4 +4768,28 @@ func TestRelinkOfADescriptorWithNewlyListedToolsRecordsThem(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout), stdout)
+}
+
+// writeLookupToolFile gives the repository the tool "lookup".
+func writeLookupToolFile(t *testing.T, root string) {
+	t.Helper()
+	toolFile := filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(toolFile), 0o755))
+	require.NoError(t, os.WriteFile(toolFile, []byte(`{
+  "formatVersion": 1,
+  "key": "lookup",
+  "description": "Get the status of an order.",
+  "schema": {"type": "object"}
+}
+`), 0o644))
+}
+
+// listLookupInDescriptor lists the tool "lookup" in a variation descriptor.
+func listLookupInDescriptor(t *testing.T, descriptor string) {
+	t.Helper()
+	file, err := os.OpenFile(descriptor, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+	_, err = file.WriteString("tools:\n  - key: lookup\n")
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
 }
