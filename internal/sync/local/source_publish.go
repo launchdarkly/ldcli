@@ -320,14 +320,28 @@ func (store Store) verifyOtherBindings(
 		}
 		bundle, err = after.bundle(binding.reference)
 		if err != nil {
-			return fmt.Errorf("non-target projection %s changed", binding.id.Label())
+			return sharedSourceProblem(binding)
 		}
 		next, err := syncadapter.ParseSource(bundle, binding.id, binding.reference)
 		if err != nil || !sameProjection(binding.id, previous, next) {
-			return fmt.Errorf("non-target projection %s changed", binding.id.Label())
+			return sharedSourceProblem(binding)
 		}
 	}
 	return nil
+}
+
+// sharedSourceProblem explains that another variation reads the same source
+// as an edited one, so the edit would change that variation too.
+func sharedSourceProblem(binding sourceBinding) error {
+	source := binding.reference.File
+	if binding.reference.Select != "" {
+		source += " " + binding.reference.Select
+	}
+	return syncdomain.NewProblem(
+		syncdomain.ErrorSourceShared,
+		fmt.Sprintf("variation %s also reads %s, so this change would change it too", binding.id.Label(), source),
+		"Give each variation its own source, such as its own constant, or give both variations the same owner.",
+	).WithFile(binding.reference.File, 0, 0)
 }
 
 // bundleTouches reports whether a bundle reads an updated file. updated is

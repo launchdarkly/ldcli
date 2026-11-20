@@ -130,10 +130,48 @@ func TestReplaceSourcesKeepsBindingsOfAnEditedDependency(t *testing.T) {
 		Projection: syncdomain.VariationProjection{Mode: syncdomain.VariationModeAgent, Instructions: stringPointer("Updated")},
 	}})
 
-	require.ErrorContains(t, err, "non-target projection")
+	require.ErrorContains(t, err, otherID.Label())
+	assert.ErrorContains(t, err, `app/prompts.py`)
 	shared, err := os.ReadFile(filepath.Join(root, "app", "prompts.py"))
 	require.NoError(t, err)
 	assert.Equal(t, "PROMPT = \"Original\"\n", string(shared))
+}
+
+// Two variations that select one constant share a source. When LaunchDarkly
+// owns one and code owns the other, a pull of the first would change the
+// second, so the check refuses it. The refusal names the shared source and
+// the other variation, and says how to give them separate sources or one
+// owner, instead of calling the other variation a non-target projection.
+func TestCheckSourcesNamesASharedSourceAndHowToSplitIt(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "agents/support_agent.py",
+		"AGENT = {\n    \"instructions\": \"Original\",\n}\n")
+	reference := Reference{
+		File: "agents/support_agent.py", Format: "python", Select: `constants[id="AGENT"]`,
+		Map: map[string]string{"prompt": "instructions"},
+	}
+	pulled := syncdomain.VariationID("project", "ld-owned", "default")
+	pushed := syncdomain.VariationID("project", "code-owned", "default")
+	writeDescriptorForTest(t, root, pulled, reference)
+	writeDescriptorForTest(t, root, pushed, reference)
+
+	err := NewStore(root).CheckSources([]SourceReplacement{{
+		ID: pulled, Reference: reference,
+		Projection: syncdomain.VariationProjection{Mode: syncdomain.VariationModeAgent, Instructions: stringPointer("From LaunchDarkly")},
+	}})
+
+	require.Error(t, err)
+	message := err.Error()
+	assert.NotContains(t, message, "non-target projection")
+	assert.Contains(t, message, `agents/support_agent.py`)
+	assert.Contains(t, message, `constants[id="AGENT"]`)
+	assert.Contains(t, message, pushed.Label())
+	assert.Contains(t, message, "own constant", "the message suggests giving each variation its own constant")
+	assert.Contains(t, message, "same owner", "the message suggests giving both variations the same owner")
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok, "the refusal is a sync problem, as the other sync refusals are")
+	assert.Equal(t, "agents/support_agent.py", problem.File)
+	assert.NotEmpty(t, problem.Suggestion)
 }
 
 func TestWriteDescriptorCreatesUpdatesAndKeepsIdenticalContent(t *testing.T) {
