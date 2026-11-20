@@ -4664,7 +4664,7 @@ func TestPushAfterLinkUpsertDoesNotClaimALaunchDarklyChange(t *testing.T) {
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
 
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "push")
+	assert.Contains(t, stdout, "push   production/support/default   tools changed")
 	assert.NotContains(t, stdout, "the LaunchDarkly change is replaced")
 }
 
