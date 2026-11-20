@@ -204,7 +204,7 @@ func TestCheckSourcesNamesTheEditedDependencyOfAnotherVariation(t *testing.T) {
 	problem, ok := syncdomain.ProblemFrom(err)
 	require.True(t, ok)
 	assert.Equal(t, "app/prompts.py", problem.File)
-	assert.Equal(t, "variation project/support/importing also reads app/prompts.py through app/agent.py, "+
+	assert.Equal(t, "variation project/support/importing also reads app/prompts.py through agents[id=\"agent\"] in app/agent.py, "+
 		"so this change would change it too", problem.Message)
 }
 

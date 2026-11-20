@@ -335,14 +335,16 @@ func (store Store) verifyOtherBindings(
 }
 
 // sharedSourceProblem explains that another variation reads the edited file
-// shared, so the edit would change that variation too.
+// named shared, directly or through an import, so the edit would change that
+// variation too.
 func sharedSourceProblem(binding sourceBinding, shared string) error {
-	source := shared
-	switch {
-	case shared != binding.reference.File:
-		source += " through " + binding.reference.File
-	case binding.reference.Select != "":
-		source = binding.reference.Select + " in " + source
+	selected := binding.reference.File
+	if binding.reference.Select != "" {
+		selected = binding.reference.Select + " in " + selected
+	}
+	source := selected
+	if shared != binding.reference.File {
+		source = shared + " through " + selected
 	}
 	return syncdomain.NewProblem(
 		syncdomain.ErrorSourceShared,
