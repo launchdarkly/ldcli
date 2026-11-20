@@ -1,5 +1,44 @@
 # Changelog
 
+## [4.0.0](https://github.com/launchdarkly/ldcli/compare/v3.16.0...v4.0.0) (2026-11-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* The production spec removed the "Release policies (beta)" tag. The release-policies-beta command group no longer exists.
+* The production spec renames or removes some API tags. The ai-configs, views-beta, holdouts-beta, release-pipelines-beta, and releases-beta command groups are replaced by agent-control, views, holdouts, and release-pipelines-deprecated. The contexts command group no longer has the delete-instances, list-instances, and search-instances commands.
+
+### Features
+
+* add observability commands to query logs, traces, aggregations, and keys ([#986](https://github.com/launchdarkly/ldcli/issues/986)) ([a34441c](https://github.com/launchdarkly/ldcli/commit/a34441c5afaeb6e7f12797999d335b1e4bfc0fdd))
+* sync the OpenAPI spec with the production spec ([#963](https://github.com/launchdarkly/ldcli/issues/963)) ([43c3ede](https://github.com/launchdarkly/ldcli/commit/43c3ede6a2b95cd4c5e4d1628a4348a277ad2034))
+* sync the OpenAPI spec with the production spec (EMSR-2795) ([#1031](https://github.com/launchdarkly/ldcli/issues/1031)) ([85f30b2](https://github.com/launchdarkly/ldcli/commit/85f30b27b98fc56a964eaae06067f420f918051d))
+* **sync:** add projection and problem core ([#987](https://github.com/launchdarkly/ldcli/issues/987)) ([bcc8d30](https://github.com/launchdarkly/ldcli/commit/bcc8d3080a98ce8943196b77cce7e6dbaf557b5d))
+* **sync:** add source descriptor storage ([#993](https://github.com/launchdarkly/ldcli/issues/993)) ([73fb6bc](https://github.com/launchdarkly/ldcli/commit/73fb6bcca702a7112184f15a6fd3112df4d2bca8))
+* **sync:** add the adapter core and the Markdown adapter ([#988](https://github.com/launchdarkly/ldcli/issues/988)) ([3b2d454](https://github.com/launchdarkly/ldcli/commit/3b2d45408c5e64b701040c15301324a145d532d3))
+* **sync:** add the link commands ([#998](https://github.com/launchdarkly/ldcli/issues/998)) ([86172ef](https://github.com/launchdarkly/ldcli/commit/86172ef59054d381a25146cd53b4612fcb612e29))
+* **sync:** add the Python adapter ([#991](https://github.com/launchdarkly/ldcli/issues/991)) ([51fc687](https://github.com/launchdarkly/ldcli/commit/51fc6877fc834ea91a19840a6c2b079c19034d26))
+* **sync:** add the structured document adapters ([#989](https://github.com/launchdarkly/ldcli/issues/989)) ([9931fc1](https://github.com/launchdarkly/ldcli/commit/9931fc164be02f7f67407d3988af35a8e9028191))
+* **sync:** add the TypeScript and JavaScript adapters ([#992](https://github.com/launchdarkly/ldcli/issues/992)) ([9754d1e](https://github.com/launchdarkly/ldcli/commit/9754d1e581eb097f972054fb5d3ea9a31550ecde))
+* **sync:** compile and publish repository sources ([#994](https://github.com/launchdarkly/ldcli/issues/994)) ([6c2332b](https://github.com/launchdarkly/ldcli/commit/6c2332b74a94b751ddd986a02bd2ba819fd4044a))
+* **sync:** create a missing config and variation from link --upsert ([#1028](https://github.com/launchdarkly/ldcli/issues/1028)) ([e53bd3e](https://github.com/launchdarkly/ldcli/commit/e53bd3e21531e3eba38fedbd55e14f82aba06d0f))
+* **sync:** detach descriptor-backed sources ([#1003](https://github.com/launchdarkly/ldcli/issues/1003)) ([ecb3854](https://github.com/launchdarkly/ldcli/commit/ecb3854e6d9af306d6810052b964d23003dd47a8))
+* **sync:** integrate repository sources with planning and link ([#995](https://github.com/launchdarkly/ldcli/issues/995)) ([3cef726](https://github.com/launchdarkly/ldcli/commit/3cef7260a472a324658bddd5e98598579cedc2e1))
+* **sync:** prepare repository source links ([#997](https://github.com/launchdarkly/ldcli/issues/997)) ([c979aad](https://github.com/launchdarkly/ldcli/commit/c979aada4f8c273da8190d147c596581abbe9a29))
+* **sync:** send the repository source in an LD-Sync-Source header (AIC-3974) ([#1043](https://github.com/launchdarkly/ldcli/issues/1043)) ([6d2aaeb](https://github.com/launchdarkly/ldcli/commit/6d2aaebb88f74f11a2bc2f3b9e26cde97050ee04))
+* **sync:** skip variations that LaunchDarkly owns (AIC-3901) ([#1032](https://github.com/launchdarkly/ldcli/issues/1032)) ([efb0776](https://github.com/launchdarkly/ldcli/commit/efb07766d07777a51facf748d3f5168d727ffd5d))
+
+
+### Bug Fixes
+
+* show an empty GET response as no resource found (EMSR-2795) ([#1036](https://github.com/launchdarkly/ldcli/issues/1036)) ([9b9f5c5](https://github.com/launchdarkly/ldcli/commit/9b9f5c5bb60344b3c5dd7bae0909773a89519586))
+* **sync:** [TBD] explain when two variations share a source with different owners ([#1051](https://github.com/launchdarkly/ldcli/issues/1051)) ([b3a7033](https://github.com/launchdarkly/ldcli/commit/b3a7033e3b82422994551b09238b31241dfa8434))
+* **sync:** accept an empty remote manifest without a format version ([#1025](https://github.com/launchdarkly/ldcli/issues/1025)) ([44c0b72](https://github.com/launchdarkly/ldcli/commit/44c0b72d2c672e976cba2b72f0203f3aed2f7b0c))
+* **sync:** drop formatVersion from the sync manifest API ([#1026](https://github.com/launchdarkly/ldcli/issues/1026)) ([f4dd373](https://github.com/launchdarkly/ldcli/commit/f4dd3730d9b0b7517081af4cf51b06e6979a06ee))
+* **sync:** keep descriptor metadata out of the remote manifest ([#1027](https://github.com/launchdarkly/ldcli/issues/1027)) ([8c5df53](https://github.com/launchdarkly/ldcli/commit/8c5df53d16f81fd23e4fa8ef825b99b551b0895f))
+* **sync:** let link --upsert create a tool or skill under the default setting ([#1042](https://github.com/launchdarkly/ldcli/issues/1042)) ([90e200f](https://github.com/launchdarkly/ldcli/commit/90e200f584607d01e6f049f9294ba047c04a7b12))
+* **sync:** stop an attach early when the project has no tools or skills (AIC-3646) ([#1044](https://github.com/launchdarkly/ldcli/issues/1044)) ([8e8ed40](https://github.com/launchdarkly/ldcli/commit/8e8ed405d2ddc376a57401b79056b2b67171cbb9))
+
 ## [3.16.0](https://github.com/launchdarkly/ldcli/compare/v3.15.0...v3.16.0) (2026-11-02)
 
 
