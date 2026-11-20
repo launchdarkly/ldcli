@@ -71,16 +71,14 @@ func newAttachmentScopeCmd(client resources.Client, kind syncdomain.AttachmentKi
 
 // attachmentScopeLong is the description of sync tools or sync skills.
 func attachmentScopeLong(kind syncdomain.AttachmentKind) string {
-	upsert := `set "upsert": true in its file`
 	name := ""
 	if kind == syncdomain.AttachmentSkill {
-		upsert = "set upsert: true in its front matter"
 		name = " A skill that sync creates from a file takes its name from name: in the file, or from its key."
 	}
 	return fmt.Sprintf("Synchronize local %[1]s files with LaunchDarkly. A %[1]s syncs on its own, also when no prompt variation uses it. "+
-		"To create a %[1]s, run sync %[1]ss add with %[4]s, or %[2]s. "+
-		"To create each %[1]s that does not exist in LaunchDarkly in one sync, run sync %[1]ss with --upsert. No file records it.%[3]s "+
-		"Sync rechecks state before every write. If the state changed, run sync again.", kind, upsert, name, createFlag(kind))
+		"To create a %[1]s, run sync %[1]ss add with %[3]s, or run sync %[1]ss with --upsert, or add upsert: true to its file. "+
+		"--upsert creates each %[1]s that does not exist in LaunchDarkly in one sync. No file records it.%[2]s "+
+		"Sync rechecks state before every write. If the state changed, run sync again.", kind, name, createFlag(kind))
 }
 
 // attachmentAddLong is the description of sync tools add or sync skills add.

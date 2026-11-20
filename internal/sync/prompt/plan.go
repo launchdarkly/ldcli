@@ -357,7 +357,7 @@ func planResource(
 
 	resource.Action = chooseAction(tracked, resource)
 	if resource.Action == ActionError {
-		resource.Error = missingVariationError(id, server.ConfigMissing, resource.Source != nil)
+		resource.Error = missingVariationError(id, server.ConfigMissing)
 	}
 	if resource.Action != ActionCreateServer {
 		resource.createsConfig = false
@@ -434,28 +434,16 @@ func planAttachments(
 }
 
 // missingVariationError is the error of a local variation that LaunchDarkly
-// does not have and that the plan cannot create. A managed file creates it
-// with upsert. A descriptor has no upsert, so a link with --upsert creates
-// it, and the config too when LaunchDarkly has none.
-func missingVariationError(id ResourceID, configMissing, linked bool) string {
+// does not have and that the plan cannot create. It names the config when
+// LaunchDarkly has no config either.
+func missingVariationError(id ResourceID, configMissing bool) string {
 	configKey, variationKey, _ := id.VariationKeys()
-	missing := "variation does not exist in LaunchDarkly"
-	create := "set upsert: true to create it"
+	missing := missingResource("variation", variationKey)
 	if configMissing {
-		missing = fmt.Sprintf("config %q does not exist in LaunchDarkly", configKey)
-		create = "set upsert: true in the variation file to create the config and the variation"
+		missing = missingResource("config", configKey)
 	}
-	if !linked {
-		return missing + "; " + create
-	}
-	create = "Run link again with --upsert to create it, or create it in LaunchDarkly and run sync again."
-	if configMissing {
-		create = "Run link again with --upsert to create the config and the variation, or create them in LaunchDarkly and run sync again."
-	}
-	return fmt.Sprintf(
-		"%s. %s To stop syncing it, run ldcli sync prompts detach --project %s --config-key %s --key %s.",
-		missing, create, id.ProjectKey, configKey, variationKey,
-	)
+	return fmt.Sprintf("%s To stop syncing it, run ldcli sync prompts detach --project %s --config-key %s --key %s.",
+		missing, id.ProjectKey, configKey, variationKey)
 }
 
 // baselineApplies reports whether a lock entry is a baseline for the local
@@ -598,7 +586,7 @@ func planSyncedAttachment(
 	resource.Action = chooseAction(tracked, resource)
 	switch resource.Action {
 	case ActionError:
-		resource.Error = missingAttachmentError(id, resource.Source != nil)
+		resource.Error = missingAttachmentError(id)
 	case ActionCreateServer:
 		rejectInvalidCreate(&resource, validateAttachmentCreate(local.Attachment))
 	}
@@ -616,27 +604,15 @@ func planSyncedAttachment(
 
 // missingAttachmentError explains how to create a tool or skill that exists
 // only in a local file, or how to stop syncing it.
-func missingAttachmentError(id ResourceID, linked bool) string {
-	missing := missingAttachment(id)
-	if linked {
-		// A descriptor has no upsert, so a link with --upsert creates the
-		// resource, or the user creates it in LaunchDarkly.
-		missing = fmt.Sprintf("%s %q does not exist in LaunchDarkly. Run link again with --upsert to create it, or create it in LaunchDarkly and run sync again.",
-			id.Kind, id.LookupKey)
-	}
+func missingAttachmentError(id ResourceID) string {
 	return fmt.Sprintf("%s To stop syncing it, run ldcli sync %ss detach --project %s --key %s.",
-		missing, id.Kind, id.ProjectKey, id.LookupKey)
+		missingResource(string(id.Kind), id.LookupKey), id.Kind, id.ProjectKey, id.LookupKey)
 }
 
-// missingAttachment says that LaunchDarkly does not have the tool or skill
-// of a local file without upsert, and names the command that creates it.
-func missingAttachment(id ResourceID) string {
-	consent := `add "upsert": true to its file`
-	if id.Kind == syncdomain.KindSkill {
-		consent = "add upsert: true to its front matter"
-	}
-	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. To create it, %s and run ldcli sync %ss --project %s --key %s.",
-		id.Kind, id.LookupKey, consent, id.Kind, id.ProjectKey, id.LookupKey)
+// missingResource says that LaunchDarkly does not have a resource of a local
+// file, and how to create it.
+func missingResource(kind, key string) string {
+	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file.", kind, key)
 }
 
 // validateAttachmentCreate checks a new tool or skill against the create rules

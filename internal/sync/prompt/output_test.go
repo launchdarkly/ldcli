@@ -290,8 +290,8 @@ func TestPlanReasonNamesTheChange(t *testing.T) {
 		"delete":  {PlannedResource{Action: ActionDeleteLocal}, "deleted in LaunchDarkly"},
 		"forget":  {PlannedResource{Action: ActionRemoveManifest}, "gone on both sides"},
 		"error": {
-			PlannedResource{Action: ActionError, Error: "variation does not exist in LaunchDarkly; set upsert: true to create it"},
-			"variation does not exist in LaunchDarkly",
+			PlannedResource{Action: ActionError, Error: `variation "default" does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file.`},
+			`variation "default" does not exist in LaunchDarkly`,
 		},
 		"tools": {
 			PlannedResource{ID: testResourceID(), Action: ActionUpdateLocal, Local: &variation, Diff: variationDiffFields{"tools": {}}},

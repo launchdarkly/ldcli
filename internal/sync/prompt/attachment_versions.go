@@ -242,13 +242,8 @@ func (resolver *attachmentResolver) publish(projectKey string, local syncdomain.
 		writeErr = resolver.client.UpdateAttachment(projectKey, local)
 	case syncapi.IsNotFound(readErr) && (local.Upsert || resolver.upsert):
 		writeErr = resolver.client.CreateAttachment(projectKey, local)
-	case syncapi.IsNotFound(readErr) && local.Projection != nil:
-		// A descriptor has no upsert, so a linked tool or skill that
-		// LaunchDarkly lost after the review gets the recovery of the
-		// plan: create it in LaunchDarkly, or detach.
-		return syncdomain.Attachment{}, errors.New(missingAttachmentError(local.ID(projectKey), true))
 	case syncapi.IsNotFound(readErr):
-		return syncdomain.Attachment{}, errors.New(missingAttachment(local.ID(projectKey)))
+		return syncdomain.Attachment{}, errors.New(missingAttachmentError(local.ID(projectKey)))
 	default:
 		return syncdomain.Attachment{}, readErr
 	}
