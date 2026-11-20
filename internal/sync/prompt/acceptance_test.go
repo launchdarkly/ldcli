@@ -167,6 +167,20 @@ func (api *directAPI) MakeRequest(
 		}
 		return nil, api.createErr
 	}
+	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodGet {
+		items := make([]versionedTool, 0, len(api.tools))
+		for _, key := range slices.Sorted(maps.Keys(api.tools)) {
+			items = append(items, api.tools[key])
+		}
+		return json.Marshal(map[string]any{"items": items, "totalCount": len(items)})
+	}
+	if strings.HasSuffix(path, "/ai-configs/skills") && method == http.MethodGet {
+		items := make([]versionedSkill, 0, len(api.skills))
+		for _, key := range slices.Sorted(maps.Keys(api.skills)) {
+			items = append(items, api.skills[key])
+		}
+		return json.Marshal(map[string]any{"items": items, "totalCount": len(items)})
+	}
 	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodPost {
 		var tool versionedTool
 		if err := json.Unmarshal(body, &tool.Tool); err != nil {
@@ -650,6 +664,39 @@ func TestPromptAttachesLatestSkillAsMarkdownFile(t *testing.T) {
 	))
 	require.NoError(t, err)
 	assert.Equal(t, "---\nkey: support\ndescription: Customer support guidance\n---\n\nFollow the support process.\n", string(content))
+}
+
+// An attach stops before the variation step when the project has no tool,
+// so the user does not answer every prompt only to find an empty list.
+func TestPromptAttachToolStopsWhenTheProjectHasNoTools(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{}}
+
+	_, _, err := runPrompt(t, root, api, "attach", "tool", "--yes", "--no-input")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `project "production" has no tools to attach. Create one in LaunchDarkly first.`)
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodGet, "/ai-tools"), "one read of the tool list")
+	assert.Empty(t, api.variation.Tools, "nothing was attached")
+}
+
+// The same stop applies to skills.
+func TestPromptAttachSkillStopsWhenTheProjectHasNoSkills(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline), skills: map[string]versionedSkill{}}
+
+	_, _, err := runPrompt(t, root, api, "attach", "skill", "--yes", "--no-input")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `project "production" has no skills to attach. Create one in LaunchDarkly first.`)
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodGet, "/ai-configs/skills"), "one read of the skill list")
+	assert.Empty(t, api.variation.Skills, "nothing was attached")
 }
 
 func TestPromptRejectsSkillAttachmentForCompletionVariation(t *testing.T) {
