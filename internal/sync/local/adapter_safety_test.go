@@ -307,9 +307,17 @@ func TestSourceEditHelpersEnforceAtomicSafety(t *testing.T) {
 		Primary:      syncadapter.Document{Path: "main.py"},
 		Dependencies: map[string]syncadapter.Document{"dependency.py": {Path: "dependency.py"}},
 	}
-	assert.True(t, snapshot.bundleTouches(bundle, map[string]syncadapter.Document{key("dependency.py"): {}}))
-	assert.True(t, snapshot.bundleTouches(bundle, map[string]syncadapter.Document{key("main.py"): {}}))
-	assert.False(t, snapshot.bundleTouches(bundle, map[string]syncadapter.Document{key("other.py"): {}}))
+	touched := func(name string) (string, bool) {
+		return snapshot.touchedFile(bundle, map[string]syncadapter.Document{key(name): {}})
+	}
+	file, ok := touched("dependency.py")
+	assert.True(t, ok)
+	assert.Equal(t, "dependency.py", file)
+	file, ok = touched("main.py")
+	assert.True(t, ok)
+	assert.Equal(t, "main.py", file)
+	_, ok = touched("other.py")
+	assert.False(t, ok)
 }
 
 func TestCheckSourcesDoesNotWrite(t *testing.T) {
