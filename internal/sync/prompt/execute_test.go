@@ -877,6 +877,71 @@ func TestExecutePlanFailsEveryRowOfAGroupWhenOneMemberDoesNotVerify(t *testing.T
 	assert.False(t, next.Has(resources[1].ID))
 }
 
+// A pull of one variation and a push of another, both reading one constant,
+// is refused at plan time. The refusal of the pull names the shared source,
+// the other variation, and how to split them, though the push is in the run.
+func TestPlanRefusesAPullThatSharesASourceWithAPushAndSaysHowToSplitThem(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "agents"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "agents", "support_agent.py"), []byte("AGENT = \"Local\"\n"), 0o644,
+	))
+	reference := syncdomain.Reference{
+		File: "agents/support_agent.py", Format: "python", Select: `constants[id="AGENT"]`,
+		Map: map[string]string{"prompt": "$"},
+	}
+	for _, key := range []string{"ld-owned", "code-owned"} {
+		_, err := store.WriteDescriptor(syncdomain.VariationID("production", key, "default"), reference)
+		require.NoError(t, err)
+	}
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 2)
+
+	var resources []PlannedResource
+	var pull, push int
+	for index := range compiled {
+		local := compiled[index]
+		server := local.Variation
+		action := ActionUpdateServer
+		if local.ID() == syncdomain.VariationID("production", "ld-owned", "default") {
+			server.Instructions = "From LaunchDarkly."
+			action = ActionUpdateLocal
+			pull = len(resources)
+		} else {
+			push = len(resources)
+		}
+		serverProjection, projectionErr := syncdomain.ProjectVariation(server, *local.Source)
+		require.NoError(t, projectionErr)
+		localFingerprint, fingerprintErr := syncdomain.FingerprintProjection(local.ID(), local.Projection)
+		require.NoError(t, fingerprintErr)
+		serverFingerprint, fingerprintErr := syncdomain.FingerprintProjection(local.ID(), serverProjection)
+		require.NoError(t, fingerprintErr)
+		resources = append(resources, PlannedResource{
+			ID: local.ID(), Action: action, Source: local.Source,
+			Local: &local.Variation, Server: &server, ServerMode: syncdomain.VariationModeAgent,
+			LocalProjection: local.Projection, ServerProjection: serverProjection,
+			LocalFingerprint: localFingerprint, ServerFingerprint: serverFingerprint,
+		})
+	}
+
+	checkSourcePublications(root, resources)
+
+	require.Equal(t, ActionError, resources[pull].Action, "refusing the pull is correct")
+	require.NotNil(t, resources[pull].Problem)
+	err = Plan{Resources: resources}.BlockingError()
+	require.Error(t, err)
+	message := err.Error()
+	assert.Contains(t, message, "cannot sync "+resources[pull].ID.Label())
+	assert.NotContains(t, message, "non-target projection")
+	assert.Contains(t, message, "agents/support_agent.py")
+	assert.Contains(t, message, `constants[id="AGENT"]`)
+	assert.Contains(t, message, resources[push].ID.Label())
+	assert.Contains(t, message, "own constant")
+	assert.Contains(t, message, "same owner")
+}
+
 // notFoundAPI answers every read with a 404.
 type notFoundAPI struct{}
 

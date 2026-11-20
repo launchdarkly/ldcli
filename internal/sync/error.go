@@ -31,6 +31,7 @@ const (
 	ErrorBindingStale                ErrorCode = "binding_stale"
 	ErrorStateChanged                ErrorCode = "state_changed"
 	ErrorSourceNotWritable           ErrorCode = "source_not_writable"
+	ErrorSourceShared                ErrorCode = "source_shared"
 	ErrorOverlappingEdits            ErrorCode = "overlapping_edits"
 	ErrorResourceDeleted             ErrorCode = "resource_deleted_in_launchdarkly"
 	ErrorPlaceholderAmbiguous        ErrorCode = "placeholder_translation_ambiguous"
