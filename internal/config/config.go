@@ -28,12 +28,16 @@ type Config struct {
 	AccessToken       string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
 	AnalyticsOptOut   *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
 	BaseURI           string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+	CorsEnabled       *bool  `json:"cors-enabled,omitempty" yaml:"cors-enabled,omitempty"`
+	CorsOrigin        string `json:"cors-origin,omitempty" yaml:"cors-origin,omitempty"`
 	DevStreamURI      string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
 	Environment       string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Flag              string `json:"flag,omitempty" yaml:"flag,omitempty"`
 	Host              string `json:"host,omitempty" yaml:"host,omitempty"`
 	Output            string `json:"output,omitempty" yaml:"output,omitempty"`
+	Port              string `json:"port,omitempty" yaml:"port,omitempty"`
 	Project           string `json:"project,omitempty" yaml:"project,omitempty"`
+	SyncOnce          *bool  `json:"sync-once,omitempty" yaml:"sync-once,omitempty"`
 	UpdateCheckOptOut *bool  `json:"update-check-opt-out,omitempty" yaml:"update-check-opt-out,omitempty"`
 }
 
@@ -119,6 +123,22 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 				c.AnalyticsOptOut = &val
 			case cliflags.BaseURIFlag:
 				c.BaseURI = v
+			case cliflags.CorsEnabledFlag:
+				val, err := strconv.ParseBool(v)
+				if err != nil {
+					return Config{}, nil, errors.NewError("cors-enabled must be true or false")
+				}
+				c.CorsEnabled = &val
+			case cliflags.CorsOriginFlag:
+				c.CorsOrigin = v
+			case cliflags.PortFlag:
+				c.Port = v
+			case cliflags.SyncOnceFlag:
+				val, err := strconv.ParseBool(v)
+				if err != nil {
+					return Config{}, nil, errors.NewError("sync-once must be true or false")
+				}
+				c.SyncOnce = &val
 			case cliflags.DevStreamURIFlag:
 				c.DevStreamURI = v
 			case cliflags.EnvironmentFlag:
