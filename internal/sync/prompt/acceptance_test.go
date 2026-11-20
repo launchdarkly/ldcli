@@ -4766,3 +4766,30 @@ func TestToolsAddedToALinkedDescriptorAreRecordedWhenLaunchDarklyHasThem(t *test
 	assert.Contains(t, stdout, `"action": "update_local"`)
 	assert.NotContains(t, stdout, `"action": "update_server"`)
 }
+
+// A link that rebinds a stale descriptor which also newly lists the tools
+// that LaunchDarkly has records them in the lock, so the next dry run is in
+// sync.
+func TestRelinkOfADescriptorWithNewlyListedToolsRecordsThem(t *testing.T) {
+	root, api := linkExistingAgent(t, []syncdomain.AttachmentRef{{Key: "lookup", Version: 1}})
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	content, err := os.ReadFile(descriptor)
+	require.NoError(t, err)
+	edited := strings.Replace(string(content), `agents[id="support"]`, `agents[0]`, 1)
+	require.NotEqual(t, string(content), edited)
+	require.NoError(t, os.WriteFile(descriptor, []byte(edited), 0o644))
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[0]`, Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout), stdout)
+}

@@ -98,6 +98,10 @@ type PlannedResource struct {
 	// directionOverride is true when the LaunchDarkly sync setting of the
 	// resource chose the side that wins, instead of the three-way comparison.
 	directionOverride bool
+	// baselineLifted is true when the lock baseline was recorded before the
+	// descriptor listed tools or skills, and the row compares against the
+	// LaunchDarkly fingerprint instead. The lock does not have that yet.
+	baselineLifted bool
 	// createsConfig is true when the create of the variation also creates
 	// its config, because LaunchDarkly has none.
 	createsConfig bool
@@ -360,7 +364,6 @@ func planResource(
 			}
 		}
 	}
-	lifted := false
 	if server.Variation != nil {
 		if local != nil && local.Source != nil {
 			resource.ServerProjection, err = syncdomain.ProjectVariation(*server.Variation, *local.Source)
@@ -368,8 +371,8 @@ func planResource(
 				resource.ServerFingerprint, err = syncdomain.FingerprintProjection(id, resource.ServerProjection)
 			}
 			if err == nil && tracked && resource.ServerFingerprint != baselineFingerprint {
-				lifted, err = baselineLacksRelationships(id, *server.Variation, *local.Source, baselineFingerprint)
-				if lifted {
+				resource.baselineLifted, err = baselineLacksRelationships(id, *server.Variation, *local.Source, baselineFingerprint)
+				if resource.baselineLifted {
 					resource.BaselineFingerprint = resource.ServerFingerprint
 				}
 			}
@@ -395,10 +398,6 @@ func planResource(
 	}
 
 	resource.Action = chooseAction(tracked, resource)
-	// A lifted baseline is not in the lock yet, so record it.
-	if lifted && resource.Action == ActionInSync {
-		resource.Action = ActionUpdateManifest
-	}
 	if resource.Action == ActionError {
 		resource.Error = missingVariationError(id, server.ConfigMissing, resource.Source != nil)
 	}
@@ -739,6 +738,9 @@ func chooseAction(tracked bool, resource PlannedResource) Action {
 	localUnchanged := resource.LocalFingerprint == resource.BaselineFingerprint
 	serverUnchanged := resource.ServerFingerprint == resource.BaselineFingerprint
 	switch {
+	case localUnchanged && serverUnchanged && resource.baselineLifted:
+		// A lifted baseline is not in the lock yet, so record it.
+		return ActionUpdateManifest
 	case localUnchanged && serverUnchanged:
 		return ActionInSync
 	case resource.LocalFingerprint == resource.ServerFingerprint:
