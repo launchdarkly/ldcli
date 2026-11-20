@@ -261,21 +261,15 @@ func allowRelink(resources []PlannedResource, id ResourceID) {
 }
 
 // dropLinkFileHints shortens the missing-resource refusal of the row that a
-// link command adds. The link writes no file before the refusal, so there is
-// no file to add upsert to and nothing to detach.
+// link command plans. The link writes its descriptor only after the plan
+// passes, so the refusal names neither a file to add upsert to nor a detach.
 func dropLinkFileHints(resources []PlannedResource, id ResourceID, configMissing bool) {
 	for index := range resources {
 		resource := &resources[index]
-		if resource.ID != id || resource.Error != missingVariationError(id, configMissing) {
-			continue
+		if resource.ID == id && resource.Error == missingVariationError(id, configMissing) {
+			resource.Error = notInLaunchDarkly(missingVariation(id, configMissing)) + "."
+			return
 		}
-		configKey, variationKey, _ := id.VariationKeys()
-		kind, key := "variation", variationKey
-		if configMissing {
-			kind, key = "config", configKey
-		}
-		resource.Error = fmt.Sprintf("%s %q does not exist in LaunchDarkly. Run again with --upsert.", kind, key)
-		return
 	}
 }
 

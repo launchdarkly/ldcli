@@ -438,12 +438,18 @@ func planAttachments(
 // LaunchDarkly has no config either.
 func missingVariationError(id ResourceID, configMissing bool) string {
 	configKey, variationKey, _ := id.VariationKeys()
-	missing := missingResource("variation", variationKey)
-	if configMissing {
-		missing = missingResource("config", configKey)
-	}
 	return fmt.Sprintf("%s To stop syncing it, run ldcli sync prompts detach --project %s --config-key %s --key %s.",
-		missing, id.ProjectKey, configKey, variationKey)
+		missingResource(missingVariation(id, configMissing)), id.ProjectKey, configKey, variationKey)
+}
+
+// missingVariation is the kind and key of what LaunchDarkly does not have for
+// a local variation: the config when the config is missing too.
+func missingVariation(id ResourceID, configMissing bool) (kind, key string) {
+	configKey, variationKey, _ := id.VariationKeys()
+	if configMissing {
+		return "config", configKey
+	}
+	return "variation", variationKey
 }
 
 // baselineApplies reports whether a lock entry is a baseline for the local
@@ -612,7 +618,13 @@ func missingAttachmentError(id ResourceID) string {
 // missingResource says that LaunchDarkly does not have a resource of a local
 // file, and how to create it.
 func missingResource(kind, key string) string {
-	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file.", kind, key)
+	return notInLaunchDarkly(kind, key) + ", or add upsert: true to its file."
+}
+
+// notInLaunchDarkly says that LaunchDarkly does not have a resource, and
+// that a run with --upsert creates it.
+func notInLaunchDarkly(kind, key string) string {
+	return fmt.Sprintf("%s %q does not exist in LaunchDarkly. Run again with --upsert", kind, key)
 }
 
 // validateAttachmentCreate checks a new tool or skill against the create rules
