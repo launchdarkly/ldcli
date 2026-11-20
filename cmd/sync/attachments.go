@@ -58,6 +58,7 @@ func newAttachmentScopeCmd(client resources.Client, kind syncdomain.AttachmentKi
 	help := attachmentFlagHelp(kind, true)
 	addTargetFlags(cmd, help)
 	addApplyFlags(cmd, scope, true)
+	addUpsertFlag(cmd)
 	cmd.AddCommand(
 		newWatchCmd(client, scope, help),
 		newAttachmentAddCmd(client, kind),
@@ -77,7 +78,8 @@ func attachmentScopeLong(kind syncdomain.AttachmentKind) string {
 		name = " A skill that sync creates from a file takes its name from name: in the file, or from its key."
 	}
 	return fmt.Sprintf("Synchronize local %[1]s files with LaunchDarkly. A %[1]s syncs on its own, also when no prompt variation uses it. "+
-		"To create a %[1]s, run sync %[1]ss add with %[4]s, or %[2]s.%[3]s "+
+		"To create a %[1]s, run sync %[1]ss add with %[4]s, or %[2]s. "+
+		"To create each %[1]s that does not exist in LaunchDarkly in one sync, run sync %[1]ss with --upsert. No file records it.%[3]s "+
 		"Sync rechecks state before every write. If the state changed, run sync again.", kind, upsert, name, createFlag(kind))
 }
 

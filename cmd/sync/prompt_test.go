@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -358,4 +359,21 @@ func TestSyncJoinedPlaintextNamesEachLocation(t *testing.T) {
 	assert.NotContains(t, report.Message, "agents.py:4:12", "JSON keeps the location in its own fields")
 	require.Len(t, report.Problems, 1)
 	assert.Equal(t, 4, report.Problems[0].Line)
+}
+
+// Every sync command opts in to creating a missing resource with --upsert, as
+// link does.
+func TestEverySyncCommandAcceptsUpsert(t *testing.T) {
+	commands := []struct {
+		name  string
+		flags interface{ Lookup(string) *pflag.Flag }
+	}{
+		{"sync prompts", NewPromptCmd(nil).Flags()},
+		{"sync tools", newAttachmentScopeCmd(nil, syncdomain.AttachmentTool).Flags()},
+		{"sync skills", newAttachmentScopeCmd(nil, syncdomain.AttachmentSkill).Flags()},
+		{"sync all", NewAllCmd(nil).Flags()},
+	}
+	for _, command := range commands {
+		assert.NotNil(t, command.flags.Lookup(upsertFlag), "%s has no --upsert", command.name)
+	}
 }

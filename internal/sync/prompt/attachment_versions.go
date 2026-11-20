@@ -20,6 +20,9 @@ type attachmentResolver struct {
 	resolved map[ResourceID]syncdomain.Attachment
 	failures map[ResourceID]error
 	reviewed map[ResourceID]reviewedAttachment
+	// upsert creates each tool and skill that LaunchDarkly does not have,
+	// also one whose file has no upsert. It is the upsert of the run.
+	upsert bool
 }
 
 // reviewedAttachment is the LaunchDarkly side of a linked tool or skill row
@@ -237,7 +240,7 @@ func (resolver *attachmentResolver) publish(projectKey string, local syncdomain.
 		return syncdomain.Attachment{}, fmt.Errorf("%s %q changed concurrently", local.Kind, local.Key())
 	case readErr == nil:
 		writeErr = resolver.client.UpdateAttachment(projectKey, local)
-	case syncapi.IsNotFound(readErr) && local.Upsert:
+	case syncapi.IsNotFound(readErr) && (local.Upsert || resolver.upsert):
 		writeErr = resolver.client.CreateAttachment(projectKey, local)
 	case syncapi.IsNotFound(readErr) && local.Projection != nil:
 		// A descriptor has no upsert, so a linked tool or skill that

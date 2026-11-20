@@ -217,6 +217,10 @@ type Plan struct {
 	standalone map[syncdomain.Kind]int
 	// ForceConfirmation makes link confirm a descriptor-only change.
 	ForceConfirmation bool
+	// upsert is true when the run creates each resource that LaunchDarkly
+	// does not have, also the tools and skills that a variation push
+	// publishes. No local file records it.
+	upsert bool
 }
 
 // BuildPlan compares the baseline with the local and the server state. The

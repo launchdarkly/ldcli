@@ -69,6 +69,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 
 	addTargetFlags(cmd, filterFlagHelp)
 	addApplyFlags(cmd, syncdomain.ScopePrompts, true)
+	addUpsertFlag(cmd)
 	cmd.AddCommand(
 		newWatchCmd(client, syncdomain.ScopePrompts, filterFlagHelp),
 		newAddCmd(client),
@@ -86,7 +87,14 @@ type actionBuilder func(*cobra.Command, []string) (syncprompt.CommandAction, err
 // buildSyncAction reads the flags of a root sync command.
 func buildSyncAction(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
 	dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-	return syncprompt.SyncAction{DryRun: dryRun, Filter: targetFilter(cmd)}, nil
+	upsert, _ := cmd.Flags().GetBool(upsertFlag)
+	return syncprompt.SyncAction{DryRun: dryRun, Filter: targetFilter(cmd), Upsert: upsert}, nil
+}
+
+// addUpsertFlag registers --upsert on a root sync command. It applies to one
+// run, and no local file records it.
+func addUpsertFlag(cmd *cobra.Command) {
+	cmd.Flags().Bool(upsertFlag, false, "Create each resource that does not exist in LaunchDarkly. No file records it.")
 }
 
 // runCommand returns the RunE function of a sync command. It runs the action

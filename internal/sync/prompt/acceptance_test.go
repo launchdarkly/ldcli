@@ -3230,6 +3230,13 @@ var manifestsByRoot = map[string]*syncapi.SyncManifest{}
 
 func runPrompt(t *testing.T, root string, client resources.Client, arguments ...string) (string, string, error) {
 	t.Helper()
+	return runSyncCommand(t, root, client, "prompts", arguments...)
+}
+
+// runSyncCommand runs ldcli sync <command> <arguments>, such as sync tools or
+// sync all, through the real CLI.
+func runSyncCommand(t *testing.T, root string, client resources.Client, command string, arguments ...string) (string, string, error) {
+	t.Helper()
 	t.Chdir(root)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	manifest := manifestsByRoot[root]
@@ -3248,7 +3255,7 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 		api.manifest = manifest
 	}
 	args := []string{
-		"sync", "prompts",
+		"sync", command,
 		"--access-token", "token",
 		"--base-uri", "https://example.test",
 	}
@@ -4613,4 +4620,100 @@ func TestSettingFlipToPushStillPlansTheLinkedToolRow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Baseline tool", *api.tools["search"].Description, "the server-canonical tool is not published")
 	assert.Equal(t, "Local text", api.variation.Instructions, "the code-canonical variation is pushed")
+}
+
+// --upsert on sync prompts creates a variation that LaunchDarkly does not
+// have for this run only, so the variation file does not gain upsert.
+func TestSyncPromptsUpsertFlagCreatesMissingVariation(t *testing.T) {
+	root := initRepository(t)
+	local := variation("New")
+	writeVariation(t, root, local, false)
+	variationFile := filepath.Join(root, syncdomain.RootDir, "production", "configs", "support", "default.prompt.md")
+	before := string(must(os.ReadFile(variationFile)))
+	api := &directAPI{}
+
+	_, _, err := runPrompt(t, root, api, "--upsert", "--yes")
+
+	require.NoError(t, err)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "New", api.variation.Name)
+	assert.Equal(t, before, string(must(os.ReadFile(variationFile))), "--upsert does not write upsert into the file")
+}
+
+// --upsert on sync tools creates a tool that LaunchDarkly does not have, and
+// the tool file does not gain upsert.
+func TestSyncToolsUpsertFlagCreatesMissingTool(t *testing.T) {
+	root := initRepository(t)
+	writeLocalFile(t, root, "tools/refund.json", `{"formatVersion": 1, "key": "refund", "schema": {"type": "object"}}`)
+	api := &directAPI{tools: map[string]versionedTool{}}
+
+	_, _, err := runSyncCommand(t, root, api, "tools", "--upsert", "--yes")
+
+	require.NoError(t, err)
+	require.Contains(t, api.tools, "refund")
+	content := readLocalFile(t, root, "tools/refund.json")
+	assert.NotContains(t, content, "upsert")
+}
+
+// --upsert on sync skills creates a skill that LaunchDarkly does not have.
+func TestSyncSkillsUpsertFlagCreatesMissingSkill(t *testing.T) {
+	root := initRepository(t)
+	skillFile := "---\nkey: handoff\ndescription: Hand off\nname: Human handoff\n---\n\n# Handoff\n"
+	writeLocalFile(t, root, "skills/handoff.md", skillFile)
+	api := &directAPI{skills: map[string]versionedSkill{}}
+
+	_, _, err := runSyncCommand(t, root, api, "skills", "--upsert", "--yes")
+
+	require.NoError(t, err)
+	require.Contains(t, api.skills, "handoff")
+	assert.Equal(t, "Human handoff", api.skills["handoff"].Name)
+	assert.NotContains(t, readLocalFile(t, root, "skills/handoff.md"), "upsert")
+}
+
+// --upsert on sync all creates a tool that LaunchDarkly does not have.
+func TestSyncAllUpsertFlagCreatesMissingTool(t *testing.T) {
+	root := initRepository(t)
+	writeLocalFile(t, root, "tools/refund.json", `{"formatVersion": 1, "key": "refund", "schema": {"type": "object"}}`)
+	api := &directAPI{tools: map[string]versionedTool{}}
+
+	_, _, err := runSyncCommand(t, root, api, "all", "--upsert", "--yes")
+
+	require.NoError(t, err)
+	require.Contains(t, api.tools, "refund")
+}
+
+// upsert: true in a descriptor creates the linked tool that LaunchDarkly does
+// not have on a plain sync, and the descriptor keeps upsert.
+func TestToolDescriptorWithUpsertCreatesMissingTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nupsert: true\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	api := &directAPI{tools: map[string]versionedTool{}}
+
+	_, _, err := runSyncCommand(t, root, api, "tools", "--yes")
+
+	require.NoError(t, err)
+	require.Contains(t, api.tools, "search")
+	assert.Equal(t, "Local", *api.tools["search"].Description)
+	assert.Contains(t, readLocalFile(t, root, "tools/search.ref.yaml"), "upsert: true")
+}
+
+// A link with --upsert also creates a tool that the linked variation uses,
+// as sync prompts --upsert does.
+func TestLinkUpsertCreatesAToolThatTheVariationUses(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local prompt.\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: prompt.md\nformat: markdown\ntools:\n  - key: search\n")
+	writeLocalFile(t, root, "tools/search.json",
+		`{"formatVersion":1,"key":"search","schema":{"type":"object"}}`+"\n")
+	api := &directAPI{tools: map[string]versionedTool{}}
+
+	_, _, err := runPrompt(t, root, api, "link", "--file", "prompt.md", "--format", "markdown",
+		"--project", "production", "--config-key", "support", "--key", "default",
+		"--upsert", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	assert.Contains(t, api.tools, "search")
 }

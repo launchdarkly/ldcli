@@ -62,7 +62,8 @@ func newLinkCmd(client resources.Client, kind syncdomain.Kind) *cobra.Command {
 		Short: fmt.Sprintf("Link a repository source to one %s", noun),
 		Long: fmt.Sprintf("Link a repository source to one %s. "+
 			"Link reads only the named file, shows the descriptor and the sync plan, and writes the descriptor after you confirm. "+
-			"It then syncs the %s. With --upsert, it creates the %s in LaunchDarkly when it does not exist, and the config of a variation too.", noun, noun, noun),
+			"It then syncs the %s. With --upsert, it creates the %s in LaunchDarkly when it does not exist. "+
+			"For a variation, it also creates the config and the tools and skills that the variation uses.", noun, noun, noun),
 		Example: linkExamples[kind],
 		Args:    validatedArgs(cobra.NoArgs),
 		RunE: runCommand(client, scope, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {

@@ -22,6 +22,10 @@ type SyncAction struct {
 	Watch  bool
 	DryRun bool
 	Filter syncdomain.Filter
+	// Upsert creates each resource of the run that LaunchDarkly does not
+	// have: variations and their configs, tools, and skills. It applies to
+	// this run only, so no local file records it.
+	Upsert bool
 }
 
 // AddAction writes selected LaunchDarkly resources of the kind of the scope
@@ -262,7 +266,9 @@ func (options Options) syncAction() SyncAction {
 		if action.ID.Kind == syncdomain.KindVariation {
 			configKey, keys[0], _ = action.ID.VariationKeys()
 		}
-		return SyncAction{Filter: syncdomain.Filter{
+		// The upsert of a link also creates the tools and skills that the
+		// linked variation uses.
+		return SyncAction{Upsert: action.Upsert, Filter: syncdomain.Filter{
 			Project: action.ID.ProjectKey, ConfigKey: configKey, Keys: keys,
 		}}
 	default:

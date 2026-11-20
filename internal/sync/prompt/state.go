@@ -31,7 +31,7 @@ func (workspace syncWorkspace) loadState(
 	scope syncdomain.Scope,
 	filter syncdomain.Filter,
 ) (workspaceState, error) {
-	return workspace.loadStateWithSource(client, scope, filter, nil)
+	return workspace.loadStateWithSource(client, scope, filter, false, nil)
 }
 
 // sourceLink is the resource that a link command rebinds. Before the
@@ -44,24 +44,22 @@ type sourceLink struct {
 	intent   linkIntent
 }
 
-// linkIntent is what a link asks for beyond the descriptor: the creation of
-// a resource that LaunchDarkly does not have, with the model config and the
-// mode of a new variation. The descriptor records none of it, so the intent
-// applies to the compiled resource of the link on every load of a link run.
+// linkIntent is what a link asks for beyond the descriptor: the model config
+// and the mode of a variation that the upsert of the run creates. A link does
+// not write them into the descriptor, so the intent applies to the compiled
+// resource of the link on every load of a link run.
 type linkIntent struct {
-	upsert      bool
 	modelConfig *syncapi.ModelConfig
 	mode        syncdomain.VariationMode
 }
 
-// apply gives the compiled resource of the link the upsert and the model
-// config of the intent.
+// apply gives the compiled resource of the link the model config of the
+// intent.
 func (intent linkIntent) apply(id ResourceID, variations []syncdomain.SyncedResource) {
 	for index := range variations {
 		if variations[index].ID() != id {
 			continue
 		}
-		variations[index].Upsert = variations[index].Upsert || intent.upsert
 		if intent.modelConfig != nil {
 			variations[index].Variation.ModelConfigKey = intent.modelConfig.Key
 			variations[index].Variation.ModelConfigVersion = intent.modelConfig.Version
@@ -70,10 +68,14 @@ func (intent linkIntent) apply(id ResourceID, variations []syncdomain.SyncedReso
 	}
 }
 
+// loadStateWithSource loads the state of a sync. With upsert, the plan creates
+// each resource of the run that LaunchDarkly does not have, as upsert in its
+// file does.
 func (workspace syncWorkspace) loadStateWithSource(
 	client syncapi.Client,
 	scope syncdomain.Scope,
 	filter syncdomain.Filter,
+	upsert bool,
 	link *sourceLink,
 ) (workspaceState, error) {
 	synced, err := workspace.syncedResources()
@@ -93,7 +95,7 @@ func (workspace syncWorkspace) loadStateWithSource(
 	if err != nil {
 		return workspaceState{}, err
 	}
-	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client, scope, filter, link)
+	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client, scope, filter, upsert, link)
 	if err != nil {
 		return workspaceState{}, err
 	}
@@ -103,12 +105,14 @@ func (workspace syncWorkspace) loadStateWithSource(
 // loadWorkspacePlan plans the variations, tools, and skills of the scope. It
 // drops each resource that the filter does not keep before it reads
 // LaunchDarkly. It also returns the local variations as their files store them.
+// With upsert, the plan creates each resource that LaunchDarkly does not have.
 func loadWorkspacePlan(
 	repositoryRoot string,
 	baseline syncmanifest.Baseline,
 	client syncapi.Client,
 	scope syncdomain.Scope,
 	filter syncdomain.Filter,
+	upsert bool,
 	link *sourceLink,
 ) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
 	var proposal *synclocal.SourceDefinition
@@ -133,11 +137,16 @@ func loadWorkspacePlan(
 	if link != nil {
 		link.intent.apply(link.id, variations)
 	}
+	// The upsert of the run applies to the compiled variations only. Their
+	// files keep their own upsert, because a write keeps the front matter.
+	for index := range variations {
+		variations[index].Upsert = variations[index].Upsert || upsert
+	}
 	// A tool that a variation uses can also have a row of its own. The cache
 	// reads it from LaunchDarkly once.
 	attachments := newAttachmentCache(client)
 
-	plan := Plan{Scope: scope}
+	plan := Plan{Scope: scope, upsert: upsert}
 	var localFiles map[ResourceID]syncdomain.SyncedResource
 	if scope.Includes(syncdomain.KindVariation) {
 		var rows Plan
@@ -148,7 +157,7 @@ func loadWorkspacePlan(
 	}
 	if scope.Includes(syncdomain.KindTool) || scope.Includes(syncdomain.KindSkill) {
 		include := func(id ResourceID) bool { return scope.Includes(id.Kind) && filter.Includes(id) }
-		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include, proposal, link)
+		rows, err := planAttachmentRows(repositoryRoot, baseline.Lock, attachments, include, proposal, upsert)
 		if err != nil {
 			return Plan{}, nil, err
 		}
@@ -169,7 +178,7 @@ func loadWorkspacePlan(
 	if err := checkAttachmentBaselines(repositoryRoot, plan.Resources, baseline.Lock); err != nil {
 		return Plan{}, nil, err
 	}
-	referenced, err := planReferencedAttachments(repositoryRoot, client, baseline.Lock, attachments, plan.Resources, proposal)
+	referenced, err := planReferencedAttachments(repositoryRoot, client, baseline.Lock, attachments, plan.Resources, proposal, upsert)
 	if err != nil {
 		return Plan{}, nil, err
 	}
@@ -553,13 +562,15 @@ func planVariationRows(
 
 // planAttachmentRows reads each tool and skill that include accepts and that
 // has a local file or a lock entry, and compares both sides with the lock.
+// With upsert, each row creates the tool or skill that LaunchDarkly does not
+// have.
 func planAttachmentRows(
 	repositoryRoot string,
 	lock syncmanifest.Manifest,
 	attachments *attachmentCache,
 	include func(ResourceID) bool,
 	proposal *synclocal.SourceDefinition,
-	link *sourceLink,
+	upsert bool,
 ) ([]PlannedResource, error) {
 	compiled := include
 	if proposal != nil && proposal.Attachment != nil {
@@ -575,10 +586,10 @@ func planAttachmentRows(
 	if proposal != nil && proposal.Attachment != nil && include(proposal.Attachment.ID()) {
 		local = append(local, *proposal.Attachment)
 	}
-	// A link with --upsert creates the tool or skill that LaunchDarkly does
-	// not have. The descriptor has no upsert, so the intent applies here.
+	// The upsert of the run, from --upsert, creates each tool or skill that
+	// LaunchDarkly does not have. No file records it.
 	for index := range local {
-		if link != nil && link.intent.upsert && local[index].ID() == link.id {
+		if upsert {
 			local[index].Attachment.Upsert = true
 		}
 	}
@@ -627,6 +638,7 @@ func planReferencedAttachments(
 	attachments *attachmentCache,
 	resources []PlannedResource,
 	proposal *synclocal.SourceDefinition,
+	upsert bool,
 ) ([]PlannedResource, error) {
 	linked, err := linkedAttachments(repositoryRoot, resources)
 	if err != nil {
@@ -678,7 +690,7 @@ func planReferencedAttachments(
 			!slices.ContainsFunc(resources, func(resource PlannedResource) bool { return resource.ID == id })
 	}
 
-	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced, proposal, nil)
+	rows, err := planAttachmentRows(repositoryRoot, lock, attachments, referenced, proposal, upsert)
 	if err != nil {
 		return nil, err
 	}
