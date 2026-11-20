@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "summary": "actions/setup-python moves from v3 to v6 in one step of go.yml, the PR CI build job, before pre-commit/action. ldcli passes no inputs and reads no outputs. Two changes reach the step. The runtime moves from node16 (no longer supported by GitHub) to node24. Since v4 there is no default python-version, so the step now uses the runner's Python on PATH instead of installing the latest 3.x. PR CI ran the step with v6 and passed.",
+  "tier": "high",
+  "changelog": [
+    {
+      "package": "actions/setup-python",
+      "range": "v3..v6",
+      "notes": "v4.0.0: no default python-version. Without python-version or python-version-file the action reads .python-version, and if that file is missing it uses the Python on PATH. v5.0.0: node16 to node20. v5.x: cache and setuptools security fixes. v6.0.0 breaking: node24 runtime (runner v2.327.1 or later), and better .python-version parsing. The token default is now empty on GitHub Enterprise Server. On github.com it is still github.token.",
+      "breaking": true,
+      "url": "https://github.com/actions/setup-python/releases/tag/v6.0.0"
+    }
+  ],
+  "usage": [
+    ".github/workflows/go.yml (build job: actions/setup-python@v3 with no inputs, then pre-commit/action v3.0.1)"
+  ],
+  "behavior_changes_reachable": true,
+  "findings": [
+    {
+      "severity": "info",
+      "text": "The only step that uses setup-python is in go.yml, which runs on pull_request. CI run 28040393667 on the PR head 0676ba1 passed 'Run actions/setup-python@v6' and the pre-commit step. The run is from 2026-06-23, so it predates later changes on main, and GitHub has expired its logs.",
+      "evidence": [
+        "https://github.com/launchdarkly/ldcli/actions/runs/28040393667"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "With no python-version input and no .python-version file in the repository, v6 uses the Python that the ubuntu-latest image puts on PATH (Python 3.12 on ubuntu-24.04). pre-commit-hooks v4.6.0 supports Python 3.8 and later, and the golangci-lint hook uses Go, not Python. If a person wants a fixed Python, set python-version in go.yml.",
+      "evidence": [
+        "https://github.com/actions/setup-python/releases/tag/v4.0.0",
+        ".pre-commit-config.yaml"
+      ]
+    }
+  ]
+}

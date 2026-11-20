@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "summary": "The title and body say that this grouped security update changes two indirect packages: dompurify 3.2.4 to 3.4.13 and uuid (removed). The Dependabot commit also changes four direct dependencies that the body does not name: @launchpad-ui/components 0.4.4 to 0.23.1, launchdarkly-js-client-sdk 3.4.0 to 3.9.5, react-router 7.18.2 to 8.3.0, and vite 6.4.3 to 8.2.1. Three of them break ldcli. react-router 8 and @launchpad-ui/components 0.23 need React 19 while the UI pins React 18.3.1, so npm ci fails. components 0.23.1 removes ToastContainer and ToastQueue, which ldcli uses. vite 8 is outside the peer ranges of @vitejs/plugin-react 4.5.0 and vite-plugin-singlefile 2.2.0. The PR also adds high advisories through a nested react-router 7.5.2.",
+  "tier": "high",
+  "changelog": [
+    {
+      "package": "@launchpad-ui/components",
+      "range": "0.4.4..0.23.1",
+      "notes": "0.x minors with breaking changes. #1581 replaces ToastContainer/ToastQueue with ToastRegion/toastQueue (react-aria-components Toast). #1813 removes CopyToClipboard. #1712 makes react-aria and react-router peers. 0.23.x peers: react ^19, react-dom ^19, react-router ^7.15.1 || ^8.2.0, react-aria ^3.50, react-aria-components ^1.19, and @react-aria/* packages. The upstream-changes check found no notes. This summary comes from packages/components/CHANGELOG.md.",
+      "breaking": true,
+      "url": "https://github.com/launchdarkly/launchpad-ui/blob/main/packages/components/CHANGELOG.md"
+    },
+    {
+      "package": "launchdarkly-js-client-sdk",
+      "range": "3.4.0..3.9.5",
+      "notes": "Minor and patch releases. js-sdk-common 5.8.x drops the uuid dependency (this removes the uuid advisory). The README adds a deprecation notice that points to the new JavaScript SDK. No API removals.",
+      "breaking": false,
+      "url": "https://github.com/launchdarkly/js-client-sdk/releases"
+    },
+    {
+      "package": "react-router",
+      "range": "7.18.2..8.3.0",
+      "notes": "8.0.0: minimum React 19.2.7 (peer >=19.2.7), minimum Node 22.22.0, ESM only, react-router-dom removed, v8 future flags removed (now default), hasErrorBoundary and meta `data` removed. 8.0.1 to 8.3.0 are fixes and additions with no new removals in the declarative API. The upstream-changes check found no notes. This summary comes from the CHANGELOG.md in the npm tarball.",
+      "breaking": true,
+      "url": "https://github.com/remix-run/react-router/blob/main/packages/react-router/CHANGELOG.md"
+    },
+    {
+      "package": "vite",
+      "range": "6.4.3..8.2.1",
+      "notes": "7.0: Node ^20.19 || >=22.12, default build target baseline-widely-available, Sass legacy API and splitVendorChunkPlugin removed. 8.0: Rolldown replaces esbuild and Rollup as the bundler, Oxc transforms, lightningcss is a dependency (MPL-2.0) for CSS. The bundled esbuild moves 0.25.5 to 0.28.1 as an optional peer.",
+      "breaking": true,
+      "url": "https://github.com/vitejs/vite/blob/v8.2.1/packages/vite/CHANGELOG.md"
+    }
+  ],
+  "usage": [
+    "internal/dev_server/ui/src/main.tsx",
+    "internal/dev_server/ui/src/Sync.tsx",
+    "internal/dev_server/ui/src/App.tsx",
+    "internal/dev_server/ui/src/RouteSelector.tsx",
+    "internal/dev_server/ui/src/DebugSessionEventsPage.tsx",
+    "internal/dev_server/ui/src/util.ts",
+    "internal/dev_server/ui/src/Flags.tsx",
+    "internal/dev_server/ui/src/FlagsPage.tsx",
+    "internal/dev_server/ui/src/Flag.tsx",
+    "internal/dev_server/ui/vite.config.ts",
+    "internal/dev_server/ui/vitest.config.ts",
+    "internal/dev_server/ui/asset_handler.go"
+  ],
+  "behavior_changes_reachable": true,
+  "findings": [
+    {
+      "severity": "block",
+      "text": "@launchpad-ui/components 0.23.1 no longer exports ToastContainer (src/main.tsx) or ToastQueue (src/Sync.tsx). The replacements are ToastRegion and toastQueue. The generated guard `launchpad-exports-guard` passes on base and fails on the PR, so the build breaks even with a working install.",
+      "evidence": [
+        "generated/launchpad-exports-guard.sh",
+        "https://github.com/launchdarkly/launchpad-ui/blob/main/packages/components/CHANGELOG.md"
+      ]
+    },
+    {
+      "severity": "block",
+      "text": "vite 8.2.1 is outside the peer ranges of @vitejs/plugin-react 4.5.0 (vite ^4.2 || ^5 || ^6) and vite-plugin-singlefile 2.2.0 (vite ^5.4.11 || ^6, and a rollup ^4.35 peer that vite 8 no longer uses). After the React conflict is fixed, npm ci still fails until these plugins are upgraded in the same change. vitest 3.2.7 keeps its own nested vite 7.3.6.",
+      "evidence": [
+        "internal/dev_server/ui/package-lock.json (PR)",
+        "internal/dev_server/ui/vite.config.ts"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "The ui-npm-ci block names @react-aria/focus ^3.22.1 from @launchpad-ui/components 0.23.1. That is the first conflict that npm reports. components 0.23.1 and react-router 8.3.0 also need react 19 (^19 and >=19.2.7), and the UI pins react 18.3.1. A fix needs React 19, @launchpad-ui/core 0.59.18 or later (core 0.49.22 needs react 18.3.1), and the core migration from #723.",
+      "evidence": [
+        "logs/pr/ui-npm-ci.log"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "The new high advisories (react-router, @launchpad-ui/navigation, turbo-stream) come from @launchpad-ui/navigation 0.12.82, which brings a nested react-router 7.5.2 (for example GHSA-49rj-9fvp-4h2h and GHSA-chx6-hx7r-mcp5) and turbo-stream 2.4.0 (GHSA-rxv8-25v2-qmq8). ldcli does not import Navigation, but the advisories are in the runtime tree.",
+      "evidence": [
+        "state/checks/ui-npm-audit/pr/delta.json"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "The two security fixes that the PR names need much less change. dompurify comes from isomorphic-dompurify (^3.1.6, through @launchpad-ui/core markdown), so a lockfile-only update to 3.4.13 fixes it. uuid comes from launchdarkly-js-sdk-common 5.3.0. launchdarkly-js-client-sdk 3.9.5 (js-sdk-common 5.8.3) removes it. The UI imports only the types LDFlagSet and LDFlagValue from the SDK, so the SDK update does not change the bundle. A focused PR with these two changes avoids the breaking updates.",
+      "evidence": [
+        "internal/dev_server/ui/package-lock.json",
+        "internal/dev_server/ui/src/util.ts"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "The lightningcss MPL-2.0 license decision is real, but lightningcss is a build-time dependency of vite 8 and does not go into dist/.",
+      "evidence": [
+        "logs/pr/transitive-changes.log",
+        "logs/pr/license-changes.log"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "No discriminating check can run until the tree installs. The guards ui-routing-guard and ui-singlefile-guard hold the routing and single-file dist behavior on base. Run them again after a coordinated upgrade.",
+      "evidence": [
+        "generated/checks.json"
+      ]
+    }
+  ]
+}

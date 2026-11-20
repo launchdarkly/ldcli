@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "summary": "googleapis/release-please-action moves from v4.4.0 to v5.0.0 in the two steps of the release-please job in release-please.yml. That workflow runs only on push to main, so PR CI never runs it. The one breaking change is the node24 runtime. The bundled release-please library moves from 17.1.3 to 17.6.0, which changes how release PRs are created (file updates through the GitHub API, no empty PRs). The inputs that ldcli passes (token, skip-github-release, skip-github-pull-request) and the outputs that it reads (release_created, tag_name) do not change.",
+  "tier": "high",
+  "changelog": [
+    {
+      "package": "googleapis/release-please-action",
+      "range": "v4.4.0..v5.0.0",
+      "notes": "v4.4.1: release-please 17.1.3 to 17.3.0. v5.0.0 breaking: runtime node20 to node24 (action.yml runs.using). Also release-please 17.3.0 to 17.6.0. action.yml inputs are the same, and neither version declares outputs (src/index.ts sets them). Library changes in 17.2 to 17.6: force-tag and include-v-in-release-name options (off by default), a fix for the prerelease versioning strategy, a commit search depth option, no PR when nothing changed (17.4.1), --no-verify in git operations (17.5.1), the git fetch depth limited to cloneDepth (17.5.2), and file updates through the GitHub API (17.6.0).",
+      "breaking": true,
+      "url": "https://github.com/googleapis/release-please-action/compare/16a9c90856f42705d54a6fda1823352bdc62cf38...45996ed1f6d02564a971a2fa1b5860e934307cf7"
+    }
+  ],
+  "usage": [
+    ".github/workflows/release-please.yml (job release-please: step 'release' with skip-github-pull-request, step 'release-prs' with skip-github-release; job outputs release_created and tag_name gate release-ldcli, release-ldcli-npm, and publish-release)",
+    "release-please-config.json",
+    ".release-please-manifest.json"
+  ],
+  "behavior_changes_reachable": true,
+  "no_local_proof": "release-please.yml runs only on push to main, and the action needs a GitHub token with write access to create releases and PRs. No local check can run it. The guards confirm that the outputs are still set and that the configuration is valid for the bundled library.",
+  "findings": [
+    {
+      "severity": "info",
+      "text": "Library 17.6.0 creates release PR file updates through the GitHub API instead of git. The release-prs step already uses GITHUB_TOKEN with contents: write and pull-requests: write, which is enough for the API. The permissions block does not change.",
+      "evidence": [
+        "https://github.com/googleapis/release-please/releases/tag/v17.6.0",
+        ".github/workflows/release-please.yml"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "Follow-up after merge: the next push to main runs the release-prs step with v5. Confirm that it updates the release PR. manual-publish.yml does not use release-please, so a manual-publish dry run does not test this change.",
+      "evidence": [
+        ".github/workflows/release-please.yml",
+        ".github/workflows/manual-publish.yml"
+      ]
+    }
+  ]
+}
