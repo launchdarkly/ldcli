@@ -491,11 +491,11 @@ func renderRelationshipNode(name string, refs []syncdomain.AttachmentRef, commen
 	return []byte(content.String())
 }
 
-// AttachToDescriptor adds a tool or a skill to the top-level list of a
+// AttachToDescriptor adds tools and skills to the top-level lists of a
 // variation descriptor, and keeps the rest of the descriptor and its
-// comments. The same transaction writes the file of the attachment when the
-// repository has none.
-func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachment syncdomain.Attachment) error {
+// comments. The same transaction writes the file of each attachment that the
+// repository has none for.
+func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachments []syncdomain.Attachment) error {
 	descriptorPath, err := ReferencePath(id)
 	if err != nil {
 		return err
@@ -514,28 +514,35 @@ func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachment syncd
 	if err != nil {
 		return err
 	}
-	isSkill := attachment.Kind == syncdomain.AttachmentSkill
-	list := current.Tools
-	if isSkill {
-		list = current.Skills
+	var tools, skills []syncdomain.AttachmentRef
+	if current.Tools != nil {
+		tools = slices.Clone(*current.Tools)
 	}
-	var refs []syncdomain.AttachmentRef
-	if list != nil {
-		refs = slices.Clone(*list)
+	if current.Skills != nil {
+		skills = slices.Clone(*current.Skills)
 	}
-	// A descriptor that already lists the attachment stays as it is, so its
-	// list keeps its form and comments.
+	var toolsChanged, skillsChanged bool
+	for _, attachment := range attachments {
+		refs, changed := &tools, &toolsChanged
+		if attachment.Kind == syncdomain.AttachmentSkill {
+			refs, changed = &skills, &skillsChanged
+		}
+		if !slices.ContainsFunc(*refs, func(ref syncdomain.AttachmentRef) bool { return ref.Key == attachment.Key() }) {
+			*refs = append(*refs, syncdomain.AttachmentRef{Key: attachment.Key()})
+			*changed = true
+		}
+	}
+	// A descriptor that already lists every attachment stays as it is, so its
+	// lists keep their form and comments.
 	updated := original
-	if !slices.ContainsFunc(refs, func(ref syncdomain.AttachmentRef) bool { return ref.Key == attachment.Key() }) {
-		refs = append(refs, syncdomain.AttachmentRef{Key: attachment.Key()})
-		toolsChanged, skillsChanged := !isSkill, isSkill
-		next := referenceWithRelationships(current, refs, toolsChanged, refs, skillsChanged)
-		updated, err = updateDescriptorRelationships(original, refs, toolsChanged, refs, skillsChanged)
+	if toolsChanged || skillsChanged {
+		next := referenceWithRelationships(current, tools, toolsChanged, skills, skillsChanged)
+		updated, err = updateDescriptorRelationships(original, tools, toolsChanged, skills, skillsChanged)
 		if err == nil && !descriptorReadsBack(updated, id, next) {
 			err = errRelationshipsShareLine
 		}
 		if errors.Is(err, errRelationshipsShareLine) {
-			// The list cannot be edited in place, so the descriptor is
+			// The lists cannot be edited in place, so the descriptor is
 			// rendered again from its content. The comments do not survive.
 			updated, err = RenderDescriptor(id, next)
 		}
@@ -544,11 +551,15 @@ func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachment syncd
 		}
 	}
 
-	rendered, err := RenderAttachment(syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
-	if err != nil {
-		return err
+	rendered := make([]RenderedFile, 0, len(attachments))
+	for _, attachment := range attachments {
+		file, err := RenderAttachment(syncdomain.SyncedAttachment{ProjectKey: id.ProjectKey, Attachment: attachment})
+		if err != nil {
+			return err
+		}
+		rendered = append(rendered, file)
 	}
-	files, err := store.prepareAttachmentFiles([]RenderedFile{rendered})
+	files, err := store.prepareAttachmentFiles(rendered)
 	if err != nil {
 		return err
 	}

@@ -4705,3 +4705,98 @@ func TestAttachToolAlreadyListedInTheDescriptorLeavesItUnchanged(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(before), string(after))
 }
+
+// Attaching a tool to a variation that was linked while it already had tools
+// in LaunchDarkly keeps those tools, as attach does for a .prompt.md file.
+func TestAttachToolToALinkedExistingVariationKeepsItsServerTools(t *testing.T) {
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	server := variation("Server instructions.")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "a", Version: 1}}
+	description := "A tool."
+	tool := func(key string) versionedTool {
+		return versionedTool{Tool: syncdomain.Tool{
+			Key: key, Description: &description, Schema: map[string]any{"type": "object"},
+		}, Version: 1}
+	}
+	api := &directAPI{
+		variation: &server,
+		tools:     map[string]versionedTool{"a": tool("a"), "c": tool("c")},
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[id="support"]`, Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	toolDir := filepath.Join(root, ".launchdarkly", "production", "tools")
+	require.NoError(t, os.MkdirAll(toolDir, 0o755))
+	for _, key := range []string{"a", "c"} {
+		require.NoError(t, os.WriteFile(filepath.Join(toolDir, key+".json"), []byte(`{
+  "formatVersion": 1,
+  "key": "`+key+`",
+  "description": "A tool.",
+  "schema": {"type": "object"}
+}
+`), 0o644))
+	}
+
+	_, _, err = runPrompt(t, root, api, "attach", "tool", "c", "--to", "production/support/default", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	var keys []string
+	for _, ref := range api.variation.Tools {
+		keys = append(keys, ref.Key)
+	}
+	assert.ElementsMatch(t, []string{"a", "c"}, keys, "LaunchDarkly keeps the tool it had")
+}
+
+// Attaching a skill to a variation that was linked while it already had skills
+// in LaunchDarkly keeps those skills, as attach does for a .prompt.md file,
+// and writes the file of each one that the repository has no file for.
+func TestAttachSkillToALinkedExistingVariationKeepsItsServerSkills(t *testing.T) {
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	server := variation("Server instructions.")
+	server.Skills = []syncdomain.AttachmentRef{{Key: "a", Version: 1}}
+	skill := func(key string) versionedSkill {
+		return versionedSkill{Skill: syncdomain.Skill{Key: key, Description: "A skill.", Markdown: "Do it.\n"}, Version: 1}
+	}
+	api := &directAPI{
+		variation: &server,
+		skills:    map[string]versionedSkill{"a": skill("a"), "c": skill("c")},
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[id="support"]`, Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+
+	_, _, err = runPrompt(t, root, api, "attach", "skill", "c", "--to", "production/support/default", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	var keys []string
+	for _, ref := range api.variation.Skills {
+		keys = append(keys, ref.Key)
+	}
+	assert.ElementsMatch(t, []string{"a", "c"}, keys, "LaunchDarkly keeps the skill it had")
+	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "skills", "a.md"))
+	assert.NoError(t, err, "attach writes the file of the skill LaunchDarkly had")
+}

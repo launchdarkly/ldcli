@@ -68,7 +68,11 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 	// A linked variation has a descriptor and no managed file, so the
 	// descriptor lists the attachment.
 	if target.Source != nil {
-		return store.AttachToDescriptor(target.ID(), attachment)
+		attachments, err := descriptorAttachments(client, options.RepositoryRoot, target, attachment)
+		if err != nil {
+			return err
+		}
+		return store.AttachToDescriptor(target.ID(), attachments)
 	}
 	configKey, _, err := target.ID().VariationKeys()
 	if err != nil {
@@ -78,6 +82,60 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 		ProjectKey: projectKey, ConfigKey: configKey, Variation: variation,
 	}})
 	return err
+}
+
+// descriptorAttachments returns the attachments that attach adds to the
+// descriptor of a linked variation. A descriptor without a list of the kind
+// leaves the list in LaunchDarkly alone, and the list that attach writes makes
+// sync own it. So that list starts with the attachments that the variation has
+// in LaunchDarkly, with their local content when the repository has a file
+// for them. A variation or config that LaunchDarkly does not have yet has
+// none.
+func descriptorAttachments(
+	client syncapi.Client,
+	repositoryRoot string,
+	target syncdomain.SyncedResource,
+	attachment syncdomain.Attachment,
+) ([]syncdomain.Attachment, error) {
+	attachments := []syncdomain.Attachment{attachment}
+	list := target.Source.Tools
+	if attachment.Kind == syncdomain.AttachmentSkill {
+		list = target.Source.Skills
+	}
+	if list != nil {
+		return attachments, nil
+	}
+	configKey, variationKey, err := target.ID().VariationKeys()
+	if err != nil {
+		return nil, err
+	}
+	state, err := client.ReadVariation(target.ProjectKey, configKey, variationKey)
+	if syncapi.IsNotFound(err) {
+		return attachments, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, ref := range state.Variation.Refs(attachment.Kind) {
+		if ref.Key == attachment.Key() {
+			continue
+		}
+		id := syncdomain.ResourceID{Kind: syncdomain.Kind(attachment.Kind), ProjectKey: target.ProjectKey, LookupKey: ref.Key}
+		local, err := localAttachment(repositoryRoot, id)
+		if err != nil {
+			return nil, err
+		}
+		if local != nil {
+			attachments = append(attachments, *local)
+			continue
+		}
+		server, err := client.ReadAttachment(target.ProjectKey, attachment.Kind, ref.Key)
+		if err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, server)
+	}
+	return attachments, nil
 }
 
 // localAttachment reads the local file of an attachment. It returns nil when
