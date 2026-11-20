@@ -2205,10 +2205,28 @@ func TestLinkWithoutUpsertNamesTheMissingConfig(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `config "support" does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file.`)
+	assert.Contains(t, err.Error(), `config "support" does not exist in LaunchDarkly. Run again with --upsert.`)
+	assert.NotContains(t, err.Error(), "upsert: true", "a blocked link writes no file to add upsert to")
 	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"))
 	assert.True(t, api.configMissing)
 	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"), "a blocked link writes no descriptor")
+}
+
+// A link that a missing config blocks writes no descriptor, so there is
+// nothing to stop syncing, and the refusal does not suggest detach.
+func TestLinkWithoutUpsertRefusesAMissingConfigWithoutADetachHint(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agent.py"), []byte("AGENT = {\"instructions\": \"Local instructions.\"}\n"), 0o644))
+	api := &directAPI{configMissing: true}
+
+	_, _, err := runPrompt(t, root, api, "link", "--file", "agent.py", "--format", "python", "--select", `constants[id="AGENT"]`,
+		"--map", "prompt=instructions", "--project", "production", "--config-key", "support", "--key", "default",
+		"--yes", "--no-input")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `config "support" does not exist in LaunchDarkly. Run again with --upsert`)
+	assert.NotContains(t, err.Error(), "detach", "link wrote nothing, so there is nothing to detach")
+	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"))
 }
 
 // A link of a tool with --upsert creates the tool that LaunchDarkly does not
