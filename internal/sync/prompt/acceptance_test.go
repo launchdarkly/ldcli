@@ -261,6 +261,14 @@ func (api *directAPI) MakeRequest(
 		variations := []directAPIVariation{}
 		if api.variation != nil {
 			served := *api.variation
+			// LaunchDarkly returns empty lists for a variation without
+			// tools or skills.
+			if served.Tools == nil {
+				served.Tools = []syncdomain.AttachmentRef{}
+			}
+			if served.Skills == nil {
+				served.Skills = []syncdomain.AttachmentRef{}
+			}
 			if api.expandTools && len(served.Tools) != 0 {
 				served.Model = api.expandedModel(served)
 			}
@@ -4613,4 +4621,121 @@ func TestSettingFlipToPushStillPlansTheLinkedToolRow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Baseline tool", *api.tools["search"].Description, "the server-canonical tool is not published")
 	assert.Equal(t, "Local text", api.variation.Instructions, "the code-canonical variation is pushed")
+}
+
+// linkUpsertedAgent links agents.py to production/support/default with
+// --upsert, which creates the config and the variation, and gives the
+// repository and LaunchDarkly the tool "lookup". It returns the repository
+// root, the API and the path of the variation's descriptor.
+func linkUpsertedAgent(t *testing.T) (string, *directAPI, string) {
+	t.Helper()
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	description := "Get the status of an order."
+	api := &directAPI{
+		configMissing: true,
+		tools: map[string]versionedTool{"lookup": {Tool: syncdomain.Tool{
+			Key: "lookup", Description: &description, Schema: map[string]any{"type": "object"},
+		}, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{},
+	}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[id="support"]`, Map: map[string]string{"prompt": "instructions"}, Upsert: true,
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	toolFile := filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(toolFile), 0o755))
+	require.NoError(t, os.WriteFile(toolFile, []byte(`{
+  "formatVersion": 1,
+  "key": "lookup",
+  "description": "Get the status of an order.",
+  "schema": {"type": "object"}
+}
+`), 0o644))
+	api.directions["variation:support/default"] = syncdomain.SyncDirectionCodeCanonical
+	return root, api, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+}
+
+// After link --upsert creates a variation, attaching a tool in the repository
+// is a change made only in the repository. The plan says the repository
+// changed it, and does not claim that a LaunchDarkly change is replaced.
+func TestPushAfterLinkUpsertDoesNotClaimALaunchDarklyChange(t *testing.T) {
+	root, api, descriptor := linkUpsertedAgent(t)
+	file, err := os.OpenFile(descriptor, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+	_, err = file.WriteString("tools:\n  - key: lookup\n")
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "push")
+	assert.NotContains(t, stdout, "the LaunchDarkly change is replaced")
+}
+
+// Right after link --upsert creates the config and the variation, the
+// repository and LaunchDarkly agree, so a dry run has nothing to do.
+func TestDryRunAfterLinkUpsertIsInSync(t *testing.T) {
+	root, api, _ := linkUpsertedAgent(t)
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "No changes")
+}
+
+// A plain link of a variation that LaunchDarkly already has, followed by a
+// tools list added only in the descriptor, is a repository change. Under the
+// default direction it plans as a push, not as a conflict.
+func TestToolsAddedToALinkedDescriptorPlanAPush(t *testing.T) {
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	description := "Get the status of an order."
+	api := &directAPI{
+		variation: &syncdomain.Variation{
+			Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Default", Instructions: "Local instructions.",
+			Tools: []syncdomain.AttachmentRef{}, Skills: []syncdomain.AttachmentRef{},
+		},
+		tools: map[string]versionedTool{"lookup": {Tool: syncdomain.Tool{
+			Key: "lookup", Description: &description, Schema: map[string]any{"type": "object"},
+		}, Version: 1}},
+	}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[id="support"]`, Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	toolFile := filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(toolFile), 0o755))
+	require.NoError(t, os.WriteFile(toolFile, []byte(`{
+  "formatVersion": 1,
+  "key": "lookup",
+  "description": "Get the status of an order.",
+  "schema": {"type": "object"}
+}
+`), 0o644))
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	file, err := os.OpenFile(descriptor, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+	_, err = file.WriteString("tools:\n  - key: lookup\n")
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, `"action": "update_server"`)
+	assert.NotContains(t, stdout, `"action": "conflict"`)
 }

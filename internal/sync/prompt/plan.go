@@ -263,6 +263,42 @@ func BuildPlan(baseline syncmanifest.Manifest, local []syncdomain.SyncedResource
 	return plan
 }
 
+// baselineLacksRelationships reports whether the baseline was recorded before
+// the descriptor listed some of its tools or skills. It fingerprints the
+// LaunchDarkly variation without each subset of those lists. A match means
+// that LaunchDarkly did not change, and only the descriptor did.
+func baselineLacksRelationships(
+	id ResourceID, variation syncdomain.Variation, reference syncdomain.Reference, baseline string,
+) (bool, error) {
+	for _, dropTools := range []bool{false, true} {
+		for _, dropSkills := range []bool{false, true} {
+			if (!dropTools && !dropSkills) || (dropTools && reference.Tools == nil) ||
+				(dropSkills && reference.Skills == nil) {
+				continue
+			}
+			reduced := reference
+			if dropTools {
+				reduced.Tools = nil
+			}
+			if dropSkills {
+				reduced.Skills = nil
+			}
+			projection, err := syncdomain.ProjectVariation(variation, reduced)
+			if err != nil {
+				return false, err
+			}
+			fingerprint, err := syncdomain.FingerprintProjection(id, projection)
+			if err != nil {
+				return false, err
+			}
+			if fingerprint == baseline {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 // planResource fingerprints both sides of one resource and chooses its action.
 // local is nil when the resource has no local file.
 func planResource(
@@ -329,6 +365,13 @@ func planResource(
 			resource.ServerProjection, err = syncdomain.ProjectVariation(*server.Variation, *local.Source)
 			if err == nil {
 				resource.ServerFingerprint, err = syncdomain.FingerprintProjection(id, resource.ServerProjection)
+			}
+			if err == nil && tracked && resource.ServerFingerprint != baselineFingerprint {
+				var lifted bool
+				lifted, err = baselineLacksRelationships(id, *server.Variation, *local.Source, baselineFingerprint)
+				if lifted {
+					resource.BaselineFingerprint = resource.ServerFingerprint
+				}
 			}
 		} else {
 			resource.ServerFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, *server.Variation)
