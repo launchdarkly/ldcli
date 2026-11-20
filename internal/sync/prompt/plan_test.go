@@ -257,13 +257,13 @@ func TestPlanBlockingErrorHasTheFullErrorOfEveryRow(t *testing.T) {
 	missing.LookupKey, broken.LookupKey = "support/missing", "support/broken"
 	plan := Plan{Resources: []PlannedResource{
 		{ID: conflicted, Action: ActionConflict},
-		{ID: missing, Action: ActionError, Error: "variation does not exist in LaunchDarkly; set upsert: true to create it"},
+		{ID: missing, Action: ActionError, Error: `variation "missing" does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file.`},
 		{ID: testResourceID(), Action: ActionInSync},
 		{ID: broken, Action: ActionError, Error: "invalid server variation: bad mode"},
 	}}
 
 	require.EqualError(t, plan.BlockingError(), "cannot sync conflicted resource variation production/support/default\n"+
-		"cannot sync variation production/support/missing: variation does not exist in LaunchDarkly; set upsert: true to create it\n"+
+		"cannot sync variation production/support/missing: variation \"missing\" does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file.\n"+
 		"cannot sync variation production/support/broken: invalid server variation: bad mode")
 	require.NoError(t, Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: ActionUpdateServer}}}.BlockingError())
 }
@@ -377,11 +377,11 @@ func TestPlanAttachmentExplainsHowToCreateOrStopSyncing(t *testing.T) {
 	tool, skill := testAttachment(syncdomain.AttachmentTool, "local"), testAttachment(syncdomain.AttachmentSkill, "local")
 
 	assert.Equal(t, `tool "search" does not exist in LaunchDarkly. `+
-		`To create it, add "upsert": true to its file and run ldcli sync tools --project production --key search. `+
+		"Run again with --upsert, or add upsert: true to its file. "+
 		"To stop syncing it, run ldcli sync tools detach --project production --key search.",
 		planAttachment(tool.ID("production"), &tool, nil, "", false).Error)
 	assert.Equal(t, `skill "summarize" does not exist in LaunchDarkly. `+
-		"To create it, add upsert: true to its front matter and run ldcli sync skills --project production --key summarize. "+
+		"Run again with --upsert, or add upsert: true to its file. "+
 		"To stop syncing it, run ldcli sync skills detach --project production --key summarize.",
 		planAttachment(skill.ID("production"), &skill, nil, "", false).Error)
 }

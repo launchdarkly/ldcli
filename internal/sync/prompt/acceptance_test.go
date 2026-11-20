@@ -785,7 +785,7 @@ func TestPromptExplainsUpsertForMissingTool(t *testing.T) {
 
 	output, _, err := runPrompt(t, root, api, "--yes")
 
-	fix := `To create it, add "upsert": true to its file and run ldcli sync tools --project production --key my-second-tool.`
+	fix := `tool "my-second-tool" does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file. To stop syncing it, run ldcli sync tools detach --project production --key my-second-tool.`
 	require.ErrorContains(t, err, fix)
 	assert.Contains(t, output, fix)
 	assert.NotContains(t, err.Error(), "unknown error")
@@ -2252,8 +2252,7 @@ func TestLinkWithoutUpsertNamesTheMissingConfig(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `config "support" does not exist in LaunchDarkly`)
-	assert.Contains(t, err.Error(), "--upsert")
+	assert.Contains(t, err.Error(), `config "support" does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file.`)
 	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"))
 	assert.True(t, api.configMissing)
 	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"), "a blocked link writes no descriptor")
@@ -3908,7 +3907,7 @@ func TestVariationPushDoesNotCreateAServerCanonicalLinkedTool(t *testing.T) {
 
 	require.Error(t, err, "the missing linked tool blocks the plan")
 	assert.Equal(t, []string{"tool search error", "variation support/default update_server"}, planRows(t, stdout))
-	assert.Contains(t, stdout, `tool \"search\" does not exist in LaunchDarkly. Run link again with --upsert to create it, or create it in LaunchDarkly and run sync again.`)
+	assert.Contains(t, stdout, `tool \"search\" does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file.`)
 	_, _, err = runPrompt(t, root, api, "--yes")
 	require.Error(t, err)
 	assert.Empty(t, api.tools, "the push does not create the tool")
@@ -4744,6 +4743,62 @@ func TestToolDescriptorWithUpsertCreatesMissingTool(t *testing.T) {
 	require.Contains(t, api.tools, "search")
 	assert.Equal(t, "Local", *api.tools["search"].Description)
 	assert.Contains(t, readLocalFile(t, root, "tools/search.ref.yaml"), "upsert: true")
+}
+
+// Without --upsert and without upsert in its file, every command refuses a
+// missing resource with the same message.
+func TestSyncRefusesMissingResourceWithOneMessage(t *testing.T) {
+	const fix = "does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file."
+	for _, test := range []struct {
+		name    string
+		command string
+		setup   func(t *testing.T, root string)
+		api     *directAPI
+		want    string
+	}{
+		{
+			name: "variation", command: "prompts",
+			setup: func(t *testing.T, root string) { writeVariation(t, root, variation("New"), false) },
+			api:   &directAPI{},
+			want:  fix,
+		},
+		{
+			name: "config", command: "prompts",
+			setup: func(t *testing.T, root string) { writeVariation(t, root, variation("New"), false) },
+			api:   &directAPI{configMissing: true},
+			want:  `config "support" ` + fix,
+		},
+		{
+			name: "tool", command: "tools",
+			setup: func(t *testing.T, root string) {
+				writeLocalFile(t, root, "tools/refund.json", `{"formatVersion": 1, "key": "refund", "schema": {"type": "object"}}`)
+			},
+			api:  &directAPI{tools: map[string]versionedTool{}},
+			want: `tool "refund" ` + fix,
+		},
+		{
+			name: "linked tool", command: "tools",
+			setup: func(t *testing.T, root string) {
+				require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+				writeLocalFile(t, root, "tools/search.ref.yaml",
+					"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+			},
+			api:  &directAPI{tools: map[string]versionedTool{}},
+			want: `tool "search" ` + fix,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := initRepository(t)
+			test.setup(t, root)
+
+			_, _, err := runSyncCommand(t, root, test.api, test.command, "--yes")
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), test.want)
+			assert.NotContains(t, err.Error(), "and run ldcli sync")
+			assert.NotContains(t, err.Error(), "Run link again")
+		})
+	}
 }
 
 // A link with --upsert also creates a tool that the linked variation uses,

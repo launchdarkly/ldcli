@@ -427,12 +427,12 @@ func TestPublishCreatesAnAttachmentOnlyWithUpsert(t *testing.T) {
 		"tool": {
 			attachment: syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "refund", Schema: map[string]any{}}},
 			want: `tool "refund" does not exist in LaunchDarkly. ` +
-				`To create it, add "upsert": true to its file and run ldcli sync tools --project project --key refund.`,
+				"Run again with --upsert, or add upsert: true to its file. To stop syncing it, run ldcli sync tools detach --project project --key refund.",
 		},
 		"skill": {
 			attachment: syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &syncdomain.Skill{Key: "handoff", Markdown: "# Handoff\n"}},
 			want: `skill "handoff" does not exist in LaunchDarkly. ` +
-				"To create it, add upsert: true to its front matter and run ldcli sync skills --project project --key handoff.",
+				"Run again with --upsert, or add upsert: true to its file. To stop syncing it, run ldcli sync skills detach --project project --key handoff.",
 		},
 	}
 	for name, test := range tests {
@@ -974,10 +974,10 @@ func TestLinkedPublishOfAMissingToolAsksToCreateOrDetach(t *testing.T) {
 	_, linkedErr := newAttachmentResolver(client).publish("project", linked, false)
 	_, managedErr := newAttachmentResolver(client).publish("project", managed, false)
 
-	require.EqualError(t, linkedErr, `tool "search" does not exist in LaunchDarkly. Run link again with --upsert to create it, or create it in LaunchDarkly and run sync again. `+
+	require.EqualError(t, linkedErr, `tool "search" does not exist in LaunchDarkly. Run again with --upsert, or add upsert: true to its file. `+
 		"To stop syncing it, run ldcli sync tools detach --project project --key search.")
 	require.EqualError(t, managedErr, `tool "lookup" does not exist in LaunchDarkly. `+
-		`To create it, add "upsert": true to its file and run ldcli sync tools --project project --key lookup.`)
+		"Run again with --upsert, or add upsert: true to its file. To stop syncing it, run ldcli sync tools detach --project project --key lookup.")
 }
 
 // settleAPI serves the tool "search" like attachmentMutationAPI, and records
