@@ -68,11 +68,11 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 	// A linked variation has a descriptor and no managed file, so the
 	// descriptor lists the attachment.
 	if target.Source != nil {
-		attachments, err := descriptorAttachments(client, options.RepositoryRoot, target, attachment)
+		keys, files, err := descriptorAttachments(client, options.RepositoryRoot, target, attachment)
 		if err != nil {
 			return err
 		}
-		return store.AttachToDescriptor(target.ID(), attachments)
+		return store.AttachToDescriptor(target.ID(), attachment.Kind, keys, files)
 	}
 	configKey, _, err := target.ID().VariationKeys()
 	if err != nil {
@@ -84,58 +84,64 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 	return err
 }
 
-// descriptorAttachments returns the attachments that attach adds to the
-// descriptor of a linked variation. A descriptor without a list of the kind
-// leaves the list in LaunchDarkly alone, and the list that attach writes makes
-// sync own it. So that list starts with the attachments that the variation has
-// in LaunchDarkly, with their local content when the repository has a file
-// for them. A variation or config that LaunchDarkly does not have yet has
-// none.
+// descriptorAttachments returns the keys that attach adds to the descriptor
+// of a linked variation, and the attachments whose files attach writes. A
+// descriptor without a list of the kind leaves the list in LaunchDarkly alone,
+// and the list that attach writes makes sync own it. So that list starts with
+// the attachments that the variation has in LaunchDarkly. Attach writes the
+// file of each one that the repository has no file for, and leaves every
+// existing file as it is. A config that LaunchDarkly does not have, or a
+// variation that its config does not have, has none.
 func descriptorAttachments(
 	client syncapi.Client,
 	repositoryRoot string,
 	target syncdomain.SyncedResource,
 	attachment syncdomain.Attachment,
-) ([]syncdomain.Attachment, error) {
-	attachments := []syncdomain.Attachment{attachment}
+) ([]string, []syncdomain.Attachment, error) {
+	keys := []string{attachment.Key()}
+	files := []syncdomain.Attachment{attachment}
 	list := target.Source.Tools
 	if attachment.Kind == syncdomain.AttachmentSkill {
 		list = target.Source.Skills
 	}
 	if list != nil {
-		return attachments, nil
+		return keys, files, nil
 	}
 	configKey, variationKey, err := target.ID().VariationKeys()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	state, err := client.ReadVariation(target.ProjectKey, configKey, variationKey)
 	if syncapi.IsNotFound(err) {
-		return attachments, nil
+		return keys, files, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if !state.Exists {
+		return keys, files, nil
 	}
 	for _, ref := range state.Variation.Refs(attachment.Kind) {
-		if ref.Key == attachment.Key() {
+		// LaunchDarkly can list a key more than once.
+		if slices.Contains(keys, ref.Key) {
 			continue
 		}
+		keys = append(keys, ref.Key)
 		id := syncdomain.ResourceID{Kind: syncdomain.Kind(attachment.Kind), ProjectKey: target.ProjectKey, LookupKey: ref.Key}
 		local, err := localAttachment(repositoryRoot, id)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if local != nil {
-			attachments = append(attachments, *local)
 			continue
 		}
 		server, err := client.ReadAttachment(target.ProjectKey, attachment.Kind, ref.Key)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		attachments = append(attachments, server)
+		files = append(files, server)
 	}
-	return attachments, nil
+	return keys, files, nil
 }
 
 // localAttachment reads the local file of an attachment. It returns nil when

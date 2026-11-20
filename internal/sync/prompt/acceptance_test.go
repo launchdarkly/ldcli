@@ -4709,34 +4709,7 @@ func TestAttachToolAlreadyListedInTheDescriptorLeavesItUnchanged(t *testing.T) {
 // Attaching a tool to a variation that was linked while it already had tools
 // in LaunchDarkly keeps those tools, as attach does for a .prompt.md file.
 func TestAttachToolToALinkedExistingVariationKeepsItsServerTools(t *testing.T) {
-	root := initRepository(t)
-	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
-	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
-	server := variation("Server instructions.")
-	server.Tools = []syncdomain.AttachmentRef{{Key: "a", Version: 1}}
-	description := "A tool."
-	tool := func(key string) versionedTool {
-		return versionedTool{Tool: syncdomain.Tool{
-			Key: key, Description: &description, Schema: map[string]any{"type": "object"},
-		}, Version: 1}
-	}
-	api := &directAPI{
-		variation: &server,
-		tools:     map[string]versionedTool{"a": tool("a"), "c": tool("c")},
-		directions: map[string]syncdomain.SyncDirection{
-			"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
-		},
-		patterns: map[string]string{"variation:support/default": "support/default"},
-	}
-	_, _, err := runScoped(t, root, api, syncprompt.Options{
-		Scope: syncdomain.ScopePrompts,
-		Action: syncprompt.SourceLinkAction{
-			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
-			Select: `agents[id="support"]`, Map: map[string]string{"prompt": "instructions"},
-		},
-		Yes: true,
-	})
-	require.NoError(t, err)
+	root, api := linkExistingAgentWithServerTools(t, "a")
 	toolDir := filepath.Join(root, ".launchdarkly", "production", "tools")
 	require.NoError(t, os.MkdirAll(toolDir, 0o755))
 	for _, key := range []string{"a", "c"} {
@@ -4749,7 +4722,7 @@ func TestAttachToolToALinkedExistingVariationKeepsItsServerTools(t *testing.T) {
 `), 0o644))
 	}
 
-	_, _, err = runPrompt(t, root, api, "attach", "tool", "c", "--to", "production/support/default", "--yes", "--no-input")
+	_, _, err := runPrompt(t, root, api, "attach", "tool", "c", "--to", "production/support/default", "--yes", "--no-input")
 
 	require.NoError(t, err)
 	var keys []string
@@ -4799,4 +4772,74 @@ func TestAttachSkillToALinkedExistingVariationKeepsItsServerSkills(t *testing.T)
 	assert.ElementsMatch(t, []string{"a", "c"}, keys, "LaunchDarkly keeps the skill it had")
 	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "skills", "a.md"))
 	assert.NoError(t, err, "attach writes the file of the skill LaunchDarkly had")
+}
+
+// Attaching to a linked variation leaves the file of a tool that LaunchDarkly
+// already had as it is, byte for byte, when the repository has one.
+func TestAttachToolToALinkedExistingVariationLeavesTheLocalFileOfItsServerTool(t *testing.T) {
+	root, api := linkExistingAgentWithServerTools(t, "a")
+	toolDir := filepath.Join(root, ".launchdarkly", "production", "tools")
+	require.NoError(t, os.MkdirAll(toolDir, 0o755))
+	compact := `{"formatVersion":1,"key":"a","description":"A tool.","schema":{"type":"object"}}`
+	require.NoError(t, os.WriteFile(filepath.Join(toolDir, "a.json"), []byte(compact), 0o644))
+
+	_, _, err := runPrompt(t, root, api, "attach", "tool", "c", "--to", "production/support/default", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	after, err := os.ReadFile(filepath.Join(toolDir, "a.json"))
+	require.NoError(t, err)
+	assert.Equal(t, compact, string(after))
+}
+
+// A tool that LaunchDarkly lists twice on a linked variation is attached once.
+func TestAttachToolToALinkedVariationWithADuplicateServerTool(t *testing.T) {
+	root, api := linkExistingAgentWithServerTools(t, "a", "a")
+
+	_, _, err := runPrompt(t, root, api, "attach", "tool", "c", "--to", "production/support/default", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	var keys []string
+	for _, ref := range api.variation.Tools {
+		keys = append(keys, ref.Key)
+	}
+	assert.ElementsMatch(t, []string{"a", "c"}, keys)
+}
+
+// linkExistingAgentWithServerTools links agents.py to the existing variation
+// production/support/default, which has the given tools in LaunchDarkly. The
+// API also has the tool "c".
+func linkExistingAgentWithServerTools(t *testing.T, keys ...string) (string, *directAPI) {
+	t.Helper()
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	server := variation("Server instructions.")
+	description := "A tool."
+	tools := map[string]versionedTool{}
+	for _, key := range append(keys, "c") {
+		tools[key] = versionedTool{Tool: syncdomain.Tool{
+			Key: key, Description: &description, Schema: map[string]any{"type": "object"},
+		}, Version: 1}
+	}
+	for _, key := range keys {
+		server.Tools = append(server.Tools, syncdomain.AttachmentRef{Key: key, Version: 1})
+	}
+	api := &directAPI{
+		variation: &server,
+		tools:     tools,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[id="support"]`, Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	return root, api
 }

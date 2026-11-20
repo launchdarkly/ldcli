@@ -491,11 +491,15 @@ func renderRelationshipNode(name string, refs []syncdomain.AttachmentRef, commen
 	return []byte(content.String())
 }
 
-// AttachToDescriptor adds tools and skills to the top-level lists of a
+// AttachToDescriptor adds keys to the top-level list of the kind in a
 // variation descriptor, and keeps the rest of the descriptor and its
-// comments. The same transaction writes the file of each attachment that the
-// repository has none for.
-func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachments []syncdomain.Attachment) error {
+// comments. The same transaction writes the files of the given attachments.
+func (store Store) AttachToDescriptor(
+	id syncdomain.ResourceID,
+	kind syncdomain.AttachmentKind,
+	keys []string,
+	attachments []syncdomain.Attachment,
+) error {
 	descriptorPath, err := ReferencePath(id)
 	if err != nil {
 		return err
@@ -522,13 +526,13 @@ func (store Store) AttachToDescriptor(id syncdomain.ResourceID, attachments []sy
 		skills = slices.Clone(*current.Skills)
 	}
 	var toolsChanged, skillsChanged bool
-	for _, attachment := range attachments {
-		refs, changed := &tools, &toolsChanged
-		if attachment.Kind == syncdomain.AttachmentSkill {
-			refs, changed = &skills, &skillsChanged
-		}
-		if !slices.ContainsFunc(*refs, func(ref syncdomain.AttachmentRef) bool { return ref.Key == attachment.Key() }) {
-			*refs = append(*refs, syncdomain.AttachmentRef{Key: attachment.Key()})
+	refs, changed := &tools, &toolsChanged
+	if kind == syncdomain.AttachmentSkill {
+		refs, changed = &skills, &skillsChanged
+	}
+	for _, key := range keys {
+		if !slices.ContainsFunc(*refs, func(ref syncdomain.AttachmentRef) bool { return ref.Key == key }) {
+			*refs = append(*refs, syncdomain.AttachmentRef{Key: key})
 			*changed = true
 		}
 	}
