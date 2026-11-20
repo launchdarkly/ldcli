@@ -360,6 +360,7 @@ func planResource(
 			}
 		}
 	}
+	lifted := false
 	if server.Variation != nil {
 		if local != nil && local.Source != nil {
 			resource.ServerProjection, err = syncdomain.ProjectVariation(*server.Variation, *local.Source)
@@ -367,7 +368,6 @@ func planResource(
 				resource.ServerFingerprint, err = syncdomain.FingerprintProjection(id, resource.ServerProjection)
 			}
 			if err == nil && tracked && resource.ServerFingerprint != baselineFingerprint {
-				var lifted bool
 				lifted, err = baselineLacksRelationships(id, *server.Variation, *local.Source, baselineFingerprint)
 				if lifted {
 					resource.BaselineFingerprint = resource.ServerFingerprint
@@ -395,6 +395,10 @@ func planResource(
 	}
 
 	resource.Action = chooseAction(tracked, resource)
+	// A lifted baseline is not in the lock yet, so record it.
+	if lifted && resource.Action == ActionInSync {
+		resource.Action = ActionUpdateManifest
+	}
 	if resource.Action == ActionError {
 		resource.Error = missingVariationError(id, server.ConfigMissing, resource.Source != nil)
 	}

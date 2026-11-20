@@ -4691,10 +4691,13 @@ func TestDryRunAfterLinkUpsertIsInSync(t *testing.T) {
 	assert.Contains(t, stdout, "No changes")
 }
 
-// A plain link of a variation that LaunchDarkly already has, followed by a
-// tools list added only in the descriptor, is a repository change. Under the
-// default direction it plans as a push, not as a conflict.
-func TestToolsAddedToALinkedDescriptorPlanAPush(t *testing.T) {
+// linkExistingAgent links agents.py to the variation production/support/default
+// that LaunchDarkly already has with the tools of serverTools, gives the
+// repository the tool "lookup", and then lists the tool in the descriptor,
+// which is a change made only in the repository. It returns the repository
+// root and the API.
+func linkExistingAgent(t *testing.T, serverTools []syncdomain.AttachmentRef) (string, *directAPI) {
+	t.Helper()
 	root := initRepository(t)
 	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
 	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
@@ -4702,7 +4705,7 @@ func TestToolsAddedToALinkedDescriptorPlanAPush(t *testing.T) {
 	api := &directAPI{
 		variation: &syncdomain.Variation{
 			Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Default", Instructions: "Local instructions.",
-			Tools: []syncdomain.AttachmentRef{}, Skills: []syncdomain.AttachmentRef{},
+			Tools: serverTools, Skills: []syncdomain.AttachmentRef{},
 		},
 		tools: map[string]versionedTool{"lookup": {Tool: syncdomain.Tool{
 			Key: "lookup", Description: &description, Schema: map[string]any{"type": "object"},
@@ -4732,10 +4735,34 @@ func TestToolsAddedToALinkedDescriptorPlanAPush(t *testing.T) {
 	_, err = file.WriteString("tools:\n  - key: lookup\n")
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
+	return root, api
+}
+
+// A tools list added only in the descriptor of a linked variation is a
+// repository change. Under the default direction it plans as a push, not as
+// a conflict.
+func TestToolsAddedToALinkedDescriptorPlanAPush(t *testing.T) {
+	root, api := linkExistingAgent(t, []syncdomain.AttachmentRef{})
 
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
 
 	require.NoError(t, err)
 	assert.Contains(t, stdout, `"action": "update_server"`)
 	assert.NotContains(t, stdout, `"action": "conflict"`)
+}
+
+// A tools list added to the descriptor that LaunchDarkly already has is
+// recorded in the lock, so a later change made only in LaunchDarkly is pulled,
+// not pushed over.
+func TestToolsAddedToALinkedDescriptorAreRecordedWhenLaunchDarklyHasThem(t *testing.T) {
+	root, api := linkExistingAgent(t, []syncdomain.AttachmentRef{{Key: "lookup", Version: 1}})
+	_, _, err := runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+
+	api.variation.Tools = []syncdomain.AttachmentRef{}
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, `"action": "update_local"`)
+	assert.NotContains(t, stdout, `"action": "update_server"`)
 }
