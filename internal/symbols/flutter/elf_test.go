@@ -56,6 +56,28 @@ func TestBuildIDFromNotes(t *testing.T) {
 	assert.Equal(t, "0f8a1b2c3d4e5f60", buildIDFromNotes(note(be, "GNU", ntGNUBuildID, id), be))
 }
 
+// Dart names a compilation unit by its script URI, so only the plain and file://
+// forms resolve to something readable; the rest keep the URI for the bundler to
+// resolve or reject.
+func TestResolveSourcePath(t *testing.T) {
+	assert.Equal(t, "/abs/lib/main.dart", resolveSourcePath("file:///abs/lib/main.dart", ""))
+	assert.Equal(t, "/abs/my app/main.dart", resolveSourcePath("file:///abs/my%20app/main.dart", ""))
+	assert.Equal(t, "/build/dir/lib/main.dart", resolveSourcePath("../lib/main.dart", "/build/dir/tool"))
+	assert.Equal(t, "/already/abs.dart", resolveSourcePath("/already/abs.dart", "/build/dir"))
+	// Non-file schemes are not paths: they survive untouched.
+	assert.Equal(t, "package:my_app/main.dart", resolveSourcePath("package:my_app/main.dart", "/build/dir"))
+	assert.Equal(t, "dart:async", resolveSourcePath("dart:async", "/build/dir"))
+	assert.Equal(t, "org-dartlang-sdk:///sdk/lib/core/list.dart", resolveSourcePath("org-dartlang-sdk:///sdk/lib/core/list.dart", "/build/dir"))
+}
+
+func TestHasURISchemeTreatsWindowsDriveAsPath(t *testing.T) {
+	assert.True(t, hasURIScheme("package:my_app/main.dart"))
+	assert.True(t, hasURIScheme("dart:async"))
+	assert.False(t, hasURIScheme(`C:\src\main.dart`))
+	assert.False(t, hasURIScheme("lib/main.dart"))
+	assert.False(t, hasURIScheme("main.dart"))
+}
+
 func TestPlatformFromFilename(t *testing.T) {
 	assert.Equal(t, "android-arm64", platformFromFilename("app.android-arm64.symbols"))
 	assert.Equal(t, "ios-arm64", platformFromFilename("build/symbols/app.ios-arm64.symbols"))
