@@ -184,6 +184,13 @@ func TestMakeUnauthenticatedRequest(t *testing.T) {
 		assert.Equal(t, float64(404), errMap["statusCode"])
 		assert.Contains(t, errMap["suggestion"], "ldcli projects list")
 	})
+	t.Run("with an invalid request URL returns an error", func(t *testing.T) {
+		c := resources.NewClient("test-version")
+
+		_, err := c.MakeUnauthenticatedRequest("GET", "://invalid-url", []byte(`{}`))
+
+		require.Error(t, err)
+	})
 }
 
 func TestMakeRequestAPIVersion(t *testing.T) {

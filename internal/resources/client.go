@@ -79,7 +79,10 @@ func (c ResourcesClient) MakeRequestWithHeaders(
 	headers http.Header,
 ) ([]byte, error) {
 	client := http.Client{}
-	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
+	req, err := http.NewRequest(method, path, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Add("Authorization", accessToken)
 	req.Header.Add("Content-Type", contentType)
 	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
