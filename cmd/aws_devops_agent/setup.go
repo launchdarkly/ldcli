@@ -75,7 +75,18 @@ steps.
 The experiment-orchestrator custom agent runs the skill with the LaunchDarkly
 MCP tools that the space allows. It needs the MCP server and the skill.
 Setting up the custom agent is optional: if its step fails, setup warns and
-does the other steps.`,
+does the other steps.
+
+With --github-repo, setup also lets the agent change code in that repository.
+This step is a prototype, and it needs the gh CLI and admin access to the
+repository. Setup finds the GitHub registration of the AWS account. If there
+is none, setup opens the AWS console, where you install the GitHub App, and
+waits. Then setup connects the repository to the agent space and stores the
+Kiro API key as the KIRO_API_KEY secret. It reads the key from KIRO_API_KEY or
+asks for it. Setup lets GitHub Actions open pull requests, and writes the Kiro
+agent and the implement and merge workflows into --repo-dir. Setup does not
+commit them. It warns when no workflow has a workflow_dispatch trigger, and it
+asks before it protects the default branch.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -100,6 +111,7 @@ does the other steps.`,
 	_ = cmd.Flags().MarkDeprecated(addMCPToolsFlag, "setup now adds the missing MCP tools without it")
 
 	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
+	addKiroFlags(cmd)
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -176,6 +188,11 @@ func setupWith(
 			err, plan.Space.Name, result.AgentSpaceID, agentSpaceIDFlag, result.AgentSpaceID)
 	}
 	if err != nil {
+		return err
+	}
+
+	// The GitHub and Kiro step runs only with --github-repo.
+	if err := setupGitHubAndKiro(cmd, clients, result.AgentSpaceID, ask); err != nil {
 		return err
 	}
 
