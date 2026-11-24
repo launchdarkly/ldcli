@@ -17,6 +17,7 @@ import (
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	syncdetach "github.com/launchdarkly/ldcli/internal/sync/detach"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
+	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
@@ -32,7 +33,10 @@ type syncWorkspace struct {
 
 // Runner runs the prompt sync commands. Tests replace its function fields.
 type Runner struct {
-	client     resources.Client
+	client resources.Client
+	// source is the sync source of the repository that Run found. Every
+	// request sends it, so LaunchDarkly knows which repository writes.
+	source     string
 	bootstrap  func(syncbootstrap.Options) error
 	detach     func(syncdetach.Options) error
 	watch      watchRunner
@@ -63,6 +67,7 @@ func (runner Runner) Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	runner.source = resolved.Source
 	local := synclocal.NewStore(resolved.Root)
 	workspace := syncWorkspace{
 		root:      resolved.Root,
@@ -77,6 +82,8 @@ func (runner Runner) Run(options Options) error {
 		return runner.runAdd(options, workspace, action)
 	case DetachAction:
 		return runner.runDetach(options, workspace, action)
+	case SourceLinkAction:
+		return runner.runSourceLink(options, workspace, action)
 	case AttachAction:
 		attached, err := runner.runAttach(options, workspace, action)
 		if err != nil || !attached {
@@ -88,6 +95,33 @@ func (runner Runner) Run(options Options) error {
 
 	// Link and attach change only local files. One sync applies the change.
 	return runner.runWorkspaceSync(options, workspace, nil)
+}
+
+func (runner Runner) runSourceLink(options Options, workspace syncWorkspace, action SourceLinkAction) error {
+	prepared, err := synclink.Prepare(synclink.Options{
+		Store:            workspace.local,
+		RepositoryRoot:   workspace.root,
+		WorkingDirectory: options.WorkingDirectory,
+		ID:               action.ID,
+		File:             action.File,
+		Format:           action.Format,
+		Select:           action.Select,
+		Map:              action.Map,
+	})
+	if err != nil {
+		return err
+	}
+	intent := linkIntent{upsert: action.Upsert, mode: action.Mode}
+	if action.ModelConfigKey != "" {
+		// The create uses the latest version of the model config, as an add
+		// does. The read happens before the plan, so the plan shows it.
+		modelConfig, err := runner.api(options).ModelConfig(action.ID.ProjectKey, action.ModelConfigKey)
+		if err != nil {
+			return err
+		}
+		intent.modelConfig = &modelConfig
+	}
+	return runner.runWorkspaceSyncWithSource(options, workspace, nil, &prepared, intent)
 }
 
 // nothingToSync tells the user how to start a sync of every kind.
@@ -224,7 +258,7 @@ func (runner Runner) bootstrapOptions(options Options, workspace syncWorkspace, 
 
 // api returns the LaunchDarkly client for the command.
 func (runner Runner) api(options Options) syncapi.Client {
-	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI)
+	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI).WithSource(runner.source)
 }
 
 // interactive reports whether the command can ask the user for input.

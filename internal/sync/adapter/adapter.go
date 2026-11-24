@@ -36,10 +36,13 @@ type DependencyReporter interface {
 	Dependencies(Document) ([]string, error)
 }
 
-// Document is one repository file supplied to an adapter.
+// Document is one repository file supplied to an adapter. ReadOnly marks a
+// file that sync reads but never writes, such as a generated module, so a
+// value in it is read-only.
 type Document struct {
-	Path string
-	Data []byte
+	Path     string
+	Data     []byte
+	ReadOnly bool
 }
 
 // SourceBundle is a primary source and the dependencies that its format

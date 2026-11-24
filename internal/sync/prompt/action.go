@@ -7,6 +7,7 @@ import (
 	"io"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncadapter "github.com/launchdarkly/ldcli/internal/sync/adapter"
 	synccreate "github.com/launchdarkly/ldcli/internal/sync/create"
 )
 
@@ -54,6 +55,24 @@ type DetachAction struct {
 	Archive   bool
 }
 
+// SourceLinkAction creates a .ref.yaml descriptor and then syncs its resource.
+type SourceLinkAction struct {
+	ID     syncdomain.ResourceID
+	File   string
+	Format string
+	Select string
+	Map    map[string]string
+	// Upsert creates the resource in LaunchDarkly when it does not exist,
+	// and the config of a variation when LaunchDarkly has none.
+	Upsert bool
+	// ModelConfigKey is the model config of a variation that Upsert
+	// creates. The create uses its latest version.
+	ModelConfigKey string
+	// Mode is the mode of a config that Upsert creates. Without it, the
+	// source decides: messages make a completion config, text an agent one.
+	Mode syncdomain.VariationMode
+}
+
 func (action SyncAction) validate(scope syncdomain.Scope) error {
 	if action.Watch && action.DryRun {
 		return errors.New("watch does not support --dry-run")
@@ -91,6 +110,42 @@ func (action AttachAction) validate(syncdomain.Scope) error {
 		return errors.New("attachment target must be a variation")
 	}
 	return validateProjectFlag(action.ProjectKey, action.Target)
+}
+
+func (action SourceLinkAction) validate(scope syncdomain.Scope) error {
+	switch {
+	case !scope.Includes(action.ID.Kind):
+		return fmt.Errorf("%s cannot link %s", scope, action.ID.Label())
+	case action.File == "":
+		return errors.New("--file is required")
+	case action.Format == "":
+		return errors.New("--format is required")
+	case syncdomain.ValidateKey(action.ID.ProjectKey) != nil:
+		return fmt.Errorf("invalid project key %q", action.ID.ProjectKey)
+	case syncdomain.ValidateKey(action.ID.LookupKey) != nil && action.ID.Kind != syncdomain.KindVariation:
+		return fmt.Errorf("invalid resource key %q", action.ID.LookupKey)
+	}
+	if action.ID.Kind == syncdomain.KindVariation {
+		if _, _, err := action.ID.VariationKeys(); err != nil {
+			return err
+		}
+	}
+	switch {
+	case action.ModelConfigKey != "" && action.ID.Kind != syncdomain.KindVariation:
+		return errors.New("--model-config-key applies to a prompt variation")
+	case action.Mode != "" && action.ID.Kind != syncdomain.KindVariation:
+		return errors.New("--mode applies to a prompt variation")
+	case action.Mode != "" && !action.Mode.Valid():
+		return fmt.Errorf("--mode must be agent or completion, not %q", action.Mode)
+	case (action.ModelConfigKey != "" || action.Mode != "") && !action.Upsert:
+		return errors.New("--model-config-key and --mode need --upsert")
+	case action.ModelConfigKey != "" && syncdomain.ValidateKey(action.ModelConfigKey) != nil:
+		return fmt.Errorf("invalid --model-config-key %q", action.ModelConfigKey)
+	}
+	_, err := syncadapter.NormalizeReference(action.ID, syncdomain.Reference{
+		File: action.File, Format: action.Format, Select: action.Select, Map: action.Map,
+	})
+	return err
 }
 
 // validateSelections rejects positional selectors outside the prompts scope,
@@ -198,6 +253,19 @@ func (options Options) watching() bool {
 // syncAction returns the sync that the command runs. After an attach or a
 // link, it is a sync of every resource.
 func (options Options) syncAction() SyncAction {
-	action, _ := options.Action.(SyncAction)
-	return action
+	switch action := options.Action.(type) {
+	case SyncAction:
+		return action
+	case SourceLinkAction:
+		configKey := ""
+		keys := []string{action.ID.LookupKey}
+		if action.ID.Kind == syncdomain.KindVariation {
+			configKey, keys[0], _ = action.ID.VariationKeys()
+		}
+		return SyncAction{Filter: syncdomain.Filter{
+			Project: action.ID.ProjectKey, ConfigKey: configKey, Keys: keys,
+		}}
+	default:
+		return SyncAction{}
+	}
 }

@@ -31,6 +31,38 @@ type Node struct {
 	Encode     func(any) ([]byte, error)
 }
 
+// PositionalIDReason marks the id of a resource that has no name of its own,
+// such as the second unnamed agent of a file. The id is the position of the
+// resource, so a selection by it is as fragile as an index.
+const PositionalIDReason = "the id is the position of a resource without a name"
+
+// MaxExactInteger is the largest integer that a float64 holds exactly. A
+// number value is a float64, so a larger integer in a source stays read-only
+// text instead of a rounded number.
+const MaxExactInteger = int64(1) << 53
+
+// ExactInteger reports whether a float64 holds an integer exactly.
+func ExactInteger(integer int64) bool {
+	return integer >= -MaxExactInteger && integer <= MaxExactInteger
+}
+
+// PositionalID returns an id node that marks a positional id.
+func PositionalID(id string) *Node {
+	return &Node{Value: id, Capability: CapabilityReadOnly, Reason: PositionalIDReason}
+}
+
+// IsPositionalID reports whether a resource has a positional id.
+func IsPositionalID(resource *Node) bool {
+	if resource == nil || resource.Fields == nil {
+		return false
+	}
+	id := resource.Fields["id"]
+	if id == nil {
+		return false
+	}
+	return id.Reason == PositionalIDReason
+}
+
 // String returns a writable string leaf. encode writes a new string in the
 // syntax of the source.
 func String(value string, start, end int, encode func(string) ([]byte, error)) *Node {
@@ -95,10 +127,36 @@ func Collections(collections map[string][]*Node) *Node {
 }
 
 // Resource returns one logical resource with its id field set, so that a
-// keyed selector such as agents[id="support"] can find it.
+// keyed selector such as agents[id="support"] can find it. A resource whose
+// definition is not a literal object has only the id.
 func Resource(id string, fields map[string]*Node) *Node {
+	if fields == nil {
+		fields = make(map[string]*Node, 1)
+	}
 	fields["id"] = &Node{Value: id}
 	return &Node{Fields: fields}
+}
+
+// Clone returns a deep copy of the node tree, so that a change to one use of
+// a constant does not change another. The encoders are shared.
+func (node *Node) Clone() *Node {
+	if node == nil {
+		return nil
+	}
+	copied := *node
+	if node.Fields != nil {
+		copied.Fields = make(map[string]*Node, len(node.Fields))
+		for key, child := range node.Fields {
+			copied.Fields[key] = child.Clone()
+		}
+	}
+	if node.Items != nil {
+		copied.Items = make([]*Node, len(node.Items))
+		for index, child := range node.Items {
+			copied.Items[index] = child.Clone()
+		}
+	}
+	return &copied
 }
 
 // IsCollection reports whether a path can index the node.
@@ -182,10 +240,24 @@ func JSONEncoder(raw []byte) func(any) ([]byte, error) {
 	return func(next any) ([]byte, error) {
 		unit, prefix, multiline := jsonIndentation(raw)
 		if !multiline {
-			return json.Marshal(next)
+			return EncodeJSON(next, "", "")
 		}
-		return json.MarshalIndent(next, prefix, unit)
+		return EncodeJSON(next, prefix, unit)
 	}
+}
+
+// EncodeJSON writes a value as JSON without the HTML escapes of the standard
+// encoder, so that <, >, and & in prompt text stay as they are. A non-empty
+// indent writes the value over several lines.
+func EncodeJSON(value any, prefix, indent string) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent(prefix, indent)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(buffer.Bytes(), "\n"), nil
 }
 
 // jsonIndentation returns the indentation unit and the indentation of the

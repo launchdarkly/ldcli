@@ -49,19 +49,38 @@ func (client *manifestClient) PatchSyncManifest(
 	return response, nil
 }
 
+// A project that no sync wrote yet has a manifest with no entries, which
+// loads as no entries beside the projects that have some.
+func TestStoreLoadsAnEmptyManifest(t *testing.T) {
+	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{
+		"fresh": {Source: "git:example/repo"},
+		"written": {
+			Source: "git:example/repo",
+			Items: []syncapi.SyncManifestResource{{
+				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/a",
+				Fingerprint: fingerprint("a"), Version: 2,
+			}},
+		},
+	}}
+
+	loaded, err := NewStore(client, "git:example/repo").Load([]string{"fresh", "written"})
+
+	require.NoError(t, err)
+	require.Len(t, loaded.Resources, 1)
+	assert.Equal(t, "written", loaded.Resources[0].ProjectKey)
+}
+
 func TestStoreLoadsProjectManifests(t *testing.T) {
 	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{
 		"zeta": {
-			FormatVersion: syncapi.SyncManifestFormatVersion,
-			Source:        "git:example/repo",
+			Source: "git:example/repo",
 			Items: []syncapi.SyncManifestResource{{
 				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/b",
 				Fingerprint: fingerprint("b"), Version: 4,
 			}},
 		},
 		"alpha": {
-			FormatVersion: syncapi.SyncManifestFormatVersion,
-			Source:        "git:example/repo",
+			Source: "git:example/repo",
 			Items: []syncapi.SyncManifestResource{{
 				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/a",
 				Fingerprint: fingerprint("a"), Version: 2,
@@ -80,15 +99,9 @@ func TestStoreLoadsProjectManifests(t *testing.T) {
 
 func TestStoreUpdatesWithRemoteVersions(t *testing.T) {
 	client := &manifestClient{patchResponses: []syncapi.SyncManifest{{
-		FormatVersion: syncapi.SyncManifestFormatVersion,
-		Source:        "git:example/repo",
+		Source: "git:example/repo",
 		Items: []syncapi.SyncManifestResource{
-			{
-				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing",
-				Fingerprint: fingerprint("c"), Version: 4,
-				FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
-				AdapterBehavior: "markdown/1",
-			},
+			{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 4},
 			{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 1},
 		},
 	}}}
@@ -113,18 +126,36 @@ func TestStoreUpdatesWithRemoteVersions(t *testing.T) {
 	require.Len(t, client.patches, 1)
 	assert.Equal(t, []syncapi.SyncManifestUpsert{
 		{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 0},
-		{
-			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing",
-			Fingerprint: fingerprint("c"), Version: 3,
-			FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
-			AdapterBehavior: "markdown/1",
-		},
-	}, client.patches[0].upserts)
+		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 3},
+	}, client.patches[0].upserts, "the upsert carries the fingerprint and the version, and no descriptor metadata")
 	assert.Equal(t, []syncapi.SyncManifestDeletion{{
 		ResourceKind: syncdomain.KindSkill, ResourceLookupKey: "old", Version: 2,
 	}}, client.patches[0].deletions)
 	assert.Equal(t, 4, updated.Resources[1].Version)
-	assert.Equal(t, syncdomain.ProjectionFingerprintSchema, updated.Resources[1].FingerprintSchema)
+	assert.Empty(t, updated.Resources[1].FingerprintSchema, "the remote state has no descriptor metadata")
+}
+
+// The remote manifest records only the fingerprint, so a change to the
+// descriptor metadata of a linked resource with the same fingerprint sends
+// nothing. The sync.lock file keeps that metadata.
+func TestStoreSendsNothingForADescriptorMetadataChange(t *testing.T) {
+	client := &manifestClient{patchResponses: []syncapi.SyncManifest{{Source: "git:example/repo"}}}
+	store := NewStore(client, "git:example/repo")
+	previous := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/linked",
+		Fingerprint: fingerprint("a"), Version: 3,
+	}}}
+	next := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/linked",
+		Fingerprint: fingerprint("a"), Version: 3,
+		FingerprintSchema: syncdomain.ProjectionFingerprintSchema, ReferenceDigest: fingerprint("e"),
+		AdapterBehavior: "markdown/1",
+	}}}
+
+	_, err := store.Update(previous, next)
+
+	require.NoError(t, err)
+	assert.Empty(t, client.patches, "no patch for a change that the remote manifest cannot record")
 }
 
 func TestStoreReportsOptimisticConflict(t *testing.T) {
@@ -145,8 +176,7 @@ func TestStoreReportsOptimisticConflict(t *testing.T) {
 
 func TestStoreReadsBackAnUncertainPatchThatSucceeded(t *testing.T) {
 	applied := syncapi.SyncManifest{
-		FormatVersion: syncapi.SyncManifestFormatVersion,
-		Source:        "git:example/repo",
+		Source: "git:example/repo",
 		Items: []syncapi.SyncManifestResource{{
 			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/variation",
 			Fingerprint: fingerprint("b"), Version: 2,

@@ -38,6 +38,27 @@ func (direction SyncDirection) Valid() bool {
 		direction == SyncDirectionBoth
 }
 
+// Ownership is the effective LaunchDarkly sync setting of one resource, and
+// the stored rule pattern that produced it. MatchedPattern is empty when no
+// stored rule matched.
+type Ownership struct {
+	Direction      SyncDirection
+	MatchedPattern string
+}
+
+// HasRule reports whether a stored rule matched the resource.
+func (o Ownership) HasRule() bool {
+	return o.MatchedPattern != ""
+}
+
+// ManagedInLaunchDarkly reports whether an explicit LaunchDarkly rule owns
+// the resource. The server_canonical default of a resource without a rule
+// does not count: LaunchDarkly makes that resource code-owned once it is in a
+// synced manifest.
+func (o Ownership) ManagedInLaunchDarkly() bool {
+	return o.HasRule() && o.Direction == SyncDirectionServerCanonical
+}
+
 // ResourceID identifies one synchronized resource.
 //
 // For a variation, LookupKey is "config-key/variation-key". For a tool or a

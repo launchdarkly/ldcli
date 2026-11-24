@@ -177,6 +177,10 @@ func (runner Runner) createResource(
 		return err
 	}
 	reviewed := workspaceState{projectKeys: []string{row.ID.ProjectKey}, plan: Plan{Scope: options.Scope, Resources: []PlannedResource{row}}}
+	// The review sees the ownership that the apply reads again.
+	if err := applySourceDirections(client, reviewed.plan.Resources); err != nil {
+		return err
+	}
 	if options.dryRun() {
 		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan, options.Diff); err != nil {
 			return err

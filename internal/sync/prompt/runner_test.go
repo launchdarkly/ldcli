@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -187,6 +188,12 @@ func TestRunnerChecksAttachmentTerminalOnOutput(t *testing.T) {
 
 func TestValidateOptions(t *testing.T) {
 	require.ErrorContains(t, validateOptions(Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: SourceLinkAction{
+			ID: syncdomain.VariationID("project", "config", "default"), File: "prompt.md",
+		},
+	}), "--format is required")
+	require.ErrorContains(t, validateOptions(Options{
 		Action: SyncAction{Watch: true, DryRun: true},
 	}), "watch does not support --dry-run")
 	require.ErrorContains(t, validateOptions(Options{Action: AttachAction{Kind: "invalid"}}), "attachment kind")
@@ -207,6 +214,21 @@ func TestSamePlannedResourceStateDetectsChangedAttachmentPins(t *testing.T) {
 	}
 	current := reviewed
 	current.Server = &currentVariation
+
+	assert.False(t, samePlannedResourceState(reviewed, current))
+}
+
+func TestSamePlannedResourceStateDetectsChangedIndexedSelection(t *testing.T) {
+	reviewed := PlannedResource{
+		ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/default"},
+		Action: ActionUpdateServer,
+		IndexedSelections: []syncdomain.IndexedSelection{{
+			Path: "select#0", CollectionLength: 2, Fingerprint: "sha256:" + strings.Repeat("a", 64),
+		}},
+	}
+	current := reviewed
+	current.IndexedSelections = slices.Clone(reviewed.IndexedSelections)
+	current.IndexedSelections[0].Fingerprint = "sha256:" + strings.Repeat("b", 64)
 
 	assert.False(t, samePlannedResourceState(reviewed, current))
 }

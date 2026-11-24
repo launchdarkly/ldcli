@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
@@ -21,6 +23,16 @@ type stagedFile struct {
 	mode            os.FileMode
 	stagedPath      string
 	isVariationFile bool
+	// verifyOnly marks a file that the transaction reads but does not
+	// write: the commit makes sure that it still has its original content.
+	verifyOnly bool
+	// sources holds each repository-relative name that a descriptor gives a
+	// source file, when the file is one, with root the repository root. The
+	// commit makes sure that every name still resolves to path, so that a
+	// link retargeted after the snapshot does not get the edit of another
+	// file.
+	sources []string
+	root    string
 }
 
 // ReplaceVariations replaces a batch of variation files in one transaction.
@@ -80,6 +92,13 @@ func (store Store) ReplaceAttachments(attachments []syncdomain.SyncedAttachment)
 // file to a temporary path, makes sure that no original changed, and then
 // renames each file into place.
 func replaceFiles(files []stagedFile) error {
+	seen := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		if _, duplicate := seen[file.path]; duplicate {
+			return fmt.Errorf("file %q is staged more than once", file.displayPath)
+		}
+		seen[file.path] = struct{}{}
+	}
 	if err := stageFiles(files); err != nil {
 		return err
 	}
@@ -130,8 +149,26 @@ func (store Store) prepareReplacements(replacements []VariationReplacement) ([]s
 	attachmentSources := make([]VariationFile, 0, len(replacements))
 	for _, replacement := range replacements {
 		existing, err := store.readVariation(replacement.ProjectKey, replacement.ConfigKey, replacement.Variation.Key)
-		if replacement.CreateIfMissing && errors.Is(err, os.ErrNotExist) {
+		id := syncdomain.VariationID(replacement.ProjectKey, replacement.ConfigKey, replacement.Variation.Key)
+		managedPath, pathErr := resourcePath(id)
+		if pathErr != nil {
+			return nil, pathErr
+		}
+		linked, linkedErr := store.hasDescriptor(managedPath)
+		if linkedErr != nil {
+			return nil, linkedErr
+		}
+		switch {
+		case replacement.CreateIfMissing && errors.Is(err, os.ErrNotExist) && linked:
+			// A variation that a descriptor defines has that one definition.
+			// A managed file beside it would be a second one.
+			return nil, definitionConflict(id, id.Label()+" already has a descriptor")
+		case replacement.CreateIfMissing && errors.Is(err, os.ErrNotExist):
 			existing, err = missingVariation(replacement)
+		case err == nil && linked:
+			// A managed file beside a descriptor is a conflict, so the
+			// replace does not keep two definitions that drift apart.
+			return nil, definitionConflict(id, id.Label()+" has a managed file and a descriptor")
 		}
 		if err != nil {
 			return nil, err
@@ -195,6 +232,16 @@ func (store Store) prepareAttachmentFiles(rendered []RenderedFile) ([]stagedFile
 	var staged []stagedFile
 	for _, file := range rendered {
 		path := store.absolute(file.Path)
+		if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			// A leftover link beside a descriptor is not a definition, so
+			// the descriptor keeps the one definition. A link alone is
+			// rejected below.
+			if linked, err := store.hasDescriptor(file.Path); err != nil {
+				return nil, err
+			} else if linked {
+				continue
+			}
+		}
 		if err := rejectSymlinkedPath(store.root, path); err != nil {
 			return nil, err
 		}
@@ -203,9 +250,21 @@ func (store Store) prepareAttachmentFiles(rendered []RenderedFile) ([]stagedFile
 		original, err := os.ReadFile(path)
 		switch {
 		case errors.Is(err, os.ErrNotExist):
+			// A tool or skill that a descriptor defines keeps that one
+			// definition. A second, managed one would be a conflict.
+			if linked, linkedErr := store.hasDescriptor(file.Path); linkedErr != nil {
+				return nil, linkedErr
+			} else if linked {
+				continue
+			}
 		case err != nil:
 			return nil, fmt.Errorf("read attachment %q: %w", file.Path, err)
 		default:
+			// A managed file beside a descriptor is a conflict, so the
+			// replace does not keep two definitions that drift apart.
+			if err := store.rejectDescriptorBeside(file.Path); err != nil {
+				return nil, err
+			}
 			info, err := os.Stat(path)
 			if err != nil {
 				return nil, fmt.Errorf("inspect attachment %q: %w", file.Path, err)
@@ -223,9 +282,37 @@ func (store Store) prepareAttachmentFiles(rendered []RenderedFile) ([]stagedFile
 	return staged, nil
 }
 
+// hasDescriptor reports whether the resource of a managed path has a
+// descriptor in the store.
+func (store Store) hasDescriptor(managedPath string) (bool, error) {
+	id, ok := ParseManagedPath(path.Join(syncdomain.RootDir, managedPath))
+	if !ok {
+		return false, nil
+	}
+	referencePath, err := ReferencePath(id)
+	if err != nil {
+		return false, err
+	}
+	return store.fileExists(strings.TrimPrefix(referencePath, syncdomain.RootDir+"/"), id.Label()+" descriptor")
+}
+
+// rejectDescriptorBeside returns the definition conflict of a managed file
+// that has a descriptor beside it.
+func (store Store) rejectDescriptorBeside(managedPath string) error {
+	linked, err := store.hasDescriptor(managedPath)
+	if err != nil || !linked {
+		return err
+	}
+	id, _ := ParseManagedPath(path.Join(syncdomain.RootDir, managedPath))
+	return definitionConflict(id, id.Label()+" has a managed file and a descriptor")
+}
+
 // stageFiles writes each replacement to a temporary file beside its destination.
 func stageFiles(files []stagedFile) error {
 	for index := range files {
+		if files[index].verifyOnly {
+			continue
+		}
 		if err := os.MkdirAll(filepath.Dir(files[index].path), 0o755); err != nil {
 			removeStagedFiles(files)
 			return fmt.Errorf("create resource directory %s: %w", files[index].displayPath, err)
@@ -244,6 +331,19 @@ func stageFiles(files []stagedFile) error {
 // it. An editor can save a file while sync waits for review.
 func verifyOriginals(files []stagedFile) error {
 	for _, file := range files {
+		for _, source := range file.sources {
+			resolved, err := resolveSourcePath(file.root, source)
+			if err != nil || resolved != file.path {
+				return fmt.Errorf("source %s changed while syncing: the name resolves to another file", source)
+			}
+		}
+		if !file.originalExists {
+			// A create replaces a leftover link at the path, which is not a
+			// definition, so the content behind the link is not an edit.
+			if info, err := os.Lstat(file.path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+				continue
+			}
+		}
 		current, err := os.ReadFile(file.path)
 		if !file.originalExists && errors.Is(err, os.ErrNotExist) {
 			continue
@@ -266,6 +366,9 @@ func commitFiles(files []stagedFile) error {
 
 func commitFilesWithRename(files []stagedFile, rename func(string, string) error) error {
 	for index, file := range files {
+		if file.verifyOnly {
+			continue
+		}
 		if err := rename(file.stagedPath, file.path); err != nil {
 			return errors.Join(fmt.Errorf("replace variation %s: %w", file.displayPath, err), restoreFiles(files[:index]))
 		}
@@ -278,6 +381,9 @@ func restoreFiles(files []stagedFile) error {
 	var failures []error
 	for index := len(files) - 1; index >= 0; index-- {
 		file := files[index]
+		if file.verifyOnly {
+			continue
+		}
 		if !file.originalExists {
 			if err := os.Remove(file.path); err != nil && !errors.Is(err, os.ErrNotExist) {
 				failures = append(failures, fmt.Errorf("roll back variation %s: %w", file.displayPath, err))

@@ -62,6 +62,7 @@ func newAttachmentScopeCmd(client resources.Client, kind syncdomain.AttachmentKi
 		newWatchCmd(client, scope, help),
 		newAttachmentAddCmd(client, kind),
 		newAttachmentDetachCmd(client, kind),
+		newLinkCmd(client, syncdomain.Kind(kind)),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 	return cmd
