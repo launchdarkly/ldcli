@@ -368,6 +368,31 @@ func TestDBFunctions(t *testing.T) {
 		assert.True(t, found)
 	})
 
+	t.Run("UpsertOverride makes a deactivated override active again", func(t *testing.T) {
+		restored := overrides[flagKeys[0]]
+		restored.Value = ldvalue.Bool(false)
+
+		result, err := store.UpsertOverride(ctx, restored)
+		require.NoError(t, err)
+		assert.True(t, result.Active)
+
+		overridesResult, err := store.GetOverridesForProject(ctx, restored.ProjectKey)
+		require.NoError(t, err)
+
+		found := false // prevent test from erroneously succeeding because override not in array
+		for _, r := range overridesResult {
+			if r.FlagKey != restored.FlagKey {
+				continue
+			}
+
+			found = true
+			assert.True(t, r.Active)
+			assert.Equal(t, restored.Value, r.Value)
+		}
+
+		assert.True(t, found)
+	})
+
 	t.Run("IncrementProjectPayloadVersion increments and returns new version", func(t *testing.T) {
 		proj, err := store.GetDevProject(ctx, projects[0].Key)
 		require.NoError(t, err)
