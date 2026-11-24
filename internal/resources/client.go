@@ -29,11 +29,25 @@ type Client interface {
 	MakeRequest(accessToken, method, path, contentType string, query url.Values, data []byte, isBeta bool) ([]byte, error)
 }
 
+// HeaderClient is a Client that sends extra headers with one request. The
+// extra headers are added after the headers that every request sends, so a
+// caller cannot replace the User-Agent or the API version.
+type HeaderClient interface {
+	Client
+	MakeRequestWithHeaders(
+		accessToken, method, path, contentType string,
+		query url.Values,
+		data []byte,
+		isBeta bool,
+		headers http.Header,
+	) ([]byte, error)
+}
+
 type ResourcesClient struct {
 	cliVersion string
 }
 
-var _ Client = ResourcesClient{}
+var _ HeaderClient = ResourcesClient{}
 
 func NewClient(cliVersion string) ResourcesClient {
 	return ResourcesClient{cliVersion: cliVersion}
@@ -53,6 +67,17 @@ func (c ResourcesClient) MakeRequest(
 	data []byte,
 	isBeta bool,
 ) ([]byte, error) {
+	return c.MakeRequestWithHeaders(accessToken, method, path, contentType, query, data, isBeta, nil)
+}
+
+// MakeRequestWithHeaders sends one request with extra headers.
+func (c ResourcesClient) MakeRequestWithHeaders(
+	accessToken, method, path, contentType string,
+	query url.Values,
+	data []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
 	client := http.Client{}
 	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
 	req.Header.Add("Authorization", accessToken)
@@ -62,6 +87,11 @@ func (c ResourcesClient) MakeRequest(
 		req.Header.Set("LD-API-Version", "beta")
 	} else {
 		req.Header.Set("LD-API-Version", APIVersion)
+	}
+	for name, values := range headers {
+		for _, value := range values {
+			req.Header.Add(name, value)
+		}
 	}
 	req.URL.RawQuery = query.Encode()
 

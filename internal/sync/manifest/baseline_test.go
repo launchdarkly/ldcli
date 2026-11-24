@@ -124,7 +124,7 @@ func TestBaselineStaleComparesFingerprints(t *testing.T) {
 		"newer version with a different fingerprint": {remote: remoteManifest(fingerprint("b"), 5), stale: true},
 		"newer version with the same fingerprint":    {remote: remoteManifest(fingerprint("a"), 5)},
 		"same version with a different fingerprint":  {remote: remoteManifest(fingerprint("b"), 4), stale: true},
-		"remote entry removed":                       {remote: syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: testSource}},
+		"remote entry removed":                       {remote: syncapi.SyncManifest{Source: testSource}},
 	}
 
 	for name, test := range tests {
@@ -144,8 +144,7 @@ func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLockWithoutThem(t *testing
 	client := &manifestClient{
 		manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("b"), 5)},
 		patchResponses: []syncapi.SyncManifest{{
-			FormatVersion: syncapi.SyncManifestFormatVersion,
-			Source:        testSource,
+			Source: testSource,
 			Items: []syncapi.SyncManifestResource{
 				{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Fingerprint: fingerprint("c"), Version: 6},
 				{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 1},
@@ -211,8 +210,7 @@ func TestBaselineStoreSaveRemovesEmptyLock(t *testing.T) {
 	client := &manifestClient{
 		manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("a"), 4)},
 		patchResponses: []syncapi.SyncManifest{{
-			FormatVersion: syncapi.SyncManifestFormatVersion,
-			Source:        testSource,
+			Source: testSource,
 		}},
 	}
 	lock := lockWith(t, fingerprint("a"), 4)
@@ -277,7 +275,7 @@ func variationID() syncdomain.ResourceID {
 }
 
 func remoteManifest(fingerprint string, version int) syncapi.SyncManifest {
-	return syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: testSource, Items: []syncapi.SyncManifestResource{{
+	return syncapi.SyncManifest{Source: testSource, Items: []syncapi.SyncManifestResource{{
 		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Fingerprint: fingerprint, Version: version,
 	}}}
 }

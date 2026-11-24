@@ -39,6 +39,12 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 	if err != nil {
 		return err
 	}
+	// A named key reads one resource, and a missing one gets its own error.
+	if options.Key == "" {
+		if err := requireAttachments(client, projectKey, options.Kind); err != nil {
+			return err
+		}
+	}
 	target, err := selectManagedVariation(variations, projectKey, options)
 	if err != nil {
 		return err
@@ -73,6 +79,20 @@ func attachToVariation(store synclocal.Store, client syncapi.Client, options att
 		ProjectKey: projectKey, ConfigKey: configKey, Variation: variation,
 	}})
 	return err
+}
+
+// requireAttachments stops an attach that has no key when the project has no
+// tool or skill of the kind. It runs before the variation step, so that the
+// user does not answer every prompt only to find an empty list at the end.
+func requireAttachments(client syncapi.Client, projectKey string, kind syncdomain.AttachmentKind) error {
+	page, err := client.SearchAttachments(projectKey, kind, "", 1, 0)
+	if err != nil {
+		return err
+	}
+	if len(page.Items) == 0 && page.TotalCount == 0 {
+		return fmt.Errorf("project %q has no %ss to attach. Create one in LaunchDarkly first.", projectKey, kind)
+	}
+	return nil
 }
 
 // localAttachment reads the local file of an attachment. It returns nil when

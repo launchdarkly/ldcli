@@ -46,6 +46,15 @@ func attachmentDiff(before, after *syncdomain.Attachment) variationDiffFields {
 	return diffParts(nil, nil, beforeAttachments, afterAttachments)
 }
 
+func projectionDiff(before, after syncdomain.Projection) variationDiffFields {
+	beforeJSON, _ := json.Marshal(before)
+	afterJSON, _ := json.Marshal(after)
+	if string(beforeJSON) == string(afterJSON) {
+		return nil
+	}
+	return variationDiffFields{"projection": {Before: beforeJSON, After: afterJSON}}
+}
+
 // diffParts returns each part that differs, or nil.
 func diffParts(beforeVariation, afterVariation json.RawMessage, beforeAttachments, afterAttachments []syncdomain.Attachment) variationDiffFields {
 	fields := variationDiffFields{}
@@ -143,7 +152,7 @@ func changedAttachmentIDs(resource PlannedResource) []ResourceID {
 
 	var changed []ResourceID
 	for id, attachment := range before {
-		if other, exists := after[id]; !exists || !syncdomain.SameAttachmentContent(attachment, other) {
+		if other, exists := after[id]; !exists || attachmentContentChanged(attachment, other) {
 			changed = append(changed, id)
 		}
 	}
@@ -154,6 +163,63 @@ func changedAttachmentIDs(resource PlannedResource) []ResourceID {
 	}
 	slices.SortFunc(changed, syncdomain.CompareResourceIDs)
 	return changed
+}
+
+// attachmentContentChanged reports whether a local tool or skill differs from
+// the LaunchDarkly copy. A linked one owns only its mapped fields, so a
+// difference in a field that LaunchDarkly alone holds does not count.
+func attachmentContentChanged(server, local syncdomain.Attachment) bool {
+	if local.Projection != nil {
+		if merged, err := syncdomain.ApplyAttachmentProjection(server, local.Projection); err == nil {
+			return !syncdomain.SameAttachmentContent(server, merged)
+		}
+	}
+	return !syncdomain.SameAttachmentContent(server, local)
+}
+
+// alignLinkedAttachments returns the variation with each tool or skill that
+// the repository links reduced to the fields that the link maps, with the
+// values of the variation. local holds the local attachments, where a linked
+// one carries its projection. A fingerprint of the aligned variation then
+// compares only the fields that the link owns, so a field that LaunchDarkly
+// alone holds, such as customParameters, does not keep a managed variation
+// out of sync. A managed tool or skill stays whole.
+func alignLinkedAttachments(variation syncdomain.Variation, local []syncdomain.Attachment) (syncdomain.Variation, error) {
+	linked := make(map[string]syncdomain.Attachment)
+	for _, attachment := range local {
+		if attachment.Projection != nil {
+			linked[string(attachment.Kind)+"/"+attachment.Key()] = attachment
+		}
+	}
+	if len(linked) == 0 {
+		return variation, nil
+	}
+	attachments := slices.Clone(variation.Attachments)
+	for index, attachment := range attachments {
+		localAttachment, ok := linked[string(attachment.Kind)+"/"+attachment.Key()]
+		if !ok {
+			continue
+		}
+		reference := syncdomain.Reference{Map: make(map[string]string)}
+		for field := range localAttachment.Projection.States() {
+			reference.Map[string(field)] = string(field)
+		}
+		projected, err := syncdomain.ProjectAttachment(attachment, reference)
+		if err != nil {
+			return variation, err
+		}
+		// The local copy has the shape of the link. The values of the
+		// mapped fields come from the variation.
+		base := localAttachment
+		base.Version, base.Upsert, base.Projection = attachment.Version, attachment.Upsert, nil
+		aligned, err := syncdomain.ApplyAttachmentProjection(base, projected)
+		if err != nil {
+			return variation, err
+		}
+		attachments[index] = aligned
+	}
+	variation.Attachments = attachments
+	return variation, nil
 }
 
 func attachmentsByID(projectKey string, variation *syncdomain.Variation) map[ResourceID]syncdomain.Attachment {
