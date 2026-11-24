@@ -34,12 +34,23 @@ type directAPI struct {
 	variation      *syncdomain.Variation
 	variationState string
 	// configMode is the mode of the config "support". The empty mode is agent.
-	configMode   syncdomain.VariationMode
-	modelConfigs []syncapi.ModelConfig
-	tools        map[string]versionedTool
-	skills       map[string]versionedSkill
-	manifest     *syncapi.SyncManifest
-	requests     []string
+	configMode syncdomain.VariationMode
+	// configMissing makes every read of the config "support" a 404 until a
+	// create of the config, as a project without the config does.
+	configMissing bool
+	modelConfigs  []syncapi.ModelConfig
+	tools         map[string]versionedTool
+	skills        map[string]versionedSkill
+	manifest      *syncapi.SyncManifest
+	directions    map[string]syncdomain.SyncDirection
+	// patterns is the matchedResourcePattern of each resource, such as
+	// "variation:support/default". A resource without one matched no rule.
+	patterns map[string]string
+	// settingsReadErr fails each read of the sync settings.
+	settingsReadErr error
+	requests        []string
+	// syncSources is the LD-Sync-Source header of each request, in order.
+	syncSources []string
 	// expandTools makes each read of the variation add the content of its
 	// tools to model.parameters.tools, as LaunchDarkly does.
 	expandTools bool
@@ -51,6 +62,12 @@ type directAPI struct {
 	// onRequest runs before each request, so that it can change LaunchDarkly
 	// between two reads, as another working copy does.
 	onRequest func(method, path string)
+	// manifestWriteErr fails each write of the remote manifest.
+	manifestWriteErr error
+	// toolWriteErr fails each update of a tool.
+	toolWriteErr error
+	// variationWriteErr fails each update of a variation.
+	variationWriteErr error
 }
 
 type notFoundAPI struct{}
@@ -83,6 +100,22 @@ type directAPIVariation struct {
 
 var _ resources.Client = &directAPI{}
 
+// MakeRequestWithHeaders records the sync source header of each request and
+// answers as MakeRequest does.
+func (api *directAPI) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
+	api.syncSources = append(api.syncSources, headers.Get(syncapi.SyncSourceHeader))
+	return api.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+}
+
 func (api *directAPI) MakeRequest(
 	_ string,
 	method string,
@@ -96,8 +129,35 @@ func (api *directAPI) MakeRequest(
 	if api.onRequest != nil {
 		api.onRequest(method, path)
 	}
+	if api.variationWriteErr != nil && method == http.MethodPatch && strings.Contains(path, "/ai-configs/support/variations/") {
+		return nil, api.variationWriteErr
+	}
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
+		if api.manifestWriteErr != nil && method != http.MethodGet {
+			return nil, api.manifestWriteErr
+		}
 		return handleManifestRequest(api.manifest, method, query, body)
+	}
+	if strings.HasSuffix(path, "/configs/sync/settings") && method == http.MethodGet {
+		if api.settingsReadErr != nil {
+			return nil, api.settingsReadErr
+		}
+		items := make([]map[string]any, 0, len(query["resources"]))
+		for _, resource := range query["resources"] {
+			kind, lookupKey, _ := strings.Cut(resource, ":")
+			direction := syncdomain.SyncDirectionBoth
+			if configured := api.directions[resource]; configured != "" {
+				direction = configured
+			}
+			item := map[string]any{
+				"resourceKind": kind, "resourceLookupKey": lookupKey, "direction": direction,
+			}
+			if pattern := api.patterns[resource]; pattern != "" {
+				item["matchedResourcePattern"] = pattern
+			}
+			items = append(items, item)
+		}
+		return json.Marshal(map[string]any{"items": items})
 	}
 	isCreate := method == http.MethodPost &&
 		(strings.HasSuffix(path, "/ai-tools") || strings.HasSuffix(path, "/ai-configs/skills") || strings.HasSuffix(path, "/variations"))
@@ -106,6 +166,20 @@ func (api *directAPI) MakeRequest(
 			api.onCreate()
 		}
 		return nil, api.createErr
+	}
+	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodGet {
+		items := make([]versionedTool, 0, len(api.tools))
+		for _, key := range slices.Sorted(maps.Keys(api.tools)) {
+			items = append(items, api.tools[key])
+		}
+		return json.Marshal(map[string]any{"items": items, "totalCount": len(items)})
+	}
+	if strings.HasSuffix(path, "/ai-configs/skills") && method == http.MethodGet {
+		items := make([]versionedSkill, 0, len(api.skills))
+		for _, key := range slices.Sorted(maps.Keys(api.skills)) {
+			items = append(items, api.skills[key])
+		}
+		return json.Marshal(map[string]any{"items": items, "totalCount": len(items)})
 	}
 	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodPost {
 		var tool versionedTool
@@ -126,6 +200,9 @@ func (api *directAPI) MakeRequest(
 			return nil, fmt.Errorf(`{"code":"not_found","message":"AI tool not found","statusCode":404}`)
 		}
 		if method == "PATCH" {
+			if api.toolWriteErr != nil {
+				return nil, api.toolWriteErr
+			}
 			if err := json.Unmarshal(body, &tool.Tool); err != nil {
 				return nil, err
 			}
@@ -174,6 +251,24 @@ func (api *directAPI) MakeRequest(
 		}
 		return nil, fmt.Errorf("model config not found")
 	}
+	if method == http.MethodPost && strings.HasSuffix(path, "/ai-configs") {
+		var request struct {
+			Key  string                   `json:"key"`
+			Name string                   `json:"name"`
+			Mode syncdomain.VariationMode `json:"mode"`
+		}
+		if err := json.Unmarshal(body, &request); err != nil {
+			return nil, err
+		}
+		if !api.configMissing {
+			return nil, fmt.Errorf(`{"code":"conflict","message":"AI config already exists","statusCode":409}`)
+		}
+		api.configMissing, api.configMode = false, request.Mode
+		return json.Marshal(map[string]any{"key": request.Key, "name": request.Name, "mode": request.Mode, "variations": []any{}})
+	}
+	if api.configMissing {
+		return nil, fmt.Errorf(`{"code":"not_found","message":"AI config not found","statusCode":404}`)
+	}
 
 	switch method {
 	case "GET":
@@ -218,6 +313,7 @@ func (api *directAPI) MakeRequest(
 			ModelConfigVersion int                         `json:"modelConfigVersion"`
 			Model              map[string]any              `json:"model"`
 			OutputFormat       map[string]any              `json:"outputFormat"`
+			Messages           *[]syncdomain.Message       `json:"messages"`
 			Tools              *[]syncdomain.AttachmentRef `json:"tools"`
 			Skills             *[]syncdomain.AttachmentRef `json:"skills"`
 		}
@@ -238,11 +334,15 @@ func (api *directAPI) MakeRequest(
 		if update.Skills != nil {
 			skills = *update.Skills
 		}
+		mode := cmp.Or(api.configMode, syncdomain.VariationModeAgent)
 		api.variation = &syncdomain.Variation{
-			Mode: syncdomain.VariationModeAgent, Key: key, Name: update.Name,
+			Mode: mode, Key: key, Name: update.Name,
 			Instructions: update.Instructions, ModelConfigKey: update.ModelConfigKey,
 			ModelConfigVersion: update.ModelConfigVersion, Model: update.Model,
 			OutputFormat: update.OutputFormat, Tools: tools, Skills: skills,
+		}
+		if update.Messages != nil {
+			api.variation.Messages = *update.Messages
 		}
 		api.variationState = "published"
 	}
@@ -564,6 +664,39 @@ func TestPromptAttachesLatestSkillAsMarkdownFile(t *testing.T) {
 	))
 	require.NoError(t, err)
 	assert.Equal(t, "---\nkey: support\ndescription: Customer support guidance\n---\n\nFollow the support process.\n", string(content))
+}
+
+// An attach stops before the variation step when the project has no tool,
+// so the user does not answer every prompt only to find an empty list.
+func TestPromptAttachToolStopsWhenTheProjectHasNoTools(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{}}
+
+	_, _, err := runPrompt(t, root, api, "attach", "tool", "--yes", "--no-input")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `project "production" has no tools to attach. Create one in LaunchDarkly first.`)
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodGet, "/ai-tools"), "one read of the tool list")
+	assert.Empty(t, api.variation.Tools, "nothing was attached")
+}
+
+// The same stop applies to skills.
+func TestPromptAttachSkillStopsWhenTheProjectHasNoSkills(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline), skills: map[string]versionedSkill{}}
+
+	_, _, err := runPrompt(t, root, api, "attach", "skill", "--yes", "--no-input")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `project "production" has no skills to attach. Create one in LaunchDarkly first.`)
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodGet, "/ai-configs/skills"), "one read of the skill list")
+	assert.Empty(t, api.variation.Skills, "nothing was attached")
 }
 
 func TestPromptRejectsSkillAttachmentForCompletionVariation(t *testing.T) {
@@ -1287,8 +1420,6 @@ func TestPromptDetachArchive(t *testing.T) {
 	}
 }
 
-// syncLinkedVariation writes a linked variation that matches LaunchDarkly and
-// runs one sync, so that sync.lock records the link.
 func TestPromptFilterSyncsOnlyTheNamedVariation(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
@@ -1711,6 +1842,26 @@ func TestSyncPromptsCountsStandaloneFilesWithoutReadingThem(t *testing.T) {
 	assert.Equal(t, "Note: 1 standalone skill and 3 standalone tools are not in this plan. Run ldcli sync all to include them.\n", notes)
 }
 
+// A linked tool or skill has a descriptor instead of a managed file, and the
+// count of standalone files includes it.
+func TestSyncPromptsCountsLinkedStandaloneDescriptors(t *testing.T) {
+	root, api := writeStandaloneAttachmentWorkspace(t)
+	writeLocalFile(t, root, "../../tools/audit.json", `{"description": "Audit an order", "inputSchema": {"type": "object"}}`)
+	_, err := synclocal.NewStore(root).WriteDescriptor(
+		syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "audit"},
+		syncdomain.Reference{
+			File: "tools/audit.json", Format: "json", Select: "$",
+			Map: map[string]string{"description": "description", "schema": "inputSchema"},
+		},
+	)
+	require.NoError(t, err)
+
+	_, notes, err := runScoped(t, root, api, syncprompt.Options{Action: syncprompt.SyncAction{DryRun: true}})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Note: 1 standalone skill and 3 standalone tools are not in this plan. Run ldcli sync all to include them.\n", notes)
+}
+
 // --config-key and --key select variations, so a filtered sync of prompts
 // counts the standalone files of its project.
 func TestSyncPromptsWithAConfigFilterCountsStandaloneFiles(t *testing.T) {
@@ -1947,6 +2098,814 @@ func runSyncAction(
 	return stdout, err
 }
 
+func TestSourceLinkUsesDirectionAndKeepsSourceInPlace(t *testing.T) {
+	root := initRepository(t)
+	source := []byte(`from agents import Agent
+support = Agent(instructions="Local instructions.")
+`)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	server := variation("Server instructions.")
+	api := &directAPI{
+		variation: &server,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+		}, patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "agents.py", Format: "python", Select: `agents[id="support"]`,
+			Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "update_server"`)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "Local instructions.", api.variation.Instructions)
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	require.FileExists(t, descriptor)
+	actual, err := os.ReadFile(filepath.Join(root, "agents.py"))
+	require.NoError(t, err)
+	assert.Equal(t, source, actual)
+	lock, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "sync.lock"))
+	require.NoError(t, err)
+	assert.Contains(t, string(lock), "formatVersion: 1")
+	assert.NotContains(t, string(lock), "file: agents.py")
+
+	api.directions["variation:support/default"] = syncdomain.SyncDirectionServerCanonical
+	api.variation.Instructions = "Server instructions after link."
+	output, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SyncAction{Filter: syncdomain.Filter{
+			Project: "production", ConfigKey: "support", Keys: []string{"default"},
+		}},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "update_local"`)
+	actual, err = os.ReadFile(filepath.Join(root, "agents.py"))
+	require.NoError(t, err)
+	assert.Equal(t, `from agents import Agent
+support = Agent(instructions="Server instructions after link.")
+`, string(actual))
+}
+
+// A link with --upsert creates the config and the variation that
+// LaunchDarkly does not have, in one run, from the source alone. The config
+// takes the mode that the source implies and the name of its key.
+func TestLinkUpsertCreatesTheConfigAndTheVariation(t *testing.T) {
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	api := &directAPI{configMissing: true}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "agents.py", Format: "python", Select: `agents[id="support"]`,
+			Map: map[string]string{"prompt": "instructions"}, Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	assert.Equal(t, 1, countRequests(api.requests, "POST", "/ai-configs"), "the config is created once")
+	assert.False(t, api.configMissing)
+	assert.Equal(t, syncdomain.VariationModeAgent, api.configMode, "a text prompt makes an agent config")
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "Local instructions.", api.variation.Instructions)
+	assert.Equal(t, "Default", api.variation.Name, "the name comes from the key")
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"))
+	lock, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "sync.lock"))
+	require.NoError(t, err)
+	assert.Contains(t, string(lock), "key: support/default", "the lock records the created variation")
+	actual, err := os.ReadFile(filepath.Join(root, "agents.py"))
+	require.NoError(t, err)
+	assert.Equal(t, source, actual, "the source is not changed")
+}
+
+// --model-config-key gives the created variation a model config at its
+// latest version, as an add does. An existing config is not created again.
+func TestLinkUpsertCreatesTheVariationWithAModelConfig(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{{Key: "gpt-5", Name: "GPT-5", Version: 3}}}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown", Upsert: true, ModelConfigKey: "gpt-5",
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"), "the config exists")
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "gpt-5", api.variation.ModelConfigKey)
+	assert.Equal(t, 3, api.variation.ModelConfigVersion)
+	assert.Equal(t, "Local instructions.", api.variation.Instructions)
+}
+
+// --mode decides the mode of a config that --upsert creates. A text prompt
+// becomes the one system message of a completion variation.
+func TestLinkUpsertModeOverridesTheSourceMode(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	api := &directAPI{configMissing: true}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown", Upsert: true, Mode: syncdomain.VariationModeCompletion,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, syncdomain.VariationModeCompletion, api.configMode)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: "Local instructions."}}, api.variation.Messages)
+}
+
+// Without --upsert, a missing config is a row of the plan that names the
+// config and the flag, and it blocks the apply without a write.
+func TestLinkWithoutUpsertNamesTheMissingConfig(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	api := &directAPI{configMissing: true}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope:  syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{ID: id, File: "prompt.md", Format: "markdown"},
+		Yes:    true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `config "support" does not exist in LaunchDarkly`)
+	assert.Contains(t, err.Error(), "--upsert")
+	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"))
+	assert.True(t, api.configMissing)
+	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"), "a blocked link writes no descriptor")
+}
+
+// A link of a tool with --upsert creates the tool that LaunchDarkly does not
+// have, through the same publish as a managed tool file with upsert.
+func TestLinkUpsertCreatesAMissingTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	api := &directAPI{tools: map[string]versionedTool{}}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tool.json", Format: "json", Select: "$",
+			Map: map[string]string{"description": "description", "schema": "schema"}, Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	require.Contains(t, api.tools, "search")
+	assert.Equal(t, "Local", *api.tools["search"].Description)
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "search.ref.yaml"))
+}
+
+// LaunchDarkly answers server_canonical for a resource that no rule matches
+// and no manifest syncs yet. That default does not block the create of a
+// missing tool, because the create puts the tool in the synced manifest.
+func TestLinkUpsertCreatesAMissingToolUnderTheDefaultSetting(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	api := &directAPI{
+		tools:      map[string]versionedTool{},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tool.json", Format: "json", Select: "$",
+			Map: map[string]string{"description": "description", "schema": "schema"}, Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	require.Contains(t, api.tools, "search")
+	assert.Equal(t, "Local", *api.tools["search"].Description)
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "search.ref.yaml"))
+}
+
+// The same default does not block the create of a missing skill.
+func TestLinkUpsertCreatesAMissingSkillUnderTheDefaultSetting(t *testing.T) {
+	root := initRepository(t)
+	sourcePath := filepath.Join(root, ".agents", "skills", "refunds", "SKILL.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(sourcePath), 0o755))
+	require.NoError(t, os.WriteFile(sourcePath, []byte("---\ndescription: Local refund guidance.\n---\n# Refunds\n\nUse the local policy.\n"), 0o644))
+	api := &directAPI{
+		skills:     map[string]versionedSkill{},
+		directions: map[string]syncdomain.SyncDirection{"skill:refunds": syncdomain.SyncDirectionServerCanonical},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "production", LookupKey: "refunds"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeSkills,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: ".agents/skills/refunds/SKILL.md", Format: "agent-skill", Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "create_server"`)
+	require.Contains(t, api.skills, "refunds")
+	assert.Equal(t, "Local refund guidance.", api.skills["refunds"].Description)
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "skills", "refunds.ref.yaml"))
+}
+
+// An explicit LaunchDarkly rule still blocks the create of a missing tool.
+func TestLinkUpsertDoesNotCreateAToolThatALaunchDarklyRuleOwns(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	api := &directAPI{
+		tools:      map[string]versionedTool{},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+		patterns:   map[string]string{"tool:search": "search"},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "search"}
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tool.json", Format: "json", Select: "$",
+			Map: map[string]string{"description": "description", "schema": "schema"}, Upsert: true,
+		},
+		Yes: true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server-canonical resource does not exist in LaunchDarkly")
+	assert.Empty(t, api.tools, "the link does not create the tool")
+	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "search.ref.yaml"))
+}
+
+func TestPromptDescriptorTopLevelToolSyncsEndToEnd(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"# keep\nformatVersion: 1\nfile: prompt.md\nformat: markdown\n"+
+			"tools:\n  - key: search\n")
+	writeLocalFile(t, root, "tools/search.json",
+		`{"formatVersion":1,"key":"search","schema":{"type":"object"},`+
+			`"customParameters":{"timeout":5}}`+"\n")
+	server := variation("Server name")
+	server.Instructions = "Local instructions."
+	api := &directAPI{
+		variation: &server,
+		tools: map[string]versionedTool{
+			"search": {
+				Tool: syncdomain.Tool{
+					Key: "search", Schema: map[string]any{"type": "object"},
+					CustomParameters: map[string]any{"timeout": float64(5)},
+				},
+				Version: 3,
+			},
+		},
+	}
+
+	_, _, err := runPrompt(t, root, api, "--yes", "--conflict", "local")
+
+	require.NoError(t, err)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 3}}, api.variation.Tools)
+	descriptor, err := os.ReadFile(filepath.Join(
+		root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml",
+	))
+	require.NoError(t, err)
+	assert.Contains(t, string(descriptor), "# keep\n")
+	assert.NotContains(t, string(descriptor), "version:")
+}
+
+// A variation that was a managed file has a lock entry with the fingerprint
+// of that file. A link of the same variation to a source plans a first sync,
+// because that fingerprint says nothing about the source projection.
+func TestLinkOverAManagedBaselinePlansAFirstSync(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeManifest(t, root, baseline)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Help"), 0o644))
+	server := baseline
+	api := &directAPI{variation: &server}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	stdout, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope:  syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{ID: id, File: "prompt.md", Format: "markdown"},
+		Yes:    true,
+	})
+
+	require.NoError(t, err, "equal sides are adopted instead of reported as a conflict")
+	for _, row := range planRows(t, stdout) {
+		assert.NotContains(t, row, "conflict", "the managed-file fingerprint is not a baseline for the source")
+	}
+	assert.Equal(t, "Help", api.variation.Instructions)
+}
+
+// The link note goes to the error output, so the JSON result stays one
+// document.
+func TestSourceLinkKeepsJSONOutputValid(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local prompt.\n"), 0o644))
+	server := variation("Server")
+	server.Instructions = "Local prompt."
+	api := &directAPI{variation: &server}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	stdout, notes, err := runScoped(t, root, api, syncprompt.Options{
+		Scope:  syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{ID: id, File: "prompt.md", Format: "markdown"},
+		Yes:    true,
+	})
+
+	require.NoError(t, err)
+	assert.True(t, json.Valid([]byte(stdout)), "the standard output is one JSON document: %q", stdout)
+	assert.Contains(t, notes, "Linked ")
+}
+
+func TestCompletionSourcePullsOneSystemMessage(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local prompt.\n"), 0o644))
+	server := syncdomain.Variation{
+		Mode: syncdomain.VariationModeCompletion, Key: "default", Name: "Default",
+		Messages: []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: "Server prompt."}},
+	}
+	api := &directAPI{
+		variation: pointer(server), configMode: syncdomain.VariationModeCompletion,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown",
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	content, err := os.ReadFile(filepath.Join(root, "prompt.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "Server prompt.\n", string(content))
+}
+
+func TestCompletionMessageListPullsAndPushesLiteralContent(t *testing.T) {
+	root := initRepository(t)
+	source := `from agents import Agent
+completion = Agent(
+    name="Completion",
+    messages=[
+        {"role": "system", "content": "Local system."},
+        {"role": "user", "content": "Local user."},
+    ],
+    model="gpt-5",
+)
+`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "messages.py"), []byte(source), 0o644))
+	server := syncdomain.Variation{
+		Mode: syncdomain.VariationModeCompletion, Key: "default", Name: "Default",
+		Messages: []syncdomain.Message{
+			{Role: syncdomain.RoleSystem, Content: "Server system."},
+			{Role: syncdomain.RoleUser, Content: "Server user."},
+		},
+	}
+	api := &directAPI{
+		variation: pointer(server), configMode: syncdomain.VariationModeCompletion,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+	action := syncprompt.SourceLinkAction{
+		ID: id, File: "messages.py", Format: "python", Select: `agents[id="completion"]`,
+		Map: map[string]string{"messages": "messages"},
+	}
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts, Action: action, Yes: true,
+	})
+	require.NoError(t, err)
+	content, err := os.ReadFile(filepath.Join(root, "messages.py"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `"content": "Server system."`)
+	assert.Contains(t, string(content), `"content": "Server user."`)
+
+	updated := strings.Replace(string(content), "Server user.", "Repository user.", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "messages.py"), []byte(updated), 0o644))
+	api.directions["variation:support/default"] = syncdomain.SyncDirectionCodeCanonical
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SyncAction{
+			Filter: syncdomain.Filter{Project: "production", ConfigKey: "support", Keys: []string{"default"}},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Repository user.", api.variation.Messages[1].Content)
+}
+
+func TestStandaloneSkillSourceLinkPullsLaunchDarklyContent(t *testing.T) {
+	root := initRepository(t)
+	sourcePath := filepath.Join(root, ".agents", "skills", "refunds", "SKILL.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(sourcePath), 0o755))
+	require.NoError(t, os.WriteFile(sourcePath, []byte(`---
+name: refunds
+description: Local refund guidance.
+license: Apache-2.0
+---
+
+# Refunds
+
+Use the local policy.
+`), 0o644))
+	api := &directAPI{
+		skills: map[string]versionedSkill{"refunds": {
+			Skill: syncdomain.Skill{
+				Key: "refunds", Name: "Refunds", Description: "Server refund guidance.",
+				Markdown: "# Refunds\n\nUse the server policy.\n",
+			},
+			Version: 2,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"skill:refunds": syncdomain.SyncDirectionServerCanonical,
+		},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "production", LookupKey: "refunds"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeSkills,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: ".agents/skills/refunds/SKILL.md", Format: "agent-skill",
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "update_local"`)
+	content, err := os.ReadFile(sourcePath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "description: Server refund guidance.")
+	assert.Contains(t, string(content), "Use the server policy.")
+	assert.Contains(t, string(content), "license: Apache-2.0")
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "skills", "refunds.ref.yaml"))
+}
+
+func TestStandaloneToolSourceLinkPushesMappedFields(t *testing.T) {
+	root := initRepository(t)
+	source := []byte(`import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+const server = new McpServer({ name: "orders", version: "1" });
+server.registerTool("lookup", {
+  description: "Look up an order.",
+  inputSchema: { type: "object" },
+}, handler);
+`)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tools.ts"), source, 0o644))
+	api := &directAPI{
+		tools: map[string]versionedTool{"lookup": {
+			Tool:    syncdomain.Tool{Key: "lookup", Description: pointer("Old description."), Schema: map[string]any{"type": "string"}},
+			Version: 1,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"tool:lookup": syncdomain.SyncDirectionCodeCanonical,
+		},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "lookup"}
+
+	output, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tools.ts", Format: "typescript", Select: `tools[id="lookup"]`,
+			Map: map[string]string{"description": "description", "schema": "inputSchema"},
+		},
+		Yes: true,
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `"action": "update_server"`)
+	assert.Equal(t, "Look up an order.", *api.tools["lookup"].Description)
+	assert.Equal(t, "object", api.tools["lookup"].Schema["type"])
+	actual, err := os.ReadFile(filepath.Join(root, "tools.ts"))
+	require.NoError(t, err)
+	assert.Equal(t, source, actual)
+	require.FileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.ref.yaml"))
+}
+
+func TestSourceLinkWithoutConfirmationWritesNothing(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Server instructions.\n"), 0o644))
+	server := variation("Default")
+	server.Instructions = "Server instructions."
+	api := &directAPI{
+		variation: &server,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionBoth,
+		},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	_, notes, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown",
+		},
+	})
+
+	require.ErrorContains(t, err, "rerun with --yes")
+	assert.Contains(t, notes, "Proposed descriptor .launchdarkly/production/configs/support/default.ref.yaml:")
+	assert.Contains(t, notes, "format: markdown")
+	require.NoFileExists(t, filepath.Join(
+		root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml",
+	))
+}
+
+func TestStructuredSourceLinksPushAndPull(t *testing.T) {
+	tests := []struct {
+		name         string
+		scope        syncdomain.Scope
+		id           syncdomain.ResourceID
+		file         string
+		format       string
+		selectPath   string
+		fieldMap     map[string]string
+		source       string
+		api          *directAPI
+		changeServer func(*directAPI)
+		wantPush     func(*testing.T, *directAPI)
+		wantPull     string
+	}{
+		{
+			name: "JSON tool", scope: syncdomain.ScopeTools,
+			id:   syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "lookup"},
+			file: "tools.json", format: "json", selectPath: `tools[1]`,
+			fieldMap: map[string]string{"description": "description", "schema": "inputSchema"},
+			source:   `{"tools":[{"name":"keep","description":"Keep","inputSchema":{"type":"null"}},{"name":"lookup","description":"Local lookup","inputSchema":{"type":"object"}}]}` + "\n",
+			api: &directAPI{
+				tools: map[string]versionedTool{"lookup": {
+					Tool:    syncdomain.Tool{Key: "lookup", Description: pointer("Server lookup"), Schema: map[string]any{"type": "string"}},
+					Version: 1,
+				}},
+				directions: map[string]syncdomain.SyncDirection{"tool:lookup": syncdomain.SyncDirectionCodeCanonical},
+			},
+			changeServer: func(api *directAPI) {
+				tool := api.tools["lookup"]
+				tool.Description = pointer("Pulled lookup")
+				api.tools["lookup"] = tool
+				api.directions["tool:lookup"] = syncdomain.SyncDirectionServerCanonical
+			},
+			wantPush: func(t *testing.T, api *directAPI) {
+				assert.Equal(t, "Local lookup", *api.tools["lookup"].Description)
+				assert.Equal(t, "object", api.tools["lookup"].Schema["type"])
+			},
+			wantPull: `"description":"Pulled lookup"`,
+		},
+		{
+			name: "YAML variation", scope: syncdomain.ScopePrompts,
+			id:   syncdomain.VariationID("production", "support", "default"),
+			file: "agents.yaml", format: "yaml", selectPath: `agents[1]`,
+			fieldMap: map[string]string{"prompt": "prompt", "model": "model"},
+			source:   "agents:\n  - {name: keep, prompt: Keep, model: old}\n  - name: support\n    prompt: Local YAML prompt\n    model: gpt-5\n",
+			api: &directAPI{
+				variation: pointer(variation("Server")),
+				directions: map[string]syncdomain.SyncDirection{
+					"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+				},
+			},
+			changeServer: func(api *directAPI) {
+				api.variation.Instructions = "Pulled YAML prompt"
+				api.directions["variation:support/default"] = syncdomain.SyncDirectionServerCanonical
+				api.patterns = map[string]string{"variation:support/default": "support/default"}
+			},
+			wantPush: func(t *testing.T, api *directAPI) {
+				assert.Equal(t, "Local YAML prompt", api.variation.Instructions)
+				assert.Equal(t, "gpt-5", api.variation.Model["modelName"])
+			},
+			wantPull: "prompt: Pulled YAML prompt",
+		},
+		{
+			name: "TOML variation", scope: syncdomain.ScopePrompts,
+			id:   syncdomain.VariationID("production", "support", "default"),
+			file: "agents.toml", format: "toml", selectPath: "agents[1]",
+			fieldMap: map[string]string{"prompt": "prompt", "model": "model"},
+			source:   "agents = [{ name = \"keep\", prompt = \"Keep\", model = \"old\" }, { name = \"support\", prompt = \"Local TOML prompt\", model = \"gpt-5\" }]\n",
+			api: &directAPI{
+				variation: pointer(variation("Server")),
+				directions: map[string]syncdomain.SyncDirection{
+					"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+				},
+			},
+			changeServer: func(api *directAPI) {
+				api.variation.Instructions = "Pulled TOML prompt"
+				api.directions["variation:support/default"] = syncdomain.SyncDirectionServerCanonical
+				api.patterns = map[string]string{"variation:support/default": "support/default"}
+			},
+			wantPush: func(t *testing.T, api *directAPI) {
+				assert.Equal(t, "Local TOML prompt", api.variation.Instructions)
+				assert.Equal(t, "gpt-5", api.variation.Model["modelName"])
+			},
+			wantPull: `prompt = "Pulled TOML prompt"`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := initRepository(t)
+			require.NoError(t, os.WriteFile(filepath.Join(root, test.file), []byte(test.source), 0o644))
+			_, _, err := runScoped(t, root, test.api, syncprompt.Options{
+				Scope: test.scope,
+				Action: syncprompt.SourceLinkAction{
+					ID: test.id, File: test.file, Format: test.format,
+					Select: test.selectPath, Map: test.fieldMap,
+				},
+				Yes: true,
+			})
+			require.NoError(t, err)
+			test.wantPush(t, test.api)
+			lock, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "sync.lock"))
+			require.NoError(t, err)
+			assert.Contains(t, string(lock), "formatVersion: 1")
+			assert.Contains(t, string(lock), "indexedSelections:")
+
+			test.changeServer(test.api)
+			filter := syncdomain.Filter{Project: "production", Keys: []string{test.id.LookupKey}}
+			if test.id.Kind == syncdomain.KindVariation {
+				filter.ConfigKey, filter.Keys[0], _ = test.id.VariationKeys()
+			}
+			_, _, err = runScoped(t, root, test.api, syncprompt.Options{
+				Scope: test.scope, Action: syncprompt.SyncAction{Filter: filter}, Yes: true,
+			})
+			require.NoError(t, err)
+			content, err := os.ReadFile(filepath.Join(root, test.file))
+			require.NoError(t, err)
+			assert.Contains(t, string(content), test.wantPull)
+			assert.Contains(t, string(content), "Keep")
+
+			_, _, err = runScoped(t, root, test.api, syncprompt.Options{
+				Scope: test.scope, Action: syncprompt.SyncAction{Filter: filter}, Yes: true,
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestIndexedSourceReorderBlocksSyncWithoutWrites(t *testing.T) {
+	root := initRepository(t)
+	sourcePath := filepath.Join(root, "tools.json")
+	original := `{"tools":[{"name":"keep","description":"Keep","inputSchema":{"type":"null"}},{"name":"lookup","description":"Local lookup","inputSchema":{"type":"object"}}]}` + "\n"
+	require.NoError(t, os.WriteFile(sourcePath, []byte(original), 0o644))
+	api := &directAPI{
+		tools: map[string]versionedTool{"lookup": {
+			Tool: syncdomain.Tool{
+				Key: "lookup", Description: pointer("Server lookup"), Schema: map[string]any{"type": "string"},
+			},
+			Version: 1,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"tool:lookup": syncdomain.SyncDirectionCodeCanonical,
+		},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "lookup"}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "tools.json", Format: "json", Select: "tools[1]",
+			Map: map[string]string{"description": "description", "schema": "inputSchema"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Local lookup", *api.tools["lookup"].Description)
+
+	reordered := `{"tools":[{"name":"lookup","description":"Different item","inputSchema":{"type":"boolean"}},{"name":"keep","description":"Keep","inputSchema":{"type":"null"}}]}` + "\n"
+	require.NoError(t, os.WriteFile(sourcePath, []byte(reordered), 0o644))
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools,
+		Action: syncprompt.SyncAction{Filter: syncdomain.Filter{
+			Project: "production", Keys: []string{"lookup"},
+		}},
+		Yes: true,
+	})
+
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok)
+	assert.Equal(t, syncdomain.ErrorIndexedSelectionChanged, problem.Code)
+	assert.Equal(t, "Local lookup", *api.tools["lookup"].Description)
+	content, readErr := os.ReadFile(sourcePath)
+	require.NoError(t, readErr)
+	assert.Equal(t, reordered, string(content))
+}
+
+func TestReadOnlyMappedFieldBlocksCompleteLink(t *testing.T) {
+	root := initRepository(t)
+	source := `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+const server = new McpServer({ name: "orders", version: "1" });
+server.registerTool("lookup", {
+  description: "Local description",
+  inputSchema: makeSchema(),
+}, handler);
+`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tools.ts"), []byte(source), 0o644))
+	api := &directAPI{
+		tools: map[string]versionedTool{"lookup": {
+			Tool: syncdomain.Tool{
+				Key: "lookup", Description: pointer("Server description"),
+				Schema: map[string]any{"type": "object"},
+			},
+			Version: 1,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"tool:lookup": syncdomain.SyncDirectionCodeCanonical,
+		},
+	}
+	id := syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "production", LookupKey: "lookup"}
+	action := syncprompt.SourceLinkAction{
+		ID: id, File: "tools.ts", Format: "typescript", Select: `tools[id="lookup"]`,
+		Map: map[string]string{"description": "description", "schema": "inputSchema"},
+	}
+
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools, Action: action, Yes: true,
+	})
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok)
+	assert.Equal(t, syncdomain.ErrorFieldReadOnly, problem.Code)
+	assert.Contains(t, problem.Message, `field "schema"`)
+	assert.Equal(t, "Server description", *api.tools["lookup"].Description)
+	assert.Equal(t, "object", api.tools["lookup"].Schema["type"])
+	content, err := os.ReadFile(filepath.Join(root, "tools.ts"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `description: "Local description"`)
+	assert.Contains(t, string(content), "inputSchema: makeSchema()")
+	require.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.ref.yaml"))
+}
+
+func TestMarkdownProviderProfilesPullAndPreserveMetadata(t *testing.T) {
+	tests := []struct {
+		name, format, source, metadata string
+	}{
+		{name: "Cursor", format: "markdown", source: "---\nglobs: \"src/**/*.ts\"\nalwaysApply: false\n---\n\nLocal\n", metadata: "alwaysApply: false"},
+		{name: "Copilot", format: "markdown", source: "---\napplyTo: \"src/**/*.ts\"\n---\n\nLocal\n", metadata: "applyTo: \"src/**/*.ts\""},
+		{name: "Claude", format: "markdown", source: "---\nname: support\nmodel: sonnet\n---\n\nLocal\n", metadata: "model: sonnet"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := initRepository(t)
+			require.NoError(t, os.WriteFile(filepath.Join(root, "instructions.md"), []byte(test.source), 0o644))
+			server := variation("Server")
+			server.Instructions = "Pulled profile instructions."
+			api := &directAPI{
+				variation: &server,
+				directions: map[string]syncdomain.SyncDirection{
+					"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+				},
+				patterns: map[string]string{"variation:support/default": "support/default"},
+			}
+			id := syncdomain.VariationID("production", "support", "default")
+
+			_, _, err := runScoped(t, root, api, syncprompt.Options{
+				Scope: syncdomain.ScopePrompts,
+				Action: syncprompt.SourceLinkAction{
+					ID: id, File: "instructions.md", Format: test.format,
+				},
+				Yes: true,
+			})
+
+			require.NoError(t, err)
+			content, err := os.ReadFile(filepath.Join(root, "instructions.md"))
+			require.NoError(t, err)
+			assert.Contains(t, string(content), test.metadata)
+			assert.Contains(t, string(content), "Pulled profile instructions.")
+		})
+	}
+}
+
 // runScoped runs options through Runner.Run without a terminal, and returns
 // the JSON output and the notes. A question fails the run.
 func runScoped(t *testing.T, root string, api *directAPI, options syncprompt.Options) (string, string, error) {
@@ -1960,7 +2919,7 @@ func runScoped(t *testing.T, root string, api *directAPI, options syncprompt.Opt
 func runWith(t *testing.T, root string, api *directAPI, runner syncprompt.Runner, options syncprompt.Options) (string, string, error) {
 	t.Helper()
 	if manifestsByRoot[root] == nil {
-		manifestsByRoot[root] = &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
+		manifestsByRoot[root] = &syncapi.SyncManifest{Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
 	}
 	api.manifest = manifestsByRoot[root]
 	var output, notes bytes.Buffer
@@ -2135,6 +3094,22 @@ type ambiguousWriteAPI struct {
 	directAPI
 }
 
+// MakeRequestWithHeaders answers as the MakeRequest of this fake does, not
+// as the embedded one does.
+func (api *ambiguousWriteAPI) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
+	api.syncSources = append(api.syncSources, headers.Get(syncapi.SyncSourceHeader))
+	return api.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+}
+
 func (api *ambiguousWriteAPI) MakeRequest(
 	accessToken string,
 	method string,
@@ -2145,7 +3120,9 @@ func (api *ambiguousWriteAPI) MakeRequest(
 	beta bool,
 ) ([]byte, error) {
 	response, err := api.directAPI.MakeRequest(accessToken, method, path, contentType, query, body, beta)
-	if err == nil && (method == "POST" || method == "PATCH") {
+	// The ambiguity is about the write of the variation, not about the claim
+	// of its ownership.
+	if err == nil && (method == "POST" || method == "PATCH") && !strings.HasSuffix(path, "/configs/sync/settings") {
 		return nil, fmt.Errorf("connection closed after write")
 	}
 	return response, err
@@ -2154,6 +3131,22 @@ func (api *ambiguousWriteAPI) MakeRequest(
 type changingReadAPI struct {
 	directAPI
 	reads int
+}
+
+// MakeRequestWithHeaders answers as the MakeRequest of this fake does, not
+// as the embedded one does.
+func (api *changingReadAPI) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
+	api.syncSources = append(api.syncSources, headers.Get(syncapi.SyncSourceHeader))
+	return api.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
 }
 
 func (api *changingReadAPI) MakeRequest(
@@ -2165,7 +3158,8 @@ func (api *changingReadAPI) MakeRequest(
 	body []byte,
 	beta bool,
 ) ([]byte, error) {
-	if method == "GET" && !strings.Contains(path, "/configs/sync/manifests") {
+	if method == "GET" && !strings.Contains(path, "/configs/sync/manifests") &&
+		!strings.Contains(path, "/configs/sync/settings") {
 		api.reads++
 		if api.reads == 2 {
 			api.variation = pointer(variation("Concurrent"))
@@ -2226,6 +3220,20 @@ func (api *multiDirectAPI) MakeRequest(
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		return handleManifestRequest(api.manifest, method, query, body)
 	}
+	if strings.HasSuffix(path, "/configs/sync/settings") {
+		// No resource matches a rule, and a claim succeeds.
+		if method != http.MethodGet {
+			return nil, nil
+		}
+		items := make([]map[string]any, 0, len(query["resources"]))
+		for _, resource := range query["resources"] {
+			kind, lookupKey, _ := strings.Cut(resource, ":")
+			items = append(items, map[string]any{
+				"resourceKind": kind, "resourceLookupKey": lookupKey, "direction": syncdomain.SyncDirectionBoth,
+			})
+		}
+		return json.Marshal(map[string]any{"items": items})
+	}
 	if method == "GET" {
 		variations := make([]syncdomain.Variation, 0, len(api.variations))
 		for _, variation := range api.variations {
@@ -2273,7 +3281,7 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	manifest := manifestsByRoot[root]
 	if manifest == nil {
-		manifest = &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
+		manifest = &syncapi.SyncManifest{Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
 		manifestsByRoot[root] = manifest
 	}
 	switch api := client.(type) {
@@ -2367,6 +3375,48 @@ func handleManifestRequest(
 	return json.Marshal(manifest)
 }
 
+// configGoneAPI answers each read of the config "support" with a 404, as
+// LaunchDarkly does after the config is deleted, or when --project names a
+// project that does not have it.
+type configGoneAPI struct{ *directAPI }
+
+func (api configGoneAPI) MakeRequest(
+	token, method, path, contentType string, query url.Values, body []byte, isBeta bool,
+) ([]byte, error) {
+	if method == http.MethodGet && strings.HasSuffix(path, "/ai-configs/support") {
+		return nil, lderrors.NewError(`{"code":"not_found","message":"AI config not found","statusCode":404}`)
+	}
+	return api.directAPI.MakeRequest(token, method, path, contentType, query, body, isBeta)
+}
+
+// MakeRequestWithHeaders answers as the MakeRequest of this fake does, not
+// as the embedded one does.
+func (api configGoneAPI) MakeRequestWithHeaders(
+	token, method, path, contentType string, query url.Values, body []byte, isBeta bool, headers http.Header,
+) ([]byte, error) {
+	api.syncSources = append(api.syncSources, headers.Get(syncapi.SyncSourceHeader))
+	return api.MakeRequest(token, method, path, contentType, query, body, isBeta)
+}
+
+// A tracked variation whose config answers 404 stops the sync, as a wrong
+// --project does. The plan must not read the 404 as a variation that
+// LaunchDarkly archived and delete the local file.
+func TestPromptSyncWithYesDoesNotDeleteTrackedVariationWhenConfigIs404(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := configGoneAPI{&directAPI{variation: pointer(baseline), manifest: manifestsByRoot[root]}}
+
+	stdout, _, err := runPrompt(t, root, api, "--yes")
+
+	resources, compileErr := synclocal.Compile(os.DirFS(root))
+	assert.NoError(t, compileErr, "the local variation file of a tracked, unchanged variation was deleted; stdout: %s", stdout)
+	assert.Len(t, resources, 1)
+	assert.Error(t, err, "a 404 for the config stops the sync")
+	assert.NotEmpty(t, manifestsByRoot[root].Items, "the lock and the remote manifest keep the tracked variation")
+}
+
 func initRepository(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -2436,7 +3486,7 @@ func writeRemoteManifest(t *testing.T, root string, values ...syncdomain.Variati
 			Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/" + value.Key,
 		}, fingerprint(t, value))
 	}
-	remote := &syncapi.SyncManifest{FormatVersion: syncapi.SyncManifestFormatVersion, Source: "git:example/repo"}
+	remote := &syncapi.SyncManifest{Source: "git:example/repo"}
 	for _, resource := range manifest.Resources {
 		remote.Items = append(remote.Items, syncapi.SyncManifestResource{
 			ResourceKind:      resource.ResourceKind,
@@ -2532,4 +3582,1082 @@ func toolAttachment(tool syncdomain.Tool, version int) syncdomain.Attachment {
 
 func pointer[T any](value T) *T {
 	return &value
+}
+
+// A server-canonical linked variation whose only difference is an older tool
+// pin must repin LaunchDarkly once. Without the repin, every sync plans the
+// same pull again.
+func TestServerCanonicalSourcePullRepinsStaleToolVersions(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Help\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: prompt.md\nformat: markdown\ntools:\n  - key: search\n")
+	writeLocalFile(t, root, "tools/search.json",
+		`{"formatVersion":1,"key":"search","schema":{"type":"object"}}`+"\n")
+	server := variation("Server")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	api := &directAPI{
+		variation: &server,
+		tools: map[string]versionedTool{"search": {
+			Tool: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}, Version: 2,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default update_local"}, planRows(t, stdout))
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 2}}, api.variation.Tools)
+	stdout, _, err = runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout), "the pins are current")
+}
+
+// A linked pull that repins its tools writes the pins onto the latest
+// LaunchDarkly copy, so an edit to an unowned field after the review survives.
+func TestLinkedPullRepinsOnTheLatestLaunchDarklyCopy(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Help\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: prompt.md\nformat: markdown\ntools:\n  - key: search\n")
+	writeLocalFile(t, root, "tools/search.json",
+		`{"formatVersion":1,"key":"search","schema":{"type":"object"}}`+"\n")
+	server := variation("Server")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	api := &directAPI{
+		variation: &server,
+		tools: map[string]versionedTool{"search": {
+			Tool: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}, Version: 2,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+	onNthRead(api, "/ai-configs/support", 3, func() { api.variation.Name = "Renamed after review" })
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 2}}, api.variation.Tools, "the pins move")
+	assert.Equal(t, "Renamed after review", api.variation.Name, "the unowned field keeps the LaunchDarkly edit")
+}
+
+// A linked pull records the pulled content in sync.lock before it moves the
+// pins, so a pin update that fails leaves the lock and the files in step, and
+// the next run sees a LaunchDarkly change, not a local edit.
+func TestLinkedPullRecordsTheLockBeforeAFailedPinRefresh(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Help\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: prompt.md\nformat: markdown\ntools:\n  - key: search\n")
+	writeLocalFile(t, root, "tools/search.json",
+		`{"formatVersion":1,"key":"search","schema":{"type":"object"}}`+"\n")
+	server := variation("Server")
+	server.Instructions = "Server text"
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	api := &directAPI{
+		variation: &server,
+		tools: map[string]versionedTool{"search": {
+			Tool: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}, Version: 2,
+		}},
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionServerCanonical,
+		},
+		patterns: map[string]string{"variation:support/default": "support/default"},
+	}
+	pulled := server.Instructions
+	// The mapped field changes after the review, so the pin update stops.
+	onNthRead(api, "/ai-configs/support", 3, func() { api.variation.Instructions = "Changed after review" })
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "changed in LaunchDarkly after review")
+	content, err := os.ReadFile(filepath.Join(root, "prompt.md"))
+	require.NoError(t, err)
+	assert.Equal(t, pulled+"\n", string(content), "the pull wrote the file")
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 1}}, api.variation.Tools, "the pins stay")
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default update_local"}, planRows(t, stdout), "the lock holds the pull, so the later LaunchDarkly change is a pull, not a conflict")
+}
+
+// A link that only rebinds a resource that is in sync must still write the
+// descriptor and record the new mapping in sync.lock. Otherwise the next sync
+// raises the same stale-binding error that the link was meant to fix.
+func TestRelinkOfAnInSyncResourceRecordsTheNewBinding(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte(`from agents import Agent
+support = Agent(name="support", instructions="Help")
+`), 0o644))
+	server := variation("Server")
+	api := &directAPI{
+		variation: &server,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionBoth,
+		},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+	link := func(selectPath string) (string, error) {
+		output, _, err := runScoped(t, root, api, syncprompt.Options{
+			Scope: syncdomain.ScopePrompts,
+			Action: syncprompt.SourceLinkAction{
+				ID: id, File: "agents.py", Format: "python", Select: selectPath,
+				Map: map[string]string{"prompt": "instructions"},
+			},
+			Yes: true,
+		})
+		return output, err
+	}
+	_, err := link(`agents[id="support"]`)
+	require.NoError(t, err)
+
+	// The second link changes only the selector, and the content stays in sync.
+	_, err = link(`agents[0]`)
+	require.NoError(t, err)
+
+	descriptor, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(descriptor), "select: agents[0]")
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout), "the lock has the new binding")
+}
+
+// A relink is the recovery for a descriptor whose mapping no longer compiles,
+// so the current descriptor is not compiled before the proposal replaces it.
+func TestRelinkReplacesADescriptorThatDoesNotCompile(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte(`from agents import Agent
+support = Agent(name="support", instructions="Help")
+`), 0o644))
+	server := variation("Server")
+	api := &directAPI{
+		variation: &server,
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionBoth,
+		},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+	link := func(selectPath string) error {
+		_, _, err := runScoped(t, root, api, syncprompt.Options{
+			Scope: syncdomain.ScopePrompts,
+			Action: syncprompt.SourceLinkAction{
+				ID: id, File: "agents.py", Format: "python", Select: selectPath,
+				Map: map[string]string{"prompt": "instructions"},
+			},
+			Yes: true,
+		})
+		return err
+	}
+	require.NoError(t, link(`agents[id="support"]`))
+	// The selector of the descriptor stops matching the source.
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: agents.py\nformat: python\nselect: 'agents[id=\"missing\"]'\nmap:\n  prompt: instructions\n")
+	_, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.Error(t, err, "the broken descriptor fails a sync")
+
+	require.NoError(t, link(`agents[0]`), "the relink does not compile the descriptor that it replaces")
+
+	descriptor, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(descriptor), "select: agents[0]")
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout))
+}
+
+// A variation push must not publish a linked tool against its LaunchDarkly
+// sync setting. The tool gets a row of its own, so the setting decides.
+func TestVariationPushRespectsTheSettingOfALinkedTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Local name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Local"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	serverTool := syncdomain.Tool{Key: "search", Description: pointer("Server"), Schema: map[string]any{"type": "object"}}
+	server := variation("Server name")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(serverTool, 1)}
+	// The last sync left LaunchDarkly as it is now, so only the local side changed.
+	writeManifest(t, root, server)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	recorded, err := syncdomain.SyncedAttachment{
+		ProjectKey: "production", Attachment: toolAttachment(serverTool, 1), Source: linked[0].Source,
+	}.Fingerprint()
+	require.NoError(t, err)
+	lock := readLock(t, root)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{"search": {Tool: serverTool, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tool search update_local", "variation support/default update_server"}, planRows(t, stdout))
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Server", *api.tools["search"].Description, "the server-canonical tool is not overwritten")
+	assert.Equal(t, 1, api.tools["search"].Version)
+	assert.Equal(t, "Local name", api.variation.Name, "the variation is pushed")
+	data, err := os.ReadFile(filepath.Join(root, "tool.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"Server"`, "the linked source follows LaunchDarkly")
+}
+
+// A variation push publishes the tools that it uses. A linked tool that
+// LaunchDarkly deleted gets its row with the detach problem, so the push does
+// not recreate the tool from the repository copy.
+func TestVariationPushDoesNotRecreateADeletedLinkedTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Local name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Local"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	// The last sync tracked the tool on its own, and the variation did not
+	// use it yet. Since then, the repository added the tool to the variation
+	// and LaunchDarkly deleted the tool.
+	syncedTool := syncdomain.Tool{Key: "search", Description: pointer("Local"), Schema: map[string]any{"type": "object"}}
+	server := variation("Server name")
+	writeManifest(t, root, server)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	recorded, err := syncdomain.SyncedAttachment{
+		ProjectKey: "production", Attachment: toolAttachment(syncedTool, 1), Source: linked[0].Source,
+	}.Fingerprint()
+	require.NoError(t, err)
+	lock := readLock(t, root)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionBoth},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.Error(t, err, "the deleted linked tool blocks the plan")
+	assert.Equal(t, []string{"tool search error", "variation support/default update_server"}, planRows(t, stdout))
+	assert.Contains(t, stdout, "linked resource no longer exists in LaunchDarkly")
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.Error(t, err)
+	assert.Empty(t, api.tools, "the push does not recreate the tool")
+	assert.Equal(t, "Server name", api.variation.Name, "the variation is not pushed")
+}
+
+// A variation push publishes the tools that it uses. A linked tool that
+// LaunchDarkly does not have yet keeps its error row, which a descriptor
+// cannot clear with upsert, so the push does not create the tool against its
+// server-canonical setting.
+func TestVariationPushDoesNotCreateAServerCanonicalLinkedTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Local name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Local"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	server := variation("Server name")
+	writeManifest(t, root, server)
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.Error(t, err, "the missing linked tool blocks the plan")
+	assert.Equal(t, []string{"tool search error", "variation support/default update_server"}, planRows(t, stdout))
+	assert.Contains(t, stdout, `tool \"search\" does not exist in LaunchDarkly. Run link again with --upsert to create it, or create it in LaunchDarkly and run sync again.`)
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.Error(t, err)
+	assert.Empty(t, api.tools, "the push does not create the tool")
+	assert.Equal(t, "Server name", api.variation.Name, "the variation is not pushed")
+}
+
+// A link whose apply synced the resource keeps its descriptor, even when a
+// later step fails, because LaunchDarkly has the new content.
+func TestLinkKeepsTheDescriptorWhenAStepAfterTheSyncFails(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(instructions=\"Local text\")\n"), 0o644))
+	server := variation("Server")
+	api := &directAPI{
+		variation:  &server,
+		directions: map[string]syncdomain.SyncDirection{"variation:support/default": syncdomain.SyncDirectionBoth},
+	}
+	// The push of the variation succeeds, and the manifest write after it fails.
+	api.onRequest = func(method, path string) {
+		if method == http.MethodPatch && strings.Contains(path, "/variations/") {
+			api.manifestWriteErr = errors.New("manifest write failed")
+		}
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+	// Both sides have text, so the first sync is a conflict that the local
+	// side wins, which pushes the linked text.
+	resolution, err := syncprompt.ParseConflictResolution("local")
+	require.NoError(t, err)
+
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "agents.py", Format: "python", Select: `agents[id="support"]`,
+			Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true, NoInput: true, ConflictPolicy: syncprompt.ConflictPolicy{Default: resolution},
+	})
+
+	require.Error(t, err, "the manifest write failed")
+	assert.Equal(t, "Local text", api.variation.Instructions, "the push happened")
+	descriptorPath := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	require.FileExists(t, descriptorPath, "the descriptor stays, because LaunchDarkly has the linked content")
+}
+
+// A link that writes its descriptor and then cannot finish puts the previous
+// descriptor back, so the next sync does not see a binding that the lock
+// never recorded.
+func TestFailedLinkRestoresThePreviousDescriptor(t *testing.T) {
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Help\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	server := variation("Server")
+	api := &directAPI{
+		variation:  &server,
+		directions: map[string]syncdomain.SyncDirection{"variation:support/default": syncdomain.SyncDirectionBoth},
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+	link := func() error {
+		_, _, err := runScoped(t, root, api, syncprompt.Options{
+			Scope: syncdomain.ScopePrompts,
+			Action: syncprompt.SourceLinkAction{
+				ID: id, File: "agents.py", Format: "python", Select: `agents[id="support"]`,
+				Map: map[string]string{"prompt": "instructions"},
+			},
+			Yes: true,
+		})
+		return err
+	}
+	require.NoError(t, link())
+	descriptorPath := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	previous, err := os.ReadFile(descriptorPath)
+	require.NoError(t, err)
+
+	// LaunchDarkly changes between the review and the apply, so the second
+	// link cannot finish.
+	api.onRequest = func(method, path string) {
+		if method == http.MethodGet && strings.HasSuffix(path, "/ai-configs/support") && len(api.requests) > 8 {
+			api.variation.Instructions = "Changed after review"
+		}
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(instructions=\"Help again\")\n"), 0o644))
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "agents.py", Format: "python", Select: `agents[0]`,
+			Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+	require.Error(t, err)
+	current, err := os.ReadFile(descriptorPath)
+	require.NoError(t, err)
+	assert.Equal(t, string(previous), string(current), "the previous descriptor is back")
+}
+
+// linkedVariationForPush links the variation to agents.py with a prompt map,
+// records a baseline that matches LaunchDarkly, and changes the local text,
+// so that the plan is a push of the mapped field.
+func linkedVariationForPush(t *testing.T) (string, *directAPI) {
+	t.Helper()
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(instructions=\"Local text\")\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: agents.py\nformat: python\nselect: 'agents[id=\"support\"]'\nmap:\n  prompt: instructions\n")
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	server := variation("Server name")
+	server.Instructions = "Old text"
+	writeManifestResources(t, root)
+	lock := readLock(t, root)
+	projection, err := syncdomain.ProjectVariation(server, *compiled[0].Source)
+	require.NoError(t, err)
+	recorded, err := syncdomain.FingerprintProjection(compiled[0].ID(), projection)
+	require.NoError(t, err)
+	lock.SetFingerprint(compiled[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(compiled[0].ID(), compiled[0].Source, "python/1", compiled[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	api := &directAPI{
+		variation:  &server,
+		directions: map[string]syncdomain.SyncDirection{"variation:support/default": syncdomain.SyncDirectionBoth},
+	}
+	return root, api
+}
+
+// onNthRead runs change before the nth read of the path with the suffix. A
+// push reads a resource for the plan, for the reload after the review, and
+// for the merge in the apply, so the third read is the one after the review.
+func onNthRead(api *directAPI, suffix string, n int, change func()) {
+	reads := 0
+	api.onRequest = func(method, path string) {
+		if method == http.MethodGet && strings.HasSuffix(path, suffix) {
+			reads++
+			if reads == n {
+				change()
+			}
+		}
+	}
+}
+
+// A linked variation push merges its mapped fields onto the latest
+// LaunchDarkly copy, so an edit to an unowned field after the review survives.
+func TestLinkedVariationPushKeepsUnownedFieldsChangedAfterReview(t *testing.T) {
+	root, api := linkedVariationForPush(t)
+	onNthRead(api, "/ai-configs/support", 3, func() { api.variation.Name = "Renamed after review" })
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Local text", api.variation.Instructions, "the mapped field is pushed")
+	assert.Equal(t, "Renamed after review", api.variation.Name, "the unowned field keeps the LaunchDarkly edit")
+}
+
+// A change to a mapped field after the review is not pushed over, because the
+// plan never compared it.
+func TestLinkedVariationPushStopsWhenMappedFieldsChangeAfterReview(t *testing.T) {
+	root, api := linkedVariationForPush(t)
+	onNthRead(api, "/ai-configs/support", 3, func() { api.variation.Instructions = "Changed after review" })
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "changed in LaunchDarkly after review")
+	assert.Equal(t, "Changed after review", api.variation.Instructions, "the push does not write over the change")
+}
+
+// A linked tool push merges its mapped fields onto the latest LaunchDarkly
+// copy. A change to a mapped field after the review is not pushed over,
+// because the plan never compared it.
+func TestLinkedToolPushStopsWhenMappedFieldsChangeAfterReview(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local text","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	baseline := toolAttachment(syncdomain.Tool{Key: "search", Description: pointer("Old text"), Schema: map[string]any{"type": "object"}}, 1)
+	writeManifestResources(t, root)
+	trackAttachment(t, root, baseline)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	recorded, err := syncdomain.SyncedAttachment{ProjectKey: "production", Attachment: baseline, Source: linked[0].Source}.Fingerprint()
+	require.NoError(t, err)
+	lock := readLock(t, root)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	serverTool := syncdomain.Tool{Key: "search", Description: pointer("Old text"), Schema: map[string]any{"type": "object"}}
+	api := &directAPI{
+		tools:      map[string]versionedTool{"search": {Tool: serverTool, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionBoth},
+	}
+	onNthRead(api, "/ai-tools/search", 3, func() {
+		tool := api.tools["search"]
+		tool.Description = pointer("Changed after review")
+		api.tools["search"] = tool
+	})
+
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools, Action: syncprompt.SyncAction{Filter: syncdomain.Filter{Project: "production"}},
+		Yes: true, NoInput: true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "changed in LaunchDarkly after review")
+	assert.Equal(t, "Changed after review", *api.tools["search"].Description, "the push does not write over the change")
+}
+
+// A prompts run with an in-sync variation does not rewrite the baseline of a
+// linked tool that it did not sync, so a local edit to the tool stays a local
+// change for the next tools run.
+func TestInSyncPromptRunKeepsTheBaselineOfAnUnsyncedLinkedTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(instructions=\"Same text\")\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: agents.py\nformat: python\nselect: 'agents[id=\"support\"]'\nmap:\n  prompt: instructions\ntools:\n  - key: search\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local edit","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	serverTool := syncdomain.Tool{Key: "search", Description: pointer("Server"), Schema: map[string]any{"type": "object"}}
+	server := variation("Server")
+	server.Instructions = "Same text"
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(serverTool, 1)}
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	// The last sync left the variation and the tool at the LaunchDarkly content.
+	writeManifestResources(t, root)
+	lock := readLock(t, root)
+	projection, err := syncdomain.ProjectVariation(server, *compiled[0].Source)
+	require.NoError(t, err)
+	variationFingerprint, err := syncdomain.FingerprintProjection(compiled[0].ID(), projection)
+	require.NoError(t, err)
+	lock.SetFingerprint(compiled[0].ID(), variationFingerprint)
+	require.NoError(t, lock.SetSource(compiled[0].ID(), compiled[0].Source, "python/1", compiled[0].IndexedSelections))
+	recorded, err := syncdomain.SyncedAttachment{
+		ProjectKey: "production", Attachment: toolAttachment(serverTool, 1), Source: linked[0].Source,
+	}.Fingerprint()
+	require.NoError(t, err)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	// The push of the edited tool fails, so the tool stays unsynced while
+	// the in-sync variation row completes.
+	api := &directAPI{
+		variation:    &server,
+		tools:        map[string]versionedTool{"search": {Tool: serverTool, Version: 1}},
+		toolWriteErr: errors.New("tool write failed"),
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionBoth, "tool:search": syncdomain.SyncDirectionBoth,
+		},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--yes", "--output", "json")
+
+	require.Error(t, err, "the tool push failed")
+	assert.Contains(t, stdout, `"action": "in_sync"`, "the linked variation is in sync on its mapped fields")
+	assert.Equal(t, "Server", *api.tools["search"].Description, "LaunchDarkly keeps its copy")
+	after := readLock(t, root)
+	index := slices.IndexFunc(after.Resources, func(resource syncmanifest.Resource) bool { return resource.ID() == linked[0].ID() })
+	require.NotEqual(t, -1, index)
+	assert.Equal(t, recorded, after.Resources[index].Fingerprint, "the baseline of the unsynced tool stays the LaunchDarkly copy, so the local edit stays a local change")
+}
+
+// A linked variation push does not write the repository source of a linked
+// tool that it uses, so a change to that tool in LaunchDarkly is not a conflict
+// of the variation. The tool gets a row of its own, which pulls the change
+// before the variation pushes.
+func TestLinkedVariationPushIsNotAConflictWhenALinkedToolChangedInLaunchDarkly(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(instructions=\"Local text\")\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: agents.py\nformat: python\nselect: 'agents[id=\"support\"]'\nmap:\n  prompt: instructions\ntools:\n  - key: search\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Old","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	oldTool := syncdomain.Tool{Key: "search", Description: pointer("Old"), Schema: map[string]any{"type": "object"}}
+	newTool := syncdomain.Tool{Key: "search", Description: pointer("New"), Schema: map[string]any{"type": "object"}}
+	server := variation("Server")
+	server.Instructions = "Same text"
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(newTool, 2)}
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	// The last sync left the variation at the LaunchDarkly prompt and the
+	// tool at its old content. The repository then edited the prompt, and
+	// LaunchDarkly edited the tool.
+	writeManifestResources(t, root)
+	lock := readLock(t, root)
+	projection, err := syncdomain.ProjectVariation(server, *compiled[0].Source)
+	require.NoError(t, err)
+	variationFingerprint, err := syncdomain.FingerprintProjection(compiled[0].ID(), projection)
+	require.NoError(t, err)
+	lock.SetFingerprint(compiled[0].ID(), variationFingerprint)
+	require.NoError(t, lock.SetSource(compiled[0].ID(), compiled[0].Source, "python/1", compiled[0].IndexedSelections))
+	recorded, err := syncdomain.SyncedAttachment{
+		ProjectKey: "production", Attachment: toolAttachment(oldTool, 1), Source: linked[0].Source,
+	}.Fingerprint()
+	require.NoError(t, err)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	api := &directAPI{
+		variation: &server,
+		tools:     map[string]versionedTool{"search": {Tool: newTool, Version: 2}},
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionBoth, "tool:search": syncdomain.SyncDirectionBoth,
+		},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tool search update_local", "variation support/default update_server"}, planRows(t, stdout), "the tool pulls on its own row and the variation pushes")
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Local text", api.variation.Instructions, "the variation pushes its prompt")
+	assert.Zero(t, countRequests(api.requests, "PATCH", "/ai-tools/search"), "the tool is not written")
+	content, err := os.ReadFile(filepath.Join(root, "tool.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `"New"`, "the tool pull reaches the repository source")
+}
+
+// A variation push must not write a linked tool whose owned fields match,
+// even when LaunchDarkly holds extra fields that the link does not own.
+func TestVariationPushKeepsUnownedFieldsOfALinkedTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Shared","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Local name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Shared"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	serverTool := syncdomain.Tool{
+		Key: "search", Description: pointer("Shared"), Schema: map[string]any{"type": "object"},
+		CustomParameters: map[string]any{"timeout": float64(5)},
+	}
+	server := variation("Server name")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(serverTool, 1)}
+	// The last sync recorded the variation with the linked tool on its
+	// mapped fields, as the plan compares it.
+	baseline := server
+	baseline.Attachments = local.Attachments
+	writeManifest(t, root, baseline)
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{"search": {Tool: serverTool, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default update_server"}, planRows(t, stdout), "the tool has no owned change")
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Zero(t, countRequests(api.requests, "PATCH", "/ai-tools/search"), "the linked tool is not written")
+	assert.Equal(t, map[string]any{"timeout": float64(5)}, api.tools["search"].CustomParameters, "LaunchDarkly keeps its own fields")
+	assert.Equal(t, "Local name", api.variation.Name)
+}
+
+// A push of a managed variation that newly attaches a tracked tool pulls
+// that tool first and settles the row with the pulled copy. The settled row
+// is aligned on the mapped fields of its linked tools, and the aligned linked
+// tool keeps its projection, so the push still merges its mapped fields onto
+// the LaunchDarkly copy and a field that LaunchDarkly alone holds survives.
+func TestVariationPushKeepsUnownedFieldsOfALinkedToolBesideAPulledManagedTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Shared","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	linkedLocal := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Shared"), Schema: map[string]any{"type": "object"},
+	}}
+	oldLookup := syncdomain.Tool{Key: "lookup", Description: pointer("Old lookup"), Schema: map[string]any{"type": "object"}}
+	newLookup := syncdomain.Tool{Key: "lookup", Description: pointer("New lookup"), Schema: map[string]any{"type": "object"}}
+	serverSearch := syncdomain.Tool{
+		Key: "search", Description: pointer("Shared"), Schema: map[string]any{"type": "object"},
+		CustomParameters: map[string]any{"timeout": float64(5)},
+	}
+	// The last sync recorded the variation with its linked tool on the
+	// mapped fields, and the managed tool on its own.
+	baseline := variation("Same name")
+	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	baseline.Attachments = []syncdomain.Attachment{linkedLocal}
+	writeManifest(t, root, baseline)
+	trackTool(t, root, oldLookup)
+	local := baseline
+	local.Tools = []syncdomain.AttachmentRef{{Key: "lookup"}, {Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{toolAttachment(oldLookup, 0), linkedLocal}
+	writeVariation(t, root, local, true)
+	server := baseline
+	server.Attachments = []syncdomain.Attachment{toolAttachment(serverSearch, 1)}
+	api := &directAPI{
+		variation: &server,
+		tools: map[string]versionedTool{
+			"lookup": {Tool: newLookup, Version: 2},
+			"search": {Tool: serverSearch, Version: 1},
+		},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionBoth},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tool lookup update_local", "variation support/default update_server"}, planRows(t, stdout))
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Zero(t, countRequests(api.requests, "PATCH", "/ai-tools/search"), "the in-sync linked tool is not written")
+	assert.Equal(t, map[string]any{"timeout": float64(5)}, api.tools["search"].CustomParameters, "LaunchDarkly keeps its own field")
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "lookup", Version: 2}, {Key: "search", Version: 1}}, api.variation.Tools, "the variation pins the pulled tool")
+	assert.Contains(t, readLocalFile(t, root, "tools/lookup.json"), "New lookup", "the managed tool pulls")
+}
+
+// A managed variation that uses a linked tool compares the tool on the fields
+// that the link maps, so a field that LaunchDarkly alone holds does not keep
+// the variation out of sync, and a pull of the variation settles.
+func TestManagedVariationWithALinkedToolIgnoresUnownedToolFields(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Shared","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Same name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Shared"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	writeManifest(t, root, local)
+	serverTool := syncdomain.Tool{
+		Key: "search", Description: pointer("Shared"), Schema: map[string]any{"type": "object"},
+		CustomParameters: map[string]any{"timeout": float64(5)},
+	}
+	server := variation("Same name")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(serverTool, 1)}
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{"search": {Tool: serverTool, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionBoth},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout), "a field that only LaunchDarkly holds is not a change of the variation")
+
+	// A change in LaunchDarkly pulls, and the pull settles although the
+	// local tool never holds the unowned field.
+	server.Name = "Server name"
+	stdout, _, err = runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default update_local"}, planRows(t, stdout))
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	stdout, _, err = runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout), "the pull reaches in sync")
+	assert.Equal(t, map[string]any{"timeout": float64(5)}, api.tools["search"].CustomParameters, "LaunchDarkly keeps its own field")
+}
+
+// A pull of a variation that uses a linked tool gives the tool a row of its
+// own, because the variation write does not touch the repository source of
+// the tool, so a prompts-only pull still brings the tool to the repository.
+func TestManagedVariationPullPlansARowForItsLinkedTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Old","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Same name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Old"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	writeManifest(t, root, local)
+	// The lock records a linked tool by the fingerprint of its projection.
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	recorded, err := syncdomain.SyncedAttachment{
+		ProjectKey: "production", Attachment: toolAttachment(*local.Attachments[0].Tool, 1), Source: linked[0].Source,
+	}.Fingerprint()
+	require.NoError(t, err)
+	lock := readLock(t, root)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	serverTool := syncdomain.Tool{Key: "search", Description: pointer("New"), Schema: map[string]any{"type": "object"}}
+	server := variation("Server name")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(serverTool, 2)}
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{"search": {Tool: serverTool, Version: 2}},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionBoth},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"variation support/default update_local", "tool search update_local"}, planRows(t, stdout), "the linked tool of a pull gets a row")
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	content, err := os.ReadFile(filepath.Join(root, "tool.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `"New"`, "the pull brings the tool edit to the repository source")
+	stdout, _, err = runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout))
+}
+
+// A variation push publishes the linked tools that it uses through the latest
+// LaunchDarkly copy. A linked tool that was in sync at the review has no row,
+// so a change to its mapped fields after the review stops the push instead of
+// being written over.
+func TestVariationPushStopsWhenAnInSyncLinkedToolChangesAfterReview(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Shared","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Local name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Shared"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	serverTool := syncdomain.Tool{Key: "search", Description: pointer("Shared"), Schema: map[string]any{"type": "object"}}
+	server := variation("Server name")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(serverTool, 1)}
+	writeManifest(t, root, server)
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{"search": {Tool: serverTool, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+	}
+	onNthRead(api, "/ai-tools/search", 3, func() {
+		tool := api.tools["search"]
+		tool.Description = pointer("Changed after review")
+		api.tools["search"] = tool
+	})
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "changed in LaunchDarkly after review")
+	assert.Zero(t, countRequests(api.requests, "PATCH", "/ai-tools/search"), "the linked tool is not written")
+	assert.Equal(t, "Changed after review", *api.tools["search"].Description)
+	assert.Equal(t, "Server name", api.variation.Name, "the variation is not pushed")
+}
+
+// A conflict that LaunchDarkly wins becomes a pull. The pull checks run on it
+// before the review, so a pull that cannot clear a mapped field is a problem
+// in the plan, not a failure after the confirmation.
+func TestResolvedConflictPullIsCheckedBeforeTheReview(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local text","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	baseline := toolAttachment(syncdomain.Tool{Key: "search", Description: pointer("Old text"), Schema: map[string]any{"type": "object"}}, 1)
+	writeManifestResources(t, root)
+	trackAttachment(t, root, baseline)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	recorded, err := syncdomain.SyncedAttachment{ProjectKey: "production", Attachment: baseline, Source: linked[0].Source}.Fingerprint()
+	require.NoError(t, err)
+	lock := readLock(t, root)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	// LaunchDarkly dropped the description, so both sides changed.
+	api := &directAPI{tools: map[string]versionedTool{"search": {
+		Tool: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}, Version: 2,
+	}}}
+
+	resolution, err := syncprompt.ParseConflictResolution("launchdarkly")
+	require.NoError(t, err)
+	stdout, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopeTools, Action: syncprompt.SyncAction{Filter: syncdomain.Filter{Project: "production"}},
+		Yes: true, NoInput: true, ConflictPolicy: syncprompt.ConflictPolicy{Default: resolution}, OutputKind: "json",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `mapped field "description"`, "the review reports the pull that cannot clear the field")
+	assert.NotContains(t, stdout, `"status": "failed"`, "nothing was applied")
+	data, readErr := os.ReadFile(filepath.Join(root, "tool.json"))
+	require.NoError(t, readErr)
+	assert.Contains(t, string(data), "Local text", "the source is unchanged")
+}
+
+// A variation conflict that the user resolves to the local side becomes a
+// push. A linked tool that the push would publish still follows its own sync
+// setting, so it gets a row of its own in the conflicted plan.
+func TestConflictResolvedToLocalRespectsTheSettingOfALinkedTool(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Local name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Local"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	baselineTool := syncdomain.Tool{Key: "search", Description: pointer("Baseline"), Schema: map[string]any{"type": "object"}}
+	baseline := variation("Baseline name")
+	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	baseline.Attachments = []syncdomain.Attachment{toolAttachment(baselineTool, 1)}
+	writeManifest(t, root, baseline)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	recorded, err := syncdomain.SyncedAttachment{ProjectKey: "production", Attachment: toolAttachment(baselineTool, 1), Source: linked[0].Source}.Fingerprint()
+	require.NoError(t, err)
+	lock := readLock(t, root)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	// Both sides changed the variation name, and the tool changed only locally.
+	serverTool := baselineTool
+	server := variation("Server name")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(serverTool, 1)}
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{"search": {Tool: serverTool, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.Error(t, err, "a dry run reports the conflict as blocking")
+	assert.Equal(t, []string{"tool search update_local", "variation support/default conflict"}, planRows(t, stdout), "the linked tool has a row in the conflicted plan")
+
+	_, _, err = runPrompt(t, root, api, "--conflict", "local", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Baseline", *api.tools["search"].Description, "the server-canonical tool is not published by the push")
+	assert.Equal(t, "Local name", api.variation.Name, "the variation push wins the conflict")
+}
+
+// A pull over a linked tool that changed locally becomes a conflict in the
+// baseline checks. The linked tool still gets its row, so that a choice of
+// the local side cannot publish a server-canonical tool.
+func TestConflictFromABaselineCheckStillPlansTheLinkedToolRow(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	local := variation("Baseline name")
+	local.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	local.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{
+		Key: "search", Description: pointer("Local"), Schema: map[string]any{"type": "object"},
+	}}}
+	writeVariation(t, root, local, true)
+	baselineTool := syncdomain.Tool{Key: "search", Description: pointer("Baseline"), Schema: map[string]any{"type": "object"}}
+	baseline := variation("Baseline name")
+	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	baseline.Attachments = []syncdomain.Attachment{toolAttachment(baselineTool, 1)}
+	writeManifest(t, root, baseline)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	recorded, err := syncdomain.SyncedAttachment{ProjectKey: "production", Attachment: toolAttachment(baselineTool, 1), Source: linked[0].Source}.Fingerprint()
+	require.NoError(t, err)
+	lock := readLock(t, root)
+	lock.SetFingerprint(linked[0].ID(), recorded)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	// Only LaunchDarkly changed the variation, so the row is a pull until
+	// the baseline check sees the local change to the tool.
+	server := variation("Server name")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(baselineTool, 1)}
+	api := &directAPI{
+		variation:  &server,
+		tools:      map[string]versionedTool{"search": {Tool: baselineTool, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{"tool:search": syncdomain.SyncDirectionServerCanonical},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.Error(t, err, "a dry run reports the conflict as blocking")
+	assert.Equal(t, []string{"tool search update_local", "variation support/default conflict"}, planRows(t, stdout), "the linked tool has a row in the conflicted plan")
+
+	_, _, err = runPrompt(t, root, api, "--conflict", "local", "--yes", "--no-input")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Baseline", *api.tools["search"].Description, "the server-canonical tool is not published by the push")
+	assert.Equal(t, "Baseline name", api.variation.Name, "the variation push wins the conflict")
+}
+
+// A code-canonical setting turns a planned pull of a linked variation into a
+// push. The linked tool that the push would publish still gets its row, so
+// its own setting decides.
+func TestSettingFlipToPushStillPlansTheLinkedToolRow(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(instructions=\"Local text\")\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: agents.py\nformat: python\nselect: 'agents[id=\"support\"]'\nmap:\n  prompt: instructions\ntools:\n  - key: search\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tool.json"), []byte(`{"description":"Local tool","schema":{"type":"object"}}`), 0o644))
+	writeLocalFile(t, root, "tools/search.ref.yaml",
+		"formatVersion: 1\nfile: tool.json\nformat: json\nselect: $\nmap:\n  description: description\n  schema: schema\n")
+	baselineTool := syncdomain.Tool{Key: "search", Description: pointer("Baseline tool"), Schema: map[string]any{"type": "object"}}
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	linked, err := synclocal.CompileAttachments(root, func(syncdomain.ResourceID) bool { return true })
+	require.NoError(t, err)
+	// The last sync left the variation at "Local text" and the tool at its baseline.
+	server := variation("Server")
+	server.Instructions = "Local text"
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments = []syncdomain.Attachment{toolAttachment(baselineTool, 1)}
+	writeManifestResources(t, root)
+	lock := readLock(t, root)
+	projection, err := syncdomain.ProjectVariation(server, *compiled[0].Source)
+	require.NoError(t, err)
+	variationFingerprint, err := syncdomain.FingerprintProjection(compiled[0].ID(), projection)
+	require.NoError(t, err)
+	lock.SetFingerprint(compiled[0].ID(), variationFingerprint)
+	require.NoError(t, lock.SetSource(compiled[0].ID(), compiled[0].Source, "python/1", compiled[0].IndexedSelections))
+	toolFingerprint, err := syncdomain.SyncedAttachment{ProjectKey: "production", Attachment: toolAttachment(baselineTool, 1), Source: linked[0].Source}.Fingerprint()
+	require.NoError(t, err)
+	lock.SetFingerprint(linked[0].ID(), toolFingerprint)
+	require.NoError(t, lock.SetSource(linked[0].ID(), linked[0].Source, "json/1", linked[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	// LaunchDarkly changed the instructions, so the plan is a pull until the
+	// code-canonical setting turns it into a push.
+	server.Instructions = "Server text"
+	api := &directAPI{
+		variation: &server,
+		tools:     map[string]versionedTool{"search": {Tool: baselineTool, Version: 1}},
+		directions: map[string]syncdomain.SyncDirection{
+			"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+			"tool:search":               syncdomain.SyncDirectionServerCanonical,
+		},
+	}
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tool search update_local", "variation support/default update_server"}, planRows(t, stdout),
+		"the flipped push plans a row for its linked tool")
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Baseline tool", *api.tools["search"].Description, "the server-canonical tool is not published")
+	assert.Equal(t, "Local text", api.variation.Instructions, "the code-canonical variation is pushed")
 }

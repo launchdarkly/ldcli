@@ -21,15 +21,38 @@ type recordedRequest struct {
 	Query       url.Values
 	Body        []byte
 	IsBeta      bool
+	// Headers holds the extra headers of a request sent with headers. It is
+	// nil for a request sent without them.
+	Headers http.Header
 }
 
 type recordingClient struct {
 	Requests  []recordedRequest
 	Responses [][]byte
 	Err       error
+	// Errors fails one request by its index. A nil entry lets the request
+	// answer from Responses.
+	Errors []error
 }
 
-var _ resources.Client = &recordingClient{}
+var _ resources.HeaderClient = &recordingClient{}
+
+// MakeRequestWithHeaders records the extra headers and answers as
+// MakeRequest does.
+func (client *recordingClient) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
+	response, err := client.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+	client.Requests[len(client.Requests)-1].Headers = headers
+	return response, err
+}
 
 func (client *recordingClient) MakeRequest(
 	accessToken string,
@@ -51,6 +74,9 @@ func (client *recordingClient) MakeRequest(
 	})
 	if client.Err != nil {
 		return nil, client.Err
+	}
+	if index := len(client.Requests) - 1; index < len(client.Errors) && client.Errors[index] != nil {
+		return nil, client.Errors[index]
 	}
 	if len(client.Responses) < len(client.Requests) {
 		return nil, nil
@@ -463,7 +489,6 @@ func TestClientArchiveVariationReturnsTransportError(t *testing.T) {
 
 func TestClientGetsSyncManifest(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{[]byte(`{
-		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"items": [{
 			"resourceKind": "variation",
@@ -488,7 +513,6 @@ func TestClientGetsSyncManifest(t *testing.T) {
 
 func TestClientPatchesSyncManifest(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{[]byte(`{
-		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"items": []
 	}`)}}
@@ -510,7 +534,6 @@ func TestClientPatchesSyncManifest(t *testing.T) {
 	assert.Equal(t, http.MethodPatch, request.Method)
 	assert.Equal(t, "application/json", request.ContentType)
 	assert.JSONEq(t, `{
-		"formatVersion": 1,
 		"source": "git:example.com/acme/repo",
 		"upserts": [{
 			"resourceKind": "variation",
@@ -522,17 +545,23 @@ func TestClientPatchesSyncManifest(t *testing.T) {
 	}`, string(request.Body))
 }
 
-func TestClientRejectsUnknownSyncManifestVersion(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
-		"formatVersion": 99,
-		"source": "git:example.com/acme/repo",
-		"items": []
-	}`)}}
+// The manifest API has no format version. An empty manifest and a manifest
+// with entries both read as they are.
+func TestClientReadsAManifestWithoutAFormatVersion(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{
+		[]byte(`{"items":[],"source":"git:example.com/acme/repo"}`),
+		[]byte(`{"items":[{"resourceKind":"variation","resourceLookupKey":"support/helpful","fingerprint":"sha256:abc","version":1}],"source":"git:example.com/acme/repo"}`),
+	}}
 	client := NewClient(transport, "token", "https://example.com")
 
-	_, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
+	empty, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
+	require.NoError(t, err)
+	assert.Empty(t, empty.Items)
 
-	require.ErrorContains(t, err, "unsupported formatVersion 99")
+	written, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
+	require.NoError(t, err)
+	require.Len(t, written.Items, 1)
+	assert.Equal(t, 1, written.Items[0].Version)
 }
 
 func TestIsConflictRecognizesAPIStatus(t *testing.T) {
@@ -589,4 +618,69 @@ func testVariation(mode syncdomain.VariationMode) syncdomain.Variation {
 		ModelConfigKey: "claude",
 		Model:          map[string]any{"modelName": "claude-3-5-sonnet"},
 	}
+}
+
+// A client with a source sends it in LD-Sync-Source with every read and
+// write, so LaunchDarkly knows which repository syncs.
+func TestClientWithSourceSendsTheSyncSourceHeader(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`[]`), nil}}
+	client := NewClient(transport, "token", "https://example.com").WithSource("git:example/repo")
+
+	_, err := client.ModelConfigs("project")
+	require.NoError(t, err)
+	err = client.ArchiveVariation("project", "support", "default")
+	require.NoError(t, err)
+
+	require.Len(t, transport.Requests, 2)
+	for _, request := range transport.Requests {
+		assert.Equal(t, "git:example/repo", request.Headers.Get(SyncSourceHeader), request.Method+" "+request.Path)
+	}
+}
+
+// A client without a source sends no sync source header.
+func TestClientWithoutSourceSendsNoSyncSourceHeader(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`[]`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	_, err := client.ModelConfigs("project")
+
+	require.NoError(t, err)
+	require.Len(t, transport.Requests, 1)
+	assert.Nil(t, transport.Requests[0].Headers)
+}
+
+// plainClient cannot send extra headers. It holds the recording client in a
+// field, so that the header method is not promoted.
+type plainClient struct {
+	inner *recordingClient
+}
+
+var _ resources.Client = plainClient{}
+
+func (client plainClient) MakeRequest(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	isBeta bool,
+) ([]byte, error) {
+	return client.inner.MakeRequest(accessToken, method, path, contentType, query, body, isBeta)
+}
+
+func (client plainClient) MakeUnauthenticatedRequest(method, path string, body []byte) ([]byte, error) {
+	return client.inner.MakeUnauthenticatedRequest(method, path, body)
+}
+
+// A transport that cannot send headers still gets the request.
+func TestClientWithSourceFallsBackToAPlainTransport(t *testing.T) {
+	inner := &recordingClient{Responses: [][]byte{[]byte(`[]`)}}
+	client := NewClient(plainClient{inner: inner}, "token", "https://example.com").WithSource("git:example/repo")
+
+	_, err := client.ModelConfigs("project")
+
+	require.NoError(t, err)
+	require.Len(t, inner.Requests, 1)
+	assert.Nil(t, inner.Requests[0].Headers)
 }

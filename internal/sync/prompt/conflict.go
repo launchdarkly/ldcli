@@ -321,13 +321,38 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 		if !chosenSideUses(resource, resolutions) {
 			continue
 		}
-		if resolution, ok := resolutions[resource.ID]; ok {
+		if resolution, ok := resolutions[resource.ID]; ok && !settingDecides(resource) {
 			resource.Action = resolvedConflictAction(resource, resolution)
+			if message := againstSetting(resource); message != "" {
+				resource.Action, resource.Error = ActionError, message
+			}
+			blockLinkedDelete(&resource)
 		}
 		resolved.Resources = append(resolved.Resources, resource)
 	}
 	checkResolvedAttachmentDeletes(resolved.Resources)
 	return resolved
+}
+
+// againstSetting returns the error of a resolved variation whose chosen side
+// its LaunchDarkly sync setting forbids, or an empty string.
+func againstSetting(resource PlannedResource) string {
+	switch {
+	case resource.Direction == syncdomain.SyncDirectionServerCanonical && resource.Action.changesServer():
+		return "server-canonical resource cannot push; choose launchdarkly"
+	case resource.Direction == syncdomain.SyncDirectionCodeCanonical && resource.Action.changesLocal():
+		return "code-canonical resource cannot pull; choose local"
+	}
+	return ""
+}
+
+// settingDecides reports whether the LaunchDarkly sync setting of a linked
+// tool or skill fixed the action of its row. The setting outranks a conflict
+// choice, so a server-canonical tool is never pushed because a variation
+// that uses it chose the local side.
+func settingDecides(resource PlannedResource) bool {
+	return resource.ID.Kind != syncdomain.KindVariation && resource.Action != ActionConflict &&
+		resource.Direction != "" && resource.Direction != syncdomain.SyncDirectionBoth
 }
 
 // chosenSideUses reports whether a row stays after the conflict choices. A

@@ -1,0 +1,16 @@
+service: support
+agents:
+  - name: support
+    prompt: "Ask for an order ID."
+    model:
+      name: gpt-5
+      temperature: 0.2
+      enabled: true
+  - name: refunds
+    prompt: 'Explain the refund policy.'
+    model:
+      name: gpt-5
+      temperature: 0.1
+      enabled: false
+metadata:
+  "display.name": Support agents

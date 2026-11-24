@@ -101,6 +101,20 @@ type SyncedAttachment struct {
 	Projection        Projection
 }
 
+// Fingerprint returns the fingerprint that sync.lock records for the tool or
+// the skill. A descriptor-backed source records the fingerprint of its
+// projection. A managed file records the fingerprint of the full content.
+func (attachment SyncedAttachment) Fingerprint() (string, error) {
+	if attachment.Source == nil {
+		return FingerprintAttachment(attachment.ProjectKey, attachment.Attachment)
+	}
+	projection, err := ProjectAttachment(attachment.Attachment, *attachment.Source)
+	if err != nil {
+		return "", err
+	}
+	return FingerprintProjection(attachment.ID(), projection)
+}
+
 // ID returns the identity of the tool or the skill.
 func (attachment SyncedAttachment) ID() ResourceID {
 	return attachment.Attachment.ID(attachment.ProjectKey)

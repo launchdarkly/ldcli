@@ -92,3 +92,20 @@ func responseError(err error) (map[string]any, bool) {
 	}
 	return nil, false
 }
+
+// IsForbidden reports whether a LaunchDarkly API error has a 403 status.
+func IsForbidden(err error) bool {
+	status, ok := responseStatusCode(err)
+	return ok && status == http.StatusForbidden
+}
+
+// ResponseCode returns the machine-readable code of a LaunchDarkly API error
+// body, or "" when the body has none.
+func ResponseCode(err error) string {
+	response, ok := responseError(err)
+	if !ok {
+		return ""
+	}
+	code, _ := response["code"].(string)
+	return code
+}
