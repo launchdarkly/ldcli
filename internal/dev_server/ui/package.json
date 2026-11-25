@@ -48,7 +48,15 @@
     "vitest": "5.0.5"
   },
   "overrides": {
-    "react-router-dom": "6.30.1",
-    "@remix-run/router": "1.23.3"
+    "react-router-dom": "6.30.4",
+    "@remix-run/router": "1.23.3",
+    "@launchpad-ui/overlay": "0.3.31",
+    "@launchpad-ui/popover": "0.11.45",
+    "@launchpad-ui/portal": "0.1.6",
+    "@launchpad-ui/table": "0.6.31",
+    "@launchpad-ui/tooltip": "0.9.34",
+    "framer-motion@12.15.0": {
+      "motion-dom": "12.15.0"
+    }
   }
 }
