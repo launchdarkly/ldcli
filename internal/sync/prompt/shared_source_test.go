@@ -106,6 +106,13 @@ func TestTwoLaunchDarklyOwnedPullsIntoOneValueAreRefusedAsASharedSource(t *testi
 	assert.Contains(t, output, `constants[id="PROMPT"] in agents.py`, "the refusal names the shared value")
 	assert.Contains(t, output, "its own", "the refusal suggests giving each variation its own value")
 	assert.NotContains(t, output, "same owner")
+	assert.Contains(t, output,
+		`variations production/support/first and production/support/second both read constants[id="PROMPT"] in agents.py, so sync can't pull into it`,
+		"the refusal names both variations neutrally, so it is right on each row")
+	for _, label := range []string{"production/support/first", "production/support/second"} {
+		assert.NotContains(t, output, "variation "+label+" also reads",
+			"a row must not say its own variation shares with itself:\n%s", output)
+	}
 	content, readErr := os.ReadFile(filepath.Join(root, "agents.py"))
 	require.NoError(t, readErr)
 	assert.Equal(t, original, string(content), "the source file is unchanged")

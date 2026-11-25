@@ -205,6 +205,47 @@ func TestCheckSourcesNamesTheEditedDependencyOfAnotherVariation(t *testing.T) {
 		"so this change would change it too", problem.Message)
 }
 
+// When the other variation reads the edited file through an import, the
+// suggestion names the variation whose edit changed that file, not the first
+// variation of the group.
+func TestCheckSourcesSuggestionNamesTheVariationThatEditedTheDependency(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "app/agent.py", "from agents import Agent\nfrom .prompts import PROMPT\nagent = Agent(instructions=PROMPT, model=\"gpt-5\")\n")
+	writeTestFile(t, root, "app/prompts.py", "PROMPT = \"Original\"\n")
+	writeTestFile(t, root, "app/other.py", "OTHER = \"Original\"\n")
+	importing := syncdomain.VariationID("project", "support", "importing")
+	writeDescriptorForTest(t, root, importing, Reference{
+		File: "app/agent.py", Format: "python", Select: `agents[id="agent"]`, Map: map[string]string{"prompt": "instructions"},
+	})
+	unrelated := syncdomain.VariationID("project", "support", "unrelated")
+	unrelatedReference := Reference{
+		File: "app/other.py", Format: "python", Select: `constants[id="OTHER"]`, Map: map[string]string{"prompt": "$"},
+	}
+	writeDescriptorForTest(t, root, unrelated, unrelatedReference)
+	edited := syncdomain.VariationID("project", "support", "edited")
+	editedReference := Reference{
+		File: "app/prompts.py", Format: "python", Select: `constants[id="PROMPT"]`, Map: map[string]string{"prompt": "$"},
+	}
+	writeDescriptorForTest(t, root, edited, editedReference)
+
+	err := NewStore(root).CheckSources([]SourceReplacement{
+		{
+			ID: unrelated, Reference: unrelatedReference,
+			Projection: syncdomain.VariationProjection{Mode: syncdomain.VariationModeAgent, Instructions: stringPointer("Other")},
+		},
+		{
+			ID: edited, Reference: editedReference,
+			Projection: syncdomain.VariationProjection{Mode: syncdomain.VariationModeAgent, Instructions: stringPointer("Updated")},
+		},
+	})
+
+	require.Error(t, err)
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok)
+	assert.Contains(t, problem.Suggestion, edited.Label())
+	assert.NotContains(t, problem.Suggestion, unrelated.Label())
+}
+
 func TestWriteDescriptorCreatesUpdatesAndKeepsIdenticalContent(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "first.md", "First.\n")
