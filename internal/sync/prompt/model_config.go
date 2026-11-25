@@ -45,20 +45,22 @@ func canonicalizeLocalVariationModels(
 		}
 		if variation.ModelConfigVersion != 0 {
 			if modelConfig.Version > 0 && variation.ModelConfigVersion > modelConfig.Version {
-				return nil, syncapi.WithContext(syncapi.NotFoundError(fmt.Sprintf(
-					"model config %q has no version %d. Its latest version is %d.",
-					variation.ModelConfigKey, variation.ModelConfigVersion, modelConfig.Version,
-				)), canonical[index].ID().Label())
+				return nil, syncdomain.NewProblem(
+					syncdomain.ErrorInvalidReference,
+					fmt.Sprintf("model config %q has no version %d", variation.ModelConfigKey, variation.ModelConfigVersion),
+					fmt.Sprintf("Its latest version is %d. Pin that version, or remove modelConfigVersion.", modelConfig.Version),
+				).WithResource(canonical[index].ID())
 			}
 			continue
 		}
 		if modelName, ok := variation.Model["modelName"]; ok && modelName != "" &&
 			modelName != modelConfig.ID && modelName != modelConfig.Key &&
 			!serverHoldsModelName(server[canonical[index].ID()], variation.ModelConfigKey, modelName) {
-			return nil, fmt.Errorf(
-				"%s: model %q does not match model config %q, whose model is %q. Use that name, or remove modelName.",
-				canonical[index].ID().Label(), modelName, variation.ModelConfigKey, modelConfig.ID,
-			)
+			return nil, syncdomain.NewProblem(
+				syncdomain.ErrorInvalidReference,
+				fmt.Sprintf("model %q does not match model config %q, whose model is %q", modelName, variation.ModelConfigKey, modelConfig.ID),
+				"Use that name, or remove modelName.",
+			).WithResource(canonical[index].ID())
 		}
 		if modelConfig.Version == 0 {
 			continue

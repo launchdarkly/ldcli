@@ -631,8 +631,8 @@ func TestPromptRejectsModelNameThatDoesNotMatchTheModelConfig(t *testing.T) {
 			stdout, _, err := runPrompt(t, root, api, mode)
 
 			require.Error(t, err)
-			assert.Contains(t, stdout+err.Error(),
-				`model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5". Use that name, or remove modelName.`)
+			assert.Contains(t, stdout+err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`)
+			assert.Contains(t, stdout+err.Error(), "Use that name, or remove modelName.")
 			requireOnlyReads(t, api.requests)
 			assert.Nil(t, api.variation, "nothing is created")
 		})
@@ -757,7 +757,8 @@ func TestPromptRejectsModelNameKeptFromTheOldModelConfig(t *testing.T) {
 	_, _, err := runPrompt(t, root, api, "--yes")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5".`)
+	assert.Contains(t, err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`)
+	assert.Contains(t, err.Error(), "Use that name, or remove modelName.")
 	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/default"), "nothing is pushed: %v", api.requests)
 }
 
@@ -785,8 +786,8 @@ func TestPromptRejectsEditedModelNameOfAnInSyncVariation(t *testing.T) {
 	stdout, _, err := runPrompt(t, root, api, "--yes")
 
 	require.Error(t, err)
-	assert.Contains(t, stdout+err.Error(),
-		`model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5". Use that name, or remove modelName.`)
+	assert.Contains(t, stdout+err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`)
+	assert.Contains(t, stdout+err.Error(), "Use that name, or remove modelName.")
 	requireOnlyReads(t, api.requests)
 	assert.Equal(t, "Anthropic.claude-haiku-4-5", api.variation.Model["modelName"], "LaunchDarkly is unchanged")
 }
@@ -810,7 +811,8 @@ func TestPromptRejectsPinnedModelConfigVersionAboveTheLatest(t *testing.T) {
 	message := stdout + err.Error()
 	assert.Contains(t, message, "production/support/default", "the message names the variation")
 	assert.Contains(t, message, `model config "Anthropic.claude-haiku-4-5" has no version 5`)
-	assert.Contains(t, message, "not_found")
+	assert.Contains(t, message, "invalid_reference")
+	assert.Contains(t, message, "Its latest version is 2.")
 	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"), "the config is not created")
 	assert.Zero(t, countRequests(api.requests, "POST", "/variations"), "the variation is not created")
 }

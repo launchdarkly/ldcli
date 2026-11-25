@@ -54,13 +54,6 @@ func WithContext(err error, description string) error {
 	return contextualAPIError(err, description, "")
 }
 
-// NotFoundError returns an error in the form of a LaunchDarkly 404 response,
-// for a resource that sync finds missing before it sends a request.
-func NotFoundError(message string) error {
-	body, _ := json.Marshal(map[string]any{"code": "not_found", "message": message, "statusCode": http.StatusNotFound})
-	return errors.New(string(body))
-}
-
 // contextualAPIError adds a description to an API error. It keeps the
 // structured fields of the response. If the resource is not found in
 // projectKey, the error suggests a fix.
