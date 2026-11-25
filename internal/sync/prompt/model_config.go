@@ -39,7 +39,7 @@ func canonicalizeLocalVariationModels(
 	for index := range canonical {
 		variation := &canonical[index].Variation
 		if variation.ModelConfigKey == "" {
-			if emptyModelNameRefused(*variation, server[canonical[index].ID()], "") {
+			if emptyModelNameRefused(*variation, server[canonical[index].ID()], "", 0) {
 				return nil, emptyModelNameProblem(canonical[index].ID())
 			}
 			continue
@@ -52,7 +52,7 @@ func canonicalizeLocalVariationModels(
 		// one. The file is in sync, so a model config that LaunchDarkly no
 		// longer serves does not stop the plan.
 		if pinned != 0 && serverPins(server[resourceID], variation.ModelConfigKey, pinned) &&
-			(!named || serverHoldsModelName(server[resourceID], variation.ModelConfigKey, pinned, modelName)) {
+			(!named || serverHoldsModelName(server[resourceID], variation.ModelConfigKey, pinned, 0, modelName)) {
 			continue
 		}
 
@@ -65,15 +65,16 @@ func canonicalizeLocalVariationModels(
 			}
 			modelConfigs[id] = modelConfig
 		}
-		if pinned != 0 && modelConfig.Version > 0 && pinned > modelConfig.Version {
+		// LaunchDarkly numbers versions from 1 and does not skip a number.
+		if pinned < 0 || (pinned != 0 && modelConfig.Version > 0 && pinned > modelConfig.Version) {
 			return nil, noModelConfigVersionProblem(variation.ModelConfigKey, pinned, modelConfig.Version, resourceID)
 		}
 
-		if emptyModelNameRefused(*variation, server[resourceID], modelConfig.ID) {
+		if emptyModelNameRefused(*variation, server[resourceID], modelConfig.ID, modelConfig.Version) {
 			return nil, emptyModelNameProblem(resourceID)
 		}
 		if modelName != "" && modelName != variation.ModelConfigKey &&
-			!serverHoldsModelName(server[resourceID], variation.ModelConfigKey, pinned, modelName) {
+			!serverHoldsModelName(server[resourceID], variation.ModelConfigKey, pinned, modelConfig.Version, modelName) {
 			// The version the variation uses names its model.
 			used := modelConfig
 			if pinned != 0 && modelConfig.Version > 0 && pinned != modelConfig.Version {
@@ -81,7 +82,7 @@ func canonicalizeLocalVariationModels(
 				if !ok {
 					var err error
 					if versions, err = getModelConfigVersions(id.projectKey, id.key); err != nil {
-						return nil, modelConfigLookupError(id.projectKey, id.key, resourceID, err)
+						return nil, modelConfigVersionsLookupError(id.projectKey, id.key, resourceID, err)
 					}
 					modelConfigVersions[id] = versions
 				}
@@ -124,6 +125,20 @@ func modelConfigLookupError(projectKey, modelConfigKey string, resource Resource
 	), err).WithResource(resource)
 }
 
+// modelConfigVersionsLookupError refuses a variation if LaunchDarkly finds its
+// model config but not the versions of that model config. It returns any other
+// error unchanged.
+func modelConfigVersionsLookupError(projectKey, modelConfigKey string, resource ResourceID, err error) error {
+	if !syncapi.IsNotFound(err) {
+		return err
+	}
+	return syncdomain.WrapProblem(syncdomain.NewProblem(
+		syncdomain.ErrorInvalidReference,
+		fmt.Sprintf("LaunchDarkly did not return the versions of model config %q in project %q", modelConfigKey, projectKey),
+		"Run the command again. If the error continues, examine the model config in LaunchDarkly.",
+	), err).WithResource(resource)
+}
+
 // noModelConfigVersionProblem refuses a variation that pins a version that
 // its model config does not have.
 func noModelConfigVersionProblem(modelConfigKey string, pinned, latest int, resource ResourceID) error {
@@ -138,14 +153,19 @@ func noModelConfigVersionProblem(modelConfigKey string, pinned, latest int, reso
 // for the variation under the same model config. Some LaunchDarkly UI paths
 // store a name that is not the model config's id, and an unchanged name is not
 // refused. A name held under another model config is checked, because the file
-// switched model configs and kept the old name. If the file pins a version,
-// LaunchDarkly must pin the same version, because each version names its own
-// model.
-func serverHoldsModelName(server ServerResource, modelConfigKey string, pinned int, modelName string) bool {
+// switched model configs and kept the old name. Each version names its own
+// model, so LaunchDarkly must hold the name under the version that the file
+// uses. If the file pins a version, LaunchDarkly must pin the same version.
+// If the file pins no version, it uses latest, the latest version, and
+// LaunchDarkly must pin latest or no version.
+func serverHoldsModelName(server ServerResource, modelConfigKey string, pinned, latest int, modelName string) bool {
 	if server.Variation == nil || server.Variation.ModelConfigKey != modelConfigKey {
 		return false
 	}
 	if pinned != 0 && !serverPins(server, modelConfigKey, pinned) {
+		return false
+	}
+	if pinned == 0 && server.Variation.ModelConfigVersion != 0 && server.Variation.ModelConfigVersion != latest {
 		return false
 	}
 	held, _ := server.Variation.Model["modelName"].(string)
@@ -200,13 +220,14 @@ func variationForLocalFile(server syncdomain.Variation, localFile, canonicalLoca
 // emptyModelNameRefused reports whether the file sets modelName to an empty
 // string that names no model. A name LaunchDarkly already holds for the
 // variation under the same model config is in sync and is not refused, and
-// neither is the empty id of a model config that has none.
-func emptyModelNameRefused(variation syncdomain.Variation, server ServerResource, modelConfigID string) bool {
+// neither is the empty id of a model config that has none. latest is the
+// latest version of the model config.
+func emptyModelNameRefused(variation syncdomain.Variation, server ServerResource, modelConfigID string, latest int) bool {
 	name, set := variation.Model["modelName"]
 	if !set || name != "" || (variation.ModelConfigKey != "" && modelConfigID == "") {
 		return false
 	}
-	return !serverHoldsModelName(server, variation.ModelConfigKey, variation.ModelConfigVersion, "")
+	return !serverHoldsModelName(server, variation.ModelConfigKey, variation.ModelConfigVersion, latest, "")
 }
 
 func emptyModelNameProblem(id ResourceID) error {
