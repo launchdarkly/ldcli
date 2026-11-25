@@ -153,7 +153,10 @@ func blockUnsupportedFields(resource *PlannedResource) {
 }
 
 // blockEmptyPrompt refuses to write an empty prompt from a linked source
-// over the prompt in LaunchDarkly.
+// over the prompt in LaunchDarkly. It runs once the action of the row is
+// final: after the sync settings (checkSourcePublications) and after a
+// conflict choice (applyConflictResolutions), because either can turn a row
+// into a push.
 func blockEmptyPrompt(resource *PlannedResource) {
 	if resource.Action != ActionCreateServer && resource.Action != ActionUpdateServer {
 		return
@@ -398,7 +401,6 @@ func planResource(
 		rejectInvalidCreate(&resource, syncdomain.ValidateCreate(id.Kind, variationKey, local.Variation.Name, ""))
 	}
 	blockUnsupportedFields(&resource)
-	blockEmptyPrompt(&resource)
 	// The fingerprints do not include versions. If LaunchDarkly pins an older
 	// attachment version, sync updates the pin even when the content matches.
 	currentPins, latestPins, stalePins := attachmentPinDiff(resource.Server)

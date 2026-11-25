@@ -327,6 +327,7 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 				resource.Action, resource.Error = ActionError, message
 			}
 			blockLinkedDelete(&resource)
+			blockEmptyPrompt(&resource)
 		}
 		resolved.Resources = append(resolved.Resources, resource)
 	}
