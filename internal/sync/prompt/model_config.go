@@ -16,9 +16,13 @@ type modelConfigGetter func(projectKey, modelConfigKey string) (syncapi.ModelCon
 // the form that LaunchDarkly stores. A variation that names a model config
 // without a version uses the latest version, and its local model settings
 // replace the settings of that model config. The input does not change.
+//
+// server is what LaunchDarkly holds for each variation. A local modelName
+// that LaunchDarkly already holds for the variation is not checked.
 func canonicalizeLocalVariationModels(
 	localFiles []syncdomain.SyncedResource,
 	getModelConfig modelConfigGetter,
+	server map[ResourceID]ServerResource,
 ) ([]syncdomain.SyncedResource, error) {
 	type modelConfigID struct{ projectKey, key string }
 	modelConfigs := make(map[modelConfigID]syncapi.ModelConfig)
@@ -40,9 +44,17 @@ func canonicalizeLocalVariationModels(
 			modelConfigs[id] = modelConfig
 		}
 		if variation.ModelConfigVersion != 0 {
+			if modelConfig.Version > 0 && variation.ModelConfigVersion > modelConfig.Version {
+				return nil, syncapi.WithContext(syncapi.NotFoundError(fmt.Sprintf(
+					"model config %q has no version %d. Its latest version is %d.",
+					variation.ModelConfigKey, variation.ModelConfigVersion, modelConfig.Version,
+				)), canonical[index].ID().Label())
+			}
 			continue
 		}
-		if modelName, ok := variation.Model["modelName"]; ok && modelName != "" && modelName != modelConfig.ID {
+		if modelName, ok := variation.Model["modelName"]; ok && modelName != "" &&
+			modelName != modelConfig.ID && modelName != modelConfig.Key &&
+			!serverHoldsModelName(server[canonical[index].ID()], modelName) {
 			return nil, fmt.Errorf(
 				"%s: model %q does not match model config %q, whose model is %q. Use that name, or remove modelName.",
 				canonical[index].ID().Label(), modelName, variation.ModelConfigKey, modelConfig.ID,
@@ -58,6 +70,17 @@ func canonicalizeLocalVariationModels(
 		variation.Model = model
 	}
 	return canonical, nil
+}
+
+// serverHoldsModelName reports whether LaunchDarkly already holds modelName
+// for the variation. Some LaunchDarkly UI paths store a name that is not the
+// model config's id, and an unchanged name is not refused.
+func serverHoldsModelName(server ServerResource, modelName any) bool {
+	if server.Variation == nil {
+		return false
+	}
+	held, isText := server.Variation.Model["modelName"].(string)
+	return isText && held == modelName
 }
 
 // variationForLocalFile converts a LaunchDarkly variation to the form of the

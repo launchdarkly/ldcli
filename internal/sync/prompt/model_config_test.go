@@ -44,6 +44,7 @@ func TestCanonicalizeLocalVariationModels(t *testing.T) {
 				"global-model": {Key: "global-model", ID: "global"},
 			}[modelConfigKey], nil
 		},
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -76,6 +77,7 @@ func TestCanonicalizeLocalVariationModelsRejectsUnknownConfig(t *testing.T) {
 		func(string, string) (syncapi.ModelConfig, error) {
 			return syncapi.ModelConfig{}, errors.New("model config not found")
 		},
+		nil,
 	)
 
 	require.ErrorContains(t, err, "model config not found")

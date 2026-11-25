@@ -582,7 +582,7 @@ func TestPromptRejectsModelNameThatIsNotText(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "default.prompt.md")
 			assert.Contains(t, err.Error(),
-				"model.modelName must be text. Set it to the model config's name, or remove the model block.")
+				"model.modelName must be text. Set it to the model config's name, or remove modelName.")
 			requireOnlyReads(t, api.requests)
 			assert.Nil(t, api.variation, "nothing is created")
 			assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "sync.lock"))
@@ -691,6 +691,100 @@ func TestPromptRejectsMissingModelConfigWithAPinnedVersion(t *testing.T) {
 		assert.Zero(t, countRequests(api.requests, "POST", "/variations"), "the variation is not created")
 		assert.True(t, api.configMissing)
 	})
+}
+
+// haikuSynced writes a lock and a LaunchDarkly copy that hold serverName for
+// the haiku model config, as a pull writes them, and a file that holds
+// localName. The model config is unversioned, as LaunchDarkly can serve it.
+func haikuSynced(t *testing.T, localName, serverName string) (string, *directAPI) {
+	t.Helper()
+	root := initRepository(t)
+	withName := func(name string) syncdomain.Variation {
+		v := variation("Baseline")
+		v.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+		v.Model = map[string]any{"modelName": name, "parameters": map[string]any{}, "custom": map[string]any{}}
+		return v
+	}
+	writeVariation(t, root, withName(localName), true)
+	writeManifest(t, root, withName(serverName))
+	return root, &directAPI{
+		variation:    pointer(withName(serverName)),
+		modelConfigs: []syncapi.ModelConfig{{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5"}},
+	}
+}
+
+// Several LaunchDarkly UI paths store the model config key as modelName. A
+// file that holds what LaunchDarkly holds is in sync and is not refused.
+func TestPromptAcceptsInSyncModelNameThatIsTheModelConfigKey(t *testing.T) {
+	root, api := haikuSynced(t, "Anthropic.claude-haiku-4-5", "Anthropic.claude-haiku-4-5")
+
+	_, _, err := runPrompt(t, root, api, "--dry-run")
+
+	require.NoError(t, err)
+}
+
+// A name that LaunchDarkly already holds for the variation is never refused,
+// even when it is neither the model config's id nor its key.
+func TestPromptAcceptsInSyncModelNameThatLaunchDarklyHolds(t *testing.T) {
+	root, api := haikuSynced(t, "legacy-haiku", "legacy-haiku")
+
+	_, _, err := runPrompt(t, root, api, "--dry-run")
+
+	require.NoError(t, err)
+}
+
+// A new variation may name the model config key as its model.
+func TestPromptAcceptsNewModelNameThatIsTheModelConfigKey(t *testing.T) {
+	root := initRepository(t)
+	local := variation("Default")
+	local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+	local.Model = map[string]any{"modelName": "Anthropic.claude-haiku-4-5"}
+	writeVariation(t, root, local, true)
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "Anthropic.claude-haiku-4-5", api.variation.Model["modelName"])
+}
+
+// An in-sync file edited to a name that is neither the model config's id nor
+// its key is still refused, and nothing is written.
+func TestPromptRejectsEditedModelNameOfAnInSyncVariation(t *testing.T) {
+	root, api := haikuSynced(t, "gpt-4o", "Anthropic.claude-haiku-4-5")
+
+	stdout, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, stdout+err.Error(),
+		`model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5". Use that name, or remove modelName.`)
+	requireOnlyReads(t, api.requests)
+	assert.Equal(t, "Anthropic.claude-haiku-4-5", api.variation.Model["modelName"], "LaunchDarkly is unchanged")
+}
+
+// A pinned modelConfigVersion above the latest version doesn't exist. It is
+// refused at plan time, naming the variation, the key and the version.
+func TestPromptRejectsPinnedModelConfigVersionAboveTheLatest(t *testing.T) {
+	root := initRepository(t)
+	local := variation("Default")
+	local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+	local.ModelConfigVersion = 5
+	local.Model = map[string]any{"modelName": "claude-haiku-4-5"}
+	writeVariation(t, root, local, true)
+	latest := haikuModelConfig()
+	latest.Version = 2
+	api := &directAPI{configMissing: true, modelConfigs: []syncapi.ModelConfig{latest}}
+
+	stdout, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	message := stdout + err.Error()
+	assert.Contains(t, message, "production/support/default", "the message names the variation")
+	assert.Contains(t, message, `model config "Anthropic.claude-haiku-4-5" has no version 5`)
+	assert.Contains(t, message, "not_found")
+	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"), "the config is not created")
+	assert.Zero(t, countRequests(api.requests, "POST", "/variations"), "the variation is not created")
 }
 
 func TestPromptFirstSyncCreatesUpsertVariation(t *testing.T) {
