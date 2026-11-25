@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "setup-go-inputs-resolve-same-go",
+      "title": "setup-go selects Go only from the go directive in go.mod",
+      "kind": "guard",
+      "rationale": "setup-go v6 (#460) changes toolchain selection: it prefers a toolchain directive in go.mod. go.yml and dependency-scan.yml pass only go-version-file: go.mod. On today's main, go.mod still has only 'go 1.25' (main added AWS SDK modules and api-client-go v24 since Oct 6, but no toolchain line). The guard fails if a toolchain directive or other setup-go inputs appear.",
+      "script": "setup-go-inputs-resolve-same-go.sh",
+      "timeout": 120
+    },
+    {
+      "id": "setup-go-action-resolves-gomod-go",
+      "title": "The real setup-go code at each pinned ref installs a Go 1.25 release from go.mod",
+      "kind": "guard",
+      "rationale": "PR CI did not run go.yml or dependency-scan.yml on the current head 348e5d8 (the runs failed at startup with no jobs, or stayed queued). This guard runs dist/setup/index.js of every setup-go ref that the workflows pin (v4 and v5 on base, v6 on the PR) with go-version-file: go.mod against the merged tree, and checks the installed go binary. It uses the network (codeload.github.com and the Go download manifest).",
+      "script": "setup-go-action-resolves-gomod-go.sh",
+      "timeout": 600
+    }
+  ]
+}

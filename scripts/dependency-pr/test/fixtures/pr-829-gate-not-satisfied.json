@@ -1,0 +1,17 @@
+{
+  "pr": 829,
+  "why": "False-safe case found on 2026-10-05: the goreleaser-cross image pull failed the same way on base and PR, the verdict filed it as pre-existing, and the cgo gate looked satisfied, so #829 came out safe to merge with no cross-compile. If neither the release image nor the public fallback image can be pulled, the result must be 'incomplete', never safe.",
+  "head": "b33da96cead782480bfd69c6baffe1ce24442f8c",
+  "base": "6c1740f8932352cdc2696e7aee20dfef676abfac",
+  "profile": "full",
+  "env": {
+    "VERIFY_GORELEASER_IMAGE": "ghcr.io/launchdarkly/verify-image-that-does-not-exist@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "VERIFY_GORELEASER_PUBLIC_IMAGE": "ghcr.io/launchdarkly/verify-public-image-that-does-not-exist@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "agent_inputs": "agent-inputs/pr-829",
+  "expect": {
+    "verdict": "incomplete",
+    "checks": {"release-snapshot": "incomplete"},
+    "incomplete_contain": ["public fallback image"]
+  }
+}
