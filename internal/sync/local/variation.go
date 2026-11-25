@@ -89,6 +89,13 @@ func parseVariationFrontMatter(relPath string, data []byte) (variationFrontMatte
 	if err := meta.Variation.Validate(); err != nil {
 		return variationFrontMatter{}, nil, err
 	}
+	// LaunchDarkly keeps modelName only as text. Only a file is checked, so a
+	// value that LaunchDarkly returns cannot stop a plan.
+	if value, ok := meta.Model["modelName"]; ok {
+		if _, isText := value.(string); !isText {
+			return variationFrontMatter{}, nil, errors.New("model.modelName must be text. Set it to the model config's name, or remove modelName.")
+		}
+	}
 	if stem := variationStem(relPath); meta.Key != stem {
 		return variationFrontMatter{}, nil, fmt.Errorf("key %q does not match filename %q", meta.Key, stem)
 	}

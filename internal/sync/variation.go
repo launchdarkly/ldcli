@@ -115,12 +115,6 @@ func (variation Variation) Validate() error {
 		}
 	}
 
-	if value, ok := variation.Model["modelName"]; ok {
-		if _, isText := value.(string); !isText {
-			return errors.New("model.modelName must be text. Set it to the model config's name, or remove modelName.")
-		}
-	}
-
 	return ValidateAttachmentRefs(variation.Mode, variation.Tools, variation.Skills)
 }
 
