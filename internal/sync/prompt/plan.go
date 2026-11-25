@@ -368,8 +368,8 @@ func planResource(
 	if server.Archived && (resource.Action == ActionCreateServer || resource.Action == ActionError) {
 		setProblem(&resource, syncdomain.NewProblem(
 			syncdomain.ErrorVariationArchived,
-			id.Label()+" is archived in LaunchDarkly",
-			"Restore it in LaunchDarkly, or link a different --key.",
+			"this variation is archived in LaunchDarkly",
+			"Restore it in LaunchDarkly, or use a different variation key.",
 		).WithResource(id))
 	}
 	blockUnsupportedFields(&resource)

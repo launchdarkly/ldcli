@@ -2276,14 +2276,33 @@ func TestLinkUpsertRefusesAnArchivedVariation(t *testing.T) {
 		Yes: true,
 	})
 
-	assert.ErrorContains(t, err, "variation production/support/default is archived in LaunchDarkly")
-	assert.ErrorContains(t, err, "Restore it in LaunchDarkly, or link a different --key.")
+	assert.ErrorContains(t, err, "variation production/support/default: this variation is archived in LaunchDarkly")
+	assert.ErrorContains(t, err, "Restore it in LaunchDarkly, or use a different variation key.")
 	assert.Zero(t, countRequests(api.requests, "POST", "/variations"), "no variation is created")
 	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"), "no config is created")
 	assert.Equal(t, "archived", api.variationState, "the archived variation is not restored")
 	assert.NotContains(t, notes, "Linked")
 	assert.NotContains(t, output, "Linked")
 	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"), "a refused link writes no descriptor")
+}
+
+// A plain sync of a managed .prompt.md with upsert: true whose key is
+// archived in LaunchDarkly is refused before any write. The suggestion fits
+// this flow, which has no --key flag.
+func TestPromptUpsertRefusesAnArchivedVariation(t *testing.T) {
+	root := initRepository(t)
+	local := variation("New")
+	writeVariation(t, root, local, true)
+	api := &directAPI{variation: pointer(variation("Archived")), variationState: "archived"}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "variation production/support/default: this variation is archived in LaunchDarkly")
+	assert.Contains(t, err.Error(), "Restore it in LaunchDarkly, or use a different variation key.")
+	assert.NotContains(t, err.Error(), "--key")
+	requireOnlyReads(t, api.requests)
+	assert.Equal(t, "archived", api.variationState, "the archived variation is not restored")
 }
 
 // When the apply after a link fails, the descriptor is put back and the
