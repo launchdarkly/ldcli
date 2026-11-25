@@ -941,7 +941,7 @@ func readServerResource(client syncapi.Client, attachments *attachmentCache, id 
 		return ServerResource{}, err
 	}
 
-	resource := ServerResource{ConfigMode: state.ConfigMode}
+	resource := ServerResource{ConfigMode: state.ConfigMode, Archived: state.Archived}
 	if state.Exists {
 		if err := attachments.hydrate(id.ProjectKey, &state.Variation); err != nil {
 			return ServerResource{}, err

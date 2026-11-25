@@ -94,7 +94,6 @@ func (runner Runner) runWorkspaceSyncWithSource(
 		if _, err := prepared.Write(workspace.local); err != nil {
 			return err
 		}
-		_ = syncconsole.New(options.ErrorOutput).Printf("Linked %s.\n", prepared.Path)
 	}
 
 	// Read both sides again, so that no action uses state from before the
@@ -121,7 +120,10 @@ func (runner Runner) runWorkspaceSyncWithSource(
 		// the previous descriptor back. After a sync of the resource, the
 		// descriptor stays, because LaunchDarkly or the source has the new
 		// content, even when a later step such as the lock write failed.
-		err = errors.Join(err, prepared.Rollback(workspace.local))
+		return errors.Join(err, prepared.Rollback(workspace.local))
+	}
+	if prepared != nil {
+		_ = syncconsole.New(options.ErrorOutput).Printf("Linked %s.\n", prepared.Path)
 	}
 	return err
 }

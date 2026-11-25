@@ -48,6 +48,9 @@ type ServerResource struct {
 	// ConfigMissing is true when LaunchDarkly has no config for the
 	// variation. ConfigMode is then the mode that a create gives the config.
 	ConfigMissing bool
+	// Archived is true when LaunchDarkly has an archived variation with this
+	// key, which a create cannot reuse.
+	Archived bool
 }
 
 // PlannedResource is the local and the server state of one resource, and the
@@ -361,6 +364,13 @@ func planResource(
 	if resource.Action == ActionCreateServer {
 		_, variationKey, _ := id.VariationKeys()
 		rejectInvalidCreate(&resource, syncdomain.ValidateCreate(id.Kind, variationKey, local.Variation.Name, ""))
+	}
+	if server.Archived && (resource.Action == ActionCreateServer || resource.Action == ActionError) {
+		setProblem(&resource, syncdomain.NewProblem(
+			syncdomain.ErrorVariationArchived,
+			id.Label()+" is archived in LaunchDarkly",
+			"Restore it in LaunchDarkly, or link a different --key.",
+		).WithResource(id))
 	}
 	blockUnsupportedFields(&resource)
 	// The fingerprints do not include versions. If LaunchDarkly pins an older
