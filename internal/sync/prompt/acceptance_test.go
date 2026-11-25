@@ -4661,3 +4661,42 @@ func TestSettingFlipToPushStillPlansTheLinkedToolRow(t *testing.T) {
 	assert.Equal(t, "Baseline tool", *api.tools["search"].Description, "the server-canonical tool is not published")
 	assert.Equal(t, "Local text", api.variation.Instructions, "the code-canonical variation is pushed")
 }
+
+// A linked variation whose source file is gone stops the whole run before
+// anything is written (D3). The error names the variation, its descriptor and
+// the missing file, and says how to get out of it.
+func TestMissingLinkedSourceStopsTheRunAndNamesTheVariationDescriptorAndFile(t *testing.T) {
+	for name, arguments := range map[string][]string{
+		"dry run": {"--dry-run", "--output", "plaintext"},
+		"yes":     {"--yes", "--output", "plaintext"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root, api := linkedVariationForPush(t)
+			require.NoError(t, os.Remove(filepath.Join(root, "agents.py")))
+			descriptor := filepath.Join(root, syncdomain.RootDir, "production", "configs", "support", "default.ref.yaml")
+			lockPath := filepath.Join(root, syncdomain.RootDir, "sync.lock")
+			descriptorBefore, err := os.ReadFile(descriptor)
+			require.NoError(t, err)
+			lockBefore, err := os.ReadFile(lockPath)
+			require.NoError(t, err)
+
+			stdout, stderr, err := runPrompt(t, root, api, arguments...)
+
+			require.Error(t, err, "the run fails, so the command exits non-zero")
+			shown := err.Error() + "\n" + stdout + "\n" + stderr
+			assert.Contains(t, shown, "production/support/default", "the error names the variation")
+			assert.Contains(t, shown, ".launchdarkly/production/configs/support/default.ref.yaml", "the error names the descriptor")
+			assert.Contains(t, shown, "agents.py", "the error names the missing source file")
+			assert.Contains(t, shown, "detach", "the hint mentions detach")
+			for _, request := range api.requests {
+				assert.True(t, strings.HasPrefix(request, "GET "), "nothing is written to LaunchDarkly: %s", request)
+			}
+			descriptorAfter, err := os.ReadFile(descriptor)
+			require.NoError(t, err)
+			assert.Equal(t, string(descriptorBefore), string(descriptorAfter), "the descriptor is unchanged")
+			lockAfter, err := os.ReadFile(lockPath)
+			require.NoError(t, err)
+			assert.Equal(t, string(lockBefore), string(lockAfter), "the lock is unchanged")
+		})
+	}
+}

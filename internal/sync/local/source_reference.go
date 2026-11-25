@@ -115,6 +115,13 @@ func compileDescriptor(
 		return SourceDefinition{}, err
 	}
 	primary, err := readSource(reference.File)
+	if problem, ok := syncdomain.ProblemFrom(err); ok && problem.Code == syncdomain.ErrorLinkedSourceMissing {
+		return SourceDefinition{}, syncdomain.NewProblem(
+			syncdomain.ErrorLinkedSourceMissing,
+			fmt.Sprintf("source file %q does not exist (descriptor %s)", reference.File, descriptorPath),
+			"Restore the file, link the "+string(id.Kind)+" to another file, or run "+detachGroup(id)+" detach.",
+		).WithResource(id)
+	}
 	if err != nil {
 		return SourceDefinition{}, err
 	}
@@ -202,4 +209,11 @@ func sortedDependencyPaths(bundle syncadapter.SourceBundle) []string {
 	paths := slices.Collect(maps.Keys(bundle.Dependencies))
 	slices.Sort(paths)
 	return paths
+}
+
+func detachGroup(id syncdomain.ResourceID) string {
+	if id.Kind == syncdomain.KindVariation {
+		return "ldcli sync prompts"
+	}
+	return "ldcli sync " + string(id.Kind) + "s"
 }
