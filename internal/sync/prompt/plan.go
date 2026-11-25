@@ -152,6 +152,51 @@ func blockUnsupportedFields(resource *PlannedResource) {
 	}
 }
 
+// blockEmptyPrompt refuses to write an empty prompt from a linked source
+// over a non-empty prompt in LaunchDarkly, or to create a variation with an
+// empty prompt. An update whose server prompt is empty too doesn't change the
+// prompt, so it goes ahead. It runs once the action of the row is
+// final: after the sync settings (checkSourcePublications) and after a
+// conflict choice (applyConflictResolutions), because either can turn a row
+// into a push.
+func blockEmptyPrompt(resource *PlannedResource) {
+	if resource.Action != ActionCreateServer && resource.Action != ActionUpdateServer {
+		return
+	}
+	if resource.Source == nil || resource.LocalProjection == nil {
+		return
+	}
+	prompt, known := resource.LocalProjection.Value(syncdomain.FieldPrompt)
+	if !known || !isEmptyPrompt(prompt) {
+		return
+	}
+	if resource.Action == ActionUpdateServer && resource.ServerProjection != nil {
+		if serverPrompt, known := resource.ServerProjection.Value(syncdomain.FieldPrompt); known && isEmptyPrompt(serverPrompt) {
+			return
+		}
+	}
+	setProblem(resource, syncdomain.NewProblem(
+		syncdomain.ErrorInvalidSource,
+		fmt.Sprintf("the prompt selected from %s is empty", resource.Source.File),
+		"Add the prompt text, or detach the variation.",
+	).WithResource(resource.ID).WithFile(resource.Source.File, 0, 0))
+}
+
+func isEmptyPrompt(prompt any) bool {
+	switch prompt := prompt.(type) {
+	case string:
+		return syncdomain.NormalizePromptText(prompt) == ""
+	case []syncdomain.Message:
+		for _, message := range prompt {
+			if syncdomain.NormalizePromptText(message.Content) != "" {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func sourceLinkCommand(id ResourceID, file, format string) string {
 	if id.Kind == syncdomain.KindVariation {
 		configKey, variationKey, _ := id.VariationKeys()

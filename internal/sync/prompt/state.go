@@ -199,6 +199,7 @@ func checkSourcePublications(repositoryRoot string, resources []PlannedResource)
 	// A push merges onto the LaunchDarkly copy and cannot clear a field, so
 	// the plan reports that before the review, as it does for a pull.
 	for index := range resources {
+		blockEmptyPrompt(&resources[index])
 		if resources[index].Source == nil || !resources[index].Action.changesServer() {
 			continue
 		}

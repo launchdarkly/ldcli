@@ -4662,6 +4662,68 @@ func TestSettingFlipToPushStillPlansTheLinkedToolRow(t *testing.T) {
 	assert.Equal(t, "Local text", api.variation.Instructions, "the code-canonical variation is pushed")
 }
 
+// A linked variation whose selected prompt is empty, or only whitespace, is
+// refused, and the refusal stops the whole run: nothing is written for it,
+// and the other linked variation in the same run is not pushed either.
+func TestLinkedVariationWithAnEmptyPromptStopsTheRun(t *testing.T) {
+	for name, emptyText := range map[string]string{
+		"empty":           "",
+		"whitespace only": "  \n\t\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			require.NoError(t, os.WriteFile(filepath.Join(root, "full.md"), []byte("Local text\n"), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(root, "blank.md"), []byte(emptyText), 0o644))
+			writeLocalFile(t, root, "configs/support/full.ref.yaml", "formatVersion: 1\nfile: full.md\nformat: markdown\n")
+			writeLocalFile(t, root, "configs/support/blank.ref.yaml", "formatVersion: 1\nfile: blank.md\nformat: markdown\n")
+			compiled, err := synclocal.CompileWorkspace(root)
+			require.NoError(t, err)
+			require.Len(t, compiled, 2)
+
+			servers := map[string]syncdomain.Variation{}
+			for _, key := range []string{"full", "blank"} {
+				server := variationWithKey(key, "Server "+key)
+				server.Instructions = "Old text"
+				servers[key] = server
+			}
+			writeManifestResources(t, root, servers["full"], servers["blank"])
+			lock := readLock(t, root)
+			for _, resource := range compiled {
+				key := resource.ID().LookupKey[strings.LastIndex(resource.ID().LookupKey, "/")+1:]
+				projection, err := syncdomain.ProjectVariation(servers[key], *resource.Source)
+				require.NoError(t, err)
+				recorded, err := syncdomain.FingerprintProjection(resource.ID(), projection)
+				require.NoError(t, err)
+				lock.SetFingerprint(resource.ID(), recorded)
+				require.NoError(t, lock.SetSource(resource.ID(), resource.Source, "markdown/1", resource.IndexedSelections))
+				for index, item := range manifestsByRoot[root].Items {
+					if item.ResourceLookupKey == resource.ID().LookupKey {
+						manifestsByRoot[root].Items[index].Fingerprint = recorded
+					}
+				}
+			}
+			require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+			api := &multiDirectAPI{variations: servers}
+
+			stdout, stderr, err := runPrompt(t, root, api, "--yes")
+
+			output := stdout + stderr
+			if err != nil {
+				output += err.Error()
+			}
+			assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/blank"), "no PATCH for the empty prompt: %v", api.requests)
+			assert.Zero(t, countRequests(api.requests, http.MethodPost, "/variations"), "no POST for the empty prompt: %v", api.requests)
+			assert.Equal(t, "Old text", api.variations["blank"].Instructions, "LaunchDarkly keeps its prompt")
+			require.Error(t, err, "an empty prompt stops the run")
+			assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/full"), "nothing is pushed: %v", api.requests)
+			assert.Equal(t, "Old text", api.variations["full"].Instructions, "the other variation is not pushed either")
+			assert.Contains(t, output, "blank.md", "the refusal names the file")
+			assert.Contains(t, output, "support/blank", "the refusal names the variation")
+			assert.Contains(t, output, "is empty", "the refusal says the prompt is empty")
+		})
+	}
+}
+
 // A linked variation whose source file is gone stops the whole run before
 // anything is written (D3). The error names the variation, its descriptor and
 // the missing file, and says how to get out of it.
@@ -4702,6 +4764,96 @@ func TestMissingLinkedSourceStopsTheRunAndNamesTheVariationDescriptorAndFile(t *
 			assert.Equal(t, string(lockBefore), string(lockAfter), "the lock is unchanged")
 		})
 	}
+}
+
+// writeEmptyLinkedPrompt links agents.py, whose agent has empty instructions,
+// to support/default. The lock records baseline as the last synced prompt,
+// and LaunchDarkly now has "Help".
+func writeEmptyLinkedPrompt(t *testing.T, baseline string) (string, *directAPI) {
+	t.Helper()
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(instructions=\"\")\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: agents.py\nformat: python\nselect: 'agents[id=\"support\"]'\nmap:\n  prompt: instructions\n")
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	server := variation("Server")
+	server.Instructions = baseline
+	writeManifestResources(t, root)
+	lock := readLock(t, root)
+	projection, err := syncdomain.ProjectVariation(server, *compiled[0].Source)
+	require.NoError(t, err)
+	fingerprint, err := syncdomain.FingerprintProjection(compiled[0].ID(), projection)
+	require.NoError(t, err)
+	lock.SetFingerprint(compiled[0].ID(), fingerprint)
+	require.NoError(t, lock.SetSource(compiled[0].ID(), compiled[0].Source, "python/1", compiled[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	server.Instructions = "Help"
+	return root, &directAPI{variation: &server}
+}
+
+func assertEmptyPromptStoppedTheRun(t *testing.T, api *directAPI, stdout, stderr string, err error) {
+	t.Helper()
+	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/default"), "no PATCH for the empty prompt: %v", api.requests)
+	assert.Equal(t, "Help", api.variation.Instructions, "LaunchDarkly keeps its prompt")
+	require.Error(t, err, "an empty prompt stops the run")
+	output := stdout + stderr + err.Error()
+	assert.Contains(t, output, "the prompt selected from agents.py is empty")
+}
+
+// A code-canonical setting turns a pull into a push after the plan checked
+// the push. The empty prompt is still refused.
+func TestCodeCanonicalPushOfAnEmptyLinkedPromptStopsTheRun(t *testing.T) {
+	root, api := writeEmptyLinkedPrompt(t, "")
+	api.directions = map[string]syncdomain.SyncDirection{
+		"variation:support/default": syncdomain.SyncDirectionCodeCanonical,
+	}
+
+	stdout, stderr, err := runPrompt(t, root, api, "--yes")
+
+	assertEmptyPromptStoppedTheRun(t, api, stdout, stderr, err)
+}
+
+// A conflict resolved to the local side becomes a push after the plan
+// checked the pushes. The empty prompt is still refused.
+func TestConflictResolvedToAnEmptyLinkedPromptStopsTheRun(t *testing.T) {
+	root, api := writeEmptyLinkedPrompt(t, "Base")
+
+	stdout, stderr, err := runPrompt(t, root, api, "--conflict", "local", "--yes", "--no-input")
+
+	assertEmptyPromptStoppedTheRun(t, api, stdout, stderr, err)
+}
+
+// A push that only renames a linked variation is not refused when the prompt
+// is empty both locally and in LaunchDarkly: the push doesn't empty a prompt.
+func TestRenameOfALinkedVariationWithAnEmptyPromptOnBothSidesIsPushed(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(name=\"Renamed\", instructions=\"\")\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: agents.py\nformat: python\nselect: 'agents[id=\"support\"]'\nmap:\n  prompt: instructions\n  name: name\n")
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	server := variation("Server")
+	server.Instructions = ""
+	writeManifestResources(t, root)
+	lock := readLock(t, root)
+	projection, err := syncdomain.ProjectVariation(server, *compiled[0].Source)
+	require.NoError(t, err)
+	fingerprint, err := syncdomain.FingerprintProjection(compiled[0].ID(), projection)
+	require.NoError(t, err)
+	lock.SetFingerprint(compiled[0].ID(), fingerprint)
+	require.NoError(t, lock.SetSource(compiled[0].ID(), compiled[0].Source, "python/1", compiled[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	api := &directAPI{variation: &server}
+
+	stdout, stderr, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodPatch, "/variations/default"), "the rename is pushed: %v", api.requests)
+	assert.Equal(t, "Renamed", api.variation.Name)
+	assert.NotContains(t, stdout+stderr, "is empty", "no refusal is shown")
 }
 
 // JSON output keeps the missing file in its own field.
