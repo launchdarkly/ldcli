@@ -367,3 +367,23 @@ func TestValidateRejectsSkillsForCompletionMode(t *testing.T) {
 
 	require.ErrorContains(t, variation.Validate(), "skills can only be attached to agent-mode configs")
 }
+
+// Only a local file must hold modelName as text. A fingerprint of a variation
+// from LaunchDarkly does not check the type, so a value that LaunchDarkly
+// returns cannot stop every plan.
+func TestFingerprintVariationAcceptsModelNameThatIsNotText(t *testing.T) {
+	for name, modelName := range map[string]any{"null": nil, "number": 42.0} {
+		t.Run(name, func(t *testing.T) {
+			variation := Variation{
+				Mode:  VariationModeAgent,
+				Key:   "default",
+				Name:  "Default",
+				Model: map[string]any{"modelName": modelName},
+			}
+
+			_, err := FingerprintVariation("production", "support/default", variation)
+
+			require.NoError(t, err)
+		})
+	}
+}

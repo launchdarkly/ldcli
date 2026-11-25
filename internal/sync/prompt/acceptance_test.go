@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -39,10 +40,13 @@ type directAPI struct {
 	// create of the config, as a project without the config does.
 	configMissing bool
 	modelConfigs  []syncapi.ModelConfig
-	tools         map[string]versionedTool
-	skills        map[string]versionedSkill
-	manifest      *syncapi.SyncManifest
-	directions    map[string]syncdomain.SyncDirection
+	// modelConfigVersions holds every version of a model config by key,
+	// newest first, as LaunchDarkly lists them.
+	modelConfigVersions map[string][]syncapi.ModelConfig
+	tools               map[string]versionedTool
+	skills              map[string]versionedSkill
+	manifest            *syncapi.SyncManifest
+	directions          map[string]syncdomain.SyncDirection
 	// patterns is the matchedResourcePattern of each resource, such as
 	// "variation:support/default". A resource without one matched no rule.
 	patterns map[string]string
@@ -243,13 +247,25 @@ func (api *directAPI) MakeRequest(
 	if method == "GET" && strings.HasSuffix(path, "/model-configs") {
 		return json.Marshal(api.modelConfigs)
 	}
+	if method == "GET" && strings.Contains(path, "/model-configs/") && strings.HasSuffix(path, "/versions") {
+		key := path[strings.LastIndex(path, "/model-configs/")+len("/model-configs/") : len(path)-len("/versions")]
+		versions, ok := api.modelConfigVersions[key]
+		if !ok {
+			return nil, fmt.Errorf(`{"code":"not_found","message":"model config not found","statusCode":404}`)
+		}
+		limit, _ := strconv.Atoi(query.Get("limit"))
+		offset, _ := strconv.Atoi(query.Get("offset"))
+		page := versions[min(offset, len(versions)):]
+		page = page[:min(limit, len(page))]
+		return json.Marshal(syncapi.Page[syncapi.ModelConfig]{Items: page, TotalCount: len(versions)})
+	}
 	if method == "GET" && strings.Contains(path, "/model-configs/") {
 		for _, modelConfig := range api.modelConfigs {
 			if strings.HasSuffix(path, "/"+modelConfig.Key) {
 				return json.Marshal(modelConfig)
 			}
 		}
-		return nil, fmt.Errorf("model config not found")
+		return nil, fmt.Errorf(`{"code":"not_found","message":"model config not found","statusCode":404}`)
 	}
 	if method == http.MethodPost && strings.HasSuffix(path, "/ai-configs") {
 		var request struct {
@@ -470,7 +486,8 @@ func TestPromptDiffExcludesExpandedToolsFromModelParameters(t *testing.T) {
 		},
 	}
 	api := &directAPI{
-		variation: &server,
+		modelConfigs: []syncapi.ModelConfig{{Key: "claude", ID: "claude-sonnet-4", Version: 2}},
+		variation:    &server,
 		tools: map[string]versionedTool{
 			"search": {Tool: tool, Version: 3},
 		},
@@ -518,7 +535,7 @@ func TestPromptPushExcludesExpandedToolsFromModelParameters(t *testing.T) {
 
 	server := base
 	server.Attachments = nil
-	api := &directAPI{variation: &server, tools: map[string]versionedTool{"search": {Tool: tool, Version: 3}}, expandTools: true}
+	api := &directAPI{variation: &server, tools: map[string]versionedTool{"search": {Tool: tool, Version: 3}}, expandTools: true, modelConfigs: []syncapi.ModelConfig{{Key: "claude", ID: "claude-sonnet-4", Version: 2}}}
 
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--diff", "--output", "plaintext")
 
@@ -537,27 +554,391 @@ func TestPromptPushExcludesExpandedToolsFromModelParameters(t *testing.T) {
 	assert.Contains(t, stdout, "No changes.")
 }
 
-// LaunchDarkly keeps model parameters and custom values only as objects, so
-// sync rejects any other value before a write.
-func TestPromptRejectsModelValuesThatAreNotObjects(t *testing.T) {
+// LaunchDarkly keeps model parameters and custom values only as objects, and
+// modelName only as text, so sync rejects any other value when the file is
+// read, before a write. LaunchDarkly stores an empty modelName in YAML (null)
+// as "". Without this check, sync pushes it again on every run.
+func TestPromptRejectsModelValuesOfTheWrongType(t *testing.T) {
+	const notText = "model.modelName must be text. Set it to the model config's name, or remove modelName."
 	for name, test := range map[string]struct {
 		model string
 		want  string
 	}{
-		"parameters":       {"  parameters: temperature=0.2\n", "model.parameters must be an object"},
-		"empty parameters": {"  parameters:\n", "model.parameters must be an object"},
-		"custom":           {"  custom: [retries]\n", "model.custom must be an object"},
+		"parameters":       {"  modelName: gpt-5\n  parameters: temperature=0.2\n", "model.parameters must be an object"},
+		"empty parameters": {"  modelName: gpt-5\n  parameters:\n", "model.parameters must be an object"},
+		"custom":           {"  modelName: gpt-5\n  custom: [retries]\n", "model.custom must be an object"},
+		"modelName null":   {"  modelName:\n", notText},
+		"modelName number": {"  modelName: 42\n", notText},
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := initRepository(t)
 			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
-				"mode: agent\nkey: default\nname: Default\nmodel:\n  modelName: gpt-5\n"+test.model+"---\n\nHelp.\n")
+				"mode: agent\nkey: default\nname: Default\nmodel:\n"+test.model+"---\n\nHelp.\n")
 			api := &directAPI{}
 
 			_, _, err := runPrompt(t, root, api, "--yes")
 
 			require.ErrorContains(t, err, test.want)
+			assert.Contains(t, err.Error(), "default.prompt.md")
 			requireOnlyReads(t, api.requests)
+			assert.Nil(t, api.variation, "nothing is created")
+			assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "sync.lock"))
+		})
+	}
+}
+
+// An empty modelName names no model, so a new variation with one is refused
+// before anything is written, with or without a model config.
+func TestPromptRejectsEmptyModelName(t *testing.T) {
+	for name, configLine := range map[string]string{
+		"no model config": "",
+		"model config":    "modelConfigKey: Anthropic.claude-haiku-4-5\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
+				"mode: agent\nkey: default\nname: Default\n"+configLine+"model:\n  modelName: \"\"\n---\n\nHelp.\n")
+			api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
+
+			_, _, err := runPrompt(t, root, api, "--yes")
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "model.modelName is empty")
+			assert.Contains(t, err.Error(), "Set it to the model config's name, or remove modelName.")
+			requireOnlyReads(t, api.requests)
+			assert.Nil(t, api.variation, "nothing is created")
+		})
+	}
+}
+
+// haikuModelConfig is a model config whose model (its id) is
+// claude-haiku-4-5, as LaunchDarkly serves it.
+func haikuModelConfig() syncapi.ModelConfig {
+	return syncapi.ModelConfig{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5", Version: 1}
+}
+
+// A modelName that differs from the model of the model config is refused at
+// plan time, in a dry run and with --yes, and nothing is written.
+//
+// A new variation that pins the latest version is checked the same way.
+func TestPromptRejectsModelNameThatDoesNotMatchTheModelConfig(t *testing.T) {
+	for name, test := range map[string]struct {
+		mode   string
+		pinned int
+	}{
+		"dry run":                {mode: "--dry-run"},
+		"--yes":                  {mode: "--yes"},
+		"pinned latest, dry run": {mode: "--dry-run", pinned: haikuModelConfig().Version},
+		"pinned latest, --yes":   {mode: "--yes", pinned: haikuModelConfig().Version},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mode := test.mode
+			root := initRepository(t)
+			local := variation("Default")
+			local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+			local.ModelConfigVersion = test.pinned
+			local.Model = map[string]any{"modelName": "gpt-4o"}
+			writeVariation(t, root, local, true)
+			api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
+
+			stdout, _, err := runPrompt(t, root, api, mode)
+
+			require.Error(t, err)
+			assert.Contains(t, stdout+err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`)
+			assert.Contains(t, stdout+err.Error(), "Use that name, or remove modelName.")
+			requireOnlyReads(t, api.requests)
+			assert.Nil(t, api.variation, "nothing is created")
+		})
+	}
+}
+
+// A new variation can name the model of the model config (its id) or the
+// model config key as its model. Both are accepted and pushed.
+func TestPromptAcceptsNewModelNameThatNamesTheModelConfig(t *testing.T) {
+	for name, modelName := range map[string]string{
+		"model config id":  "claude-haiku-4-5",
+		"model config key": "Anthropic.claude-haiku-4-5",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			local := variation("Default")
+			local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+			local.Model = map[string]any{"modelName": modelName}
+			writeVariation(t, root, local, true)
+			api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
+
+			_, _, err := runPrompt(t, root, api, "--yes")
+
+			require.NoError(t, err)
+			require.NotNil(t, api.variation)
+			assert.Equal(t, modelName, api.variation.Model["modelName"])
+		})
+	}
+}
+
+// A model config key that LaunchDarkly does not have is refused at plan time
+// even when the file pins modelConfigVersion. Before, the dry run was clean,
+// and --yes created the config before the variation failed with a 404.
+func TestPromptRejectsMissingModelConfigWithAPinnedVersion(t *testing.T) {
+	newWorkspace := func(t *testing.T) (string, *directAPI) {
+		root := initRepository(t)
+		local := variation("Default")
+		local.ModelConfigKey = "Anthropic.no-such-model"
+		local.ModelConfigVersion = 1
+		local.Model = map[string]any{"modelName": "no-such-model"}
+		writeVariation(t, root, local, true)
+		return root, &directAPI{configMissing: true}
+	}
+
+	t.Run("dry run", func(t *testing.T) {
+		root, api := newWorkspace(t)
+
+		stdout, _, err := runPrompt(t, root, api, "--dry-run")
+
+		require.Error(t, err, "the plan is not clean")
+		message := stdout + err.Error()
+		assert.Contains(t, message, `model config "Anthropic.no-such-model" was not found in project "production"`)
+		assert.Contains(t, message, "Fix modelConfigKey, or create the model config in LaunchDarkly.")
+		assert.Contains(t, message, "invalid_reference")
+		assert.Contains(t, message, "production/support/default", "the message names the variation")
+	})
+
+	t.Run("--yes", func(t *testing.T) {
+		root, api := newWorkspace(t)
+
+		_, _, err := runPrompt(t, root, api, "--yes")
+
+		assert.Error(t, err)
+		assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"), "the config is not created")
+		assert.Zero(t, countRequests(api.requests, "POST", "/variations"), "the variation is not created")
+		assert.True(t, api.configMissing)
+	})
+}
+
+// A pinned variation that LaunchDarkly already holds with the same model
+// config key and version is in sync. If the model config is gone from
+// LaunchDarkly, the plan is still clean. A changed pin is still refused.
+func TestPromptPinnedVariationWhoseModelConfigIsGone(t *testing.T) {
+	t.Run("in sync", func(t *testing.T) {
+		root, api := haikuSynced(t, "claude-haiku-4-5", "claude-haiku-4-5", "Anthropic.claude-haiku-4-5", 2, 2)
+		api.modelConfigs, api.modelConfigVersions = nil, nil
+
+		stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
+
+		require.NoError(t, err)
+		assert.Contains(t, stdout, "No changes.")
+	})
+
+	t.Run("changed version", func(t *testing.T) {
+		root, api := haikuSynced(t, "claude-haiku-4-5", "claude-haiku-4-5", "Anthropic.claude-haiku-4-5", 1, 2)
+		api.modelConfigs, api.modelConfigVersions = nil, nil
+
+		stdout, _, err := runPrompt(t, root, api, "--yes")
+
+		require.Error(t, err)
+		assert.Contains(t, stdout+err.Error(), `model config "Anthropic.claude-haiku-4-5" was not found in project "production"`)
+		requireOnlyReads(t, api.requests)
+	})
+}
+
+// If LaunchDarkly finds the model config but not its versions, the version
+// check refuses the variation as an invalid reference and names it. The
+// message does not tell the user to fix modelConfigKey, because that key is
+// correct.
+func TestPromptRejectsPinnedVariationWhenModelConfigVersionsAreNotFound(t *testing.T) {
+	root, api := haikuSynced(t, "claude-haiku-4-0", "legacy-haiku", "Anthropic.claude-haiku-4-5", 1, 1)
+	api.modelConfigVersions = nil
+
+	stdout, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	message := stdout + err.Error()
+	assert.Contains(t, message, `LaunchDarkly did not return the versions of model config "Anthropic.claude-haiku-4-5" in project "production"`)
+	assert.Contains(t, message, "Run the command again. If the error continues, examine the model config in LaunchDarkly.")
+	assert.NotContains(t, message, "Fix modelConfigKey", "the model config key is correct")
+	assert.Contains(t, message, "invalid_reference")
+	assert.Contains(t, message, "production/support/default", "the message names the variation")
+	requireOnlyReads(t, api.requests)
+}
+
+// haikuSynced writes a lock and a LaunchDarkly copy that hold serverName
+// under the model config serverKey, as a pull writes them, and a file that
+// holds localName under the haiku model config. With pinned 0, both model
+// configs are unversioned, as LaunchDarkly can serve them, and nothing is
+// pinned. Otherwise the file pins pinned, LaunchDarkly pins serverPinned, and
+// each model config is at version 2. Version 1 of the haiku model config has
+// the id claude-haiku-4-0.
+func haikuSynced(t *testing.T, localName, serverName, serverKey string, pinned, serverPinned int) (string, *directAPI) {
+	t.Helper()
+	root := initRepository(t)
+	withModel := func(key, name string, version int) syncdomain.Variation {
+		v := variation("Baseline")
+		v.ModelConfigKey = key
+		v.ModelConfigVersion = version
+		v.Model = map[string]any{"modelName": name, "parameters": map[string]any{}, "custom": map[string]any{}}
+		return v
+	}
+	writeVariation(t, root, withModel("Anthropic.claude-haiku-4-5", localName, pinned), true)
+	writeManifest(t, root, withModel(serverKey, serverName, serverPinned))
+	latest := 0
+	if pinned != 0 || serverPinned != 0 {
+		latest = 2
+	}
+	haiku := syncapi.ModelConfig{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5", Version: latest}
+	gpt := syncapi.ModelConfig{Key: "OpenAI.gpt-4o", ID: "gpt-4o", Version: latest}
+	return root, &directAPI{
+		variation:    pointer(withModel(serverKey, serverName, serverPinned)),
+		modelConfigs: []syncapi.ModelConfig{haiku, gpt},
+		modelConfigVersions: map[string][]syncapi.ModelConfig{
+			haiku.Key: {haiku, {Key: haiku.Key, ID: "claude-haiku-4-0", Version: 1}},
+			gpt.Key:   {gpt},
+		},
+	}
+}
+
+// A synced variation's modelName is checked against its model config unless
+// LaunchDarkly already holds that name under the same model config. A pinned
+// variation is checked against the model of its pinned version. The versions
+// are read only when a pinned name needs the check and the pinned version is
+// not the latest.
+func TestPromptChecksModelNameOfASyncedVariation(t *testing.T) {
+	const gptRefused = `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`
+	for name, test := range map[string]struct {
+		local, server, serverKey string
+		// serverPinned is the version that LaunchDarkly pins. Zero means
+		// the same version as pinned.
+		pinned, serverPinned int
+		// wantErr is the refusal. Empty means the plan is accepted.
+		wantErr          string
+		wantVersionsRead int
+	}{
+		// Several LaunchDarkly UI paths store the model config key as
+		// modelName. A file that holds what LaunchDarkly holds is in sync.
+		"in-sync model config key is accepted": {
+			local: "Anthropic.claude-haiku-4-5", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5",
+		},
+		// A name that LaunchDarkly already holds is never refused, even when
+		// it is neither the model config's id nor its key.
+		"in-sync name LaunchDarkly holds is accepted": {
+			local: "legacy-haiku", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5",
+		},
+		// LaunchDarkly stores an empty modelName for some variations. A file
+		// that holds the same empty name is in sync and is not refused.
+		"in-sync empty name LaunchDarkly holds is accepted": {
+			local: "", server: "", serverKey: "Anthropic.claude-haiku-4-5",
+		},
+		// Changing a real name to an empty one is refused.
+		"name edited to empty is refused": {
+			local: "", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5",
+			wantErr: "model.modelName is empty",
+		},
+		// An in-sync file edited to a name that is neither the model config's
+		// id nor its key is still refused.
+		"edited name is refused": {
+			local: "gpt-4o", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5", wantErr: gptRefused,
+		},
+		// Switching only modelConfigKey keeps the old model name in the file.
+		// The name LaunchDarkly holds belongs to the old model config, so it
+		// is checked against the new one.
+		"name kept from the old model config is refused": {
+			local: "gpt-4o", server: "gpt-4o", serverKey: "OpenAI.gpt-4o", wantErr: gptRefused,
+		},
+		// A pinned file in sync costs no extra request.
+		"pinned in-sync name LaunchDarkly holds is accepted": {
+			local: "legacy-haiku", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5", pinned: 2,
+		},
+		// A pull pins the latest version. Editing the name is refused (MV-9).
+		"pinned edited name is refused": {
+			local: "gpt-4o", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5", pinned: 2, wantErr: gptRefused,
+		},
+		"pinned name kept from the old model config is refused": {
+			local: "gpt-4o", server: "gpt-4o", serverKey: "OpenAI.gpt-4o", pinned: 2, wantErr: gptRefused,
+		},
+		// An older pinned version is checked against that version's model.
+		// --yes plans again before it writes, and each plan reads once.
+		"pinned older version's model is accepted": {
+			local: "claude-haiku-4-0", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5", pinned: 1, wantVersionsRead: 2,
+		},
+		"pinned older version with the latest model is refused": {
+			local: "claude-haiku-4-5", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5", pinned: 1, wantVersionsRead: 1,
+			wantErr: `model "claude-haiku-4-5" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-0"`,
+		},
+		// LaunchDarkly holds the name only for the version it pins. A file
+		// that keeps the name and moves its pin to an older version is
+		// checked against the model of that version.
+		// An unpinned file uses the latest version. LaunchDarkly holds the
+		// name under the latest version, so the file is in sync.
+		"unpinned name LaunchDarkly holds under the latest pin is accepted": {
+			local: "legacy-haiku", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5", serverPinned: 2,
+		},
+		// LaunchDarkly holds the name under an older pin. An unpinned file
+		// pushes the latest version, so the name is checked against it.
+		"unpinned name LaunchDarkly holds under an older pin is refused": {
+			local: "claude-haiku-4-0", server: "claude-haiku-4-0", serverKey: "Anthropic.claude-haiku-4-5", serverPinned: 1,
+			wantErr: `model "claude-haiku-4-0" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`,
+		},
+		"pin moved to a version with another model is refused": {
+			local: "claude-haiku-4-5", server: "claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5", pinned: 1, serverPinned: 2,
+			wantVersionsRead: 1,
+			wantErr:          `model "claude-haiku-4-5" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-0"`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root, api := haikuSynced(t, test.local, test.server, test.serverKey, test.pinned, cmp.Or(test.serverPinned, test.pinned))
+
+			stdout, _, err := runPrompt(t, root, api, "--yes")
+
+			assert.Equal(t, test.wantVersionsRead, countRequests(api.requests, "GET", "/versions"), "versions requests")
+			if test.wantErr == "" {
+				require.NoError(t, err)
+				assert.Equal(t, test.local, api.variation.Model["modelName"])
+				assert.Equal(t, cmp.Or(test.pinned, test.serverPinned), api.variation.ModelConfigVersion, "the version does not change")
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, stdout+err.Error(), test.wantErr)
+			assert.Contains(t, stdout+err.Error(), "or remove modelName.")
+			requireOnlyReads(t, api.requests)
+			assert.Equal(t, test.serverKey, api.variation.ModelConfigKey, "nothing is pushed")
+			assert.Equal(t, test.server, api.variation.Model["modelName"], "nothing is pushed")
+		})
+	}
+}
+
+// A pinned modelConfigVersion above the latest version, or below 1, does not
+// exist. LaunchDarkly numbers versions from 1 with no gaps. The pin is refused
+// at plan time, naming the variation, the key and the version, and nothing is
+// written.
+func TestPromptRejectsPinnedModelConfigVersionThatDoesNotExist(t *testing.T) {
+	for name, test := range map[string]struct {
+		mode   string
+		pinned int
+	}{
+		"above the latest, dry run": {mode: "--dry-run", pinned: 5},
+		"above the latest, --yes":   {mode: "--yes", pinned: 5},
+		"below 1, dry run":          {mode: "--dry-run", pinned: -1},
+		"below 1, --yes":            {mode: "--yes", pinned: -1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			local := variation("Default")
+			local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+			local.ModelConfigVersion = test.pinned
+			writeVariation(t, root, local, true)
+			latest := haikuModelConfig()
+			latest.Version = 2
+			api := &directAPI{configMissing: true, modelConfigs: []syncapi.ModelConfig{latest}}
+
+			stdout, _, err := runPrompt(t, root, api, test.mode)
+
+			require.Error(t, err, "the plan is not clean")
+			message := stdout + err.Error()
+			assert.Contains(t, message, "production/support/default", "the message names the variation")
+			assert.Contains(t, message, fmt.Sprintf(`model config "Anthropic.claude-haiku-4-5" has no version %d`, test.pinned))
+			assert.Contains(t, message, "invalid_reference")
+			assert.Contains(t, message, "Its latest version is 2.")
+			requireOnlyReads(t, api.requests)
+			assert.True(t, api.configMissing, "the config is not created")
 		})
 	}
 }

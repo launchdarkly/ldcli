@@ -44,6 +44,14 @@ func TestCanonicalizeLocalVariationModels(t *testing.T) {
 				"global-model": {Key: "global-model", ID: "global"},
 			}[modelConfigKey], nil
 		},
+		func(projectKey, modelConfigKey string) ([]syncapi.ModelConfig, error) {
+			assert.Equal(t, "custom-model", modelConfigKey)
+			return []syncapi.ModelConfig{
+				{Key: "custom-model", ID: "claude-4", Version: 4},
+				{Key: "custom-model", ID: "claude-2", Version: 2},
+			}, nil
+		},
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -76,9 +84,35 @@ func TestCanonicalizeLocalVariationModelsRejectsUnknownConfig(t *testing.T) {
 		func(string, string) (syncapi.ModelConfig, error) {
 			return syncapi.ModelConfig{}, errors.New("model config not found")
 		},
+		nil,
+		nil,
 	)
 
 	require.ErrorContains(t, err, "model config not found")
+}
+
+// A model config that LaunchDarkly answers with a 404 is an invalid
+// reference of the variation. The API error stays the cause.
+func TestCanonicalizeLocalVariationModelsReportsMissingConfigAsInvalidReference(t *testing.T) {
+	variation := testVariation("local")
+	variation.ModelConfigKey = "missing"
+
+	_, err := canonicalizeLocalVariationModels(
+		[]syncdomain.SyncedResource{syncedVariation(t, "production", "support/default", variation)},
+		func(string, string) (syncapi.ModelConfig, error) {
+			return syncapi.ModelConfig{}, errors.New(`{"code":"not_found","message":"model config not found","statusCode":404}`)
+		},
+		nil,
+		nil,
+	)
+
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok, "the error is a sync problem: %v", err)
+	assert.Equal(t, syncdomain.ErrorInvalidReference, problem.Code)
+	assert.Equal(t, `model config "missing" was not found in project "production"`, problem.Message)
+	assert.Equal(t, "Fix modelConfigKey, or create the model config in LaunchDarkly.", problem.Suggestion)
+	assert.Equal(t, "variation production/support/default", problem.Resource)
+	assert.True(t, syncapi.IsNotFound(err), "the 404 is still found through Unwrap")
 }
 
 func syncedVariation(t *testing.T, projectKey, lookupKey string, variation syncdomain.Variation) syncdomain.SyncedResource {

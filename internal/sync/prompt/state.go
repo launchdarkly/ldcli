@@ -511,11 +511,6 @@ func planVariationRows(
 	localFiles := slices.DeleteFunc(slices.Clone(variations), func(resource syncdomain.SyncedResource) bool {
 		return !filter.Includes(resource.ID())
 	})
-	local, err := canonicalizeLocalVariationModels(localFiles, client.ModelConfig)
-	if err != nil {
-		return Plan{}, nil, err
-	}
-
 	tracked := syncmanifest.New()
 	for _, resource := range baseline.Lock.Resources {
 		if resource.ResourceKind == syncdomain.KindVariation && filter.Includes(resource.ID()) {
@@ -547,6 +542,10 @@ func planVariationRows(
 			resource.ConfigMode = newConfigMode(id, localFilesByID[id], link)
 		}
 		server[id] = resource
+	}
+	local, err := canonicalizeLocalVariationModels(localFiles, client.ModelConfig, client.ModelConfigVersions, server)
+	if err != nil {
+		return Plan{}, nil, err
 	}
 	plan := BuildPlan(tracked, local, server)
 	return plan, localFilesByID, nil
