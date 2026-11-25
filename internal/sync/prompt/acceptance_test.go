@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -39,6 +40,9 @@ type directAPI struct {
 	// create of the config, as a project without the config does.
 	configMissing bool
 	modelConfigs  []syncapi.ModelConfig
+	// modelConfigVersions holds every version of a model config by key,
+	// newest first, as LaunchDarkly lists them.
+	modelConfigVersions map[string][]syncapi.ModelConfig
 	tools         map[string]versionedTool
 	skills        map[string]versionedSkill
 	manifest      *syncapi.SyncManifest
@@ -242,6 +246,18 @@ func (api *directAPI) MakeRequest(
 	}
 	if method == "GET" && strings.HasSuffix(path, "/model-configs") {
 		return json.Marshal(api.modelConfigs)
+	}
+	if method == "GET" && strings.Contains(path, "/model-configs/") && strings.HasSuffix(path, "/versions") {
+		key := path[strings.LastIndex(path, "/model-configs/")+len("/model-configs/") : len(path)-len("/versions")]
+		versions, ok := api.modelConfigVersions[key]
+		if !ok {
+			return nil, fmt.Errorf(`{"code":"not_found","message":"model config not found","statusCode":404}`)
+		}
+		limit, _ := strconv.Atoi(query.Get("limit"))
+		offset, _ := strconv.Atoi(query.Get("offset"))
+		page := versions[min(offset, len(versions)):]
+		page = page[:min(limit, len(page))]
+		return json.Marshal(syncapi.Page[syncapi.ModelConfig]{Items: page, TotalCount: len(versions)})
 	}
 	if method == "GET" && strings.Contains(path, "/model-configs/") {
 		for _, modelConfig := range api.modelConfigs {
@@ -592,12 +608,24 @@ func haikuModelConfig() syncapi.ModelConfig {
 
 // A modelName that differs from the model of the model config is refused at
 // plan time, in a dry run and with --yes, and nothing is written.
+//
+// A new variation that pins the latest version is checked the same way.
 func TestPromptRejectsModelNameThatDoesNotMatchTheModelConfig(t *testing.T) {
-	for _, mode := range []string{"--dry-run", "--yes"} {
-		t.Run(mode, func(t *testing.T) {
+	for name, test := range map[string]struct {
+		mode   string
+		pinned int
+	}{
+		"dry run":                {mode: "--dry-run"},
+		"--yes":                  {mode: "--yes"},
+		"pinned latest, dry run": {mode: "--dry-run", pinned: haikuModelConfig().Version},
+		"pinned latest, --yes":   {mode: "--yes", pinned: haikuModelConfig().Version},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mode := test.mode
 			root := initRepository(t)
 			local := variation("Default")
 			local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+			local.ModelConfigVersion = test.pinned
 			local.Model = map[string]any{"modelName": "gpt-4o"}
 			writeVariation(t, root, local, true)
 			api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
@@ -678,34 +706,52 @@ func TestPromptRejectsMissingModelConfigWithAPinnedVersion(t *testing.T) {
 
 // haikuSynced writes a lock and a LaunchDarkly copy that hold serverName
 // under the model config serverKey, as a pull writes them, and a file that
-// holds localName under the haiku model config. Both model configs are
-// unversioned, as LaunchDarkly can serve them.
-func haikuSynced(t *testing.T, localName, serverName, serverKey string) (string, *directAPI) {
+// holds localName under the haiku model config. With pinned 0, both model
+// configs are unversioned, as LaunchDarkly can serve them, and nothing is
+// pinned. Otherwise both sides pin that version, and each model config is at
+// version 2. Version 1 of the haiku model config has the id
+// claude-haiku-4-0.
+func haikuSynced(t *testing.T, localName, serverName, serverKey string, pinned int) (string, *directAPI) {
 	t.Helper()
 	root := initRepository(t)
 	withModel := func(key, name string) syncdomain.Variation {
 		v := variation("Baseline")
 		v.ModelConfigKey = key
+		v.ModelConfigVersion = pinned
 		v.Model = map[string]any{"modelName": name, "parameters": map[string]any{}, "custom": map[string]any{}}
 		return v
 	}
 	writeVariation(t, root, withModel("Anthropic.claude-haiku-4-5", localName), true)
 	writeManifest(t, root, withModel(serverKey, serverName))
+	latest := 0
+	if pinned != 0 {
+		latest = 2
+	}
+	haiku := syncapi.ModelConfig{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5", Version: latest}
+	gpt := syncapi.ModelConfig{Key: "OpenAI.gpt-4o", ID: "gpt-4o", Version: latest}
 	return root, &directAPI{
-		variation: pointer(withModel(serverKey, serverName)),
-		modelConfigs: []syncapi.ModelConfig{
-			{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5"},
-			{Key: "OpenAI.gpt-4o", ID: "gpt-4o"},
+		variation:    pointer(withModel(serverKey, serverName)),
+		modelConfigs: []syncapi.ModelConfig{haiku, gpt},
+		modelConfigVersions: map[string][]syncapi.ModelConfig{
+			haiku.Key: {haiku, {Key: haiku.Key, ID: "claude-haiku-4-0", Version: 1}},
+			gpt.Key:   {gpt},
 		},
 	}
 }
 
 // A synced variation's modelName is checked against its model config unless
-// LaunchDarkly already holds that name under the same model config.
+// LaunchDarkly already holds that name under the same model config. A pinned
+// variation is checked against the model of its pinned version. The versions
+// are read only when a pinned name needs the check and the pinned version is
+// not the latest.
 func TestPromptChecksModelNameOfASyncedVariation(t *testing.T) {
+	const gptRefused = `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`
 	for name, test := range map[string]struct {
 		local, server, serverKey string
-		wantErr                  bool
+		pinned                   int
+		// wantErr is the refusal. Empty means the plan is accepted.
+		wantErr          string
+		wantVersionsRead int
 	}{
 		// Several LaunchDarkly UI paths store the model config key as
 		// modelName. A file that holds what LaunchDarkly holds is in sync.
@@ -720,26 +766,49 @@ func TestPromptChecksModelNameOfASyncedVariation(t *testing.T) {
 		// An in-sync file edited to a name that is neither the model config's
 		// id nor its key is still refused.
 		"edited name is refused": {
-			local: "gpt-4o", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5", wantErr: true,
+			local: "gpt-4o", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5", wantErr: gptRefused,
 		},
 		// Switching only modelConfigKey keeps the old model name in the file.
 		// The name LaunchDarkly holds belongs to the old model config, so it
 		// is checked against the new one.
 		"name kept from the old model config is refused": {
-			local: "gpt-4o", server: "gpt-4o", serverKey: "OpenAI.gpt-4o", wantErr: true,
+			local: "gpt-4o", server: "gpt-4o", serverKey: "OpenAI.gpt-4o", wantErr: gptRefused,
+		},
+		// A pinned file in sync costs no extra request.
+		"pinned in-sync name LaunchDarkly holds is accepted": {
+			local: "legacy-haiku", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5", pinned: 2,
+		},
+		// A pull pins the latest version. Editing the name is refused (MV-9).
+		"pinned edited name is refused": {
+			local: "gpt-4o", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5", pinned: 2, wantErr: gptRefused,
+		},
+		"pinned name kept from the old model config is refused": {
+			local: "gpt-4o", server: "gpt-4o", serverKey: "OpenAI.gpt-4o", pinned: 2, wantErr: gptRefused,
+		},
+		// An older pinned version is checked against that version's model.
+		// --yes plans again before it writes, and each plan reads once.
+		"pinned older version's model is accepted": {
+			local: "claude-haiku-4-0", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5", pinned: 1, wantVersionsRead: 2,
+		},
+		"pinned older version with the latest model is refused": {
+			local: "claude-haiku-4-5", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5", pinned: 1, wantVersionsRead: 1,
+			wantErr: `model "claude-haiku-4-5" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-0"`,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			root, api := haikuSynced(t, test.local, test.server, test.serverKey)
+			root, api := haikuSynced(t, test.local, test.server, test.serverKey, test.pinned)
 
 			stdout, _, err := runPrompt(t, root, api, "--yes")
 
-			if !test.wantErr {
+			assert.Equal(t, test.wantVersionsRead, countRequests(api.requests, "GET", "/versions"), "versions requests")
+			if test.wantErr == "" {
 				require.NoError(t, err)
+				assert.Equal(t, test.local, api.variation.Model["modelName"])
+				assert.Equal(t, test.pinned, api.variation.ModelConfigVersion, "the pinned version is kept")
 				return
 			}
 			require.Error(t, err)
-			assert.Contains(t, stdout+err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`)
+			assert.Contains(t, stdout+err.Error(), test.wantErr)
 			assert.Contains(t, stdout+err.Error(), "Use that name, or remove modelName.")
 			requireOnlyReads(t, api.requests)
 			assert.Equal(t, test.serverKey, api.variation.ModelConfigKey, "nothing is pushed")

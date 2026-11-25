@@ -143,6 +143,34 @@ func (client Client) ModelConfig(projectKey, modelConfigKey string) (ModelConfig
 	return decodeJSON[ModelConfig](response, "model config response")
 }
 
+// modelConfigVersionsPageLimit is the largest page of model config versions
+// that LaunchDarkly serves.
+const modelConfigVersionsPageLimit = 100
+
+// ModelConfigVersions returns every version of one model config, newest
+// first. A global model config has only its current version.
+func (client Client) ModelConfigVersions(projectKey, modelConfigKey string) ([]ModelConfig, error) {
+	var versions []ModelConfig
+	for {
+		response, err := client.read(
+			fmt.Sprintf("list versions of model config %q in project %q", modelConfigKey, projectKey), projectKey,
+			pageQuery(modelConfigVersionsPageLimit, len(versions)),
+			projectPath(projectKey, "ai-configs/model-configs", modelConfigKey, "versions")...,
+		)
+		if err != nil {
+			return nil, err
+		}
+		page, err := decodeJSON[Page[ModelConfig]](response, "model config versions response")
+		if err != nil {
+			return nil, err
+		}
+		versions = append(versions, page.Items...)
+		if len(page.Items) == 0 || len(versions) >= page.TotalCount {
+			return versions, nil
+		}
+	}
+}
+
 // ModelConfigs returns every model config that a project can use.
 func (client Client) ModelConfigs(projectKey string) ([]ModelConfig, error) {
 	response, err := client.read(

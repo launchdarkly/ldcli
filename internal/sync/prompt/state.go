@@ -542,7 +542,7 @@ func planVariationRows(
 		}
 		server[id] = resource
 	}
-	local, err := canonicalizeLocalVariationModels(localFiles, client.ModelConfig, server)
+	local, err := canonicalizeLocalVariationModels(localFiles, client.ModelConfig, client.ModelConfigVersions, server)
 	if err != nil {
 		return Plan{}, nil, err
 	}

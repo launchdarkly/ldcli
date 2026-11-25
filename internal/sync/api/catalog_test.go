@@ -315,6 +315,38 @@ func TestCatalogClientModelConfigsRejectsInvalidResponse(t *testing.T) {
 	require.ErrorContains(t, err, "decode model configs response")
 }
 
+// The versions of a model config come in pages of at most 100. The client
+// reads pages until it has every version.
+func TestCatalogClientModelConfigVersionsReadsEveryPage(t *testing.T) {
+	newest := ModelConfig{Key: "claude", ID: "claude-4", Version: 2}
+	oldest := ModelConfig{Key: "claude", ID: "claude-3", Version: 1}
+	transport := &recordingClient{Responses: [][]byte{
+		mustCatalogJSON(t, Page[ModelConfig]{Items: []ModelConfig{newest}, TotalCount: 2}),
+		mustCatalogJSON(t, Page[ModelConfig]{Items: []ModelConfig{oldest}, TotalCount: 2}),
+	}}
+
+	versions, err := NewClient(transport, "token", "https://example.com").ModelConfigVersions("project", "claude")
+
+	require.NoError(t, err)
+	assert.Equal(t, []ModelConfig{newest, oldest}, versions)
+	require.Len(t, transport.Requests, 2)
+	for index, offset := range []string{"0", "1"} {
+		request := transport.Requests[index]
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "https://example.com/api/v2/projects/project/ai-configs/model-configs/claude/versions", request.Path)
+		assert.Equal(t, "100", request.Query.Get("limit"))
+		assert.Equal(t, offset, request.Query.Get("offset"))
+	}
+}
+
+func TestCatalogClientModelConfigVersionsReturnsRequestError(t *testing.T) {
+	client := NewClient(&recordingClient{Err: errors.New("unavailable")}, "token", "https://example.com")
+
+	_, err := client.ModelConfigVersions("project", "claude")
+
+	require.ErrorContains(t, err, `list versions of model config "claude" in project "project": unavailable`)
+}
+
 func mustCatalogJSON(t *testing.T, value any) []byte {
 	t.Helper()
 
