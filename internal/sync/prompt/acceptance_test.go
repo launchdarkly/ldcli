@@ -4661,3 +4661,65 @@ func TestSettingFlipToPushStillPlansTheLinkedToolRow(t *testing.T) {
 	assert.Equal(t, "Baseline tool", *api.tools["search"].Description, "the server-canonical tool is not published")
 	assert.Equal(t, "Local text", api.variation.Instructions, "the code-canonical variation is pushed")
 }
+
+// A linked variation whose selected prompt is empty, or only whitespace, is
+// refused for that variation alone. Nothing is written for it, and the other
+// linked variation in the same run is still pushed.
+func TestLinkedVariationWithAnEmptyPromptStopsTheRun(t *testing.T) {
+	for name, emptyText := range map[string]string{
+		"empty":           "",
+		"whitespace only": "  \n\t\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			require.NoError(t, os.WriteFile(filepath.Join(root, "full.md"), []byte("Local text\n"), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(root, "blank.md"), []byte(emptyText), 0o644))
+			writeLocalFile(t, root, "configs/support/full.ref.yaml", "formatVersion: 1\nfile: full.md\nformat: markdown\n")
+			writeLocalFile(t, root, "configs/support/blank.ref.yaml", "formatVersion: 1\nfile: blank.md\nformat: markdown\n")
+			compiled, err := synclocal.CompileWorkspace(root)
+			require.NoError(t, err)
+			require.Len(t, compiled, 2)
+
+			servers := map[string]syncdomain.Variation{}
+			for _, key := range []string{"full", "blank"} {
+				server := variationWithKey(key, "Server "+key)
+				server.Instructions = "Old text"
+				servers[key] = server
+			}
+			writeManifestResources(t, root, servers["full"], servers["blank"])
+			lock := readLock(t, root)
+			for _, resource := range compiled {
+				key := resource.ID().LookupKey[strings.LastIndex(resource.ID().LookupKey, "/")+1:]
+				projection, err := syncdomain.ProjectVariation(servers[key], *resource.Source)
+				require.NoError(t, err)
+				recorded, err := syncdomain.FingerprintProjection(resource.ID(), projection)
+				require.NoError(t, err)
+				lock.SetFingerprint(resource.ID(), recorded)
+				require.NoError(t, lock.SetSource(resource.ID(), resource.Source, "markdown/1", resource.IndexedSelections))
+				for index, item := range manifestsByRoot[root].Items {
+					if item.ResourceLookupKey == resource.ID().LookupKey {
+						manifestsByRoot[root].Items[index].Fingerprint = recorded
+					}
+				}
+			}
+			require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+			api := &multiDirectAPI{variations: servers}
+
+			stdout, stderr, err := runPrompt(t, root, api, "--yes")
+
+			output := stdout + stderr
+			if err != nil {
+				output += err.Error()
+			}
+			assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/blank"), "no PATCH for the empty prompt: %v", api.requests)
+			assert.Zero(t, countRequests(api.requests, http.MethodPost, "/variations"), "no POST for the empty prompt: %v", api.requests)
+			assert.Equal(t, "Old text", api.variations["blank"].Instructions, "LaunchDarkly keeps its prompt")
+			require.Error(t, err, "an empty prompt stops the run")
+			assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/"), "nothing is pushed: %v", api.requests)
+			assert.Equal(t, "Old text", api.variations["full"].Instructions, "the other variation is not pushed either")
+			assert.Contains(t, output, "blank.md", "the refusal names the file")
+			assert.Contains(t, output, "support/blank", "the refusal names the variation")
+			assert.Contains(t, output, "is empty", "the refusal says the prompt is empty")
+		})
+	}
+}
