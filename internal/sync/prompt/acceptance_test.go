@@ -4782,3 +4782,34 @@ func TestConflictResolvedToAnEmptyLinkedPromptStopsTheRun(t *testing.T) {
 
 	assertEmptyPromptStoppedTheRun(t, api, stdout, stderr, err)
 }
+
+// A push that only renames a linked variation is not refused when the prompt
+// is empty both locally and in LaunchDarkly: the push doesn't empty a prompt.
+func TestRenameOfALinkedVariationWithAnEmptyPromptOnBothSidesIsPushed(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), []byte("from agents import Agent\nsupport = Agent(name=\"Renamed\", instructions=\"\")\n"), 0o644))
+	writeLocalFile(t, root, "configs/support/default.ref.yaml",
+		"formatVersion: 1\nfile: agents.py\nformat: python\nselect: 'agents[id=\"support\"]'\nmap:\n  prompt: instructions\n  name: name\n")
+	compiled, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, compiled, 1)
+	server := variation("Server")
+	server.Instructions = ""
+	writeManifestResources(t, root)
+	lock := readLock(t, root)
+	projection, err := syncdomain.ProjectVariation(server, *compiled[0].Source)
+	require.NoError(t, err)
+	fingerprint, err := syncdomain.FingerprintProjection(compiled[0].ID(), projection)
+	require.NoError(t, err)
+	lock.SetFingerprint(compiled[0].ID(), fingerprint)
+	require.NoError(t, lock.SetSource(compiled[0].ID(), compiled[0].Source, "python/1", compiled[0].IndexedSelections))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), lock))
+	api := &directAPI{variation: &server}
+
+	stdout, stderr, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err, "stdout: %s\nstderr: %s", stdout, stderr)
+	assert.Equal(t, 1, countRequests(api.requests, http.MethodPatch, "/variations/default"), "the rename is pushed: %v", api.requests)
+	assert.Equal(t, "Renamed", api.variation.Name)
+	assert.NotContains(t, stdout+stderr, "is empty", "no refusal is shown")
+}

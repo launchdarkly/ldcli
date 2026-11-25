@@ -153,7 +153,9 @@ func blockUnsupportedFields(resource *PlannedResource) {
 }
 
 // blockEmptyPrompt refuses to write an empty prompt from a linked source
-// over the prompt in LaunchDarkly. It runs once the action of the row is
+// over a non-empty prompt in LaunchDarkly, or to create a variation with an
+// empty prompt. An update whose server prompt is empty too doesn't change the
+// prompt, so it goes ahead. It runs once the action of the row is
 // final: after the sync settings (checkSourcePublications) and after a
 // conflict choice (applyConflictResolutions), because either can turn a row
 // into a push.
@@ -167,6 +169,11 @@ func blockEmptyPrompt(resource *PlannedResource) {
 	prompt, known := resource.LocalProjection.Value(syncdomain.FieldPrompt)
 	if !known || !isEmptyPrompt(prompt) {
 		return
+	}
+	if resource.Action == ActionUpdateServer && resource.ServerProjection != nil {
+		if serverPrompt, known := resource.ServerProjection.Value(syncdomain.FieldPrompt); known && isEmptyPrompt(serverPrompt) {
+			return
+		}
 	}
 	setProblem(resource, syncdomain.NewProblem(
 		syncdomain.ErrorInvalidSource,
