@@ -310,8 +310,12 @@ func (store Store) verifyOtherBindings(
 			continue
 		}
 		bundle, err := before.bundle(binding.reference)
-		if err != nil || !before.bundleTouches(bundle, updated) {
+		if err != nil {
 			// A source that sync cannot read has no projection to keep.
+			continue
+		}
+		shared, touches := before.touchedFile(bundle, updated)
+		if !touches {
 			continue
 		}
 		previous, err := syncadapter.ParseSource(bundle, binding.id, binding.reference)
@@ -320,28 +324,48 @@ func (store Store) verifyOtherBindings(
 		}
 		bundle, err = after.bundle(binding.reference)
 		if err != nil {
-			return fmt.Errorf("non-target projection %s changed", binding.id.Label())
+			return sharedSourceProblem(binding, shared)
 		}
 		next, err := syncadapter.ParseSource(bundle, binding.id, binding.reference)
 		if err != nil || !sameProjection(binding.id, previous, next) {
-			return fmt.Errorf("non-target projection %s changed", binding.id.Label())
+			return sharedSourceProblem(binding, shared)
 		}
 	}
 	return nil
 }
 
-// bundleTouches reports whether a bundle reads an updated file. updated is
-// keyed by resolved path.
-func (snapshot *sourceSnapshot) bundleTouches(bundle syncadapter.SourceBundle, updated map[string]syncadapter.Document) bool {
-	files := append([]string{bundle.Primary.Path}, slices.Collect(maps.Keys(bundle.Dependencies))...)
+// sharedSourceProblem explains that another variation reads the edited file
+// named shared, directly or through an import, so the edit would change that
+// variation too.
+func sharedSourceProblem(binding sourceBinding, shared string) error {
+	selected := binding.reference.File
+	if binding.reference.Select != "" {
+		selected = binding.reference.Select + " in " + selected
+	}
+	source := selected
+	if shared != binding.reference.File {
+		source = shared + " through " + selected
+	}
+	return syncdomain.NewProblem(
+		syncdomain.ErrorSourceShared,
+		fmt.Sprintf("%s also reads %s, so this change would change it too", binding.id.Label(), source),
+		"Give each variation its own source, such as its own constant, or give both variations the same owner.",
+	).WithFile(shared, 0, 0)
+}
+
+// touchedFile returns the first file, in read order, that a bundle reads and
+// that is updated: the primary file, then each dependency in name order.
+// updated is keyed by resolved path.
+func (snapshot *sourceSnapshot) touchedFile(bundle syncadapter.SourceBundle, updated map[string]syncadapter.Document) (string, bool) {
+	files := append([]string{bundle.Primary.Path}, slices.Sorted(maps.Keys(bundle.Dependencies))...)
 	for _, file := range files {
 		if key, err := snapshot.key(file); err == nil {
 			if _, ok := updated[key]; ok {
-				return true
+				return file, true
 			}
 		}
 	}
-	return false
+	return "", false
 }
 
 // sourceSnapshot is one read of each repository file that a publication
