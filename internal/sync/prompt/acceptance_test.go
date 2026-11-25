@@ -4687,7 +4687,10 @@ func TestMissingLinkedSourceStopsTheRunAndNamesTheVariationDescriptorAndFile(t *
 			assert.Contains(t, shown, "production/support/default", "the error names the variation")
 			assert.Contains(t, shown, ".launchdarkly/production/configs/support/default.ref.yaml", "the error names the descriptor")
 			assert.Contains(t, shown, "agents.py", "the error names the missing source file")
-			assert.Contains(t, shown, "detach", "the hint mentions detach")
+			assert.Contains(t, shown,
+				"ldcli sync prompts detach --project production --config-key support --key default",
+				"the hint gives the full detach command, which works with --no-input")
+			assert.NotContains(t, shown, `agents.py: source file "agents.py"`, "the file is not repeated")
 			for _, request := range api.requests {
 				assert.True(t, strings.HasPrefix(request, "GET "), "nothing is written to LaunchDarkly: %s", request)
 			}
@@ -4699,4 +4702,18 @@ func TestMissingLinkedSourceStopsTheRunAndNamesTheVariationDescriptorAndFile(t *
 			assert.Equal(t, string(lockBefore), string(lockAfter), "the lock is unchanged")
 		})
 	}
+}
+
+// JSON output keeps the missing file in its own field.
+func TestMissingLinkedSourceJSONNamesTheFile(t *testing.T) {
+	root, api := linkedVariationForPush(t)
+	require.NoError(t, os.Remove(filepath.Join(root, "agents.py")))
+
+	stdout, stderr, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.Error(t, err)
+	shown := err.Error() + "\n" + stdout + "\n" + stderr
+	assert.Contains(t, shown, `"code":"linked_source_missing"`)
+	assert.Contains(t, shown, `"file":"agents.py"`, "the JSON problem names the file")
+	assert.Contains(t, shown, `"resource":"variation production/support/default"`)
 }
