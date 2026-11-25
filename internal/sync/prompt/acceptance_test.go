@@ -4667,8 +4667,11 @@ func TestSettingFlipToPushStillPlansTheLinkedToolRow(t *testing.T) {
 // what LaunchDarkly said, with a hint to run sync again.
 func TestPromptPushShowsTheAPIMessageWhenTheVariationWriteConflicts(t *testing.T) {
 	root, api := managedVariationWithLocalChange(t)
+	// The real client adds the generic suggestion for the status to every
+	// error body.
 	api.variationWriteErr = lderrors.NewError(
-		`{"code":"conflict","message":"AI Config in conflicted state. Try again.","statusCode":409}`,
+		`{"code":"conflict","message":"AI Config in conflicted state. Try again.","statusCode":409,` +
+			`"suggestion":"` + lderrors.SuggestionForStatus(http.StatusConflict, "") + `"}`,
 	)
 
 	_, _, err := runPrompt(t, root, api, "--yes", "--output=plaintext")
@@ -4680,4 +4683,5 @@ func TestPromptPushShowsTheAPIMessageWhenTheVariationWriteConflicts(t *testing.T
 	assert.Contains(t, message, "support/default", "names the variation")
 	assert.Contains(t, message, "AI Config in conflicted state. Try again.", "passes on the API message")
 	assert.Contains(t, message, "LaunchDarkly was changing this config at the same time. Run sync again.")
+	assert.NotContains(t, message, "Fetch the latest version and retry.", "the sync hint replaces the generic one")
 }

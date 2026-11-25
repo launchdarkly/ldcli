@@ -232,7 +232,8 @@ func apiProblems(err error) []*syncdomain.Problem {
 }
 
 // apiProblem replaces the LaunchDarkly response body in the text of err with
-// the message of the body. A 409 tells the user to run sync again.
+// the message of the body. A 409 tells the user to run sync again, in place of
+// the generic suggestion the client adds.
 func apiProblem(err error) (*syncdomain.Problem, bool) {
 	for current := err; current != nil; current = errors.Unwrap(current) {
 		var response struct {
@@ -246,7 +247,7 @@ func apiProblem(err error) (*syncdomain.Problem, bool) {
 			continue
 		}
 		suggestion := response.Suggestion
-		if suggestion == "" && response.StatusCode == http.StatusConflict {
+		if response.StatusCode == http.StatusConflict {
 			suggestion = "LaunchDarkly was changing this config at the same time. Run sync again."
 		}
 		message := strings.Replace(err.Error(), body, response.Message, 1)
