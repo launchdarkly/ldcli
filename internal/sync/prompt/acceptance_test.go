@@ -249,7 +249,7 @@ func (api *directAPI) MakeRequest(
 				return json.Marshal(modelConfig)
 			}
 		}
-		return nil, fmt.Errorf("model config not found")
+		return nil, fmt.Errorf(`{"code":"not_found","message":"model config not found","statusCode":404}`)
 	}
 	if method == http.MethodPost && strings.HasSuffix(path, "/ai-configs") {
 		var request struct {
@@ -470,7 +470,8 @@ func TestPromptDiffExcludesExpandedToolsFromModelParameters(t *testing.T) {
 		},
 	}
 	api := &directAPI{
-		variation: &server,
+		modelConfigs: []syncapi.ModelConfig{{Key: "claude", ID: "claude-sonnet-4", Version: 2}},
+		variation:    &server,
 		tools: map[string]versionedTool{
 			"search": {Tool: tool, Version: 3},
 		},
@@ -518,7 +519,7 @@ func TestPromptPushExcludesExpandedToolsFromModelParameters(t *testing.T) {
 
 	server := base
 	server.Attachments = nil
-	api := &directAPI{variation: &server, tools: map[string]versionedTool{"search": {Tool: tool, Version: 3}}, expandTools: true}
+	api := &directAPI{variation: &server, tools: map[string]versionedTool{"search": {Tool: tool, Version: 3}}, expandTools: true, modelConfigs: []syncapi.ModelConfig{{Key: "claude", ID: "claude-sonnet-4", Version: 2}}}
 
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--diff", "--output", "plaintext")
 
@@ -560,6 +561,136 @@ func TestPromptRejectsModelValuesThatAreNotObjects(t *testing.T) {
 			requireOnlyReads(t, api.requests)
 		})
 	}
+}
+
+// A model block whose modelName is empty in YAML (null) or not text is
+// refused when the file is read. LaunchDarkly would store it as "", and sync
+// would push it again on every run.
+func TestPromptRejectsModelNameThatIsNotText(t *testing.T) {
+	for name, modelName := range map[string]string{
+		"null":   "  modelName:\n",
+		"number": "  modelName: 42\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
+				"mode: agent\nkey: default\nname: Default\nmodel:\n"+modelName+"---\n\nHelp.\n")
+			api := &directAPI{}
+
+			_, _, err := runPrompt(t, root, api, "--yes")
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "default.prompt.md")
+			assert.Contains(t, err.Error(),
+				"model.modelName must be text. Set it to the model config's name, or remove the model block.")
+			requireOnlyReads(t, api.requests)
+			assert.Nil(t, api.variation, "nothing is created")
+			assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "sync.lock"))
+		})
+	}
+}
+
+// An empty modelName and a file without a model block stay accepted.
+func TestPromptAcceptsEmptyModelNameAndNoModelBlock(t *testing.T) {
+	for name, model := range map[string]string{
+		"empty modelName": "model:\n  modelName: \"\"\n",
+		"no model block":  "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
+				"mode: agent\nkey: default\nname: Default\n"+model+"---\n\nHelp.\n")
+			api := &directAPI{}
+
+			_, _, err := runPrompt(t, root, api, "--yes")
+
+			require.NoError(t, err)
+			require.NotNil(t, api.variation, "the variation is created")
+		})
+	}
+}
+
+// haikuModelConfig is a model config whose model (its id) is
+// claude-haiku-4-5, as LaunchDarkly serves it.
+func haikuModelConfig() syncapi.ModelConfig {
+	return syncapi.ModelConfig{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5", Version: 1}
+}
+
+// A modelName that differs from the model of the model config is refused at
+// plan time, in a dry run and with --yes, and nothing is written.
+func TestPromptRejectsModelNameThatDoesNotMatchTheModelConfig(t *testing.T) {
+	for _, mode := range []string{"--dry-run", "--yes"} {
+		t.Run(mode, func(t *testing.T) {
+			root := initRepository(t)
+			local := variation("Default")
+			local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+			local.Model = map[string]any{"modelName": "gpt-4o"}
+			writeVariation(t, root, local, true)
+			api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
+
+			stdout, _, err := runPrompt(t, root, api, mode)
+
+			require.Error(t, err)
+			assert.Contains(t, stdout+err.Error(),
+				`model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5". Use that name, or remove modelName.`)
+			requireOnlyReads(t, api.requests)
+			assert.Nil(t, api.variation, "nothing is created")
+		})
+	}
+}
+
+// A modelName that is the model of the model config is accepted and pushed.
+func TestPromptAcceptsModelNameThatMatchesTheModelConfig(t *testing.T) {
+	root := initRepository(t)
+	local := variation("Default")
+	local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+	local.Model = map[string]any{"modelName": "claude-haiku-4-5"}
+	writeVariation(t, root, local, true)
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, "claude-haiku-4-5", api.variation.Model["modelName"])
+}
+
+// A model config key that LaunchDarkly doesn't have is refused at plan time
+// even when the file pins modelConfigVersion. Before, the dry run was clean,
+// and --yes created the config before the variation failed with a 404.
+func TestPromptRejectsMissingModelConfigWithAPinnedVersion(t *testing.T) {
+	newWorkspace := func(t *testing.T) (string, *directAPI) {
+		root := initRepository(t)
+		local := variation("Default")
+		local.ModelConfigKey = "Anthropic.no-such-model"
+		local.ModelConfigVersion = 1
+		local.Model = map[string]any{"modelName": "no-such-model"}
+		writeVariation(t, root, local, true)
+		return root, &directAPI{configMissing: true}
+	}
+
+	t.Run("dry run", func(t *testing.T) {
+		root, api := newWorkspace(t)
+
+		stdout, _, err := runPrompt(t, root, api, "--dry-run")
+
+		require.Error(t, err, "the plan is not clean")
+		message := stdout + err.Error()
+		assert.Contains(t, message, `get model config "Anthropic.no-such-model"`)
+		assert.Contains(t, message, "not_found")
+		assert.Contains(t, message, "production/support/default", "the message names the variation")
+	})
+
+	t.Run("--yes", func(t *testing.T) {
+		root, api := newWorkspace(t)
+
+		_, _, err := runPrompt(t, root, api, "--yes")
+
+		assert.Error(t, err)
+		assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"), "the config is not created")
+		assert.Zero(t, countRequests(api.requests, "POST", "/variations"), "the variation is not created")
+		assert.True(t, api.configMissing)
+	})
 }
 
 func TestPromptFirstSyncCreatesUpsertVariation(t *testing.T) {

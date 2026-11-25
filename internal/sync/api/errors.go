@@ -48,6 +48,12 @@ func newMutationError(action, resource, key string, err error) error {
 	}
 }
 
+// WithContext adds a description to the message of an API error. It keeps
+// the code and the suggestion of the response.
+func WithContext(err error, description string) error {
+	return contextualAPIError(err, description, "")
+}
+
 // contextualAPIError adds a description to an API error. It keeps the
 // structured fields of the response. If the resource is not found in
 // projectKey, the error suggests a fix.

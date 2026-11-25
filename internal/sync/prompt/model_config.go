@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
 	"slices"
@@ -25,7 +26,7 @@ func canonicalizeLocalVariationModels(
 
 	for index := range canonical {
 		variation := &canonical[index].Variation
-		if variation.ModelConfigKey == "" || variation.ModelConfigVersion != 0 {
+		if variation.ModelConfigKey == "" {
 			continue
 		}
 
@@ -34,9 +35,18 @@ func canonicalizeLocalVariationModels(
 		if !ok {
 			var err error
 			if modelConfig, err = getModelConfig(id.projectKey, id.key); err != nil {
-				return nil, err
+				return nil, syncapi.WithContext(err, canonical[index].ID().Label())
 			}
 			modelConfigs[id] = modelConfig
+		}
+		if variation.ModelConfigVersion != 0 {
+			continue
+		}
+		if modelName, ok := variation.Model["modelName"]; ok && modelName != "" && modelName != modelConfig.ID {
+			return nil, fmt.Errorf(
+				"%s: model %q does not match model config %q, whose model is %q. Use that name, or remove modelName.",
+				canonical[index].ID().Label(), modelName, variation.ModelConfigKey, modelConfig.ID,
+			)
 		}
 		if modelConfig.Version == 0 {
 			continue
