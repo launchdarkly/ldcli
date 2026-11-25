@@ -4724,6 +4724,48 @@ func TestLinkedVariationWithAnEmptyPromptStopsTheRun(t *testing.T) {
 	}
 }
 
+// A linked variation whose source file is gone stops the whole run before
+// anything is written (D3). The error names the variation, its descriptor and
+// the missing file, and says how to get out of it.
+func TestMissingLinkedSourceStopsTheRunAndNamesTheVariationDescriptorAndFile(t *testing.T) {
+	for name, arguments := range map[string][]string{
+		"dry run": {"--dry-run", "--output", "plaintext"},
+		"yes":     {"--yes", "--output", "plaintext"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root, api := linkedVariationForPush(t)
+			require.NoError(t, os.Remove(filepath.Join(root, "agents.py")))
+			descriptor := filepath.Join(root, syncdomain.RootDir, "production", "configs", "support", "default.ref.yaml")
+			lockPath := filepath.Join(root, syncdomain.RootDir, "sync.lock")
+			descriptorBefore, err := os.ReadFile(descriptor)
+			require.NoError(t, err)
+			lockBefore, err := os.ReadFile(lockPath)
+			require.NoError(t, err)
+
+			stdout, stderr, err := runPrompt(t, root, api, arguments...)
+
+			require.Error(t, err, "the run fails, so the command exits non-zero")
+			shown := err.Error() + "\n" + stdout + "\n" + stderr
+			assert.Contains(t, shown, "production/support/default", "the error names the variation")
+			assert.Contains(t, shown, ".launchdarkly/production/configs/support/default.ref.yaml", "the error names the descriptor")
+			assert.Contains(t, shown, "agents.py", "the error names the missing source file")
+			assert.Contains(t, shown,
+				"ldcli sync prompts detach --project production --config-key support --key default",
+				"the hint gives the full detach command, which works with --no-input")
+			assert.NotContains(t, shown, `agents.py: source file "agents.py"`, "the file is not repeated")
+			for _, request := range api.requests {
+				assert.True(t, strings.HasPrefix(request, "GET "), "nothing is written to LaunchDarkly: %s", request)
+			}
+			descriptorAfter, err := os.ReadFile(descriptor)
+			require.NoError(t, err)
+			assert.Equal(t, string(descriptorBefore), string(descriptorAfter), "the descriptor is unchanged")
+			lockAfter, err := os.ReadFile(lockPath)
+			require.NoError(t, err)
+			assert.Equal(t, string(lockBefore), string(lockAfter), "the lock is unchanged")
+		})
+	}
+}
+
 // writeEmptyLinkedPrompt links agents.py, whose agent has empty instructions,
 // to support/default. The lock records baseline as the last synced prompt,
 // and LaunchDarkly now has "Help".
@@ -4812,4 +4854,18 @@ func TestRenameOfALinkedVariationWithAnEmptyPromptOnBothSidesIsPushed(t *testing
 	assert.Equal(t, 1, countRequests(api.requests, http.MethodPatch, "/variations/default"), "the rename is pushed: %v", api.requests)
 	assert.Equal(t, "Renamed", api.variation.Name)
 	assert.NotContains(t, stdout+stderr, "is empty", "no refusal is shown")
+}
+
+// JSON output keeps the missing file in its own field.
+func TestMissingLinkedSourceJSONNamesTheFile(t *testing.T) {
+	root, api := linkedVariationForPush(t)
+	require.NoError(t, os.Remove(filepath.Join(root, "agents.py")))
+
+	stdout, stderr, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.Error(t, err)
+	shown := err.Error() + "\n" + stdout + "\n" + stderr
+	assert.Contains(t, shown, `"code":"linked_source_missing"`)
+	assert.Contains(t, shown, `"file":"agents.py"`, "the JSON problem names the file")
+	assert.Contains(t, shown, `"resource":"variation production/support/default"`)
 }
