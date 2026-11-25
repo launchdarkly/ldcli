@@ -538,51 +538,32 @@ func TestPromptPushExcludesExpandedToolsFromModelParameters(t *testing.T) {
 	assert.Contains(t, stdout, "No changes.")
 }
 
-// LaunchDarkly keeps model parameters and custom values only as objects, so
-// sync rejects any other value before a write.
-func TestPromptRejectsModelValuesThatAreNotObjects(t *testing.T) {
+// LaunchDarkly keeps model parameters and custom values only as objects, and
+// modelName only as text, so sync rejects any other value when the file is
+// read, before a write. An empty modelName in YAML (null) would be stored as
+// "", and sync would push it again on every run.
+func TestPromptRejectsModelValuesOfTheWrongType(t *testing.T) {
+	const notText = "model.modelName must be text. Set it to the model config's name, or remove modelName."
 	for name, test := range map[string]struct {
 		model string
 		want  string
 	}{
-		"parameters":       {"  parameters: temperature=0.2\n", "model.parameters must be an object"},
-		"empty parameters": {"  parameters:\n", "model.parameters must be an object"},
-		"custom":           {"  custom: [retries]\n", "model.custom must be an object"},
+		"parameters":       {"  modelName: gpt-5\n  parameters: temperature=0.2\n", "model.parameters must be an object"},
+		"empty parameters": {"  modelName: gpt-5\n  parameters:\n", "model.parameters must be an object"},
+		"custom":           {"  modelName: gpt-5\n  custom: [retries]\n", "model.custom must be an object"},
+		"modelName null":   {"  modelName:\n", notText},
+		"modelName number": {"  modelName: 42\n", notText},
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := initRepository(t)
 			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
-				"mode: agent\nkey: default\nname: Default\nmodel:\n  modelName: gpt-5\n"+test.model+"---\n\nHelp.\n")
+				"mode: agent\nkey: default\nname: Default\nmodel:\n"+test.model+"---\n\nHelp.\n")
 			api := &directAPI{}
 
 			_, _, err := runPrompt(t, root, api, "--yes")
 
 			require.ErrorContains(t, err, test.want)
-			requireOnlyReads(t, api.requests)
-		})
-	}
-}
-
-// A model block whose modelName is empty in YAML (null) or not text is
-// refused when the file is read. LaunchDarkly would store it as "", and sync
-// would push it again on every run.
-func TestPromptRejectsModelNameThatIsNotText(t *testing.T) {
-	for name, modelName := range map[string]string{
-		"null":   "  modelName:\n",
-		"number": "  modelName: 42\n",
-	} {
-		t.Run(name, func(t *testing.T) {
-			root := initRepository(t)
-			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
-				"mode: agent\nkey: default\nname: Default\nmodel:\n"+modelName+"---\n\nHelp.\n")
-			api := &directAPI{}
-
-			_, _, err := runPrompt(t, root, api, "--yes")
-
-			require.Error(t, err)
 			assert.Contains(t, err.Error(), "default.prompt.md")
-			assert.Contains(t, err.Error(),
-				"model.modelName must be text. Set it to the model config's name, or remove modelName.")
 			requireOnlyReads(t, api.requests)
 			assert.Nil(t, api.variation, "nothing is created")
 			assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "sync.lock"))
@@ -590,24 +571,17 @@ func TestPromptRejectsModelNameThatIsNotText(t *testing.T) {
 	}
 }
 
-// An empty modelName and a file without a model block stay accepted.
-func TestPromptAcceptsEmptyModelNameAndNoModelBlock(t *testing.T) {
-	for name, model := range map[string]string{
-		"empty modelName": "model:\n  modelName: \"\"\n",
-		"no model block":  "",
-	} {
-		t.Run(name, func(t *testing.T) {
-			root := initRepository(t)
-			writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
-				"mode: agent\nkey: default\nname: Default\n"+model+"---\n\nHelp.\n")
-			api := &directAPI{}
+// An empty modelName stays accepted.
+func TestPromptAcceptsEmptyModelName(t *testing.T) {
+	root := initRepository(t)
+	writeLocalFile(t, root, "configs/support/default.prompt.md", "---\nformatVersion: 1\nupsert: true\n"+
+		"mode: agent\nkey: default\nname: Default\nmodel:\n  modelName: \"\"\n---\n\nHelp.\n")
+	api := &directAPI{}
 
-			_, _, err := runPrompt(t, root, api, "--yes")
+	_, _, err := runPrompt(t, root, api, "--yes")
 
-			require.NoError(t, err)
-			require.NotNil(t, api.variation, "the variation is created")
-		})
-	}
+	require.NoError(t, err)
+	require.NotNil(t, api.variation, "the variation is created")
 }
 
 // haikuModelConfig is a model config whose model (its id) is
@@ -639,20 +613,28 @@ func TestPromptRejectsModelNameThatDoesNotMatchTheModelConfig(t *testing.T) {
 	}
 }
 
-// A modelName that is the model of the model config is accepted and pushed.
-func TestPromptAcceptsModelNameThatMatchesTheModelConfig(t *testing.T) {
-	root := initRepository(t)
-	local := variation("Default")
-	local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
-	local.Model = map[string]any{"modelName": "claude-haiku-4-5"}
-	writeVariation(t, root, local, true)
-	api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
+// A new variation may name the model of the model config (its id) or the
+// model config key as its model. Both are accepted and pushed.
+func TestPromptAcceptsNewModelNameThatNamesTheModelConfig(t *testing.T) {
+	for name, modelName := range map[string]string{
+		"model config id":  "claude-haiku-4-5",
+		"model config key": "Anthropic.claude-haiku-4-5",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			local := variation("Default")
+			local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+			local.Model = map[string]any{"modelName": modelName}
+			writeVariation(t, root, local, true)
+			api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
 
-	_, _, err := runPrompt(t, root, api, "--yes")
+			_, _, err := runPrompt(t, root, api, "--yes")
 
-	require.NoError(t, err)
-	require.NotNil(t, api.variation)
-	assert.Equal(t, "claude-haiku-4-5", api.variation.Model["modelName"])
+			require.NoError(t, err)
+			require.NotNil(t, api.variation)
+			assert.Equal(t, modelName, api.variation.Model["modelName"])
+		})
+	}
 }
 
 // A model config key that LaunchDarkly doesn't have is refused at plan time
@@ -676,8 +658,9 @@ func TestPromptRejectsMissingModelConfigWithAPinnedVersion(t *testing.T) {
 
 		require.Error(t, err, "the plan is not clean")
 		message := stdout + err.Error()
-		assert.Contains(t, message, `get model config "Anthropic.no-such-model"`)
-		assert.Contains(t, message, "not_found")
+		assert.Contains(t, message, `model config "Anthropic.no-such-model" was not found in project "production"`)
+		assert.Contains(t, message, "Fix modelConfigKey, or create the model config in LaunchDarkly.")
+		assert.Contains(t, message, "invalid_reference")
 		assert.Contains(t, message, "production/support/default", "the message names the variation")
 	})
 
@@ -693,103 +676,76 @@ func TestPromptRejectsMissingModelConfigWithAPinnedVersion(t *testing.T) {
 	})
 }
 
-// haikuSynced writes a lock and a LaunchDarkly copy that hold serverName for
-// the haiku model config, as a pull writes them, and a file that holds
-// localName. The model config is unversioned, as LaunchDarkly can serve it.
-func haikuSynced(t *testing.T, localName, serverName string) (string, *directAPI) {
+// haikuSynced writes a lock and a LaunchDarkly copy that hold serverName
+// under the model config serverKey, as a pull writes them, and a file that
+// holds localName under the haiku model config. Both model configs are
+// unversioned, as LaunchDarkly can serve them.
+func haikuSynced(t *testing.T, localName, serverName, serverKey string) (string, *directAPI) {
 	t.Helper()
 	root := initRepository(t)
-	withName := func(name string) syncdomain.Variation {
+	withModel := func(key, name string) syncdomain.Variation {
 		v := variation("Baseline")
-		v.ModelConfigKey = "Anthropic.claude-haiku-4-5"
+		v.ModelConfigKey = key
 		v.Model = map[string]any{"modelName": name, "parameters": map[string]any{}, "custom": map[string]any{}}
 		return v
 	}
-	writeVariation(t, root, withName(localName), true)
-	writeManifest(t, root, withName(serverName))
+	writeVariation(t, root, withModel("Anthropic.claude-haiku-4-5", localName), true)
+	writeManifest(t, root, withModel(serverKey, serverName))
 	return root, &directAPI{
-		variation:    pointer(withName(serverName)),
-		modelConfigs: []syncapi.ModelConfig{{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5"}},
-	}
-}
-
-// Several LaunchDarkly UI paths store the model config key as modelName. A
-// file that holds what LaunchDarkly holds is in sync and is not refused.
-func TestPromptAcceptsInSyncModelNameThatIsTheModelConfigKey(t *testing.T) {
-	root, api := haikuSynced(t, "Anthropic.claude-haiku-4-5", "Anthropic.claude-haiku-4-5")
-
-	_, _, err := runPrompt(t, root, api, "--dry-run")
-
-	require.NoError(t, err)
-}
-
-// A name that LaunchDarkly already holds for the variation is never refused,
-// even when it is neither the model config's id nor its key.
-func TestPromptAcceptsInSyncModelNameThatLaunchDarklyHolds(t *testing.T) {
-	root, api := haikuSynced(t, "legacy-haiku", "legacy-haiku")
-
-	_, _, err := runPrompt(t, root, api, "--dry-run")
-
-	require.NoError(t, err)
-}
-
-// Switching only modelConfigKey keeps the old model name in the file. The
-// name LaunchDarkly holds belongs to the old model config, so it is checked
-// against the new one and refused.
-func TestPromptRejectsModelNameKeptFromTheOldModelConfig(t *testing.T) {
-	root := initRepository(t)
-	withConfig := func(key string) syncdomain.Variation {
-		v := variation("Baseline")
-		v.ModelConfigKey = key
-		v.Model = map[string]any{"modelName": "gpt-4o", "parameters": map[string]any{}, "custom": map[string]any{}}
-		return v
-	}
-	writeVariation(t, root, withConfig("Anthropic.claude-haiku-4-5"), true)
-	writeManifest(t, root, withConfig("OpenAI.gpt-4o"))
-	api := &directAPI{
-		variation: pointer(withConfig("OpenAI.gpt-4o")),
+		variation: pointer(withModel(serverKey, serverName)),
 		modelConfigs: []syncapi.ModelConfig{
 			{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5"},
 			{Key: "OpenAI.gpt-4o", ID: "gpt-4o"},
 		},
 	}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`)
-	assert.Contains(t, err.Error(), "Use that name, or remove modelName.")
-	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/default"), "nothing is pushed: %v", api.requests)
 }
 
-// A new variation may name the model config key as its model.
-func TestPromptAcceptsNewModelNameThatIsTheModelConfigKey(t *testing.T) {
-	root := initRepository(t)
-	local := variation("Default")
-	local.ModelConfigKey = "Anthropic.claude-haiku-4-5"
-	local.Model = map[string]any{"modelName": "Anthropic.claude-haiku-4-5"}
-	writeVariation(t, root, local, true)
-	api := &directAPI{modelConfigs: []syncapi.ModelConfig{haikuModelConfig()}}
+// A synced variation's modelName is checked against its model config unless
+// LaunchDarkly already holds that name under the same model config.
+func TestPromptChecksModelNameOfASyncedVariation(t *testing.T) {
+	for name, test := range map[string]struct {
+		local, server, serverKey string
+		wantErr                  bool
+	}{
+		// Several LaunchDarkly UI paths store the model config key as
+		// modelName. A file that holds what LaunchDarkly holds is in sync.
+		"in-sync model config key is accepted": {
+			local: "Anthropic.claude-haiku-4-5", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5",
+		},
+		// A name that LaunchDarkly already holds is never refused, even when
+		// it is neither the model config's id nor its key.
+		"in-sync name LaunchDarkly holds is accepted": {
+			local: "legacy-haiku", server: "legacy-haiku", serverKey: "Anthropic.claude-haiku-4-5",
+		},
+		// An in-sync file edited to a name that is neither the model config's
+		// id nor its key is still refused.
+		"edited name is refused": {
+			local: "gpt-4o", server: "Anthropic.claude-haiku-4-5", serverKey: "Anthropic.claude-haiku-4-5", wantErr: true,
+		},
+		// Switching only modelConfigKey keeps the old model name in the file.
+		// The name LaunchDarkly holds belongs to the old model config, so it
+		// is checked against the new one.
+		"name kept from the old model config is refused": {
+			local: "gpt-4o", server: "gpt-4o", serverKey: "OpenAI.gpt-4o", wantErr: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root, api := haikuSynced(t, test.local, test.server, test.serverKey)
 
-	_, _, err := runPrompt(t, root, api, "--yes")
+			stdout, _, err := runPrompt(t, root, api, "--yes")
 
-	require.NoError(t, err)
-	require.NotNil(t, api.variation)
-	assert.Equal(t, "Anthropic.claude-haiku-4-5", api.variation.Model["modelName"])
-}
-
-// An in-sync file edited to a name that is neither the model config's id nor
-// its key is still refused, and nothing is written.
-func TestPromptRejectsEditedModelNameOfAnInSyncVariation(t *testing.T) {
-	root, api := haikuSynced(t, "gpt-4o", "Anthropic.claude-haiku-4-5")
-
-	stdout, _, err := runPrompt(t, root, api, "--yes")
-
-	require.Error(t, err)
-	assert.Contains(t, stdout+err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`)
-	assert.Contains(t, stdout+err.Error(), "Use that name, or remove modelName.")
-	requireOnlyReads(t, api.requests)
-	assert.Equal(t, "Anthropic.claude-haiku-4-5", api.variation.Model["modelName"], "LaunchDarkly is unchanged")
+			if !test.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, stdout+err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5"`)
+			assert.Contains(t, stdout+err.Error(), "Use that name, or remove modelName.")
+			requireOnlyReads(t, api.requests)
+			assert.Equal(t, test.serverKey, api.variation.ModelConfigKey, "nothing is pushed")
+			assert.Equal(t, test.server, api.variation.Model["modelName"], "nothing is pushed")
+		})
+	}
 }
 
 // A pinned modelConfigVersion above the latest version doesn't exist. It is

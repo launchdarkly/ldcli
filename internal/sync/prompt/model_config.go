@@ -39,7 +39,14 @@ func canonicalizeLocalVariationModels(
 		if !ok {
 			var err error
 			if modelConfig, err = getModelConfig(id.projectKey, id.key); err != nil {
-				return nil, syncapi.WithContext(err, canonical[index].ID().Label())
+				if syncapi.IsNotFound(err) {
+					return nil, syncdomain.WrapProblem(syncdomain.NewProblem(
+						syncdomain.ErrorInvalidReference,
+						fmt.Sprintf("model config %q was not found in project %q", id.key, id.projectKey),
+						"Fix modelConfigKey, or create the model config in LaunchDarkly.",
+					), err).WithResource(canonical[index].ID())
+				}
+				return nil, err
 			}
 			modelConfigs[id] = modelConfig
 		}
@@ -53,7 +60,7 @@ func canonicalizeLocalVariationModels(
 			}
 			continue
 		}
-		if modelName, ok := variation.Model["modelName"]; ok && modelName != "" &&
+		if modelName, _ := variation.Model["modelName"].(string); modelName != "" &&
 			modelName != modelConfig.ID && modelName != modelConfig.Key &&
 			!serverHoldsModelName(server[canonical[index].ID()], variation.ModelConfigKey, modelName) {
 			return nil, syncdomain.NewProblem(
@@ -79,12 +86,12 @@ func canonicalizeLocalVariationModels(
 // store a name that is not the model config's id, and an unchanged name is not
 // refused. A name held under another model config is checked, because the file
 // switched model configs and kept the old name.
-func serverHoldsModelName(server ServerResource, modelConfigKey string, modelName any) bool {
+func serverHoldsModelName(server ServerResource, modelConfigKey, modelName string) bool {
 	if server.Variation == nil || server.Variation.ModelConfigKey != modelConfigKey {
 		return false
 	}
-	held, isText := server.Variation.Model["modelName"].(string)
-	return isText && held == modelName
+	held, _ := server.Variation.Model["modelName"].(string)
+	return held == modelName
 }
 
 // variationForLocalFile converts a LaunchDarkly variation to the form of the
