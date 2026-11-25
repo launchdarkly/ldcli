@@ -733,6 +733,34 @@ func TestPromptAcceptsInSyncModelNameThatLaunchDarklyHolds(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Switching only modelConfigKey keeps the old model name in the file. The
+// name LaunchDarkly holds belongs to the old model config, so it is checked
+// against the new one and refused.
+func TestPromptRejectsModelNameKeptFromTheOldModelConfig(t *testing.T) {
+	root := initRepository(t)
+	withConfig := func(key string) syncdomain.Variation {
+		v := variation("Baseline")
+		v.ModelConfigKey = key
+		v.Model = map[string]any{"modelName": "gpt-4o", "parameters": map[string]any{}, "custom": map[string]any{}}
+		return v
+	}
+	writeVariation(t, root, withConfig("Anthropic.claude-haiku-4-5"), true)
+	writeManifest(t, root, withConfig("OpenAI.gpt-4o"))
+	api := &directAPI{
+		variation: pointer(withConfig("OpenAI.gpt-4o")),
+		modelConfigs: []syncapi.ModelConfig{
+			{Key: "Anthropic.claude-haiku-4-5", ID: "claude-haiku-4-5"},
+			{Key: "OpenAI.gpt-4o", ID: "gpt-4o"},
+		},
+	}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `model "gpt-4o" does not match model config "Anthropic.claude-haiku-4-5", whose model is "claude-haiku-4-5".`)
+	assert.Zero(t, countRequests(api.requests, http.MethodPatch, "/variations/default"), "nothing is pushed: %v", api.requests)
+}
+
 // A new variation may name the model config key as its model.
 func TestPromptAcceptsNewModelNameThatIsTheModelConfigKey(t *testing.T) {
 	root := initRepository(t)

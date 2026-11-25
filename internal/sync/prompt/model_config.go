@@ -54,7 +54,7 @@ func canonicalizeLocalVariationModels(
 		}
 		if modelName, ok := variation.Model["modelName"]; ok && modelName != "" &&
 			modelName != modelConfig.ID && modelName != modelConfig.Key &&
-			!serverHoldsModelName(server[canonical[index].ID()], modelName) {
+			!serverHoldsModelName(server[canonical[index].ID()], variation.ModelConfigKey, modelName) {
 			return nil, fmt.Errorf(
 				"%s: model %q does not match model config %q, whose model is %q. Use that name, or remove modelName.",
 				canonical[index].ID().Label(), modelName, variation.ModelConfigKey, modelConfig.ID,
@@ -73,10 +73,12 @@ func canonicalizeLocalVariationModels(
 }
 
 // serverHoldsModelName reports whether LaunchDarkly already holds modelName
-// for the variation. Some LaunchDarkly UI paths store a name that is not the
-// model config's id, and an unchanged name is not refused.
-func serverHoldsModelName(server ServerResource, modelName any) bool {
-	if server.Variation == nil {
+// for the variation under the same model config. Some LaunchDarkly UI paths
+// store a name that is not the model config's id, and an unchanged name is not
+// refused. A name held under another model config is checked, because the file
+// switched model configs and kept the old name.
+func serverHoldsModelName(server ServerResource, modelConfigKey string, modelName any) bool {
+	if server.Variation == nil || server.Variation.ModelConfigKey != modelConfigKey {
 		return false
 	}
 	held, isText := server.Variation.Model["modelName"].(string)
