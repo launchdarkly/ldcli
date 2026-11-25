@@ -115,6 +115,13 @@ func compileDescriptor(
 		return SourceDefinition{}, err
 	}
 	primary, err := readSource(reference.File)
+	if problem, ok := syncdomain.ProblemFrom(err); ok && problem.Code == syncdomain.ErrorLinkedSourceMissing {
+		return SourceDefinition{}, syncdomain.NewProblem(
+			syncdomain.ErrorLinkedSourceMissing,
+			fmt.Sprintf("source file does not exist (descriptor %s)", descriptorPath),
+			"Restore the file, link the "+string(id.Kind)+" to another file, or run "+detachCommand(id)+".",
+		).WithResource(id).WithFile(reference.File, 0, 0)
+	}
 	if err != nil {
 		return SourceDefinition{}, err
 	}
@@ -202,4 +209,17 @@ func sortedDependencyPaths(bundle syncadapter.SourceBundle) []string {
 	paths := slices.Collect(maps.Keys(bundle.Dependencies))
 	slices.Sort(paths)
 	return paths
+}
+
+// detachCommand returns the full detach command of one resource, which
+// works with --no-input.
+func detachCommand(id syncdomain.ResourceID) string {
+	if id.Kind == syncdomain.KindVariation {
+		configKey, variationKey, _ := id.VariationKeys()
+		return fmt.Sprintf(
+			"ldcli sync prompts detach --project %s --config-key %s --key %s",
+			id.ProjectKey, configKey, variationKey,
+		)
+	}
+	return fmt.Sprintf("ldcli sync %ss detach --project %s --key %s", id.Kind, id.ProjectKey, id.LookupKey)
 }
