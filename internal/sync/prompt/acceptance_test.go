@@ -275,6 +275,14 @@ func (api *directAPI) MakeRequest(
 		variations := []directAPIVariation{}
 		if api.variation != nil {
 			served := *api.variation
+			// LaunchDarkly returns empty lists for a variation without
+			// tools or skills.
+			if served.Tools == nil {
+				served.Tools = []syncdomain.AttachmentRef{}
+			}
+			if served.Skills == nil {
+				served.Skills = []syncdomain.AttachmentRef{}
+			}
 			if api.expandTools && len(served.Tools) != 0 {
 				served.Model = api.expandedModel(served)
 			}
@@ -4688,6 +4696,130 @@ func linkUpsertedAgent(t *testing.T) (string, *directAPI, string) {
 		Yes: true,
 	})
 	require.NoError(t, err)
+	writeLookupToolFile(t, root)
+	api.directions["variation:support/default"] = syncdomain.SyncDirectionCodeCanonical
+	return root, api, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+}
+
+// After link --upsert creates a variation, attaching a tool in the repository
+// is a change made only in the repository. The plan says the repository
+// changed it, and does not claim that a LaunchDarkly change is replaced.
+func TestPushAfterLinkUpsertDoesNotClaimALaunchDarklyChange(t *testing.T) {
+	root, api, descriptor := linkUpsertedAgent(t)
+	listLookupInDescriptor(t, descriptor)
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "push   production/support/default   tools changed")
+	assert.NotContains(t, stdout, "the LaunchDarkly change is replaced")
+}
+
+// Right after link --upsert creates the config and the variation, the
+// repository and LaunchDarkly agree, so a dry run has nothing to do.
+func TestDryRunAfterLinkUpsertIsInSync(t *testing.T) {
+	root, api, _ := linkUpsertedAgent(t)
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "plaintext")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "No changes")
+}
+
+// linkExistingAgent links agents.py to the variation production/support/default
+// that LaunchDarkly already has with the tools of serverTools, gives the
+// repository the tool "lookup", and then lists the tool in the descriptor,
+// which is a change made only in the repository. It returns the repository
+// root and the API.
+func linkExistingAgent(t *testing.T, serverTools []syncdomain.AttachmentRef) (string, *directAPI) {
+	t.Helper()
+	root := initRepository(t)
+	source := []byte("from agents import Agent\nsupport = Agent(instructions=\"Local instructions.\")\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agents.py"), source, 0o644))
+	description := "Get the status of an order."
+	api := &directAPI{
+		variation: &syncdomain.Variation{
+			Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Default", Instructions: "Local instructions.",
+			Tools: serverTools, Skills: []syncdomain.AttachmentRef{},
+		},
+		tools: map[string]versionedTool{"lookup": {Tool: syncdomain.Tool{
+			Key: "lookup", Description: &description, Schema: map[string]any{"type": "object"},
+		}, Version: 1}},
+	}
+	_, _, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[id="support"]`, Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+	writeLookupToolFile(t, root)
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	listLookupInDescriptor(t, descriptor)
+	return root, api
+}
+
+// A tools list added only in the descriptor of a linked variation is a
+// repository change. Under the default direction it plans as a push, not as
+// a conflict.
+func TestToolsAddedToALinkedDescriptorPlanAPush(t *testing.T) {
+	root, api := linkExistingAgent(t, []syncdomain.AttachmentRef{})
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, `"action": "update_server"`)
+	assert.NotContains(t, stdout, `"action": "conflict"`)
+}
+
+// A tools list added to the descriptor that LaunchDarkly already has is
+// recorded in the lock, so a later change made only in LaunchDarkly is pulled,
+// not pushed over.
+func TestToolsAddedToALinkedDescriptorAreRecordedWhenLaunchDarklyHasThem(t *testing.T) {
+	root, api := linkExistingAgent(t, []syncdomain.AttachmentRef{{Key: "lookup", Version: 1}})
+	_, _, err := runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+
+	api.variation.Tools = []syncdomain.AttachmentRef{}
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, `"action": "update_local"`)
+	assert.NotContains(t, stdout, `"action": "update_server"`)
+}
+
+// A link that rebinds a stale descriptor which also newly lists the tools
+// that LaunchDarkly has records them in the lock, so the next dry run is in
+// sync.
+func TestRelinkOfADescriptorWithNewlyListedToolsRecordsThem(t *testing.T) {
+	root, api := linkExistingAgent(t, []syncdomain.AttachmentRef{{Key: "lookup", Version: 1}})
+	descriptor := filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+	content, err := os.ReadFile(descriptor)
+	require.NoError(t, err)
+	edited := strings.Replace(string(content), `agents[id="support"]`, `agents[0]`, 1)
+	require.NotEqual(t, string(content), edited)
+	require.NoError(t, os.WriteFile(descriptor, []byte(edited), 0o644))
+	_, _, err = runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: syncdomain.VariationID("production", "support", "default"), File: "agents.py", Format: "python",
+			Select: `agents[0]`, Map: map[string]string{"prompt": "instructions"},
+		},
+		Yes: true,
+	})
+	require.NoError(t, err)
+
+	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"variation support/default in_sync"}, planRows(t, stdout), stdout)
+}
+
+// writeLookupToolFile gives the repository the tool "lookup".
+func writeLookupToolFile(t *testing.T, root string) {
+	t.Helper()
 	toolFile := filepath.Join(root, ".launchdarkly", "production", "tools", "lookup.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(toolFile), 0o755))
 	require.NoError(t, os.WriteFile(toolFile, []byte(`{
@@ -4697,8 +4829,16 @@ func linkUpsertedAgent(t *testing.T) (string, *directAPI, string) {
   "schema": {"type": "object"}
 }
 `), 0o644))
-	api.directions["variation:support/default"] = syncdomain.SyncDirectionCodeCanonical
-	return root, api, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml")
+}
+
+// listLookupInDescriptor lists the tool "lookup" in a variation descriptor.
+func listLookupInDescriptor(t *testing.T, descriptor string) {
+	t.Helper()
+	file, err := os.OpenFile(descriptor, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+	_, err = file.WriteString("tools:\n  - key: lookup\n")
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
 }
 
 // attach works on a variation linked to a repository source: it lists the
