@@ -206,7 +206,13 @@ func plaintextMessage(err error) string {
 			continue
 		}
 		if problem, ok := apiProblem(leaf); ok {
-			lines = append(lines, problem.Error())
+			// The API message often ends in a period already, and Error adds
+			// one before the suggestion.
+			line := *problem
+			if line.Suggestion != "" {
+				line.Message = strings.TrimSuffix(line.Message, ".")
+			}
+			lines = append(lines, line.Error())
 			continue
 		}
 		lines = append(lines, leaf.Error())
