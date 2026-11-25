@@ -93,7 +93,13 @@
           "HasBody":true,
           "RequiresBody":true,
           "Path":"/api/v2/teams/{teamKey}",
-          "SupportsSemanticPatch":false
+          "SupportsSemanticPatch":false,
+          "Examples":[
+            {
+              "Summary":"\"\"",
+              "Data":"\"{\\n  \\\"comment\\\": \\\"Optional comment about the update\\\",\\n  \\\"instructions\\\": [\\n    {\\n      \\\"kind\\\": \\\"updateDescription\\\",\\n      \\\"value\\\": \\\"New description for the team\\\"\\n    }\\n  ]\\n}\""
+            }
+          ]
         },
         "postTeam":{
           "Short":"\"Create team\"",
@@ -112,7 +118,13 @@
           "HasBody":true,
           "RequiresBody":true,
           "Path":"/api/v2/teams",
-          "SupportsSemanticPatch":false
+          "SupportsSemanticPatch":false,
+          "Examples":[
+            {
+              "Summary":"\"\"",
+              "Data":"\"{\\n  \\\"customRoleKeys\\\": [\\n    \\\"example-role1\\\",\\n    \\\"example-role2\\\"\\n  ],\\n  \\\"description\\\": \\\"An example team\\\",\\n  \\\"key\\\": \\\"team-key-123abc\\\",\\n  \\\"memberIDs\\\": [\\n    \\\"12ab3c45de678910fgh12345\\\"\\n  ],\\n  \\\"name\\\": \\\"Example team\\\"\\n}\""
+            }
+          ]
         }
       }
     },
@@ -127,11 +139,21 @@
           "Use":"create-entry",
           "Params":[],
           "HTTPMethod":"POST",
-          "HasBody":false,
+          "HasBody":true,
           "IsBeta":true,
-          "RequiresBody":false,
+          "RequiresBody":true,
           "Path":"/api/v2/account/ip-allowlist",
-          "SupportsSemanticPatch":false
+          "SupportsSemanticPatch":false,
+          "Examples":[
+            {
+              "Summary":"\"Allow a CIDR range\"",
+              "Data":"\"{\\n  \\\"description\\\": \\\"VPN\\\",\\n  \\\"ipAddress\\\": \\\"198.51.100.0/24\\\"\\n}\""
+            },
+            {
+              "Summary":"\"Allow one address\"",
+              "Data":"\"{\\n  \\\"description\\\": \\\"Office\\\",\\n  \\\"ipAddress\\\": \\\"203.0.113.7\\\"\\n}\""
+            }
+          ]
         },
         "getIpAllowlist":{
           "Short":"\"Get IP Allowlist\"",
