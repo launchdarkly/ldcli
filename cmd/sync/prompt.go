@@ -2,7 +2,9 @@ package sync
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -137,6 +139,9 @@ func runCommand(client resources.Client, scope syncdomain.Scope, buildAction act
 // error can join several problems, so the output then lists every one of them.
 func syncCommandOutputError(err error, outputKind string) error {
 	problems := syncdomain.ProblemsFrom(err)
+	if len(problems) == 0 {
+		problems = apiProblems(err)
+	}
 	var report any
 	switch {
 	case len(problems) == 0:
@@ -200,9 +205,63 @@ func plaintextMessage(err error) string {
 			lines = append(lines, plaintextProblem(problem).Error())
 			continue
 		}
+		if problem, ok := apiProblem(leaf); ok {
+			// The API message often ends in a period already, and Error adds
+			// one before the suggestion.
+			line := *problem
+			if line.Suggestion != "" {
+				line.Message = strings.TrimSuffix(line.Message, ".")
+			}
+			lines = append(lines, line.Error())
+			continue
+		}
 		lines = append(lines, leaf.Error())
 	}
 	return strings.Join(lines, "\n")
+}
+
+// apiProblems returns a problem for each leaf error that holds a LaunchDarkly
+// response body under a prefix. The output cannot read such an error as JSON,
+// so it prints the message of the body instead. An error that is only a body
+// gets no problem, because the output already reads it.
+func apiProblems(err error) []*syncdomain.Problem {
+	if json.Valid([]byte(err.Error())) {
+		return nil
+	}
+	var problems []*syncdomain.Problem
+	for _, leaf := range leafErrors(err) {
+		if problem, ok := apiProblem(leaf); ok {
+			problems = append(problems, problem)
+		}
+	}
+	return problems
+}
+
+// apiProblem replaces the LaunchDarkly response body in the text of err with
+// the message of the body. A 409 tells the user to run sync again, in place of
+// the generic suggestion the client adds.
+func apiProblem(err error) (*syncdomain.Problem, bool) {
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		var response struct {
+			Code       string `json:"code"`
+			Message    string `json:"message"`
+			Suggestion string `json:"suggestion"`
+			StatusCode int    `json:"statusCode"`
+		}
+		body := current.Error()
+		if json.Unmarshal([]byte(body), &response) != nil || response.Message == "" {
+			continue
+		}
+		suggestion := response.Suggestion
+		if response.StatusCode == http.StatusConflict {
+			suggestion = "LaunchDarkly was changing this config at the same time. Run sync again."
+		}
+		message := strings.Replace(err.Error(), body, response.Message, 1)
+		problem := syncdomain.NewProblem(syncdomain.ErrorCode(response.Code), message, suggestion)
+		problem.Cause = err
+		return problem, true
+	}
+	return nil, false
 }
 
 // leafErrors returns the errors of a tree that wrap nothing else. A plan

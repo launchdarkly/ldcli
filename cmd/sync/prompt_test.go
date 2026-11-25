@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 )
@@ -358,4 +360,26 @@ func TestSyncJoinedPlaintextNamesEachLocation(t *testing.T) {
 	assert.NotContains(t, report.Message, "agents.py:4:12", "JSON keeps the location in its own fields")
 	require.Len(t, report.Problems, 1)
 	assert.Equal(t, 4, report.Problems[0].Line)
+}
+
+// Two writes that LaunchDarkly rejects with 409 in one run list one line each,
+// with the API message and the sync hint and no doubled period between them.
+func TestSyncJoinedPlaintextConflictsHaveOnePeriodBeforeTheHint(t *testing.T) {
+	conflict := func() error {
+		return lderrors.NewError(
+			`{"code":"conflict","message":"AI Config in conflicted state. Try again.","statusCode":409,` +
+				`"suggestion":"` + lderrors.SuggestionForStatus(http.StatusConflict, "") + `"}`,
+		)
+	}
+	joined := errors.Join(
+		fmt.Errorf("variation p/c/a: update variation %q: %w", "a", conflict()),
+		fmt.Errorf("variation p/c/b: update variation %q: %w", "b", conflict()),
+	)
+
+	message := syncCommandOutputError(joined, "plaintext").Error()
+
+	assert.NotContains(t, message, "..")
+	hint := "AI Config in conflicted state. Try again. LaunchDarkly was changing this config at the same time. Run sync again."
+	assert.Contains(t, message, `variation p/c/a: update variation "a": `+hint)
+	assert.Contains(t, message, `variation p/c/b: update variation "b": `+hint)
 }
