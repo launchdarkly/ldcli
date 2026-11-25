@@ -3205,6 +3205,10 @@ type multiDirectAPI struct {
 	failKey    string
 	manifest   *syncapi.SyncManifest
 	requests   []string
+	// directions and patterns answer the sync settings read as they do on
+	// directAPI. A resource without a direction is owned by both sides.
+	directions map[string]syncdomain.SyncDirection
+	patterns   map[string]string
 }
 
 func (api *multiDirectAPI) MakeRequest(
@@ -3221,16 +3225,21 @@ func (api *multiDirectAPI) MakeRequest(
 		return handleManifestRequest(api.manifest, method, query, body)
 	}
 	if strings.HasSuffix(path, "/configs/sync/settings") {
-		// No resource matches a rule, and a claim succeeds.
+		// A claim succeeds.
 		if method != http.MethodGet {
 			return nil, nil
 		}
 		items := make([]map[string]any, 0, len(query["resources"]))
 		for _, resource := range query["resources"] {
 			kind, lookupKey, _ := strings.Cut(resource, ":")
-			items = append(items, map[string]any{
-				"resourceKind": kind, "resourceLookupKey": lookupKey, "direction": syncdomain.SyncDirectionBoth,
-			})
+			item := map[string]any{
+				"resourceKind": kind, "resourceLookupKey": lookupKey,
+				"direction": cmp.Or(api.directions[resource], syncdomain.SyncDirectionBoth),
+			}
+			if pattern := api.patterns[resource]; pattern != "" {
+				item["matchedResourcePattern"] = pattern
+			}
+			items = append(items, item)
 		}
 		return json.Marshal(map[string]any{"items": items})
 	}
