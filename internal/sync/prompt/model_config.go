@@ -39,6 +39,9 @@ func canonicalizeLocalVariationModels(
 	for index := range canonical {
 		variation := &canonical[index].Variation
 		if variation.ModelConfigKey == "" {
+			if emptyModelNameRefused(*variation, server[canonical[index].ID()], "") {
+				return nil, emptyModelNameProblem(canonical[index].ID())
+			}
 			continue
 		}
 
@@ -64,6 +67,9 @@ func canonicalizeLocalVariationModels(
 			return nil, noModelConfigVersionProblem(variation.ModelConfigKey, pinned, modelConfig.Version, resourceID)
 		}
 
+		if emptyModelNameRefused(*variation, server[resourceID], modelConfig.ID) {
+			return nil, emptyModelNameProblem(resourceID)
+		}
 		modelName, _ := variation.Model["modelName"].(string)
 		if modelName != "" && modelName != variation.ModelConfigKey &&
 			!serverHoldsModelName(server[resourceID], variation.ModelConfigKey, modelName) {
@@ -163,4 +169,24 @@ func variationForLocalFile(server syncdomain.Variation, localFile, canonicalLoca
 		server.Model = nil
 	}
 	return server
+}
+
+// emptyModelNameRefused reports whether the file sets modelName to an empty
+// string that names no model. A name LaunchDarkly already holds for the
+// variation under the same model config is in sync and is not refused, and
+// neither is the empty id of a model config that has none.
+func emptyModelNameRefused(variation syncdomain.Variation, server ServerResource, modelConfigID string) bool {
+	name, set := variation.Model["modelName"]
+	if !set || name != "" || (variation.ModelConfigKey != "" && modelConfigID == "") {
+		return false
+	}
+	return !serverHoldsModelName(server, variation.ModelConfigKey, "")
+}
+
+func emptyModelNameProblem(id ResourceID) error {
+	return syncdomain.NewProblem(
+		syncdomain.ErrorInvalidSource,
+		"model.modelName is empty",
+		"Set it to the model config's name, or remove modelName.",
+	).WithResource(id)
 }
