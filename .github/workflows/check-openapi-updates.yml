@@ -9,7 +9,7 @@ jobs:
   check-open-api-spec-updates:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check OpenAPI updates
         run: make openapi-spec-check-updates
   on-failure:
@@ -18,7 +18,7 @@ jobs:
     needs:
       - check-open-api-spec-updates
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Send Slack notification
         uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2
         env:
