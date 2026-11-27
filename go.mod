@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.9
 	github.com/blacktop/go-dwarf v1.1.0
-	github.com/blacktop/go-macho v1.1.295
+	github.com/blacktop/go-macho v1.1.296
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v1.0.0
