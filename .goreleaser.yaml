@@ -65,6 +65,15 @@ builds:
         - cmd: ./scripts/check-go-toolchain.sh "{{ .Path }}"
           output: true
 
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      # winget installs archives only from zip files. The npm package downloads
+      # the tar.gz file (goBinary.url in package.json), so Windows gets both
+      # formats.
+      - goos: windows
+        formats: [tar.gz, zip]
+
 dockers:
   # AMD64
   - image_templates:
