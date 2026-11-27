@@ -34,6 +34,7 @@ const (
 	ErrorSourceShared                ErrorCode = "source_shared"
 	ErrorOverlappingEdits            ErrorCode = "overlapping_edits"
 	ErrorResourceDeleted             ErrorCode = "resource_deleted_in_launchdarkly"
+	ErrorVariationArchived           ErrorCode = "variation_archived"
 	ErrorPlaceholderAmbiguous        ErrorCode = "placeholder_translation_ambiguous"
 	ErrorImportUnresolved            ErrorCode = "import_unresolved"
 	// ErrorMultipleProblems reports several problems at once. The message

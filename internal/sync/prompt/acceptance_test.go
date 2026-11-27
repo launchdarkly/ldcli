@@ -2259,6 +2259,77 @@ func TestLinkWithoutUpsertNamesTheMissingConfig(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"), "a blocked link writes no descriptor")
 }
 
+// A link with --upsert to a key that is archived in LaunchDarkly is refused
+// before any write. It does not try to create a variation with that key, and
+// it does not restore the archived variation.
+func TestLinkUpsertRefusesAnArchivedVariation(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	api := &directAPI{variation: pointer(variation("Archived")), variationState: "archived"}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	output, notes, err := runScoped(t, root, api, syncprompt.Options{
+		Scope: syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{
+			ID: id, File: "prompt.md", Format: "markdown", Upsert: true,
+		},
+		Yes: true,
+	})
+
+	assert.ErrorContains(t, err, "variation production/support/default: this variation is archived in LaunchDarkly")
+	assert.ErrorContains(t, err, "Restore it in LaunchDarkly, or use a different variation key.")
+	assert.Zero(t, countRequests(api.requests, "POST", "/variations"), "no variation is created")
+	assert.Zero(t, countRequests(api.requests, "POST", "/ai-configs"), "no config is created")
+	assert.Equal(t, "archived", api.variationState, "the archived variation is not restored")
+	assert.NotContains(t, notes, "Linked")
+	assert.NotContains(t, output, "Linked")
+	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"), "a refused link writes no descriptor")
+}
+
+// A plain sync of a managed .prompt.md with upsert: true whose key is
+// archived in LaunchDarkly is refused before any write. The suggestion fits
+// this flow, which has no --key flag.
+func TestPromptUpsertRefusesAnArchivedVariation(t *testing.T) {
+	root := initRepository(t)
+	local := variation("New")
+	writeVariation(t, root, local, true)
+	api := &directAPI{variation: pointer(variation("Archived")), variationState: "archived"}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "variation production/support/default: this variation is archived in LaunchDarkly")
+	assert.Contains(t, err.Error(), "Restore it in LaunchDarkly, or use a different variation key.")
+	assert.NotContains(t, err.Error(), "--key")
+	requireOnlyReads(t, api.requests)
+	assert.Equal(t, "archived", api.variationState, "the archived variation is not restored")
+}
+
+// When the apply after a link fails, the descriptor is put back and the
+// link is not reported as done.
+func TestLinkWhoseVariationWriteFailsDoesNotReportLinked(t *testing.T) {
+	root := initRepository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Local instructions.\n"), 0o644))
+	api := &directAPI{
+		variation:         pointer(variation("Server")),
+		directions:        map[string]syncdomain.SyncDirection{"variation:support/default": syncdomain.SyncDirectionCodeCanonical},
+		variationWriteErr: errors.New(`{"code":"internal_server_error","message":"write failed","statusCode":500}`),
+	}
+	id := syncdomain.VariationID("production", "support", "default")
+
+	output, notes, err := runScoped(t, root, api, syncprompt.Options{
+		Scope:  syncdomain.ScopePrompts,
+		Action: syncprompt.SourceLinkAction{ID: id, File: "prompt.md", Format: "markdown"},
+		Yes:    true,
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, 1, countRequests(api.requests, "PATCH", "/ai-configs/support/variations/default"), "the variation write is tried")
+	assert.NotContains(t, notes, "Linked")
+	assert.NotContains(t, output, "Linked")
+	assert.NoFileExists(t, filepath.Join(root, ".launchdarkly", "production", "configs", "support", "default.ref.yaml"), "the descriptor is rolled back")
+}
+
 // A link of a tool with --upsert creates the tool that LaunchDarkly does not
 // have, through the same publish as a managed tool file with upsert.
 func TestLinkUpsertCreatesAMissingTool(t *testing.T) {

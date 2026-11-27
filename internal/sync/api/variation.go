@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
@@ -14,6 +15,9 @@ type VariationState struct {
 	Variation  syncdomain.Variation
 	Exists     bool
 	ConfigMode syncdomain.VariationMode
+	// Archived is true when the variation is archived in LaunchDarkly. An
+	// archived variation does not exist, but a create cannot reuse its key.
+	Archived bool
 }
 
 type createVariationRequest struct {
@@ -49,7 +53,7 @@ func (client Client) ReadVariation(projectKey, configKey, variationKey string) (
 	if err != nil {
 		return VariationState{}, err
 	}
-	state := VariationState{ConfigMode: config.Mode}
+	state := VariationState{ConfigMode: config.Mode, Archived: slices.Contains(config.ArchivedVariationKeys, variationKey)}
 	for _, variation := range config.Variations {
 		if variation.Key == variationKey {
 			state.Variation, state.Exists = variation, true
