@@ -75,6 +75,7 @@ func (store Store) prepareSourceReplacements(replacements []SourceReplacement) (
 	// link, so every map here is keyed by the resolved path of the file.
 	before := newSourceSnapshot(store.repositoryRoot)
 	edits := make(map[string][]syncadapter.TextEdit)
+	owners := make(map[string][]SourceReplacement)
 	for _, replacement := range replacements {
 		bundle, err := before.bundle(replacement.Reference)
 		if err != nil {
@@ -90,12 +91,16 @@ func (store Store) prepareSourceReplacements(replacements []SourceReplacement) (
 				return nil, err
 			}
 			edits[key] = append(edits[key], edit)
+			owners[key] = append(owners[key], replacement)
 		}
 	}
 
 	updated := make(map[string]syncadapter.Document, len(edits))
 	for key, fileEdits := range edits {
 		document := before.documents[key]
+		if err := sharedEditProblem(document.Path, fileEdits, owners[key]); err != nil {
+			return nil, err
+		}
 		data, err := applySourceEdits(document.Path, document.Data, fileEdits)
 		if err != nil {
 			return nil, err
@@ -106,7 +111,7 @@ func (store Store) prepareSourceReplacements(replacements []SourceReplacement) (
 	if err := verifyTargetProjections(after, replacements); err != nil {
 		return nil, err
 	}
-	if err := store.verifyOtherBindings(before, after, updated, replacements); err != nil {
+	if err := store.verifyOtherBindings(before, after, updated, owners, replacements); err != nil {
 		return nil, err
 	}
 
@@ -295,6 +300,7 @@ func withSortedRelationships(projection syncdomain.Projection) syncdomain.Projec
 func (store Store) verifyOtherBindings(
 	before, after *sourceSnapshot,
 	updated map[string]syncadapter.Document,
+	owners map[string][]SourceReplacement,
 	replacements []SourceReplacement,
 ) error {
 	targets := make(map[syncdomain.ResourceID]struct{}, len(replacements))
@@ -318,39 +324,95 @@ func (store Store) verifyOtherBindings(
 		if !touches {
 			continue
 		}
+		key, err := before.key(shared)
+		if err != nil {
+			continue
+		}
 		previous, err := syncadapter.ParseSource(bundle, binding.id, binding.reference)
 		if err != nil {
 			continue
 		}
 		bundle, err = after.bundle(binding.reference)
 		if err != nil {
-			return sharedSourceProblem(binding, shared)
+			return sharedSourceProblem(changedBy(owners[key], binding), binding.id, binding.reference, shared)
 		}
 		next, err := syncadapter.ParseSource(bundle, binding.id, binding.reference)
 		if err != nil || !sameProjection(binding.id, previous, next) {
-			return sharedSourceProblem(binding, shared)
+			return sharedSourceProblem(changedBy(owners[key], binding), binding.id, binding.reference, shared)
 		}
 	}
 	return nil
 }
 
-// sharedSourceProblem explains that another variation reads the edited file
-// named shared, directly or through an import, so the edit would change that
-// variation too.
-func sharedSourceProblem(binding sourceBinding, shared string) error {
-	selected := binding.reference.File
-	if binding.reference.Select != "" {
-		selected = binding.reference.Select + " in " + selected
+// changedBy returns the target that reads the same value as binding, or else
+// the first target that edited the shared file. editors holds the targets
+// that edited that file, so a binding that reads it through an import is
+// matched to the target that changed it.
+func changedBy(editors []SourceReplacement, binding sourceBinding) syncdomain.ResourceID {
+	for _, replacement := range editors {
+		if replacement.Reference.File == binding.reference.File && replacement.Reference.Select == binding.reference.Select {
+			return replacement.ID
+		}
 	}
-	source := selected
-	if shared != binding.reference.File {
-		source = shared + " through " + selected
+	return editors[0].ID
+}
+
+// sharedEditProblem refuses edits of two different resources that overlap in
+// one file, because both resources read that value. owners holds the
+// replacement of each edit, in the order of edits.
+func sharedEditProblem(file string, edits []syncadapter.TextEdit, owners []SourceReplacement) error {
+	for left := range edits {
+		for right := left + 1; right < len(edits); right++ {
+			if owners[left].ID == owners[right].ID {
+				continue
+			}
+			a, b := edits[left], edits[right]
+			if a.Start < b.End && b.Start < a.End || a.Start == b.Start {
+				return sharedPullProblem(owners[left].ID, owners[right].ID, owners[right].Reference, file)
+			}
+		}
+	}
+	return nil
+}
+
+// sharedPullProblem explains that two pulls write one value. Both plan rows
+// show this message, so it names the two resources side by side and neither
+// row reads as sharing with itself.
+func sharedPullProblem(first, second syncdomain.ResourceID, reference Reference, shared string) error {
+	names := first.Label() + " and " + second.Label()
+	if first.Kind == second.Kind {
+		names = string(first.Kind) + "s " + first.String() + " and " + second.String()
 	}
 	return syncdomain.NewProblem(
 		syncdomain.ErrorSourceShared,
-		fmt.Sprintf("%s also reads %s, so this change would change it too", binding.id.Label(), source),
-		"Give each variation its own source, such as its own constant, or give both variations the same owner.",
+		fmt.Sprintf("%s both read %s, so sync can't pull into it", names, sharedSourceText(reference, shared)),
+		"Give each variation its own value, such as its own constant.",
 	).WithFile(shared, 0, 0)
+}
+
+// sharedSourceProblem explains that other also reads the edited file named
+// shared, directly or through an import, so the change to the variation
+// changed would change other too.
+func sharedSourceProblem(changed, other syncdomain.ResourceID, reference Reference, shared string) error {
+	source := sharedSourceText(reference, shared)
+	return syncdomain.NewProblem(
+		syncdomain.ErrorSourceShared,
+		fmt.Sprintf("%s also reads %s, so this change would change it too", other.Label(), source),
+		fmt.Sprintf("Give %s and the other variation each its own value, such as its own constant.", changed.Label()),
+	).WithFile(shared, 0, 0)
+}
+
+// sharedSourceText names the value that reference selects, and the edited
+// file shared when reference reads it through an import.
+func sharedSourceText(reference Reference, shared string) string {
+	selected := reference.File
+	if reference.Select != "" {
+		selected = reference.Select + " in " + selected
+	}
+	if shared != reference.File {
+		return shared + " through " + selected
+	}
+	return selected
 }
 
 // touchedFile returns the first file, in read order, that a bundle reads and

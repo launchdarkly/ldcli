@@ -879,7 +879,8 @@ func TestExecutePlanFailsEveryRowOfAGroupWhenOneMemberDoesNotVerify(t *testing.T
 
 // A pull of one variation and a push of another, both reading one constant,
 // is refused at plan time. The refusal of the pull names the shared source,
-// the other variation, and how to split them, though the push is in the run.
+// the other variation, and suggests giving each its own value, though the
+// push is in the run.
 func TestPlanRefusesAPullThatSharesASourceWithAPushAndSaysHowToSplitThem(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
@@ -938,8 +939,8 @@ func TestPlanRefusesAPullThatSharesASourceWithAPushAndSaysHowToSplitThem(t *test
 	assert.Contains(t, message, "agents/support_agent.py")
 	assert.Contains(t, message, `constants[id="AGENT"]`)
 	assert.Contains(t, message, resources[push].ID.Label())
-	assert.Contains(t, message, "own constant")
-	assert.Contains(t, message, "same owner")
+	assert.Contains(t, message, "its own")
+	assert.NotContains(t, message, "same owner")
 }
 
 // notFoundAPI answers every read with a 404.

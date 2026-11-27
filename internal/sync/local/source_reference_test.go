@@ -139,9 +139,10 @@ func TestReplaceSourcesKeepsBindingsOfAnEditedDependency(t *testing.T) {
 
 // Two variations that select one constant share a source. When LaunchDarkly
 // owns one and code owns the other, a pull of the first would change the
-// second, so the check refuses it. The refusal names the shared source and
-// the other variation, and says how to give them separate sources or one
-// owner, instead of calling the other variation a non-target projection.
+// second, so the check refuses it. The refusal names both variations and the
+// shared value, and suggests giving each variation its own value. It does not
+// suggest giving both the same owner, because two owned pulls into one value
+// are refused too.
 func TestCheckSourcesNamesASharedSourceAndHowToSplitIt(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "agents/support_agent.py",
@@ -165,14 +166,10 @@ func TestCheckSourcesNamesASharedSourceAndHowToSplitIt(t *testing.T) {
 	assert.NotContains(t, message, "non-target projection")
 	assert.Contains(t, message, `agents/support_agent.py`)
 	assert.Contains(t, message, `constants[id="AGENT"]`)
-	assert.Contains(t, message, pushed.Label())
-	assert.Contains(t, message, "own constant", "the message suggests giving each variation its own constant")
-	assert.Contains(t, message, "same owner", "the message suggests giving both variations the same owner")
-	assert.Equal(t,
-		`variation project/code-owned/default also reads constants[id="AGENT"] in agents/support_agent.py, `+
-			`so this change would change it too. `+
-			`Give each variation its own source, such as its own constant, or give both variations the same owner.`,
-		message)
+	assert.Contains(t, message, pulled.Label(), "the message names the variation being changed")
+	assert.Contains(t, message, pushed.Label(), "the message names the other variation that reads the value")
+	assert.Contains(t, message, "its own", "the message suggests giving each variation its own value")
+	assert.NotContains(t, message, "same owner", "the same owner does not help: two owned pulls into one value are refused too")
 	problem, ok := syncdomain.ProblemFrom(err)
 	require.True(t, ok, "the refusal is a sync problem, as the other sync refusals are")
 	assert.Equal(t, "agents/support_agent.py", problem.File)
@@ -206,6 +203,47 @@ func TestCheckSourcesNamesTheEditedDependencyOfAnotherVariation(t *testing.T) {
 	assert.Equal(t, "app/prompts.py", problem.File)
 	assert.Equal(t, "variation project/support/importing also reads app/prompts.py through agents[id=\"agent\"] in app/agent.py, "+
 		"so this change would change it too", problem.Message)
+}
+
+// When the other variation reads the edited file through an import, the
+// suggestion names the variation whose edit changed that file, not the first
+// variation of the group.
+func TestCheckSourcesSuggestionNamesTheVariationThatEditedTheDependency(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "app/agent.py", "from agents import Agent\nfrom .prompts import PROMPT\nagent = Agent(instructions=PROMPT, model=\"gpt-5\")\n")
+	writeTestFile(t, root, "app/prompts.py", "PROMPT = \"Original\"\n")
+	writeTestFile(t, root, "app/other.py", "OTHER = \"Original\"\n")
+	importing := syncdomain.VariationID("project", "support", "importing")
+	writeDescriptorForTest(t, root, importing, Reference{
+		File: "app/agent.py", Format: "python", Select: `agents[id="agent"]`, Map: map[string]string{"prompt": "instructions"},
+	})
+	unrelated := syncdomain.VariationID("project", "support", "unrelated")
+	unrelatedReference := Reference{
+		File: "app/other.py", Format: "python", Select: `constants[id="OTHER"]`, Map: map[string]string{"prompt": "$"},
+	}
+	writeDescriptorForTest(t, root, unrelated, unrelatedReference)
+	edited := syncdomain.VariationID("project", "support", "edited")
+	editedReference := Reference{
+		File: "app/prompts.py", Format: "python", Select: `constants[id="PROMPT"]`, Map: map[string]string{"prompt": "$"},
+	}
+	writeDescriptorForTest(t, root, edited, editedReference)
+
+	err := NewStore(root).CheckSources([]SourceReplacement{
+		{
+			ID: unrelated, Reference: unrelatedReference,
+			Projection: syncdomain.VariationProjection{Mode: syncdomain.VariationModeAgent, Instructions: stringPointer("Other")},
+		},
+		{
+			ID: edited, Reference: editedReference,
+			Projection: syncdomain.VariationProjection{Mode: syncdomain.VariationModeAgent, Instructions: stringPointer("Updated")},
+		},
+	})
+
+	require.Error(t, err)
+	problem, ok := syncdomain.ProblemFrom(err)
+	require.True(t, ok)
+	assert.Contains(t, problem.Suggestion, edited.Label())
+	assert.NotContains(t, problem.Suggestion, unrelated.Label())
 }
 
 func TestWriteDescriptorCreatesUpdatesAndKeepsIdenticalContent(t *testing.T) {

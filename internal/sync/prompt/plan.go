@@ -795,15 +795,21 @@ func (plan Plan) HasChanges() bool {
 
 // BlockingError returns one error for each conflict or invalid resource, in
 // plan order. A plan row shows only the first clause of an error, so this
-// error carries the full message of every row.
+// error carries the full message of every row. A problem that covers several
+// rows appears once.
 func (plan Plan) BlockingError() error {
 	var blocking []error
+	reported := map[*syncdomain.Problem]struct{}{}
 	for _, resource := range plan.Resources {
 		switch resource.Action {
 		case ActionConflict:
 			blocking = append(blocking, fmt.Errorf("cannot sync conflicted resource %s", resource.ID.Label()))
 		case ActionError:
 			if resource.Problem != nil {
+				if _, ok := reported[resource.Problem]; ok {
+					continue
+				}
+				reported[resource.Problem] = struct{}{}
 				blocking = append(blocking, fmt.Errorf("cannot sync %s: %w", resource.ID.Label(), resource.Problem))
 			} else {
 				blocking = append(blocking, fmt.Errorf("cannot sync %s: %s", resource.ID.Label(), resource.Error))
